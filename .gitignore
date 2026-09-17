@@ -1,0 +1,34 @@
+# secrets
+.env
+.env.local
+*.key
+serviceAccountKey.json
+
+# python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# node
+node_modules/
+dist/
+build/
+.vite/
+
+# android
+*.iml
+.gradle/
+local.properties
+app/build/
+.idea/
+
+# hardhat
+artifacts/
+cache/
+typechain-types/
+
+# os / editor
+.DS_Store
+.vscode/
