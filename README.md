@@ -41,6 +41,8 @@ AGENTS.md       instructions every AI agent reads (CLAUDE.md imports it)
 
 ## Getting started
 
+New to the repo? Follow [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) step by step. Short version:
+
 ```bash
 git clone https://github.com/CS3-Agentic-Lender/agentic-lender.git
 cd agentic-lender
@@ -48,8 +50,6 @@ cp .env.example .env
 ```
 
 Fill in `.env` with your own keys. Keys are personal: everyone makes their own Groq and Gemini accounts and their own testnet wallet.
-
-**Windows:** the skills in `.claude/skills/` are symlinks. Enable Developer Mode, then clone with `git clone -c core.symlinks=true ...`, otherwise Claude Code won't find the skills.
 
 Per-subsystem setup lands in each folder's own README as the code arrives.
 

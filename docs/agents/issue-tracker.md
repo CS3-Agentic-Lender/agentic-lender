@@ -2,7 +2,7 @@
 
 Issues and specs for this repo live in Jira, space `AL` on https://alprojectcs3.atlassian.net (cloudId `dac36108-4e6e-4fa6-93ce-26b9ce88b6f4`). Use the Atlassian MCP tools for all operations.
 
-If the Atlassian tools are unavailable, stop and ask the user to connect the Atlassian Rovo MCP server (`https://mcp.atlassian.com/v1/mcp/authv2`). Work lives only in Jira; GitHub Issues are not used.
+If the Atlassian tools are unavailable, stop and ask the user to connect the Atlassian Rovo MCP server (`https://mcp.atlassian.com/v2/mcp`; Claude Code picks it up from `.mcp.json`). Work lives only in Jira; GitHub Issues are not used.
 
 ## Structure
 
