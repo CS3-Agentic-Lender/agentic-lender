@@ -54,7 +54,7 @@ Conventions:
 - Branch: `feature/AL-<jira-id>-short-description`
 - Commit: `AL-12 add valuation endpoint`
 - PR title: `AL-12 Add valuation endpoint`
-- Exactly one ticket key per branch, commit and PR title, or the Jira flows move the wrong ticket
+- Exactly one ticket key per branch, commit, PR title and PR description, or the Jira flows move the wrong ticket
 - Secrets live in `.env` (gitignored). Every key name is listed in `.env.example`.
 
 ## 4. Develop code
