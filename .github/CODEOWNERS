@@ -1,8 +1,7 @@
 # PRs auto-request review from the owner of each directory.
-# TODO: add Dumi's GitHub handle to al-core and al-ai once he joins the org.
 *            @NicGroenewald
 /al-mobile/  @ibratx
 /al-web/     @NikolozChilachava
-/al-core/    @NicGroenewald
+/al-core/    @solomon-bit76
 /al-ai/      @NicGroenewald
-/docs/       @NicGroenewald @ibratx @NikolozChilachava
+/docs/       @NicGroenewald @ibratx @NikolozChilachava @solomon-bit76
