@@ -46,7 +46,7 @@ Confluence page templates: Meeting Notes, Sprint Backlog, Retrospective, Use Cas
 | Jira (Scrum, space `AL`) | Product backlog, 3 sprints of 3 weeks. Epic = brief feature, Story = user story, subsystem as label | Done |
 | GitHub for Atlassian | Branches, commits and PRs containing `AL-xx` link to Jira tickets | Done |
 | Jira flows | Branch created → In Progress, PR opened → In Review, PR merged → Done (matched on the `AL-xx` key; a story with open subtasks isn't moved to Done) | Done |
-| Secret scanning | Team-wide pre-commit scanning (evaluating betterleaks) | TBD |
+| Secret scanning | betterleaks: `.githooks/pre-commit` on every commit, `Secret scan` GitHub Action on every PR | Done |
 
 Why a monorepo: one history, one CI setup, one link for the supervisor.
 

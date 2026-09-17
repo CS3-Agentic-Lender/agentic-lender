@@ -80,7 +80,24 @@ Start Codex. It should open a browser to log in. If it doesn't, run `codex mcp l
 
 ## 5. Secret scanning
 
-Coming soon. We are setting up [betterleaks](https://github.com/betterleaks/betterleaks) so every commit is checked for leaked keys (Jira AL-52). Until then, check your changes before committing and never commit `.env`.
+[betterleaks](https://github.com/betterleaks/betterleaks) checks every commit for leaked keys. The repo is public, so this step is required.
+
+**Install it:**
+
+- **Mac:** `brew install betterleaks`
+- **Windows:** download `betterleaks_<version>_windows_x64.zip` from the [releases page](https://github.com/betterleaks/betterleaks/releases), unzip it, and add the folder to your `PATH`.
+
+**Turn on the hook** (once, inside the `agentic-lender` folder):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+**Check:** `betterleaks version` prints a version number, and `git config core.hooksPath` prints `.githooks`.
+
+From now on, `git commit` is blocked if betterleaks finds a secret, or if betterleaks isn't installed. Every PR is also scanned in GitHub Actions, so a skipped hook still gets caught before merge.
+
+If it flags something that isn't a secret, ask in the team chat before working around it.
 
 ## 6. Your part of the codebase
 

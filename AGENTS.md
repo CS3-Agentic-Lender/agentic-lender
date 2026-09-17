@@ -114,3 +114,4 @@ The repo is public, so a committed key is scraped within minutes.
 
 - Keys live in `.env`, which is gitignored. When you add a key to `.env`, add its name with an empty value to `.env.example`.
 - Keys are personal (Groq, Gemini, wallet private keys). Testnet wallets only.
+- betterleaks scans every commit (`.githooks/pre-commit`) and every PR (`.github/workflows/secret-scan.yml`). Never bypass it with `--no-verify`. If it flags something, stop and show the user the finding.

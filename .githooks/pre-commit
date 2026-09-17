@@ -1,0 +1,11 @@
+#!/bin/sh
+# Blocks the commit if betterleaks finds a secret in the staged changes.
+# Enable once per clone: git config core.hooksPath .githooks
+
+if ! command -v betterleaks >/dev/null 2>&1; then
+  echo "betterleaks is not installed, so this commit was blocked." >&2
+  echo "Install it (see DEVELOPER_SETUP.md, step 5) and commit again." >&2
+  exit 1
+fi
+
+exec betterleaks git --pre-commit --redact --staged --verbose
