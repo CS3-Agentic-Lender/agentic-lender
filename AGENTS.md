@@ -29,6 +29,20 @@ Board: https://alprojectcs3.atlassian.net, space key `AL`, 3 sprints of 3 weeks.
 
 Label every item with its subsystem: `mobile`, `web`, `core`, `ai`, `docs`. Items tagged `draft-backlog` are the first-pass backlog and still under review.
 
+## Agent skills
+
+### Issue tracker
+
+Jira space `AL`, accessed through the Atlassian MCP tools. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+`needs-triage`, `blocked`, `ready-agent-assisted`, `ready-for-human`, `wontfix`; bugs are a Jira work type. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
 ## Workflow
 
 - One Jira story or task per branch: `feature/AL-<jira-id>-short-description`.
