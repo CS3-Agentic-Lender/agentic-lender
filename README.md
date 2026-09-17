@@ -19,9 +19,9 @@ The core stack comes from the project brief. Items marked TBD are decided during
 
 | Subsystem | Frameworks and tools |
 |---|---|
-| `al-mobile` | Android Studio, Kotlin |
-| `al-web` | React, React Router, Tailwind CSS |
-| `al-core` | Database and auth (TBD, the brief suggests Firebase Firestore/Auth), Solidity, Hardhat, Ethers.js / Web3.py, EVM testnet (Polygon Amoy or Arbitrum Sepolia, TBD) |
+| `al-mobile` | Android Studio, Kotlin, Firebase Auth |
+| `al-web` | React, React Router, Tailwind CSS, Firebase Auth |
+| `al-core` | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py, EVM testnet (Polygon Amoy or Arbitrum Sepolia, TBD) |
 | `al-ai` | Python, Flask, scikit-learn, agent framework (CrewAI, AutoGen or LangGraph, TBD), Ollama for local LLMs plus two cloud LLM APIs (Groq, Gemini) |
 | Payments | Stripe Sandbox |
 | Tooling | GitHub, Jira, GitHub for Atlassian |

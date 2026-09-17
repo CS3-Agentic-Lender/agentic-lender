@@ -79,11 +79,11 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | Firebase Auth emulator | (same) | 9099 |
 | Firestore emulator | (same) | 8080 |
 | Hardhat node | `npx hardhat node` | 8545 |
-| al-ai (Flask) | TBD | 5001 (5000 is taken by AirPlay on macOS) |
+| al-ai (Flask) | TBD | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
 | Ollama | `ollama serve` | 11434 |
 | al-web (Vite) | `npm run dev` | 5173 |
 
-- A project ID starting with `demo-` makes Firebase run fully offline: no real project, no service account.
+- The `demo-` prefix marks a demo project: no real Firebase project, login or service account is needed, and nothing can reach production resources.
 - The emulators need Java 11+ and `firebase-tools` (`npm install -g firebase-tools`).
 - The Android emulator reaches the host machine at `10.0.2.2`, not `localhost`.
 - Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator` on Android).
