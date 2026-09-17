@@ -62,7 +62,7 @@ The core stack for each subsystem comes from the brief. The local setup around i
 |---|---|---|
 | al-mobile | Android Studio, Kotlin | TBD |
 | al-web | React, React Router, Tailwind | TBD |
-| al-core | Firebase (Firestore, Auth), Solidity, Hardhat | TBD |
+| al-core | Database and auth (TBD, the brief suggests Firebase), Solidity, Hardhat | TBD |
 | al-ai | Python, Flask, scikit-learn, agent framework (CrewAI / AutoGen / LangGraph) | TBD |
 
 Options under consideration: Docker Compose to run the Hardhat node and Flask service together, and Ollama for the local LLM the brief requires.
@@ -84,7 +84,7 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 
 | Subsystem | Options under consideration | Status |
 |---|---|---|
-| al-web | Firebase Hosting | TBD |
+| al-web | TBD (e.g. Firebase Hosting if Firebase is chosen) | TBD |
 | al-ai | Render, Fly.io | TBD |
 | al-core contracts | Local Hardhat node, Polygon Amoy or Arbitrum Sepolia testnet | TBD |
 | al-mobile | APK built as a GitHub Actions artifact | TBD |
@@ -95,3 +95,4 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 - Local dev setup per subsystem (section 4)
 - Deployment targets (section 6)
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
+- Database and auth provider for al-core
