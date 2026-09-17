@@ -132,5 +132,6 @@ Secret scanning for the whole team is being set up (evaluating [betterleaks](htt
 
 ## Docs
 
+- [Team guide: how we work](https://alprojectcs3.atlassian.net/wiki/spaces/AL/pages/720898/Team+guide+how+we+work) (Confluence): how the team works day to day, in plain English
 - [docs/infrastructure.md](docs/infrastructure.md): tools for communicate, document, manage code, develop, test and deploy
 - [docs/agents/](docs/agents/): agent skill config
