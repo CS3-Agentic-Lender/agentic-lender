@@ -11,7 +11,7 @@ Status key: **Done** / **Planned** / **TBD**
 | Ibrahima Toure Ba | al-mobile (Android, Kotlin) | @ibratx |
 | Nikoloz Chilachava | al-web (React, Tailwind) | @NikolozChilachava |
 | Nicholas Groenewald | al-ai (AI engine) | @NicGroenewald |
-| Solomon (Dumi) Sosanya | al-core (database + blockchain) | TBD |
+| Solomon (Dumi) Sosanya | al-core (database + blockchain) | @solomon-bit76 |
 
 Every external service has two admins so no single person blocks the team.
 
