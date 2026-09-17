@@ -74,8 +74,11 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/age
 
 ## Workflow
 
-- One Jira story or task per branch: `feature/AL-<jira-id>-short-description`.
-- Every commit message opens with the ticket id: `AL-12 add valuation endpoint`.
+- Every piece of work starts from a Jira ticket. If there isn't one, stop and ask the user which ticket to use, or create one (see `docs/agents/issue-tracker.md`). Never make up a key and never work without one.
+- One ticket per branch: `feature/AL-<jira-id>-short-description`, where `<jira-id>` is the ticket being worked on.
+- Every commit message opens with that key: `AL-12 add valuation endpoint`.
+- Every PR title opens with that key: `AL-12 Add valuation endpoint`.
+- Jira flows move tickets automatically based on the key in the branch name, commit messages and PR title: branch created → In Progress, PR opened → In Review, PR merged → Done. So those three places contain **only** the key of the ticket being worked on. Mention related tickets in the PR description instead.
 - `main` is protected: changes land through a PR with one approval.
 - Individual contribution is 25% of the grade, so keep each commit to one person's work and one ticket. That keeps who-did-what readable from the history.
 
