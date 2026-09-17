@@ -32,3 +32,6 @@ typechain-types/
 # os / editor
 .DS_Store
 .vscode/
+
+# module material, not ours to publish
+PROJECT GUIDELINES/
