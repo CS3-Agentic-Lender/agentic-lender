@@ -105,4 +105,6 @@ Setup for each part (Android, React, Flask, Hardhat) will be added to its folder
 
 ## How we work
 
-See [README.md](README.md) for the team, the tech stack, Jira labels, and the branch and PR rules.
+Read the [team guide on Confluence](https://alprojectcs3.atlassian.net/wiki/spaces/AL/pages/720898/Team+guide+how+we+work) once you are set up. It explains the tools, who owns what, how tickets and branches work, and the rules agents follow.
+
+[README.md](README.md) has the same rules in short: the team, the tech stack, Jira labels, and the branch and PR rules.
