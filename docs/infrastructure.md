@@ -44,7 +44,7 @@ Confluence page templates: Meeting Notes, Sprint Backlog, Retrospective, Use Cas
 | Branch ruleset on `main` | PR required, 1 approval, no direct pushes | Planned |
 | `CODEOWNERS` | Auto-requests review from the directory owner | Done |
 | Jira (Scrum, space `AL`) | Product backlog, 3 sprints of 3 weeks. Epic = brief feature, Story = user story, subsystem as label | Done |
-| Jira + GitHub integration | Commits and PRs link to tickets | TBD |
+| GitHub for Atlassian | Branches, commits and PRs containing `AL-xx` link to Jira tickets | Done |
 | gitleaks | Secret scanning before commits | Done (local hook) |
 
 Why a monorepo: one history, one CI setup, one link for the supervisor.
