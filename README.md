@@ -127,7 +127,7 @@ The repo is public, so a committed key is scraped within minutes.
 - When you add a key, add its name with an empty value to `.env.example`.
 - Only use testnet wallets.
 
-Secret scanning for the whole team is being set up (evaluating [betterleaks](https://github.com/betterleaks/betterleaks)).
+Every commit is scanned by [betterleaks](https://github.com/betterleaks/betterleaks): locally by the `.githooks/pre-commit` hook, and on every PR by the `Secret scan` GitHub Action. Setup is in [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md#5-secret-scanning).
 
 ## Docs
 
