@@ -8,7 +8,8 @@ Demo: Monday 4 January 2027.
 
 | Area | Who | Owns |
 |---|---|---|
-| Backend | Nic + Dumi | `al-core/` (database + blockchain), `al-ai/` (ML + agents) |
+| Core (database + blockchain) | Dumi | `al-core/` Firebase, Solidity contracts, Hardhat |
+| AI engine | Nic | `al-ai/` valuation model, agent committee, LLMs |
 | Frontend (web) | Nikoloz | `al-web/` broker and underwriter portal |
 | Frontend (mobile) | Ibrahima | `al-mobile/` borrower Android app |
 
@@ -18,9 +19,9 @@ The core stack comes from the project brief. Items marked TBD are decided during
 
 | Subsystem | Frameworks and tools |
 |---|---|
-| `al-mobile` | Android Studio, Kotlin |
-| `al-web` | React, React Router, Tailwind CSS |
-| `al-core` | Database and auth (TBD, the brief suggests Firebase Firestore/Auth), Solidity, Hardhat, Ethers.js / Web3.py, EVM testnet (Polygon Amoy or Arbitrum Sepolia, TBD) |
+| `al-mobile` | Android Studio, Kotlin, Firebase Auth |
+| `al-web` | React, React Router, Tailwind CSS, Firebase Auth |
+| `al-core` | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py, EVM testnet (Polygon Amoy or Arbitrum Sepolia, TBD) |
 | `al-ai` | Python, Flask, scikit-learn, agent framework (CrewAI, AutoGen or LangGraph, TBD), Ollama for local LLMs plus two cloud LLM APIs (Groq, Gemini) |
 | Payments | Stripe Sandbox |
 | Tooling | GitHub, Jira, GitHub for Atlassian |
@@ -131,5 +132,6 @@ Secret scanning for the whole team is being set up (evaluating [betterleaks](htt
 
 ## Docs
 
+- [Team guide: how we work](https://alprojectcs3.atlassian.net/wiki/spaces/AL/pages/720898/Team+guide+how+we+work) (Confluence): how the team works day to day, in plain English
 - [docs/infrastructure.md](docs/infrastructure.md): tools for communicate, document, manage code, develop, test and deploy
 - [docs/agents/](docs/agents/): agent skill config
