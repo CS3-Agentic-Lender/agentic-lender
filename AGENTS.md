@@ -41,6 +41,8 @@ Label every item with its subsystem: `mobile`, `web`, `core`, `ai`, `docs`. Item
 
 Assign by subsystem label: `mobile` → Ibrahima (Jira: dosantos2945), `web` → Nikoloz, `core` → Dumi (Jira: solomondunmi1), `ai` → Nic. A story with both a client label (`mobile`/`web`) and a backend label (`core`/`ai`) goes to the client owner, and its backend work gets its own Subtask assigned to the backend owner.
 
+Nic and Dumi keep their backend ticket counts roughly even, so some `core` tickets are assigned to Nic and some `ai` tickets to Dumi. Either of them can pass a ticket to the other: reassign it in Jira and add a comment saying why, so the history shows who did what.
+
 ## Agent skills
 
 ### Skill folders
