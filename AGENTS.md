@@ -78,7 +78,9 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/age
 
 Jira flows read the `AL-<number>` key out of the branch name, the commit messages and the PR title, and move that ticket: branch created → In Progress, PR opened → In Review, PR merged → Done.
 
-So each of those three carries **exactly one** key, and it is the key of the ticket being worked on. A second key anywhere in them transitions a ticket nobody touched. Related tickets are named in the PR body, which no flow reads.
+The PR **description** counts too: GitHub for Atlassian links a ticket to a PR from any `AL-` key it finds there, and the flow then transitions that ticket on merge. This already closed AL-53 by accident because PR #2 named it as the next ticket.
+
+So the branch name, every commit message, the PR title and the PR body together carry **exactly one** key: the ticket being worked on. Anywhere else, name the other ticket in words ("the Firebase emulator setup"), never as `AL-53`, and link the two tickets in Jira instead.
 
 Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 
@@ -100,7 +102,7 @@ A commit that fixes a review comment keeps the same key; never renumber mid-bran
 
 ### Opening the PR
 
-- Base `main`. Write the body with the `pr` skill: what changed, evidence it works, and merge risk. Related ticket keys go here, not in the title.
+- Base `main`. Write the body with the `pr` skill: what changed, evidence it works, and merge risk. No other ticket's key in it.
 - `main` is protected: one approval from a teammate, and the `Secret scan` check green, before merge.
 - Never `git push` to `main`, never force-push a shared branch, never `--no-verify`.
 
