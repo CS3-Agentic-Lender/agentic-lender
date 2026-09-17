@@ -26,10 +26,19 @@ Board: https://alprojectcs3.atlassian.net, space key `AL`, 3 sprints of 3 weeks.
 | Story | One user story ("As a ... I ...") | Wireframe + test case |
 | Subtask | One person's technical piece of a story | Implementation |
 | Task | Non-feature work (CI, retros, Week 3 docs) | - |
+| Bug | A fault found in testing | Fault report |
 
 Label every item with its subsystem: `mobile`, `web`, `core`, `ai`, `docs`. Items tagged `draft-backlog` are the first-pass backlog and still under review.
 
 ## Agent skills
+
+### Skill folders
+
+Claude Code loads skills from `.claude/skills/`; Codex and other agents load them from `.agents/skills/`. The real files live in `.agents/skills/<name>/`, and `.claude/skills/<name>` is a relative symlink to it (`ln -s ../../.agents/skills/<name> .claude/skills/<name>`). When you add, remove or rename a skill, do it in both folders so they always list the same skills.
+
+### UI work
+
+For any screen or component, on web or mobile, load `ui-ux-pro-max` first. It is the single source for design tokens (colour, type, spacing), so the portal and the Android app look like one product. [21st.dev](https://21st.dev) React + Tailwind components are an optional extra for `al-web`; restyle them with the shared tokens.
 
 ### Issue tracker
 
@@ -56,4 +65,3 @@ The repo is public, so a committed key is scraped within minutes.
 
 - Keys live in `.env`, which is gitignored. When you add a key to `.env`, add its name with an empty value to `.env.example`.
 - Keys are personal (Groq, Gemini, wallet private keys). Testnet wallets only.
-- Run `gitleaks git --staged` before committing.
