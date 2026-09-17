@@ -11,7 +11,7 @@ Status key: **Done** / **Planned** / **TBD**
 | Ibrahima Toure Ba | al-mobile (Android, Kotlin) | @ibratx |
 | Nikoloz Chilachava | al-web (React, Tailwind) | @NikolozChilachava |
 | Nicholas Groenewald | al-core + al-ai (backend) | @NicGroenewald |
-| Solomon Sosanya | al-core + al-ai (backend) | TBD |
+| Solomon (Dumi) Sosanya | al-core + al-ai (backend) | TBD |
 
 Every external service has two admins so no single person blocks the team.
 
@@ -32,7 +32,7 @@ Meeting notes go in Confluence. Each has a Decisions section and an Actions sect
 | Confluence | Meeting notes, sprint backlogs, retros, use cases | TBD |
 | `docs/` in repo | Technical docs that live next to the code | Done |
 | Figma | Mock-ups and per-story wireframes | TBD |
-| `CLAUDE.md` | Shared project context for AI coding assistants | Done |
+| `AGENTS.md` (+ `CLAUDE.md` import) | Shared project context for Codex and Claude Code | Done |
 
 Confluence page templates: Meeting Notes, Sprint Backlog, Retrospective, Use Case.
 
