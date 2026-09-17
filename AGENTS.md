@@ -74,13 +74,39 @@ Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/age
 
 ## Workflow
 
-- Every piece of work starts from a Jira ticket. If there isn't one, stop and ask the user which ticket to use, or create one (see `docs/agents/issue-tracker.md`). Never make up a key and never work without one.
-- One ticket per branch: `feature/AL-<jira-id>-short-description`, where `<jira-id>` is the ticket being worked on.
-- Every commit message opens with that key: `AL-12 add valuation endpoint`.
-- Every PR title opens with that key: `AL-12 Add valuation endpoint`.
-- Jira flows move tickets automatically based on the key in the branch name, commit messages and PR title: branch created → In Progress, PR opened → In Review, PR merged → Done. So those three places contain **only** the key of the ticket being worked on. Mention related tickets in the PR description instead.
-- `main` is protected: changes land through a PR with one approval.
-- Individual contribution is 25% of the grade, so keep each commit to one person's work and one ticket. That keeps who-did-what readable from the history.
+### The ticket key rules everything
+
+Jira flows read the `AL-<number>` key out of the branch name, the commit messages and the PR title, and move that ticket: branch created → In Progress, PR opened → In Review, PR merged → Done.
+
+So each of those three carries **exactly one** key, and it is the key of the ticket being worked on. A second key anywhere in them transitions a ticket nobody touched. Related tickets are named in the PR body, which no flow reads.
+
+Work on a Subtask uses the **Subtask's** key, not its parent Story's.
+
+### Before starting
+
+1. Get the ticket key from the user, or find it in Jira. No ticket, no work: stop and ask which ticket to use, or create one (`docs/agents/issue-tracker.md`). Never invent a key.
+2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
+3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
+
+### Formats
+
+| Thing | Format | Example |
+|---|---|---|
+| Branch | `feature/AL-<number>-short-description`, lowercase, hyphens, no other key | `feature/AL-54-firebase-auth` |
+| Commit subject | `AL-<number> <imperative summary>`, lowercase after the key, no full stop | `AL-54 add google sign-in provider` |
+| PR title | `AL-<number> <Sentence case summary>` | `AL-54 Add Google sign-in provider` |
+
+A commit that fixes a review comment keeps the same key; never renumber mid-branch. `chore/`, `fix/` and bare branch names are not used: every branch is `feature/AL-…`, whatever the work type.
+
+### Opening the PR
+
+- Base `main`. Write the body with the `pr` skill: what changed, evidence it works, and merge risk. Related ticket keys go here, not in the title.
+- `main` is protected: one approval from a teammate, and the `Secret scan` check green, before merge.
+- Never `git push` to `main`, never force-push a shared branch, never `--no-verify`.
+
+### One person, one ticket, one commit
+
+Individual contribution is 25% of the grade and is read from the git history. Keep each commit to one person's work on one ticket. If a change belongs to another owner's directory, it goes in its own PR on its own ticket so that owner reviews it.
 
 ## Secrets
 
