@@ -56,16 +56,40 @@ Conventions:
 
 ## 4. Develop code
 
-The core stack for each subsystem comes from the brief. The local setup around it is decided as the team needs it during the sprints, and this section is updated when a choice is made.
+The core stack comes from the brief's Technology Stack Summary and is fixed.
 
-| Subsystem | Core stack (from brief) | Local setup |
+| Area | Core technology (from brief) | Local setup |
 |---|---|---|
-| al-mobile | Android Studio, Kotlin | TBD |
-| al-web | React, React Router, Tailwind | TBD |
-| al-core | Database and auth (TBD, the brief suggests Firebase), Solidity, Hardhat | TBD |
-| al-ai | Python, Flask, scikit-learn, agent framework (CrewAI / AutoGen / LangGraph) | TBD |
+| al-mobile | Android Studio, Kotlin, Firebase Auth | Android emulator, pointed at the Firebase emulators |
+| al-web | React, React Router, Tailwind CSS | Vite dev server, pointed at the Firebase emulators |
+| Database + API | Firebase (Firestore, Auth), Python (Flask / FastAPI) | Firebase Emulator Suite |
+| Blockchain / ledger | Solidity, Hardhat, Ethers.js / Web3.py | `npx hardhat node` (optionally in Docker Compose) |
+| Agentic framework | CrewAI, AutoGen or LangGraph | Runs inside the al-ai Flask service |
+| Predictive ML | scikit-learn (or TensorFlow / Keras) | Trained locally, model file loaded by al-ai |
+| LLM inference | Ollama (local) + Groq / Gemini (cloud) | Ollama on laptops that can run it, see below |
+| Payments + tooling | Stripe / PayPal sandbox, GitHub, Jira | Sandbox keys in `.env` |
 
-Options under consideration: Docker Compose to run the Hardhat node and Flask service together, and Ollama for the local LLM the brief requires.
+### Local development
+
+Goal: the whole app runs on one laptop with no cloud credentials. Status: **Planned**.
+
+| Service | Command | Port |
+|---|---|---|
+| Firebase Emulator UI | `firebase emulators:start --project demo-al` | 4000 |
+| Firebase Auth emulator | (same) | 9099 |
+| Firestore emulator | (same) | 8080 |
+| Hardhat node | `npx hardhat node` | 8545 |
+| al-ai (Flask) | TBD | 5001 (5000 is taken by AirPlay on macOS) |
+| Ollama | `ollama serve` | 11434 |
+| al-web (Vite) | `npm run dev` | 5173 |
+
+- A project ID starting with `demo-` makes Firebase run fully offline: no real project, no service account.
+- The emulators need Java 11+ and `firebase-tools` (`npm install -g firebase-tools`).
+- The Android emulator reaches the host machine at `10.0.2.2`, not `localhost`.
+- Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator` on Android).
+- Seed data (one borrower, one broker, one underwriter, a few applications) is loaded with emulator import/export so everyone starts from the same state.
+
+**Ollama.** Local models need a reasonably strong machine (roughly 16 GB+ RAM for an 8B model), so only some laptops run Ollama. If yours can't, don't swap in a cloud model and don't point at someone else's machine. Comment on the Jira ticket, @mention a teammate who runs Ollama, and say exactly what to run (branch, command, expected result). They reply on the ticket with the output.
 
 ## 5. Test
 
@@ -84,7 +108,7 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 
 | Subsystem | Options under consideration | Status |
 |---|---|---|
-| al-web | TBD (e.g. Firebase Hosting if Firebase is chosen) | TBD |
+| al-web | Firebase Hosting | Planned |
 | al-ai | Render, Fly.io | TBD |
 | al-core contracts | Local Hardhat node, Polygon Amoy or Arbitrum Sepolia testnet | TBD |
 | al-mobile | APK built as a GitHub Actions artifact | TBD |
@@ -92,7 +116,7 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 ## Open decisions
 
 - Chat platform: Discord or Teams
-- Local dev setup per subsystem (section 4)
+- Local dev: al-ai run command and whether Docker Compose wraps Hardhat + Flask (section 4)
 - Deployment targets (section 6)
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
-- Database and auth provider for al-core
+- Agent framework: CrewAI, AutoGen or LangGraph

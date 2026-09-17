@@ -6,15 +6,24 @@ MTU Year 3 group project (2026/27): a prototype mortgage/HELOC origination platf
 
 | Dir | Subsystem | Stack | Owner |
 |---|---|---|---|
-| `al-mobile/` | Borrower Android app | Kotlin | Ibrahima |
-| `al-web/` | Broker + underwriter portal | React, React Router, Tailwind | Nikoloz |
-| `al-core/` | Database + blockchain | Database (TBD), Solidity, Hardhat | Nic + Dumi |
-| `al-ai/` | Property valuation ML + agent committee | Python, Flask, scikit-learn | Nic + Dumi |
+| `al-mobile/` | Borrower Android app | Android Studio, Kotlin, Firebase Auth | Ibrahima |
+| `al-web/` | Broker + underwriter portal | React, React Router, Tailwind, Firebase Auth | Nikoloz |
+| `al-core/` | Database + blockchain | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py | Nic + Dumi |
+| `al-ai/` | Property valuation ML + agent committee | Python (Flask), scikit-learn, CrewAI / AutoGen / LangGraph, Ollama + Groq / Gemini | Nic + Dumi |
 | `docs/` | Sprint docs, use cases, test cases, infra outline | Markdown | All |
 
 Stay inside the subsystem the task is about. A change that touches another owner's directory goes in its own PR so that owner reviews it.
 
-Tooling and environment choices are recorded in `docs/infrastructure.md`. Local setup and deploy targets are decided during the sprints: read that file before assuming a tool, and update it when a choice is made.
+## Tech stack
+
+The stack is fixed by the brief (`PROJECT GUIDELINES/GroupProject-Year3-2026.pdf`, gitignored). Don't swap a listed technology for an alternative (e.g. Supabase for Firebase) without a team decision recorded in `docs/infrastructure.md`.
+
+- **Database + auth:** Firebase: Cloud Firestore and Firebase Auth (email/password + Google). Mobile and web sign in directly; the Python API verifies Firebase ID tokens.
+- **Ledger:** Solidity contracts (ERC-721 loan notes, SHA-256 audit registry) on Hardhat locally, Polygon Amoy or Arbitrum Sepolia as the testnet.
+- **LLMs:** at least two cloud APIs (Groq, Gemini) plus one local model through Ollama. Only some laptops can run Ollama. On a machine that can't, never replace the Ollama call with a cloud model, mock it or skip it. Instead, add a comment to the Jira ticket that @mentions a teammate who runs Ollama and lists exactly what to run (branch, command, expected result), then wait for their reply on the ticket.
+- **Payments:** Stripe or PayPal sandbox only.
+
+Local development runs on the Firebase Emulator Suite and a local Hardhat node, so no one needs cloud credentials to work. Ports, run commands and setup live in `docs/infrastructure.md`: read it before assuming a tool, and update it when a choice is made.
 
 ## Jira
 
@@ -43,6 +52,13 @@ For any screen or component, on web or mobile, load `ui-ux-pro-max` first. It is
 ### Issue tracker
 
 Jira space `AL`, accessed through the Atlassian MCP tools. See `docs/agents/issue-tracker.md`.
+
+Before any work that reads or updates a ticket, call `atlassianUserInfo` to check the connection. If the Atlassian tools are missing, or return an auth error, stop and ask the user to log in again:
+
+- Claude Code: run `/mcp` in a terminal `claude` session, pick `atlassian`, and log in.
+- Codex: run `codex mcp login atlassian`.
+
+Don't guess what a ticket says and don't skip Jira updates because the connection is down. Wait until the user has reconnected.
 
 ### Triage labels
 
