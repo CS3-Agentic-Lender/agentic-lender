@@ -8,7 +8,8 @@ Demo: Monday 4 January 2027.
 
 | Area | Who | Owns |
 |---|---|---|
-| Backend | Nic + Dumi | `al-core/` (database + blockchain), `al-ai/` (ML + agents) |
+| Core (database + blockchain) | Dumi | `al-core/` Firebase, Solidity contracts, Hardhat |
+| AI engine | Nic | `al-ai/` valuation model, agent committee, LLMs |
 | Frontend (web) | Nikoloz | `al-web/` broker and underwriter portal |
 | Frontend (mobile) | Ibrahima | `al-mobile/` borrower Android app |
 

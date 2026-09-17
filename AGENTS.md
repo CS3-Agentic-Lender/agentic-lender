@@ -8,8 +8,8 @@ MTU Year 3 group project (2026/27): a prototype mortgage/HELOC origination platf
 |---|---|---|---|
 | `al-mobile/` | Borrower Android app | Android Studio, Kotlin, Firebase Auth | Ibrahima |
 | `al-web/` | Broker + underwriter portal | React, React Router, Tailwind, Firebase Auth | Nikoloz |
-| `al-core/` | Database + blockchain | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py | Nic + Dumi |
-| `al-ai/` | Property valuation ML + agent committee | Python (Flask), scikit-learn, CrewAI / AutoGen / LangGraph, Ollama + Groq / Gemini | Nic + Dumi |
+| `al-core/` | Database + blockchain | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py | Dumi |
+| `al-ai/` | Property valuation ML + agent committee | Python (Flask), scikit-learn, CrewAI / AutoGen / LangGraph, Ollama + Groq / Gemini | Nic |
 | `docs/` | Sprint docs, use cases, test cases, infra outline | Markdown | All |
 
 Stay inside the subsystem the task is about. A change that touches another owner's directory goes in its own PR so that owner reviews it.
@@ -38,6 +38,8 @@ Board: https://alprojectcs3.atlassian.net, space key `AL`, 3 sprints of 3 weeks.
 | Bug | A fault found in testing | Fault report |
 
 Label every item with its subsystem: `mobile`, `web`, `core`, `ai`, `docs`. Items tagged `draft-backlog` are the first-pass backlog and still under review.
+
+Assign by subsystem label: `mobile` → Ibrahima (Jira: dosantos2945), `web` → Nikoloz, `core` → Dumi (Jira: solomondunmi1), `ai` → Nic. A story with both a client label (`mobile`/`web`) and a backend label (`core`/`ai`) goes to the client owner, and its backend work gets its own Subtask assigned to the backend owner.
 
 ## Agent skills
 
