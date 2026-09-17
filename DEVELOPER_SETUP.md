@@ -2,6 +2,13 @@
 
 Follow these steps once, in order. Each step says how to check it worked.
 
+> **Want help? Let an AI agent walk you through it.**
+> Open Claude Code, Codex or another agent in an empty folder and paste:
+>
+> *"Help me set up my laptop for this project by following https://github.com/CS3-Agentic-Lender/agentic-lender/blob/main/DEVELOPER_SETUP.md step by step. I'm on [Mac / Windows / Linux]. Run the commands with me, check each step worked before moving on, and stop and explain if something fails."*
+>
+> Steps 1 (accepting invites) and 4 (logging in to Jira) need you to click things in the browser yourself. The agent can tell you what to click, but you have to do it.
+
 ## 1. Accept your invites
 
 You should get two emails:
