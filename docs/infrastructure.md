@@ -43,7 +43,7 @@ Confluence page templates: Meeting Notes, Sprint Backlog, Retrospective, Use Cas
 | GitHub org `CS3-Agentic-Lender` | One public monorepo, `agentic-lender` | Done |
 | Branch ruleset on `main` | PR required, 1 approval, no direct pushes | Planned |
 | `CODEOWNERS` | Auto-requests review from the directory owner | Done |
-| Jira (Scrum) | Product backlog, 3 sprints of 3 weeks, one epic per subsystem | TBD |
+| Jira (Scrum, space `AL`) | Product backlog, 3 sprints of 3 weeks. Epic = brief feature, Story = user story, subsystem as label | Done |
 | Jira + GitHub integration | Commits and PRs link to tickets | TBD |
 | gitleaks | Secret scanning before commits | Done (local hook) |
 

@@ -16,9 +16,22 @@ Stay inside the subsystem the task is about. A change that touches another owner
 
 Tooling and environment choices are recorded in `docs/infrastructure.md`. Local setup and deploy targets are decided during the sprints: read that file before assuming a tool, and update it when a choice is made.
 
+## Jira
+
+Board: https://alprojectcs3.atlassian.net, space key `AL`, 3 sprints of 3 weeks.
+
+| Level | Holds | Brief deliverable |
+|---|---|---|
+| Epic | One feature from the brief | Use case |
+| Story | One user story ("As a ... I ...") | Wireframe + test case |
+| Subtask | One person's technical piece of a story | Implementation |
+| Task | Non-feature work (CI, retros, Week 3 docs) | - |
+
+Label every item with its subsystem: `mobile`, `web`, `core`, `ai`, `docs`. Items tagged `draft-backlog` are the first-pass backlog and still under review.
+
 ## Workflow
 
-- One Jira ticket per branch: `feature/AL-<jira-id>-short-description`.
+- One Jira story or task per branch: `feature/AL-<jira-id>-short-description`.
 - Every commit message opens with the ticket id: `AL-12 add valuation endpoint`.
 - `main` is protected: changes land through a PR with one approval.
 - Individual contribution is 25% of the grade, so keep each commit to one person's work and one ticket. That keeps who-did-what readable from the history.
