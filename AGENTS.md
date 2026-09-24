@@ -6,7 +6,7 @@ MTU Year 3 group project (2026/27): a prototype mortgage/HELOC origination platf
 
 | Dir | Subsystem | Stack | Owner |
 |---|---|---|---|
-| `al-mobile/` | Borrower Android app | Android Studio, Kotlin, Firebase Auth | Ibrahima |
+| `al-mobile/` | Borrower iOS app | Xcode, Swift, SwiftUI, Firebase Auth | Ibrahima |
 | `al-web/` | Broker + underwriter portal | React, React Router, Tailwind, Firebase Auth | Nikoloz |
 | `al-core/` | Database + blockchain | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py | Dumi |
 | `al-ai/` | Property valuation ML + agent committee | Python (Flask), scikit-learn, CrewAI / AutoGen / LangGraph, Ollama + Groq / Gemini | Nic |
@@ -51,7 +51,7 @@ Claude Code loads skills from `.claude/skills/`; Codex and other agents load the
 
 ### UI work
 
-For any screen or component, on web or mobile, load `ui-ux-pro-max` first. It is the single source for design tokens (colour, type, spacing), so the portal and the Android app look like one product. [21st.dev](https://21st.dev) React + Tailwind components are an optional extra for `al-web`; restyle them with the shared tokens.
+For any screen or component, on web or mobile, load `ui-ux-pro-max` first. It is the single source for design tokens (colour, type, spacing), so the portal and the iOS app look like one product. [21st.dev](https://21st.dev) React + Tailwind components are an optional extra for `al-web`; restyle them with the shared tokens.
 
 ### Issue tracker
 

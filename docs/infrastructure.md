@@ -8,7 +8,7 @@ Status key: **Done** / **Planned** / **TBD**
 
 | Member | Subsystem | GitHub |
 |---|---|---|
-| Ibrahima Toure Ba | al-mobile (Android, Kotlin) | @ibratx |
+| Ibrahima Toure Ba | al-mobile (iOS, Swift) | @ibratx |
 | Nikoloz Chilachava | al-web (React, Tailwind) | @NikolozChilachava |
 | Nicholas Groenewald | al-ai (AI engine) | @NicGroenewald |
 | Solomon (Dumi) Sosanya | al-core (database + blockchain) | @solomon-bit76 |
@@ -59,11 +59,13 @@ Conventions:
 
 ## 4. Develop code
 
-The core stack comes from the brief's Technology Stack Summary and is fixed.
+The core stack comes from the brief's Technology Stack Summary and is fixed, except where a team decision below changes it.
+
+**Decision (24 Sep 2026): the borrower app is iOS, not Android.** The brief lists Android Studio and Kotlin; the team swapped to Xcode, Swift and SwiftUI, which Ibrahima builds on his Mac. Firebase Auth and Firestore are unchanged. Raised with the supervisor at the 24 Sep meeting.
 
 | Area | Core technology (from brief) | Local setup |
 |---|---|---|
-| al-mobile | Android Studio, Kotlin, Firebase Auth | Android emulator, pointed at the Firebase emulators |
+| al-mobile | Xcode, Swift, SwiftUI, Firebase Auth (team decision, see above) | iOS Simulator, pointed at the Firebase emulators |
 | al-web | React, React Router, Tailwind CSS | Vite dev server, pointed at the Firebase emulators |
 | Database + API | Firebase (Firestore, Auth), Python (Flask / FastAPI) | Firebase Emulator Suite |
 | Blockchain / ledger | Solidity, Hardhat, Ethers.js / Web3.py | `npx hardhat node` (optionally in Docker Compose) |
@@ -88,8 +90,8 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 
 - The `demo-` prefix marks a demo project: no real Firebase project, login or service account is needed, and nothing can reach production resources.
 - The emulators need Java 11+ and `firebase-tools` (`npm install -g firebase-tools`).
-- The Android emulator reaches the host machine at `10.0.2.2`, not `localhost`.
-- Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator` on Android).
+- The iOS Simulator shares the Mac's network, so it reaches the emulators at `localhost`.
+- Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator(withHost:port:)` on iOS).
 - Seed data (one borrower, one broker, one underwriter, a few applications) is loaded with emulator import/export so everyone starts from the same state.
 
 **Ollama.** Local models need a reasonably strong machine (roughly 16 GB+ RAM for an 8B model), so only some laptops run Ollama. If yours can't, don't swap in a cloud model and don't point at someone else's machine. Comment on the Jira ticket, @mention a teammate who runs Ollama, and say exactly what to run (branch, command, expected result). They reply on the ticket with the output.
@@ -98,7 +100,7 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 
 | Subsystem | Framework | Status |
 |---|---|---|
-| al-mobile | JUnit | Planned |
+| al-mobile | XCTest | Planned |
 | al-web | Vitest | Planned |
 | al-core | Hardhat test (Mocha/Chai) | Planned |
 | al-ai | pytest | Planned |
@@ -114,7 +116,7 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 | al-web | Firebase Hosting | Planned |
 | al-ai | Render, Fly.io | TBD |
 | al-core contracts | Local Hardhat node, Polygon Amoy or Arbitrum Sepolia testnet | TBD |
-| al-mobile | APK built as a GitHub Actions artifact | TBD |
+| al-mobile | iOS Simulator build for the demo; TestFlight needs a paid Apple Developer account | TBD |
 
 ## Open decisions
 
