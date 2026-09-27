@@ -101,7 +101,7 @@ If it flags something that isn't a secret, ask in the team chat before working a
 
 ## 6. Your part of the codebase
 
-Setup for each part (mobile app, React, Flask, Hardhat) will be added to its folder's README as the code arrives.
+Setup for each part (mobile app, React, FastAPI, Hardhat) will be added to its folder's README as the code arrives.
 
 ## How we work
 
