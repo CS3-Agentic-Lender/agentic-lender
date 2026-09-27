@@ -11,7 +11,7 @@ Demo: Monday 4 January 2027.
 | Core (database + blockchain) | Dumi | `al-core/` Firebase, Solidity contracts, Hardhat |
 | AI engine | Nic | `al-ai/` valuation model, agent committee, LLMs |
 | Frontend (web) | Nikoloz | `al-web/` broker and underwriter portal |
-| Frontend (mobile) | Ibrahima | `al-mobile/` borrower iOS app |
+| Frontend (mobile) | Ibrahima | `al-mobile/` borrower app (iOS or Android) |
 
 ## Tech stack
 
@@ -19,7 +19,7 @@ The core stack comes from the project brief. Items marked TBD are decided during
 
 | Subsystem | Frameworks and tools |
 |---|---|
-| `al-mobile` | Xcode, Swift, SwiftUI, Firebase Auth |
+| `al-mobile` | iOS (Xcode, Swift, SwiftUI) or Android (Android Studio, Kotlin), Ibrahima's choice; Firebase Auth |
 | `al-web` | React, React Router, Tailwind CSS, Firebase Auth |
 | `al-core` | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py, EVM testnet (Polygon Amoy or Arbitrum Sepolia, TBD) |
 | `al-ai` | Python, Flask, scikit-learn, agent framework (CrewAI, AutoGen or LangGraph, TBD), Ollama for local LLMs plus two cloud LLM APIs (Groq, Gemini) |
@@ -29,7 +29,7 @@ The core stack comes from the project brief. Items marked TBD are decided during
 ## Repo layout
 
 ```
-al-mobile/      iOS app (Swift, SwiftUI)
+al-mobile/      mobile app (iOS or Android)
 al-web/         React portal
 al-core/        database + smart contracts
 al-ai/          Flask service: valuation model + agent committee
@@ -116,7 +116,7 @@ The issue-tracker skills (`/to-spec`, `/to-tickets`, `/triage`, `/wayfinder`) wo
 
 ### Frontend: ui-ux-pro-max
 
-`ui-ux-pro-max` is **the main skill for all UI work**, on both web and mobile. Use it for every screen so the portal and the iOS app share one design system: the same colour, type and spacing tokens. It has stack guidance for React, Tailwind and SwiftUI.
+`ui-ux-pro-max` is **the main skill for all UI work**, on both web and mobile. Use it for every screen so the portal and the mobile app share one design system: the same colour, type and spacing tokens. It has stack guidance for React, Tailwind, SwiftUI and Jetpack Compose.
 
 [21st.dev](https://21st.dev) is an optional extra for web: ready-made React + Tailwind components. Restyle anything taken from it with the shared tokens.
 
