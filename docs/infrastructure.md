@@ -67,12 +67,16 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 |---|---|---|
 | al-mobile | iOS (Xcode, Swift, SwiftUI) or Android (Android Studio, Kotlin), Firebase Auth: Ibrahima's choice, see above | iOS Simulator or Android emulator, pointed at the Firebase emulators |
 | al-web | React, React Router, Tailwind CSS | Vite dev server, pointed at the Firebase emulators |
-| Database + API | Firebase (Firestore, Auth), Python (Flask / FastAPI) | Firebase Emulator Suite |
+| Database + API | Firebase (Firestore, Auth), Python (FastAPI, see decision below) | Firebase Emulator Suite |
 | Blockchain / ledger | Solidity, Hardhat, Ethers.js / Web3.py | `npx hardhat node` (optionally in Docker Compose) |
-| Agentic framework | CrewAI, AutoGen or LangGraph | Runs inside the al-ai Flask service |
+| Agentic framework | CrewAI, AutoGen or LangGraph | Runs inside the al-ai FastAPI service |
 | Predictive ML | scikit-learn (or TensorFlow / Keras) | Trained locally, model file loaded by al-ai |
 | LLM inference | Ollama (local) + Groq / Gemini (cloud) | Ollama on laptops that can run it, see below |
 | Payments + tooling | Stripe / PayPal sandbox, GitHub, Jira | Sandbox keys in `.env` |
+
+**Decision (Sep 2026): the Python API uses FastAPI.** The brief allows Flask or FastAPI; the team picked FastAPI.
+
+**Decision (Sep 2026): the live site uses Amazon Bedrock for the local-model role.** The brief asks for a locally hosted model through Ollama. Exposing Ollama on a team laptop to a public site is a security risk, so the app deployed on AWS calls a model on Amazon Bedrock instead. Ollama stays in local development, and at the demo a local run of the app shows Ollama working. The two cloud LLM APIs are unchanged. Agreed with the supervisor. Budget alerts go on the AWS account before anything is deployed.
 
 ### Local development
 
@@ -84,7 +88,7 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | Firebase Auth emulator | (same) | 9099 |
 | Firestore emulator | (same) | 8080 |
 | Hardhat node | `npx hardhat node` | 8545 |
-| al-ai (Flask) | TBD | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
+| al-ai (FastAPI) | TBD | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
 | Ollama | `ollama serve` | 11434 |
 | al-web (Vite) | `npm run dev` | 5173 |
 
@@ -114,14 +118,14 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 | Subsystem | Options under consideration | Status |
 |---|---|---|
 | al-web | Firebase Hosting | Planned |
-| al-ai | Render, Fly.io | TBD |
+| al-ai | AWS: API container behind a load balancer, Amazon Bedrock for the local-model role (see section 4) | Planned |
 | al-core contracts | Local Hardhat node, Polygon Amoy or Arbitrum Sepolia testnet | TBD |
 | al-mobile | Simulator or emulator build for the demo. TestFlight needs a paid Apple Developer account; an Android APK can be a GitHub Actions artifact | TBD |
 
 ## Open decisions
 
 - Chat platform: Discord or Teams
-- Local dev: al-ai run command and whether Docker Compose wraps Hardhat + Flask (section 4)
+- Local dev: al-ai run command and whether Docker Compose wraps Hardhat + FastAPI (section 4)
 - Deployment targets (section 6)
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
 - Agent framework: CrewAI, AutoGen or LangGraph

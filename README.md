@@ -22,7 +22,7 @@ The core stack comes from the project brief. Items marked TBD are decided during
 | `al-mobile` | iOS (Xcode, Swift, SwiftUI) or Android (Android Studio, Kotlin), Ibrahima's choice; Firebase Auth |
 | `al-web` | React, React Router, Tailwind CSS, Firebase Auth |
 | `al-core` | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py, EVM testnet (Polygon Amoy or Arbitrum Sepolia, TBD) |
-| `al-ai` | Python, Flask, scikit-learn, agent framework (CrewAI, AutoGen or LangGraph, TBD), Ollama for local LLMs plus two cloud LLM APIs (Groq, Gemini) |
+| `al-ai` | Python, FastAPI, scikit-learn, agent framework (CrewAI, AutoGen or LangGraph, TBD), Ollama for local LLMs (Amazon Bedrock on the deployed app) plus two cloud LLM APIs (Groq, Gemini) |
 | Payments | Stripe Sandbox |
 | Tooling | GitHub, Jira, GitHub for Atlassian |
 
@@ -32,7 +32,7 @@ The core stack comes from the project brief. Items marked TBD are decided during
 al-mobile/      mobile app (iOS or Android)
 al-web/         React portal
 al-core/        database + smart contracts
-al-ai/          Flask service: valuation model + agent committee
+al-ai/          FastAPI service: valuation model + agent committee
 docs/           sprint docs, use cases, test cases, infra outline
 docs/agents/    config read by the AI agent skills
 .agents/skills/ agent skills (Codex and other agents)

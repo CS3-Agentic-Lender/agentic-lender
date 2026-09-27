@@ -9,7 +9,7 @@ MTU Year 3 group project (2026/27): a prototype mortgage/HELOC origination platf
 | `al-mobile/` | Borrower app, iOS or Android (Ibrahima's choice) | Swift + SwiftUI or Kotlin, Firebase Auth | Ibrahima |
 | `al-web/` | Broker + underwriter portal | React, React Router, Tailwind, Firebase Auth | Nikoloz |
 | `al-core/` | Database + blockchain | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py | Dumi |
-| `al-ai/` | Property valuation ML + agent committee | Python (Flask), scikit-learn, CrewAI / AutoGen / LangGraph, Ollama + Groq / Gemini | Nic |
+| `al-ai/` | Property valuation ML + agent committee | Python (FastAPI), scikit-learn, CrewAI / AutoGen / LangGraph, Ollama + Groq / Gemini | Nic |
 | `docs/` | Sprint docs, use cases, test cases, infra outline | Markdown | All |
 
 Stay inside the subsystem the task is about. A change that touches another owner's directory goes in its own PR so that owner reviews it.
@@ -20,7 +20,7 @@ The stack is fixed by the brief (`PROJECT GUIDELINES/GroupProject-Year3-2026.pdf
 
 - **Database + auth:** Firebase: Cloud Firestore and Firebase Auth (email/password + Google). Mobile and web sign in directly; the Python API verifies Firebase ID tokens.
 - **Ledger:** Solidity contracts (ERC-721 loan notes, SHA-256 audit registry) on Hardhat locally, Polygon Amoy or Arbitrum Sepolia as the testnet.
-- **LLMs:** at least two cloud APIs (Groq, Gemini) plus one local model through Ollama. Only some laptops can run Ollama. On a machine that can't, never replace the Ollama call with a cloud model, mock it or skip it. Instead, add a comment to the Jira ticket that @mentions a teammate who runs Ollama and lists exactly what to run (branch, command, expected result), then wait for their reply on the ticket.
+- **LLMs:** at least two cloud APIs (Groq, Gemini) plus one local model through Ollama. Only some laptops can run Ollama. On a machine that can't, never replace the Ollama call with a cloud model, mock it or skip it. Instead, add a comment to the Jira ticket that @mentions a teammate who runs Ollama and lists exactly what to run (branch, command, expected result), then wait for their reply on the ticket. The one exception is the app deployed on AWS, which uses Amazon Bedrock in place of Ollama (team decision in `docs/infrastructure.md`).
 - **Payments:** Stripe or PayPal sandbox only.
 
 Local development runs on the Firebase Emulator Suite and a local Hardhat node, so no one needs cloud credentials to work. Ports, run commands and setup live in `docs/infrastructure.md`: read it before assuming a tool, and update it when a choice is made.
