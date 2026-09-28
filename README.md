@@ -11,7 +11,7 @@ Demo: Monday 4 January 2027.
 | Core (database + blockchain) | Dumi | `al-core/` Firebase, Solidity contracts, Hardhat |
 | AI engine | Nic | `al-ai/` valuation model, agent committee, LLMs |
 | Frontend (web) | Nikoloz | `al-web/` broker and underwriter portal |
-| Frontend (mobile) | Ibrahima | `al-mobile/` borrower app (iOS or Android) |
+| Frontend (mobile) | Ibrahima | `al-mobile/` borrower app (iOS) |
 
 ## Tech stack
 
@@ -19,7 +19,7 @@ The core stack comes from the project brief. Items marked TBD are decided during
 
 | Subsystem | Frameworks and tools |
 |---|---|
-| `al-mobile` | iOS (Xcode, Swift, SwiftUI) or Android (Android Studio, Kotlin), Ibrahima's choice; Firebase Auth |
+| `al-mobile` | iOS (Xcode, Swift, SwiftUI), Firebase Auth |
 | `al-web` | React, React Router, Tailwind CSS, Firebase Auth |
 | `al-core` | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py, EVM testnet (Polygon Amoy or Arbitrum Sepolia, TBD) |
 | `al-ai` | Python, FastAPI, scikit-learn, agent framework (CrewAI, AutoGen or LangGraph, TBD), Ollama for local LLMs (Amazon Bedrock on the deployed app) plus two cloud LLM APIs (Groq, Gemini) |
@@ -29,7 +29,7 @@ The core stack comes from the project brief. Items marked TBD are decided during
 ## Repo layout
 
 ```
-al-mobile/      mobile app (iOS or Android)
+al-mobile/      mobile app (iOS)
 al-web/         React portal
 al-core/        database + smart contracts
 al-ai/          FastAPI service: valuation model + agent committee
