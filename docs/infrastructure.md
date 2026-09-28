@@ -157,7 +157,7 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 - Chat platform: Discord or Teams
 - Local dev: al-ai run command and whether Docker Compose wraps Hardhat + FastAPI (section 4)
 - Deployment targets (section 6)
+- Colour palette: palette A is proposed (section 4, Design tokens); final once Ibrahima and Nikoloz both agree
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
 - Agent framework: CrewAI, AutoGen or LangGraph
 - Mobile platform: iOS or Android (Ibrahima's call, section 4)
-- Colour palette: palette A is proposed (section 4, Design tokens); final once Ibrahima and Nikoloz both agree
