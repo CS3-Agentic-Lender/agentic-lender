@@ -1,0 +1,34 @@
+# Runs the iOS app's tests on PRs that change al-mobile/.
+name: Mobile tests
+
+on:
+  pull_request:
+    paths:
+      - "al-mobile/**"
+      - ".github/workflows/mobile.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: al-mobile
+    steps:
+      - uses: actions/checkout@v7
+
+      # Simulator names change with each Xcode release, so pick whichever iPhone the runner has.
+      - name: Pick an iPhone simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r,l in d.items() if "iOS" in r for x in l if x["name"].startswith("iPhone")))')
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: |
+          xcodebuild test \
+            -project AgenticLender.xcodeproj \
+            -scheme AgenticLender \
+            -destination "id=${{ steps.simulator.outputs.udid }}"
