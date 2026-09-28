@@ -78,6 +78,36 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 
 **Decision (Sep 2026): the live site uses Amazon Bedrock for the local-model role.** The brief asks for a locally hosted model through Ollama. Exposing Ollama on a team laptop to a public site is a security risk, so the app deployed on AWS calls a model on Amazon Bedrock instead. Ollama stays in local development, and at the demo a local run of the app shows Ollama working. The two cloud LLM APIs are unchanged. Agreed with the supervisor. Budget alerts go on the AWS account before anything is deployed.
 
+### Design tokens
+
+**Proposed (Sep 2026): palette A, navy and blue.** The team picked it from the `ui-ux-pro-max` palettes and removed the gold accent. Ibrahima and Nikoloz can change any value, but only when both agree, so the app and the portal stay one product. Record any change here. Clickable prototype: [AL Palette Trial](https://claude.ai/artifact/UosWe8v9iAGRLCtsAVfvKQ) (private, ask Nic for access).
+
+| Role | Light | Dark |
+|---|---|---|
+| Ink: navigation, headers | `#0F172A` | `#070D19` |
+| Navy: logo, selected tabs, progress | `#1E3A8A` | `#60A5FA` |
+| Action: buttons, links | `#0369A1`, white text | `#38BDF8`, text `#082F49` |
+| Background | `#F8FAFC` | `#0B1220` |
+| Surface: cards, panels | `#FFFFFF` | `#111B2E` |
+| Text | `#0F172A` | `#E2E8F0` |
+| Muted text | `#475569` | `#94A3B8` |
+| Border | `#E2E8F0` | `#23304A` |
+
+Loan status badges, background / text in light mode:
+
+| Status | Colours | Risk tier | Colours |
+|---|---|---|---|
+| Applied | `#F1F5F9` / `#334155` | A | `#DCFCE7` / `#166534` |
+| AI deliberated | `#EDE9FE` / `#5B21B6` | B | `#ECFCCB` / `#3F6212` |
+| Underwriter approved | `#DCFCE7` / `#166534` | C | `#FEF3C7` / `#92400E` |
+| Funded | `#DBEAFE` / `#1E40AF` | D | `#FEE2E2` / `#991B1B` |
+| Closed | `#E2E8F0` / `#1E293B` | | |
+| Declined | `#FEE2E2` / `#991B1B` | | |
+
+The dark-mode badge values are in the prototype. Every status and tier also shows its name as text, never colour alone.
+
+Type: IBM Plex Sans for the interface, IBM Plex Mono for loan references and figures. Every text colour pair above, light and dark, is at least 5.6:1 contrast, which passes WCAG AA (4.5:1).
+
 ### Local development
 
 Goal: the whole app runs on one laptop with no cloud credentials. Status: **Planned**.
@@ -127,5 +157,6 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 - Chat platform: Discord or Teams
 - Local dev: al-ai run command and whether Docker Compose wraps Hardhat + FastAPI (section 4)
 - Deployment targets (section 6)
+- Colour palette: palette A is proposed (section 4, Design tokens); final once Ibrahima and Nikoloz both agree
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
 - Agent framework: CrewAI, AutoGen or LangGraph
