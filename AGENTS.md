@@ -6,7 +6,7 @@ MTU Year 3 group project (2026/27): a prototype mortgage/HELOC origination platf
 
 | Dir | Subsystem | Stack | Owner |
 |---|---|---|---|
-| `al-mobile/` | Borrower app, iOS or Android (Ibrahima's choice) | Swift + SwiftUI or Kotlin, Firebase Auth | Ibrahima |
+| `al-mobile/` | Borrower app, iOS | Swift + SwiftUI, Firebase Auth | Ibrahima |
 | `al-web/` | Broker + underwriter portal | React, React Router, Tailwind, Firebase Auth | Nikoloz |
 | `al-core/` | Database + blockchain | Firebase (Firestore, Auth), Solidity, Hardhat, Ethers.js / Web3.py | Dumi |
 | `al-ai/` | Property valuation ML + agent committee | Python (FastAPI), scikit-learn, CrewAI / AutoGen / LangGraph, Ollama + Groq / Gemini | Nic |
