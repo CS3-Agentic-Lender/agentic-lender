@@ -20,6 +20,12 @@ Accept both. **Check:** you can open https://github.com/CS3-Agentic-Lender/agent
 
 ## 2. Get the code
 
+You need Git. Check with `git --version`. If it's missing:
+
+- **Mac:** `xcode-select --install`
+- **Windows:** `winget install Git.Git`, or the installer from [git-scm.com](https://git-scm.com/downloads)
+- **Linux:** `sudo apt install git` (or your distro's package manager)
+
 ### Mac or Linux
 
 ```bash
@@ -47,7 +53,16 @@ cd agentic-lender
 cp .env.example .env
 ```
 
-Open `.env` and fill in the keys you need. Everyone uses their **own** keys (Groq, Gemini, testnet wallet). Never commit `.env` and never paste keys into chat, Jira or Discord.
+You don't need any keys to run the backend locally: the Firebase emulators use the `demo-al` project, so leave the `FIREBASE_*` and `GOOGLE_APPLICATION_CREDENTIALS` lines empty. Fill in a key only when your work needs it:
+
+| Key | Needed for | Where to get it |
+|---|---|---|
+| `GROQ_API_KEY`, `GEMINI_API_KEY` | The AI engine (`al-ai`) | Your own free Groq and Google AI Studio accounts |
+| `OLLAMA_HOST` | The local model, on laptops that run Ollama | Leave the default `http://localhost:11434` |
+| `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY` | The appraisal fee payment | Your own Stripe account, **test mode** keys only |
+| `RPC_URL`, `DEPLOYER_PRIVATE_KEY` | Deploying contracts to the testnet | A testnet RPC provider and a **testnet-only** wallet |
+
+Everyone uses their **own** keys. Never commit `.env` and never paste keys into chat, Jira or Discord.
 
 ## 4. Set up your AI agent
 
@@ -86,6 +101,7 @@ Start Codex. It should open a browser to log in. If it doesn't, run `codex mcp l
 
 - **Mac:** `brew install betterleaks`
 - **Windows:** download `betterleaks_<version>_windows_x64.zip` from the [releases page](https://github.com/betterleaks/betterleaks/releases), unzip it, and add the folder to your `PATH`.
+- **Linux:** download `betterleaks_<version>_linux_x64.tar.gz` from the [releases page](https://github.com/betterleaks/betterleaks/releases), then `tar -xzf betterleaks_*_linux_x64.tar.gz betterleaks && sudo mv betterleaks /usr/local/bin/`.
 
 **Turn on the hook** (once, inside the `agentic-lender` folder):
 
@@ -99,9 +115,62 @@ From now on, `git commit` is blocked if betterleaks finds a secret, or if better
 
 If it flags something that isn't a secret, ask in the team chat before working around it.
 
-## 6. Your part of the codebase
+## 6. Install the local dev tools
 
-Setup for each part (mobile app, React, FastAPI, Hardhat) will be added to its folder's README as the code arrives.
+The whole app runs on your laptop with no cloud accounts. The Firebase emulators need Node.js 22+, Java 21+ and the Firebase CLI.
+
+| | Mac | Windows | Linux |
+|---|---|---|---|
+| Node.js 22+ | `brew install node` | `winget install OpenJS.NodeJS.LTS` | [nodejs.org](https://nodejs.org/en/download) or `nvm install 22` |
+| Java 21+ | `brew install --cask temurin@21` | `winget install EclipseAdoptium.Temurin.21.JDK` | `sudo apt install openjdk-21-jdk` |
+
+Mac commands use [Homebrew](https://brew.sh). Node 22 and 24 are the tested versions; newer ones work but `npm` prints `EBADENGINE` warnings, which are safe to ignore. Open a new terminal after installing, then:
+
+```bash
+npm install -g firebase-tools
+```
+
+**Check:** `node -v` prints v22 or later, `java -version` prints 21 or later, and `firebase --version` prints a version number.
+
+## 7. Run the backend locally
+
+From the `agentic-lender` folder:
+
+```bash
+cd al-core
+firebase emulators:start --project demo-al --import=./seed-data
+```
+
+Leave it running; stop it with Ctrl+C. The `demo-` prefix means no real Firebase project or login is needed.
+
+| Service | Address |
+|---|---|
+| Emulator UI | http://127.0.0.1:4000 |
+| Auth emulator | `localhost:9099` |
+| Firestore emulator | `localhost:8080` |
+
+The seed data has one user per role, all with the password `password123`:
+
+| Email | Role |
+|---|---|
+| alice@test.com | borrower |
+| bob@test.com | broker |
+| uma@test.com | underwriter |
+
+**Check:** open http://127.0.0.1:4000, go to **Authentication**, and you see the three users above.
+
+Re-seeding and the security rules tests are in [al-core/README.md](al-core/README.md).
+
+## 8. Your part of the codebase
+
+Each part's own README covers opening, running and testing it against the local backend.
+
+| Part | Setup |
+|---|---|
+| Borrower app (iOS) | [al-mobile/README.md](al-mobile/README.md). Needs a Mac with Xcode 16 or later |
+| Database + blockchain | [al-core/README.md](al-core/README.md) |
+| Broker and underwriter portal (React) | Added to `al-web/README.md` when the code arrives |
+| AI engine (FastAPI) | Added to `al-ai/README.md` when the code arrives |
 
 ## How we work
 
