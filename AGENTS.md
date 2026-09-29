@@ -156,6 +156,8 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
+Creating that branch moves the ticket to In Progress, and opening a PR moves it to In Review, so both happen when the work really starts and really ends. Don't create branches for tickets you are not about to work on, and don't open a PR to park unfinished work.
+
 ### Formats
 
 | Thing | Format | Example |
@@ -171,6 +173,15 @@ A commit that fixes a review comment keeps the same key; never renumber mid-bran
 **The person opens the PR, not the agent.** Committing and pushing a feature branch is normal agent work. Opening the pull request is not: a PR asks a named teammate to spend their time reviewing, and puts that person's name on the work.
 
 An agent therefore **never** runs `gh pr create`, opens a PR through the API, marks a draft ready for review, merges, approves, or resolves someone's review comment, unless the user has asked for that in the current conversation. "Finish the ticket" is not that request.
+
+Before asking, the agent checks its own work against the rules above and says so in one line each:
+
+- [ ] Branch, every commit message, and the PR title it is proposing carry **one** key, the ticket's own, and nothing else carries a key.
+- [ ] Commit subjects match the format table, and each commit is one person's work on this ticket.
+- [ ] The diff stays inside the ticket's scope and inside this owner's subsystem.
+- [ ] `betterleaks` is clean, and the project's build and tests were actually run, with their output shown.
+
+A failed check is fixed before the question, not mentioned as a caveat after it.
 
 When the branch looks finished, the agent stops and reports:
 
