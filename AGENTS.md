@@ -81,10 +81,10 @@ Confluence space `AL`, one folder per person, one folder per sprint inside it, d
 ```
 AL space
 ├── Nic
-│   ├── Sprint 1 - Week 3 deliverables
+│   ├── Sprint 1 - Week 3 deliverables - Nic
 │   │   ├── Sprint 1 summary - Nic
 │   │   └── (supporting pages: diagrams, model results, decisions)
-│   └── Sprint 2 - <sprint name>
+│   └── Sprint 2 - <sprint name> - Nic
 │       └── ...
 ├── Dumi
 ├── Nikoloz
@@ -94,7 +94,7 @@ AL space
 Rules:
 
 - **Person folder name = the person's first name**, nothing else.
-- **Sprint folder name = `Sprint <n> - <sprint name from Jira>`**, matching the sprint exactly.
+- **Sprint folder name = `Sprint <n> - <sprint name from Jira> - <Name>`**, matching the sprint exactly. The name on the end is not decoration: Confluence rejects two folders with the same title in one space.
 - Everything you produce in a sprint goes inside that sprint's folder: diagrams, UI flows, Figma links, screenshots, test evidence, decisions. Nothing loose at the top of the space, and nothing left only in Figma or a chat.
 
 ### The sprint summary page

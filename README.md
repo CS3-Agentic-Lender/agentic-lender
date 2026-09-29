@@ -103,14 +103,15 @@ Every sprint has to leave evidence behind, in one place, in one structure. In th
 ```
 AL space
 ├── <Your name>
-│   ├── Sprint 1 - Week 3 deliverables
+│   ├── Sprint 1 - Week 3 deliverables - <Your name>
 │   │   ├── Sprint 1 summary - <Your name>
 │   │   └── supporting pages: diagrams, UI flows, Figma links, test evidence
-│   └── Sprint 2 - <sprint name>
+│   └── Sprint 2 - <sprint name> - <Your name>
 └── ...
 ```
 
-- Folder per person, named with your first name. Folder per sprint inside it, named `Sprint <n> - <sprint name from Jira>`.
+- Folder per person, named with your first name. Folder per sprint inside it, named `Sprint <n> - <sprint name from Jira> - <Your name>`; Confluence will not allow two folders with the same title in a space, which is why your name is on the end.
+- The folders already exist, so put your pages straight into your own sprint folder.
 - Your sprint summary lists the tickets you finished with links to their PRs, what you built, evidence it works, and anything that slipped.
 - Write it as you go. An agent can tidy it or draw diagrams, but the account of your own work is yours, because the interview is worth 25%.
 
