@@ -62,13 +62,19 @@ If a check fails, say which one, and offer the legitimate routes: pick a ticket 
 - **One ticket per branch and per PR.** Don't add "while I was in there" changes for other tickets; open a new ticket instead.
 - **Work found mid-ticket** that is outside its scope becomes a new Jira ticket with `needs-triage`. It is not quietly built.
 - **Out-of-sprint requests**, however small or however framed (a quick screen, scaffolding, a placeholder, groundwork for next sprint), get the same answer: it goes into a ticket, the team pulls it into a sprint, then it gets built.
-- **Never edit someone else's subsystem** to unblock yourself. Comment on their ticket instead.
+- **Don't edit someone else's subsystem to unblock yourself.** Integration work that genuinely needs a change in another owner's directory is allowed, but it is agreed first: comment on their ticket, get their agreement, then do it on its own ticket in its own PR, which `CODEOWNERS` sends to them to review. What is not allowed is quietly changing their code inside your own ticket.
 
-### A ticket is only Done when
+### Done in Jira, and finished for the sprint
+
+Merging the PR moves the ticket to Done automatically. That flag means the code landed; it does not mean the work is finished for marking.
+
+A ticket counts as finished for the sprint when all three hold:
 
 1. Its PR is merged into `main`.
 2. Its acceptance criteria are met, not just "the code runs".
-3. The sprint document in Confluence covers it (see below).
+3. It is covered by the writer's sprint document in Confluence (see below), before the sprint ends.
+
+So a Done ticket with no write-up is not an error in Jira, it is work that will not be visible in the sprint report or the interview. Catch these in the sprint review, not by fighting the automation.
 
 ## Sprint documentation (Confluence)
 
@@ -81,10 +87,10 @@ Confluence space `AL`, one folder per person, one folder per sprint inside it, d
 ```
 AL space
 ├── Nic
-│   ├── Sprint 1 - Week 3 deliverables - Nic
-│   │   ├── Sprint 1 summary - Nic
+│   ├── Week 3 deliverables - Nic
+│   │   ├── Week 3 deliverables summary - Nic
 │   │   └── (supporting pages: diagrams, model results, decisions)
-│   └── Sprint 2 - <sprint name> - Nic
+│   └── Sprint 1 - <sprint name> - Nic
 │       └── ...
 ├── Dumi
 ├── Nikoloz
@@ -94,12 +100,12 @@ AL space
 Rules:
 
 - **Person folder name = the person's first name**, nothing else.
-- **Sprint folder name = `Sprint <n> - <sprint name from Jira> - <Name>`**, matching the sprint exactly. The name on the end is not decoration: Confluence rejects two folders with the same title in one space.
+- **Sprint folder name = `<sprint name exactly as it is in Jira> - <Name>`.** Copy the Jira sprint name rather than inventing a number: the brief treats the Week 3 deliverables (10%) as separate from the three three-week sprints that run weeks 3 to 11 (50%), so "Sprint 1" means the first of those three, not the current Week 3 work. The name on the end is not decoration: Confluence rejects two folders with the same title in one space.
 - Everything you produce in a sprint goes inside that sprint's folder: diagrams, UI flows, Figma links, screenshots, test evidence, decisions. Nothing loose at the top of the space, and nothing left only in Figma or a chat.
 
 ### The sprint summary page
 
-One per person per sprint, named `Sprint <n> summary - <Name>`, written as you go rather than the night before the deadline. It holds:
+One per person per sprint, named `<sprint name> summary - <Name>`, written as you go rather than the night before the deadline. It holds:
 
 - **Tickets finished**, by key and title, each linking to its Jira ticket and merged PR.
 - **What was actually built**, in your own words, with screenshots or diagrams where a picture is clearer.

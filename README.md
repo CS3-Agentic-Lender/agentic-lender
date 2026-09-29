@@ -103,14 +103,14 @@ Every sprint has to leave evidence behind, in one place, in one structure. In th
 ```
 AL space
 ├── <Your name>
-│   ├── Sprint 1 - Week 3 deliverables - <Your name>
-│   │   ├── Sprint 1 summary - <Your name>
+│   ├── Week 3 deliverables - <Your name>
+│   │   ├── Week 3 deliverables summary - <Your name>
 │   │   └── supporting pages: diagrams, UI flows, Figma links, test evidence
-│   └── Sprint 2 - <sprint name> - <Your name>
+│   └── Sprint 1 - <sprint name> - <Your name>
 └── ...
 ```
 
-- Folder per person, named with your first name. Folder per sprint inside it, named `Sprint <n> - <sprint name from Jira> - <Your name>`; Confluence will not allow two folders with the same title in a space, which is why your name is on the end.
+- Folder per person, named with your first name. Folder per sprint inside it, named after the Jira sprint plus your name, e.g. `Week 3 deliverables - Nic`; Confluence will not allow two folders with the same title in a space, which is why your name is on the end. Copy the sprint name from Jira rather than numbering it yourself: the brief counts the Week 3 deliverables separately from the three sprints that follow.
 - The folders already exist, so put your pages straight into your own sprint folder.
 - Your sprint summary lists the tickets you finished with links to their PRs, what you built, evidence it works, and anything that slipped.
 - Write it as you go. An agent can tidy it or draw diagrams, but the account of your own work is yours, because the interview is worth 25%.
@@ -126,7 +126,7 @@ The Jira key in the branch, commits and PR title links them to the ticket automa
 
 Individual contribution is 25% of the grade, so keep each commit to one person's work and one ticket.
 
-**You open the PR, not your agent.** Let it write code, commit and push the branch. When it thinks the work is done, it has to stop, tell you what it built and what it ran, and ask. You read the diff, then open the PR yourself. The same goes for marking a draft ready, merging, approving and replying to review comments: a PR asks a teammate for their time and puts your name on the work, so you have to know what is in it. Your agent is told this in [AGENTS.md](AGENTS.md); this is the human half of the same rule.
+**Opening the PR is your call, not your agent's.** Let it write code, commit and push the branch. When it thinks the work is done, it has to stop, tell you what it built and what it ran, and ask. You read the diff, then either open the PR yourself or tell it to open one. The same goes for marking a draft ready, merging, approving and replying to review comments: a PR asks a teammate for their time and puts your name on the work, so you have to know what is in it. Your agent is told this in [AGENTS.md](AGENTS.md); this is the human half of the same rule.
 
 ## AI agents and skills
 
