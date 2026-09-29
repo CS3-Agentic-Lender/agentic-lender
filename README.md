@@ -126,6 +126,8 @@ The Jira key in the branch, commits and PR title links them to the ticket automa
 
 Individual contribution is 25% of the grade, so keep each commit to one person's work and one ticket.
 
+**You open the PR, not your agent.** Let it write code, commit and push the branch. When it thinks the work is done, it has to stop, tell you what it built and what it ran, and ask. You read the diff, then open the PR yourself. The same goes for marking a draft ready, merging, approving and replying to review comments: a PR asks a teammate for their time and puts your name on the work, so you have to know what is in it. Your agent is told this in [AGENTS.md](AGENTS.md); this is the human half of the same rule.
+
 ## AI agents and skills
 
 Every agent reads [AGENTS.md](AGENTS.md). `CLAUDE.md` only imports it, so edit `AGENTS.md`.

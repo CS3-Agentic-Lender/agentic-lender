@@ -168,9 +168,24 @@ A commit that fixes a review comment keeps the same key; never renumber mid-bran
 
 ### Opening the PR
 
-- Base `main`. Write the body with the `pr` skill: what changed, evidence it works, and merge risk. No other ticket's key in it.
+**The person opens the PR, not the agent.** Committing and pushing a feature branch is normal agent work. Opening the pull request is not: a PR asks a named teammate to spend their time reviewing, and puts that person's name on the work.
+
+An agent therefore **never** runs `gh pr create`, opens a PR through the API, marks a draft ready for review, merges, approves, or resolves someone's review comment, unless the user has asked for that in the current conversation. "Finish the ticket" is not that request.
+
+When the branch looks finished, the agent stops and reports:
+
+- what is on the branch, file by file;
+- the evidence it works: the commands run and their output;
+- anything left undone or uncertain;
+- then asks whether to open the PR.
+
+If the answer is yes, the agent writes the body with the `pr` skill (what changed, evidence, merge risk, no other ticket's key in it) and opens it against `main`.
+
+Other rules:
+
 - `main` is protected: one approval from a teammate, and the `Secret scan` check green, before merge.
 - Never `git push` to `main`, never force-push a shared branch, never `--no-verify`.
+- Review comments from a teammate are answered by the person, with the agent's help. An agent does not close a discussion on their behalf.
 
 ### One person, one ticket, one commit
 
