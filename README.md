@@ -84,6 +84,37 @@ Every Jira item gets one **subsystem** label and, once triaged, one **state** la
 
 `draft-backlog` marks the first-pass backlog that is still under review.
 
+### Sprint rules
+
+We are graded sprint by sprint, and each of us is interviewed on our own work, so the rules are strict:
+
+- **Only work on tickets in the active sprint that are assigned to you.** Nothing else gets built, however quick it looks.
+- **No building ahead.** If something from a later sprint needs doing now, raise it with the team and we pull the ticket into the sprint first. Working ahead empties the next sprint and leaves nothing to report.
+- **Found something else that needs doing?** Make a ticket with `needs-triage`. Don't fold it into what you are already working on.
+- **Stay in your own subsystem.** If you need a change in someone else's folder, comment on their ticket.
+- **A ticket is Done when** its PR is merged, its acceptance criteria are met, and it is written up in Confluence.
+
+The same rules are in [AGENTS.md](AGENTS.md), and your AI agent checks them before it writes code: it stops if the ticket is missing, not in the active sprint, or not assigned to you.
+
+### Sprint documentation
+
+Every sprint has to leave evidence behind, in one place, in one structure. In the [AL Confluence space](https://alprojectcs3.atlassian.net/wiki/spaces/AL):
+
+```
+AL space
+├── <Your name>
+│   ├── Week 3 deliverables - <Your name>
+│   │   ├── Week 3 deliverables summary - <Your name>
+│   │   └── supporting pages: diagrams, UI flows, Figma links, test evidence
+│   └── Sprint 1 - <sprint name> - <Your name>
+└── ...
+```
+
+- Folder per person, named with your first name. Folder per sprint inside it, named after the Jira sprint plus your name, e.g. `Week 3 deliverables - Nic`; Confluence will not allow two folders with the same title in a space, which is why your name is on the end. Copy the sprint name from Jira rather than numbering it yourself: the brief counts the Week 3 deliverables separately from the three sprints that follow.
+- The folders already exist, so put your pages straight into your own sprint folder.
+- Your sprint summary lists the tickets you finished with links to their PRs, what you built, evidence it works, and anything that slipped.
+- Write it as you go. An agent can tidy it or draw diagrams, but the account of your own work is yours, because the interview is worth 25%.
+
 ### Branches, commits and PRs
 
 1. Pick a Jira story or task and assign it to yourself.
@@ -94,6 +125,8 @@ Every Jira item gets one **subsystem** label and, once triaged, one **state** la
 The Jira key in the branch, commits and PR title links them to the ticket automatically.
 
 Individual contribution is 25% of the grade, so keep each commit to one person's work and one ticket.
+
+**Opening the PR is your call, not your agent's.** Let it write code, commit and push the branch. When it thinks the work is done, it has to stop, tell you what it built and what it ran, and ask. You read the diff, then either open the PR yourself or tell it to open one. The same goes for marking a draft ready, merging, approving and replying to review comments: a PR asks a teammate for their time and puts your name on the work, so you have to know what is in it. Your agent is told this in [AGENTS.md](AGENTS.md); this is the human half of the same rule.
 
 ## AI agents and skills
 

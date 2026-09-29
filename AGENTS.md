@@ -43,6 +43,78 @@ Assign by subsystem label: `mobile` → Ibrahima (Jira: dosantos2945), `web` →
 
 Nic and Dumi keep their backend ticket counts roughly even, so some `core` tickets are assigned to Nic and some `ai` tickets to Dumi. Either of them can pass a ticket to the other: reassign it in Jira and add a comment saying why, so the history shows who did what.
 
+## Sprint discipline
+
+The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens **in the sprint it belongs to**, on **the tickets that person was assigned**. Building a later sprint's features early is not "getting ahead": it empties the next sprint, breaks the sprint report, and leaves teammates waiting on work that was skipped.
+
+### Check before writing any code
+
+An agent asked to build something runs these three checks first, in order, and **stops** if any of them fails:
+
+1. **A ticket exists**, and `getJiraIssue` returns it.
+2. **The ticket is in the active sprint.** Check the `Sprint` field, or `searchJiraIssuesUsingJql` with `key = AL-<number> AND sprint in openSprints()`.
+3. **The ticket is assigned to the person asking.** Check `assignee` against `atlassianUserInfo`.
+
+If a check fails, say which one, and offer the legitimate routes: pick a ticket from the active sprint instead, ask the team to pull the ticket into the sprint, or take the ticket over in Jira first. Do not start the work and sort the ticket out afterwards.
+
+### While working
+
+- **One ticket per branch and per PR.** Don't add "while I was in there" changes for other tickets; open a new ticket instead.
+- **Work found mid-ticket** that is outside its scope becomes a new Jira ticket with `needs-triage`. It is not quietly built.
+- **Out-of-sprint requests**, however small or however framed (a quick screen, scaffolding, a placeholder, groundwork for next sprint), get the same answer: it goes into a ticket, the team pulls it into a sprint, then it gets built.
+- **Don't edit someone else's subsystem to unblock yourself.** Integration work that genuinely needs a change in another owner's directory is allowed, but it is agreed first: comment on their ticket, get their agreement, then do it on its own ticket in its own PR, which `CODEOWNERS` sends to them to review. What is not allowed is quietly changing their code inside your own ticket.
+
+### Done in Jira, and finished for the sprint
+
+Merging the PR moves the ticket to Done automatically. That flag means the code landed; it does not mean the work is finished for marking.
+
+A ticket counts as finished for the sprint when all three hold:
+
+1. Its PR is merged into `main`.
+2. Its acceptance criteria are met, not just "the code runs".
+3. It is covered by the writer's sprint document in Confluence (see below), before the sprint ends.
+
+So a Done ticket with no write-up is not an error in Jira, it is work that will not be visible in the sprint report or the interview. Catch these in the sprint review, not by fighting the automation.
+
+## Sprint documentation (Confluence)
+
+Every sprint leaves written evidence, in one fixed place, because the sprint report and the individual interview are marked off it.
+
+### Structure
+
+Confluence space `AL`, one folder per person, one folder per sprint inside it, documents inside that:
+
+```
+AL space
+├── Nic
+│   ├── Week 3 deliverables - Nic
+│   │   ├── Week 3 deliverables summary - Nic
+│   │   └── (supporting pages: diagrams, model results, decisions)
+│   └── Sprint 1 - <sprint name> - Nic
+│       └── ...
+├── Dumi
+├── Nikoloz
+└── Ibrahima
+```
+
+Rules:
+
+- **Person folder name = the person's first name**, nothing else.
+- **Sprint folder name = `<sprint name exactly as it is in Jira> - <Name>`.** Copy the Jira sprint name rather than inventing a number: the brief treats the Week 3 deliverables (10%) as separate from the three three-week sprints that run weeks 3 to 11 (50%), so "Sprint 1" means the first of those three, not the current Week 3 work. The name on the end is not decoration: Confluence rejects two folders with the same title in one space.
+- Everything you produce in a sprint goes inside that sprint's folder: diagrams, UI flows, Figma links, screenshots, test evidence, decisions. Nothing loose at the top of the space, and nothing left only in Figma or a chat.
+
+### The sprint summary page
+
+One per person per sprint, named `<sprint name> summary - <Name>`, written as you go rather than the night before the deadline. It holds:
+
+- **Tickets finished**, by key and title, each linking to its Jira ticket and merged PR.
+- **What was actually built**, in your own words, with screenshots or diagrams where a picture is clearer.
+- **Evidence it works**: test results, a screen recording, the emulator or testnet output.
+- **What did not get finished** and why, with the ticket it moved to.
+- **Anything a marker would ask you to explain**, such as why an approach was chosen.
+
+Write it yourself. An agent may format it, add diagrams or tidy the wording, but the account of what you did and why is yours: you are interviewed on it, and 25% of the grade rides on that interview.
+
 ## Agent skills
 
 ### Skill folders
@@ -90,6 +162,8 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
+Creating that branch moves the ticket to In Progress, and opening a PR moves it to In Review, so both happen when the work really starts and really ends. Don't create branches for tickets you are not about to work on, and don't open a PR to park unfinished work.
+
 ### Formats
 
 | Thing | Format | Example |
@@ -102,9 +176,33 @@ A commit that fixes a review comment keeps the same key; never renumber mid-bran
 
 ### Opening the PR
 
-- Base `main`. Write the body with the `pr` skill: what changed, evidence it works, and merge risk. No other ticket's key in it.
+**The person opens the PR, not the agent.** Committing and pushing a feature branch is normal agent work. Opening the pull request is not: a PR asks a named teammate to spend their time reviewing, and puts that person's name on the work.
+
+An agent therefore **never** runs `gh pr create`, opens a PR through the API, marks a draft ready for review, merges, approves, or resolves someone's review comment, unless the user has asked for that in the current conversation. "Finish the ticket" is not that request.
+
+Before asking, the agent checks its own work against the rules above and says so in one line each:
+
+- [ ] Branch, every commit message, and the PR title it is proposing carry **one** key, the ticket's own, and nothing else carries a key.
+- [ ] Commit subjects match the format table, and each commit is one person's work on this ticket.
+- [ ] The diff stays inside the ticket's scope and inside this owner's subsystem.
+- [ ] `betterleaks` is clean, and the project's build and tests were actually run, with their output shown.
+
+A failed check is fixed before the question, not mentioned as a caveat after it.
+
+When the branch looks finished, the agent stops and reports:
+
+- what is on the branch, file by file;
+- the evidence it works: the commands run and their output;
+- anything left undone or uncertain;
+- then asks whether to open the PR.
+
+If the answer is yes, the agent writes the body with the `pr` skill (what changed, evidence, merge risk, no other ticket's key in it) and opens it against `main`.
+
+Other rules:
+
 - `main` is protected: one approval from a teammate, and the `Secret scan` check green, before merge.
 - Never `git push` to `main`, never force-push a shared branch, never `--no-verify`.
+- Review comments from a teammate are answered by the person, with the agent's help. An agent does not close a discussion on their behalf.
 
 ### One person, one ticket, one commit
 
