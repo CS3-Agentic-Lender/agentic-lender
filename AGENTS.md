@@ -43,6 +43,72 @@ Assign by subsystem label: `mobile` → Ibrahima (Jira: dosantos2945), `web` →
 
 Nic and Dumi keep their backend ticket counts roughly even, so some `core` tickets are assigned to Nic and some `ai` tickets to Dumi. Either of them can pass a ticket to the other: reassign it in Jira and add a comment saying why, so the history shows who did what.
 
+## Sprint discipline
+
+The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens **in the sprint it belongs to**, on **the tickets that person was assigned**. Building a later sprint's features early is not "getting ahead": it empties the next sprint, breaks the sprint report, and leaves teammates waiting on work that was skipped.
+
+### Check before writing any code
+
+An agent asked to build something runs these three checks first, in order, and **stops** if any of them fails:
+
+1. **A ticket exists**, and `getJiraIssue` returns it.
+2. **The ticket is in the active sprint.** Check the `Sprint` field, or `searchJiraIssuesUsingJql` with `key = AL-<number> AND sprint in openSprints()`.
+3. **The ticket is assigned to the person asking.** Check `assignee` against `atlassianUserInfo`.
+
+If a check fails, say which one, and offer the legitimate routes: pick a ticket from the active sprint instead, ask the team to pull the ticket into the sprint, or take the ticket over in Jira first. Do not start the work and sort the ticket out afterwards.
+
+### While working
+
+- **One ticket per branch and per PR.** Don't add "while I was in there" changes for other tickets; open a new ticket instead.
+- **Work found mid-ticket** that is outside its scope becomes a new Jira ticket with `needs-triage`. It is not quietly built.
+- **Out-of-sprint requests**, however small or however framed (a quick screen, scaffolding, a placeholder, groundwork for next sprint), get the same answer: it goes into a ticket, the team pulls it into a sprint, then it gets built.
+- **Never edit someone else's subsystem** to unblock yourself. Comment on their ticket instead.
+
+### A ticket is only Done when
+
+1. Its PR is merged into `main`.
+2. Its acceptance criteria are met, not just "the code runs".
+3. The sprint document in Confluence covers it (see below).
+
+## Sprint documentation (Confluence)
+
+Every sprint leaves written evidence, in one fixed place, because the sprint report and the individual interview are marked off it.
+
+### Structure
+
+Confluence space `AL`, one folder per person, one folder per sprint inside it, documents inside that:
+
+```
+AL space
+├── Nic
+│   ├── Sprint 1 - Week 3 deliverables
+│   │   ├── Sprint 1 summary - Nic
+│   │   └── (supporting pages: diagrams, model results, decisions)
+│   └── Sprint 2 - <sprint name>
+│       └── ...
+├── Dumi
+├── Nikoloz
+└── Ibrahima
+```
+
+Rules:
+
+- **Person folder name = the person's first name**, nothing else.
+- **Sprint folder name = `Sprint <n> - <sprint name from Jira>`**, matching the sprint exactly.
+- Everything you produce in a sprint goes inside that sprint's folder: diagrams, UI flows, Figma links, screenshots, test evidence, decisions. Nothing loose at the top of the space, and nothing left only in Figma or a chat.
+
+### The sprint summary page
+
+One per person per sprint, named `Sprint <n> summary - <Name>`, written as you go rather than the night before the deadline. It holds:
+
+- **Tickets finished**, by key and title, each linking to its Jira ticket and merged PR.
+- **What was actually built**, in your own words, with screenshots or diagrams where a picture is clearer.
+- **Evidence it works**: test results, a screen recording, the emulator or testnet output.
+- **What did not get finished** and why, with the ticket it moved to.
+- **Anything a marker would ask you to explain**, such as why an approach was chosen.
+
+Write it yourself. An agent may format it, add diagrams or tidy the wording, but the account of what you did and why is yours: you are interviewed on it, and 25% of the grade rides on that interview.
+
 ## Agent skills
 
 ### Skill folders

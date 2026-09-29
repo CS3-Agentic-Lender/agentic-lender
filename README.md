@@ -84,6 +84,36 @@ Every Jira item gets one **subsystem** label and, once triaged, one **state** la
 
 `draft-backlog` marks the first-pass backlog that is still under review.
 
+### Sprint rules
+
+We are graded sprint by sprint, and each of us is interviewed on our own work, so the rules are strict:
+
+- **Only work on tickets in the active sprint that are assigned to you.** Nothing else gets built, however quick it looks.
+- **No building ahead.** If something from a later sprint needs doing now, raise it with the team and we pull the ticket into the sprint first. Working ahead empties the next sprint and leaves nothing to report.
+- **Found something else that needs doing?** Make a ticket with `needs-triage`. Don't fold it into what you are already working on.
+- **Stay in your own subsystem.** If you need a change in someone else's folder, comment on their ticket.
+- **A ticket is Done when** its PR is merged, its acceptance criteria are met, and it is written up in Confluence.
+
+The same rules are in [AGENTS.md](AGENTS.md), and your AI agent checks them before it writes code: it stops if the ticket is missing, not in the active sprint, or not assigned to you.
+
+### Sprint documentation
+
+Every sprint has to leave evidence behind, in one place, in one structure. In the [AL Confluence space](https://alprojectcs3.atlassian.net/wiki/spaces/AL):
+
+```
+AL space
+├── <Your name>
+│   ├── Sprint 1 - Week 3 deliverables
+│   │   ├── Sprint 1 summary - <Your name>
+│   │   └── supporting pages: diagrams, UI flows, Figma links, test evidence
+│   └── Sprint 2 - <sprint name>
+└── ...
+```
+
+- Folder per person, named with your first name. Folder per sprint inside it, named `Sprint <n> - <sprint name from Jira>`.
+- Your sprint summary lists the tickets you finished with links to their PRs, what you built, evidence it works, and anything that slipped.
+- Write it as you go. An agent can tidy it or draw diagrams, but the account of your own work is yours, because the interview is worth 25%.
+
 ### Branches, commits and PRs
 
 1. Pick a Jira story or task and assign it to yourself.
