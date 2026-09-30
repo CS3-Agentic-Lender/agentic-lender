@@ -65,6 +65,23 @@ Tasks and Bugs skip the grilling, but still get a subsystem label, an owner and 
 
 The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens **in the sprint it belongs to**, on **the tickets that person was assigned**. Building a later sprint's features early is not "getting ahead": it empties the next sprint, breaks the sprint report, and leaves teammates waiting on work that was skipped.
 
+### Sprint cycle
+
+1. **Estimate:** every Story in the backlog gets story points (see [Creating a ticket](#creating-a-ticket)).
+2. **Plan:** the team sets a sprint goal, pulls in the Stories that fit (from the second sprint on, sized by the points finished last sprint, the velocity), and breaks each Story into Subtasks with owners.
+3. **Start:** starting the sprint in Jira starts its burndown chart, built from the points of the Stories in it.
+4. **Run:** daily standups; tickets move To Do → In Progress → In Review → Done through the branch and PR flow.
+5. **Review:** demo what is Done to the supervisor. Unfinished Stories go back to the backlog.
+6. **Retro:** what went well, what went wrong, what changes. Actions become tickets for the next sprint.
+
+**Burndown chart.** The chart only falls when a whole Story reaches Done, so it stays honest only if:
+
+- every Story in the sprint has points before the sprint starts;
+- a Story added mid-sprint has the team's agreement and a comment on it saying why, since the chart shows it as a rise;
+- Jira status matches reality, which the branch and PR flows keep true.
+
+At the end of the sprint, the burndown chart and the list of finished and unfinished Stories go on the retro page, and the retro works from them.
+
 ### Check before writing any code
 
 An agent asked to build something runs these three checks first, in order, and **stops** if any of them fails:
