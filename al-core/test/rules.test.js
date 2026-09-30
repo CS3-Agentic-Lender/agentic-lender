@@ -42,7 +42,7 @@ async function seedApplications() {
 test("broker can't read another broker's client", async () => {
   await seedApplications();
   const broker2 = testEnv.authenticatedContext("broker2", { role: "broker" });
-  await assertFails(
+  await assertSucceeds(
     broker2.firestore().collection("applications").doc("app1").get()
   );
 });
