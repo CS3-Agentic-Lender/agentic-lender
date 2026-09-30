@@ -69,12 +69,14 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 | al-web | React, React Router, Tailwind CSS | Vite dev server, pointed at the Firebase emulators |
 | Database + API | Firebase (Firestore, Auth), Python (FastAPI, see decision below) | Firebase Emulator Suite |
 | Blockchain / ledger | Solidity, Hardhat, Ethers.js / Web3.py | `npx hardhat node` (optionally in Docker Compose) |
-| Agentic framework | CrewAI, AutoGen or LangGraph | Runs inside the al-ai FastAPI service |
+| Agentic framework | LangGraph (see decision below) | Runs inside the al-ai FastAPI service |
 | Predictive ML | scikit-learn (or TensorFlow / Keras) | Trained locally, model file loaded by al-ai |
 | LLM inference | Ollama (local) + Groq / Gemini (cloud) | Ollama on laptops that can run it, see below |
 | Payments + tooling | Stripe / PayPal sandbox, GitHub, Jira | Sandbox keys in `.env` |
 
 **Decision (Sep 2026): the Python API uses FastAPI.** The brief allows Flask or FastAPI; the team picked FastAPI.
+
+**Decision (Sep 2026): the agent committee uses LangGraph.** The brief allows CrewAI, AutoGen or LangGraph. The committee's steps always run in the same order and each step is our own code, so every AI call is logged exactly: what it was sent and what it sent back. CrewAI adds its own text to prompts, which makes that logging harder, and AutoGen has been in maintenance mode since October 2025.
 
 **Decision (Sep 2026): the live site uses Amazon Bedrock for the local-model role.** The brief asks for a locally hosted model through Ollama. Exposing Ollama on a team laptop to a public site is a security risk, so the app deployed on AWS calls a model on Amazon Bedrock instead. Ollama stays in local development, and at the demo a local run of the app shows Ollama working. The two cloud LLM APIs are unchanged. Agreed with the supervisor. Budget alerts go on the AWS account before anything is deployed.
 
@@ -159,4 +161,3 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 - Deployment targets (section 6)
 - Colour palette: palette A is proposed (section 4, Design tokens); final once Ibrahima and Nikoloz both agree
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
-- Agent framework: CrewAI, AutoGen or LangGraph
