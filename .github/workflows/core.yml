@@ -1,0 +1,42 @@
+# Runs al-core's Firestore rules tests on PRs that change al-core/.
+# The tests talk to a real Firestore emulator, so they run inside `firebase emulators:exec`.
+# Hardhat contract tests get a step here once the contracts exist.
+name: Core tests
+
+on:
+  pull_request:
+    paths:
+      - "al-core/**"
+      - ".github/workflows/core.yml"
+
+permissions:
+  contents: read
+
+env:
+  FIREBASE_TOOLS_VERSION: 15.32.0
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: al-core
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: al-core/package-lock.json
+
+      # The Firebase emulators need Java 21+.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      - name: Run rules tests against the Firestore emulator
+        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only firestore --project demo-al-test "npm test"
