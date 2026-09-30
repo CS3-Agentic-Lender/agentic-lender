@@ -80,33 +80,37 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 
 ### Design tokens
 
-**Proposed (Sep 2026): palette A, navy and blue.** The team picked it from the `ui-ux-pro-max` palettes and removed the gold accent. Ibrahima and Nikoloz can change any value, but only when both agree, so the app and the portal stay one product. Record any change here. Clickable prototype: [AL Palette Trial](https://claude.ai/artifact/UosWe8v9iAGRLCtsAVfvKQ) (private, ask Nic for access).
+**Decision (Sep 2026): Pine & Oat, dark green on warm off-white.** Ibrahima and Nikoloz agreed on it, replacing the earlier proposal (palette A, navy and blue). It comes from the [borrower app Figma file](https://www.figma.com/design/l1dzCYxViJsNVEceRstuH1), where each token in the first table is a colour variable in the "Pine & Oat" collection. Ibrahima and Nikoloz can change any value, but only when both agree, so the app and the portal stay one product. Record any change here and in the Figma variables.
 
-| Role | Light | Dark |
+| Token | Role | Light |
 |---|---|---|
-| Ink: navigation, headers | `#0F172A` | `#070D19` |
-| Navy: logo, selected tabs, progress | `#1E3A8A` | `#60A5FA` |
-| Action: buttons, links | `#0369A1`, white text | `#38BDF8`, text `#082F49` |
-| Background | `#F8FAFC` | `#0B1220` |
-| Surface: cards, panels | `#FFFFFF` | `#111B2E` |
-| Text | `#0F172A` | `#E2E8F0` |
-| Muted text | `#475569` | `#94A3B8` |
-| Border | `#E2E8F0` | `#23304A` |
+| Pine | Actions, selected tabs, progress; text on it is Surface | `#1E342E` |
+| Pine pressed | Pressed state of Pine actions | `#142520` |
+| Oat | Background | `#F6F4EE` |
+| Surface | Cards, panels, fields | `#FFFCF4` |
+| Line | Borders, dividers | `#D6DFD4` |
+| Tint | Highlight panels, Tint badges | `#E8EFE7` |
+| Neutral | Neutral badges, quiet fills | `#EEEBE3` |
+| Text | Body text, headers | `#16241D` |
+| Muted text | Secondary text | `#4C5851` |
+| Success | Positive status text | `#166534` |
+| Error | Errors, declined status text | `#991B1B` |
 
-Loan status badges, background / text in light mode:
+Dark mode is not defined yet. Add it here, and to the Figma variables, when Ibrahima and Nikoloz agree on the values.
 
-| Status | Colours | Risk tier | Colours |
-|---|---|---|---|
-| Applied | `#F1F5F9` / `#334155` | A | `#DCFCE7` / `#166534` |
-| AI deliberated | `#EDE9FE` / `#5B21B6` | B | `#ECFCCB` / `#3F6212` |
-| Underwriter approved | `#DCFCE7` / `#166534` | C | `#FEF3C7` / `#92400E` |
-| Funded | `#DBEAFE` / `#1E40AF` | D | `#FEE2E2` / `#991B1B` |
-| Closed | `#E2E8F0` / `#1E293B` | | |
-| Declined | `#FEE2E2` / `#991B1B` | | |
+Status badges (the Badge component in the Figma file), background / text:
 
-The dark-mode badge values are in the prototype. Every status and tier also shows its name as text, never colour alone.
+| Tone | Colours | Used for |
+|---|---|---|
+| Neutral | `#EEEBE3` / `#3F4A44` | Applied, offline |
+| Tint | `#E8EFE7` / `#1E342E` | Current step, test mode |
+| Success | `#DCFCE7` / `#166534` | Good results (fair price, high score) |
+| Danger | `#FEE2E2` / `#991B1B` | Declined, over-priced, low score |
+| Pine | `#1E342E` / `#FFFCF4` | Emphasis (the borrower's limit) |
 
-Type: IBM Plex Sans for the interface, IBM Plex Mono for loan references and figures. Every text colour pair above, light and dark, is at least 5.6:1 contrast, which passes WCAG AA (4.5:1).
+Loan statuses and risk tiers pick from these five tones; the portal's mapping is set when the portal adopts the palette. Every status and tier also shows its name as text, never colour alone.
+
+Type: IBM Plex Sans for the interface, IBM Plex Mono for loan references and figures. Every text colour pair above is at least 6.2:1 contrast, which passes WCAG AA (4.5:1).
 
 ### Local development
 
@@ -157,6 +161,5 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 - Chat platform: Discord or Teams
 - Local dev: al-ai run command and whether Docker Compose wraps Hardhat + FastAPI (section 4)
 - Deployment targets (section 6)
-- Colour palette: palette A is proposed (section 4, Design tokens); final once Ibrahima and Nikoloz both agree
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
 - Agent framework: CrewAI, AutoGen or LangGraph
