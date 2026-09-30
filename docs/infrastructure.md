@@ -123,7 +123,7 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | al-web (Vite) | `npm run dev` | 5173 |
 
 - The `demo-` prefix marks a demo project: no real Firebase project, login or service account is needed, and nothing can reach production resources.
-- The emulators need Java 11+ and `firebase-tools` (`npm install -g firebase-tools`).
+- The emulators need Java 21+ and `firebase-tools` (`npm install -g firebase-tools`).
 - The iOS Simulator shares the Mac's network, so it reaches the emulators at `localhost`.
 - Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator` on iOS).
 - Seed data (one borrower, one broker, one underwriter, a few applications) is loaded with emulator import/export so everyone starts from the same state.
