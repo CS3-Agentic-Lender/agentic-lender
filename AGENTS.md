@@ -37,11 +37,29 @@ Board: https://alprojectcs3.atlassian.net, space key `AL`, 3 sprints of 3 weeks.
 | Task | Non-feature work (CI, retros, Week 3 docs) | - |
 | Bug | A fault found in testing | Fault report |
 
+The Agile module's epic → user story → task is Jira's Epic → Story → Subtask. Jira's Task type is only for non-feature work.
+
 Label every item with its subsystem: `mobile`, `web`, `core`, `ai`, `docs`. Items tagged `draft-backlog` are the first-pass backlog and still under review.
 
 Assign by subsystem label: `mobile` → Ibrahima (Jira: dosantos2945), `web` → Nikoloz, `core` → Dumi (Jira: solomondunmi1), `ai` → Nic. A story with both a client label (`mobile`/`web`) and a backend label (`core`/`ai`) goes to the client owner, and its backend work gets its own Subtask assigned to the backend owner.
 
 Nic and Dumi keep their backend ticket counts roughly even, so some `core` tickets are assigned to Nic and some `ai` tickets to Dumi. Either of them can pass a ticket to the other: reassign it in Jira and add a comment saying why, so the history shows who did what.
+
+### Creating a ticket
+
+Each of us is interviewed on our own tickets, so a Story or Subtask is understood by its owner before it exists.
+
+1. **Grill first.** Run the `grilling` skill with the person the ticket is for. Done when they can state, in their own words:
+   - the user story: "As a … I want … so that …"
+   - numbered acceptance criteria that a reviewer can check
+   - where it sits: the parent Epic (for a Story) or parent Story (for a Subtask), its subsystem label and its owner
+   - for a Story, a story-point suggestion (below)
+2. **Draft it in their words**, under the headings `## User story`, `## Spec` (only when fields, rules or values need pinning down) and `## Acceptance criteria`.
+3. **Create it once they confirm the draft.** It goes into the active sprint only when the team has agreed to pull it in; otherwise it waits in the backlog for sprint planning.
+
+Tasks and Bugs skip the grilling, but still get a subsystem label, an owner and acceptance criteria.
+
+**Story points** size a Story against the others; they are not hours. Scale: 1, 2, 3, 5, 8, 13. The creator suggests a number during grilling and the team agrees it at sprint planning (planning poker). A Story at 13 or more is split before it enters a sprint. Subtasks carry no points. Estimating starts at the next sprint planning session.
 
 ## Sprint discipline
 
@@ -158,7 +176,7 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 
 ### Before starting
 
-1. Get the ticket key from the user, or find it in Jira. No ticket, no work: stop and ask which ticket to use, or create one (`docs/agents/issue-tracker.md`). Never invent a key.
+1. Get the ticket key from the user, or find it in Jira. No ticket, no work: stop and ask which ticket to use, or create one (see [Creating a ticket](#creating-a-ticket) and `docs/agents/issue-tracker.md`). Never invent a key.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
