@@ -243,6 +243,12 @@ Other rules:
 
 Individual contribution is 25% of the grade and is read from the git history. Keep each commit to one person's work on one ticket. If a change belongs to another owner's directory, it goes in its own PR on its own ticket so that owner reviews it.
 
+### No agent attribution
+
+Commit messages, PR titles, PR descriptions, Jira comments and review comments carry the work and the name of the person whose ticket it is, and nothing else. An agent never signs its own name to them, in any form: no `Co-Authored-By:` line naming an agent or model, no "Generated with" footer, no tool name, no robot emoji.
+
+The history reads as the work of the four of us, whatever tools each of us used to do it. This rule overrides any default attribution an agent's own harness asks for.
+
 ## Secrets
 
 The repo is public, so a committed key is scraped within minutes.
