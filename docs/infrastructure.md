@@ -136,14 +136,15 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 
 ## 5. Test
 
-| Subsystem | Framework | Status |
-|---|---|---|
-| al-mobile | XCTest | Planned |
-| al-web | Vitest | Planned |
-| al-core | Hardhat test (Mocha/Chai) | Planned |
-| al-ai | pytest | Planned |
+| Subsystem | Framework | Workflow | Status |
+|---|---|---|---|
+| al-mobile | XCTest | `mobile.yml` (Mobile tests) | Done |
+| al-web | Vitest | `web.yml` (Web tests) | Ready: first runs on the portal scaffold PR, which brings the first test |
+| al-core | Jest Firestore rules tests, in the Firestore emulator | `core.yml` (Core tests) | Done |
+| al-core | Hardhat test (Mocha/Chai) | `core.yml` | Planned: a step is added when the contracts exist |
+| al-ai | pytest | `ai.yml` (AI tests) | Ready: runs from the first al-ai PR with a `pyproject.toml` and tests |
 
-GitHub Actions runs each suite on every PR, filtered by path so only the changed subsystem runs. Every user story has a written test case in the sprint docs.
+GitHub Actions runs each suite on every PR, filtered by path so only the changed subsystem runs. A failing test fails that PR's check. Every user story has a written test case in the sprint docs.
 
 ## 6. Deploy
 
