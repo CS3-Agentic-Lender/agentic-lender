@@ -20,4 +20,4 @@ Routes:
 
 `npm run build` checks TypeScript and creates a production bundle. `npm test` runs the queue-filter test.
 
-The landing page uses the forest and oat palette being explored in the design prototypes. This is a design proposal; the team palette in `docs/infrastructure.md` remains the shared product source until both frontend owners agree on a change. The portal contains no real borrower data, authentication, or lending decisions.
+The placeholder pages use the shared palette A tokens from `docs/infrastructure.md` (navy/action blue, slate text, white surfaces, and IBM Plex Sans/Mono). The token values are defined in `tailwind.config.ts` and exposed to the Vite/Tailwind stylesheet. The portal contains no real borrower data, authentication, or lending decisions.
