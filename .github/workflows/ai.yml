@@ -1,0 +1,27 @@
+# Runs al-ai's pytest suite on PRs that change al-ai/.
+# ponytail: add ".github/workflows/ai.yml" to paths once al-ai/pyproject.toml is on main;
+# until then a change to this file alone would run it against an empty folder.
+name: AI tests
+
+on:
+  pull_request:
+    paths:
+      - "al-ai/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: al-ai
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v6
+
+      - run: uv sync --locked
+
+      - run: uv run pytest

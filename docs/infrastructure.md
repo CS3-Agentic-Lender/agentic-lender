@@ -71,44 +71,50 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 | al-web | React, React Router, Tailwind CSS | Vite dev server, pointed at the Firebase emulators |
 | Database + API | Firebase (Firestore, Auth), Python (FastAPI, see decision below) | Firebase Emulator Suite |
 | Blockchain / ledger | Solidity, Hardhat, Ethers.js / Web3.py | `npx hardhat node` (optionally in Docker Compose) |
-| Agentic framework | CrewAI, AutoGen or LangGraph | Runs inside the al-ai FastAPI service |
+| Agentic framework | LangGraph (see decision below) | Runs inside the al-ai FastAPI service |
 | Predictive ML | scikit-learn (or TensorFlow / Keras) | Trained locally, model file loaded by al-ai |
 | LLM inference | Ollama (local) + Groq / Gemini (cloud) | Ollama on laptops that can run it, see below |
 | Payments + tooling | Stripe / PayPal sandbox, GitHub, Jira | Sandbox keys in `.env` |
 
 **Decision (Sep 2026): the Python API uses FastAPI.** The brief allows Flask or FastAPI; the team picked FastAPI.
 
+**Decision (Sep 2026): the agent committee uses LangGraph.** The brief allows CrewAI, AutoGen or LangGraph. The committee's steps always run in the same order and each step is our own code, so every AI call is logged exactly: what it was sent and what it sent back. CrewAI adds its own text to prompts, which makes that logging harder, and AutoGen has been in maintenance mode since October 2025.
+
 **Decision (Sep 2026): the live site uses Amazon Bedrock for the local-model role.** The brief asks for a locally hosted model through Ollama. Exposing Ollama on a team laptop to a public site is a security risk, so the app deployed on AWS calls a model on Amazon Bedrock instead. Ollama stays in local development, and at the demo a local run of the app shows Ollama working. The two cloud LLM APIs are unchanged. Agreed with the supervisor. Budget alerts go on the AWS account before anything is deployed.
 
 ### Design tokens
 
-**Proposed (Sep 2026): palette A, navy and blue.** The team picked it from the `ui-ux-pro-max` palettes and removed the gold accent. Ibrahima and Nikoloz can change any value, but only when both agree, so the app and the portal stay one product. Record any change here. Clickable prototype: [AL Palette Trial](https://claude.ai/artifact/UosWe8v9iAGRLCtsAVfvKQ) (private, ask Nic for access).
+**Decision (Sep 2026): Pine & Oat, dark green on warm off-white.** Ibrahima and Nikoloz agreed on it, replacing the earlier proposal (palette A, navy and blue). It comes from the [borrower app Figma file](https://www.figma.com/design/l1dzCYxViJsNVEceRstuH1), where each token in the first table is a colour variable in the "Pine & Oat" collection. Ibrahima and Nikoloz can change any value, but only when both agree, so the app and the portal stay one product. Record any change here and in the Figma variables.
 
-| Role | Light | Dark |
+| Token | Role | Light |
 |---|---|---|
-| Ink: navigation, headers | `#0F172A` | `#070D19` |
-| Navy: logo, selected tabs, progress | `#1E3A8A` | `#60A5FA` |
-| Action: buttons, links | `#0369A1`, white text | `#38BDF8`, text `#082F49` |
-| Background | `#F8FAFC` | `#0B1220` |
-| Surface: cards, panels | `#FFFFFF` | `#111B2E` |
-| Text | `#0F172A` | `#E2E8F0` |
-| Muted text | `#475569` | `#94A3B8` |
-| Border | `#E2E8F0` | `#23304A` |
+| Pine | Actions, selected tabs, progress; text on it is Surface | `#1E342E` |
+| Pine pressed | Pressed state of Pine actions | `#142520` |
+| Oat | Background | `#F6F4EE` |
+| Surface | Cards, panels, fields | `#FFFCF4` |
+| Line | Borders, dividers | `#D6DFD4` |
+| Tint | Highlight panels, Tint badges | `#E8EFE7` |
+| Neutral | Neutral badges, quiet fills | `#EEEBE3` |
+| Text | Body text, headers | `#16241D` |
+| Muted text | Secondary text | `#4C5851` |
+| Success | Positive status text | `#166534` |
+| Error | Errors, declined status text | `#991B1B` |
 
-Loan status badges, background / text in light mode:
+Dark mode is not defined yet. Add it here, and to the Figma variables, when Ibrahima and Nikoloz agree on the values.
 
-| Status | Colours | Risk tier | Colours |
-|---|---|---|---|
-| Applied | `#F1F5F9` / `#334155` | A | `#DCFCE7` / `#166534` |
-| AI deliberated | `#EDE9FE` / `#5B21B6` | B | `#ECFCCB` / `#3F6212` |
-| Underwriter approved | `#DCFCE7` / `#166534` | C | `#FEF3C7` / `#92400E` |
-| Funded | `#DBEAFE` / `#1E40AF` | D | `#FEE2E2` / `#991B1B` |
-| Closed | `#E2E8F0` / `#1E293B` | | |
-| Declined | `#FEE2E2` / `#991B1B` | | |
+Status badges (the Badge component in the Figma file), background / text:
 
-The dark-mode badge values are in the prototype. Every status and tier also shows its name as text, never colour alone.
+| Tone | Colours | Used for |
+|---|---|---|
+| Neutral | `#EEEBE3` / `#3F4A44` | Applied, offline |
+| Tint | `#E8EFE7` / `#1E342E` | Current step, test mode |
+| Success | `#DCFCE7` / `#166534` | Good results (fair price, high score) |
+| Danger | `#FEE2E2` / `#991B1B` | Declined, over-priced, low score |
+| Pine | `#1E342E` / `#FFFCF4` | Emphasis (the borrower's limit) |
 
-Type: IBM Plex Sans for the interface, IBM Plex Mono for loan references and figures. Every text colour pair above, light and dark, is at least 5.6:1 contrast, which passes WCAG AA (4.5:1).
+Loan statuses and risk tiers pick from these five tones; the portal's mapping is set when the portal adopts the palette. Every status and tier also shows its name as text, never colour alone.
+
+Type: IBM Plex Sans for the interface, IBM Plex Mono for loan references and figures. Every text colour pair above is at least 6.2:1 contrast, which passes WCAG AA (4.5:1).
 
 ### Local development
 
@@ -125,7 +131,7 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | al-web (Vite) | `npm run dev` | 5173 |
 
 - The `demo-` prefix marks a demo project: no real Firebase project, login or service account is needed, and nothing can reach production resources.
-- The emulators need Java 11+ and `firebase-tools` (`npm install -g firebase-tools`).
+- The emulators need Java 21+ and `firebase-tools` (`npm install -g firebase-tools`).
 - The iOS Simulator shares the Mac's network, so it reaches the emulators at `localhost`.
 - Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator` on iOS).
 - Seed data (one borrower, one broker, one underwriter, a few applications) is loaded with emulator import/export so everyone starts from the same state.
@@ -134,14 +140,15 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 
 ## 5. Test
 
-| Subsystem | Framework | Status |
-|---|---|---|
-| al-mobile | XCTest | Planned |
-| al-web | Vitest | Planned |
-| al-core | Hardhat test (Mocha/Chai) | Planned |
-| al-ai | pytest | Planned |
+| Subsystem | Framework | Workflow | Status |
+|---|---|---|---|
+| al-mobile | XCTest | `mobile.yml` (Mobile tests) | Done |
+| al-web | Vitest | `web.yml` (Web tests) | Ready: first runs on the portal scaffold PR, which brings the first test |
+| al-core | Jest Firestore rules tests, in the Firestore emulator | `core.yml` (Core tests) | Done |
+| al-core | Hardhat test (Mocha/Chai) | `core.yml` | Planned: a step is added when the contracts exist |
+| al-ai | pytest | `ai.yml` (AI tests) | Ready: runs from the first al-ai PR with a `pyproject.toml` and tests |
 
-GitHub Actions runs each suite on every PR, filtered by path so only the changed subsystem runs. Every user story has a written test case in the sprint docs.
+GitHub Actions runs each suite on every PR, filtered by path so only the changed subsystem runs. A failing test fails that PR's check. Every user story has a written test case in the sprint docs.
 
 ## 6. Deploy
 
@@ -159,6 +166,4 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 - Chat platform: Discord or Teams
 - Local dev: al-ai run command and whether Docker Compose wraps Hardhat + FastAPI (section 4)
 - Deployment targets (section 6)
-- Colour palette: palette A is proposed (section 4, Design tokens); final once Ibrahima and Nikoloz both agree
 - Custom feature (OCR, green mortgage, FTB explainer bot, amenity scoring)
-- Agent framework: CrewAI, AutoGen or LangGraph
