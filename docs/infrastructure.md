@@ -63,6 +63,8 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 
 **Decision (Sep 2026): the borrower app is iOS (Xcode, Swift, SwiftUI).** The brief lists Android Studio and Kotlin. Seamus approved iOS in the team meeting on Thursday 24 September 2026. Xcode is already set up on Ibrahima's Mac, and the iOS Simulator reaches the local emulators at `localhost` and runs lighter than the Android emulator alongside the rest of the local stack. Everything the brief asks of the app works on iOS: Firebase Auth with Google sign-in, the Stripe sandbox SDK, and SwiftUI guidance in `ui-ux-pro-max`. The choice only changes the mobile app's own code; the backend is the same. Trade-off: running the app locally needs a Mac. Teammates try it on their iPhones through Xcode on a Mac (free, reinstalled every 7 days) or TestFlight (paid Apple Developer account).
 
+**Decision (Oct 2026): the platform supports both mortgages and HELOCs.** The brief covers mortgages and home equity lines of credit. Mortgages follow the full flow in the current prototype. HELOCs are a lighter flow on the same pipeline: the borrower chooses the loan type at the start of the application, and status, messaging, payments, broker and underwriter review and the AI committee are shared. The loan note contract stores the loan type. Discussed with Seamus. The HELOC stories are planned and ticketed in the first sprint.
+
 | Area | Core technology (from brief) | Local setup |
 |---|---|---|
 | al-mobile | iOS (Xcode, Swift, SwiftUI), Firebase Auth: see decision above | iOS Simulator, pointed at the Firebase emulators |
