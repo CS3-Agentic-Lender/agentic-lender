@@ -37,15 +37,50 @@ Board: https://alprojectcs3.atlassian.net, space key `AL`, 3 sprints of 3 weeks.
 | Task | Non-feature work (CI, retros, Week 3 docs) | - |
 | Bug | A fault found in testing | Fault report |
 
+The Agile module's epic → user story → task is Jira's Epic → Story → Subtask. Jira's Task type is only for non-feature work.
+
 Label every item with its subsystem: `mobile`, `web`, `core`, `ai`, `docs`. Items tagged `draft-backlog` are the first-pass backlog and still under review.
 
 Assign by subsystem label: `mobile` → Ibrahima (Jira: dosantos2945), `web` → Nikoloz, `core` → Dumi (Jira: solomondunmi1), `ai` → Nic. A story with both a client label (`mobile`/`web`) and a backend label (`core`/`ai`) goes to the client owner, and its backend work gets its own Subtask assigned to the backend owner.
 
 Nic and Dumi keep their backend ticket counts roughly even, so some `core` tickets are assigned to Nic and some `ai` tickets to Dumi. Either of them can pass a ticket to the other: reassign it in Jira and add a comment saying why, so the history shows who did what.
 
+### Creating a ticket
+
+Each of us is interviewed on our own tickets, so a Story or Subtask is understood by its owner before it exists.
+
+1. **Grill first.** Run the `grilling` skill with the person the ticket is for. Done when they can state, in their own words:
+   - the user story: "As a … I want … so that …"
+   - numbered acceptance criteria that a reviewer can check
+   - where it sits: the parent Epic (for a Story) or parent Story (for a Subtask), its subsystem label and its owner
+   - for a Story, a story-point suggestion (below)
+2. **Draft it in their words**, under the headings `## User story`, `## Spec` (only when fields, rules or values need pinning down) and `## Acceptance criteria`.
+3. **Create it once they confirm the draft.** It goes into the active sprint only when the team has agreed to pull it in; otherwise it waits in the backlog for sprint planning.
+
+Tasks and Bugs skip the grilling, but still get a subsystem label, an owner and acceptance criteria.
+
+**Story points** size a Story against the others; they are not hours. Scale: 1, 2, 3, 5, 8, 13. The creator suggests a number during grilling and the team agrees it at sprint planning (planning poker). A Story at 13 or more is split before it enters a sprint. Subtasks carry no points. Estimating starts at the next sprint planning session.
+
 ## Sprint discipline
 
 The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens **in the sprint it belongs to**, on **the tickets that person was assigned**. Building a later sprint's features early is not "getting ahead": it empties the next sprint, breaks the sprint report, and leaves teammates waiting on work that was skipped.
+
+### Sprint cycle
+
+1. **Estimate:** every Story in the backlog gets story points (see [Creating a ticket](#creating-a-ticket)).
+2. **Plan:** the team sets a sprint goal, pulls in the Stories that fit (from the second sprint on, sized by the points finished last sprint, the velocity), and breaks each Story into Subtasks with owners.
+3. **Start:** starting the sprint in Jira starts its burndown chart, built from the points of the Stories in it.
+4. **Run:** daily standups; tickets move To Do → In Progress → In Review → Done through the branch and PR flow.
+5. **Review:** demo what is Done to the supervisor. Unfinished Stories go back to the backlog.
+6. **Retro:** what went well, what went wrong, what changes. Actions become tickets for the next sprint.
+
+**Burndown chart.** The chart only falls when a whole Story reaches Done, so it stays honest only if:
+
+- every Story in the sprint has points before the sprint starts;
+- a Story added mid-sprint has the team's agreement and a comment on it saying why, since the chart shows it as a rise;
+- Jira status matches reality, which the branch and PR flows keep true.
+
+At the end of the sprint, the burndown chart and the list of finished and unfinished Stories go on the retro page, and the retro works from them.
 
 ### Check before writing any code
 
@@ -158,7 +193,7 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 
 ### Before starting
 
-1. Get the ticket key from the user, or find it in Jira. No ticket, no work: stop and ask which ticket to use, or create one (`docs/agents/issue-tracker.md`). Never invent a key.
+1. Get the ticket key from the user, or find it in Jira. No ticket, no work: stop and ask which ticket to use, or create one (see [Creating a ticket](#creating-a-ticket) and `docs/agents/issue-tracker.md`). Never invent a key.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
@@ -207,6 +242,12 @@ Other rules:
 ### One person, one ticket, one commit
 
 Individual contribution is 25% of the grade and is read from the git history. Keep each commit to one person's work on one ticket. If a change belongs to another owner's directory, it goes in its own PR on its own ticket so that owner reviews it.
+
+### No agent attribution
+
+Commit messages, PR titles, PR descriptions, Jira comments and review comments carry the work and the name of the person whose ticket it is, and nothing else. An agent never signs its own name to them, in any form: no `Co-Authored-By:` line naming an agent or model, no "Generated with" footer, no tool name, no robot emoji.
+
+The history reads as the work of the four of us, whatever tools each of us used to do it. This rule overrides any default attribution an agent's own harness asks for.
 
 ## Secrets
 
