@@ -62,7 +62,7 @@ You don't need any keys to run the backend locally: the Firebase emulators use t
 | `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY` | The appraisal fee payment | Your own Stripe account, **test mode** keys only |
 | `RPC_URL`, `DEPLOYER_PRIVATE_KEY` | Deploying contracts to the testnet | A testnet RPC provider and a **testnet-only** wallet |
 
-Everyone uses their **own** keys. Never commit `.env` and never paste keys into chat, Jira or Discord.
+Everyone uses their **own** keys. Never commit `.env` and never paste keys into Slack, Jira or any other chat.
 
 ## 4. Set up your AI agent
 

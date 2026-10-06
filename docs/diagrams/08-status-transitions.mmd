@@ -1,0 +1,15 @@
+stateDiagram-v2
+  direction TB
+  [*] --> Draft: borrower creates
+  Draft --> Applied: borrower submits
+  Applied --> AIDeliberated: AI review completes
+  Applied --> Applied: AI review fails, underwriter re-runs
+  AIDeliberated --> AIDeliberated: underwriter re-runs
+  AIDeliberated --> UnderwriterApproved: underwriter approves
+  AIDeliberated --> Declined: underwriter declines
+  UnderwriterApproved --> Funded: loan note minted
+  Funded --> Closed: underwriter closes
+  Declined --> Closed: underwriter closes
+  Closed --> [*]
+  AIDeliberated: AI Deliberated
+  UnderwriterApproved: Underwriter Approved

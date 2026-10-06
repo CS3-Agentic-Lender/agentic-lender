@@ -1,0 +1,15 @@
+sequenceDiagram
+  autonumber
+  actor B as Borrower
+  participant M as al-mobile
+  participant AI as al-ai
+  participant ECB as ECB data
+  B->>M: enter income, debts, deposit
+  M->>AI: POST /ai/affordability (Firebase ID token)
+  AI->>ECB: benchmark mortgage rate (cached for a day)
+  ECB-->>AI: rate and observation date
+  AI-->>M: max loan, max price, repayments, rate and date
+  B->>M: enter house details and asking price
+  M->>AI: POST /ai/valuation (Firebase ID token)
+  AI-->>M: estimate, gap, price needs review, breakdown by feature
+  Note over M,AI: No application exists yet.<br/>Nothing is stored unless the borrower saves the check.
