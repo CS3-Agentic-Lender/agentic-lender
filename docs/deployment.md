@@ -29,6 +29,8 @@ AL will have one deployed environment, production, as well as a local setup on e
 
 The domain is `agentic-lender.com`, registered through Route 53 on 6 October 2026 (the registration was still in progress when this was written). The addresses are `app.agentic-lender.com` and `api.agentic-lender.com`.
 
+The domain is registered in Nic's account, but the deployment will run in Nikoloz's account. The plan is to create the DNS zone in Nikoloz's account and point the domain's name servers at it, so Terraform can manage every record. This is not done yet.
+
 ## 2. Architecture
 
 ![AWS architecture](diagrams/09-aws-architecture.png)
@@ -47,7 +49,7 @@ A request follows these steps:
 
 ## 3. Environments
 
-**AL has one environment: production.** Developers work on their laptops with the Firebase emulators, a local Hardhat node, Ollama and a local gateway. A second AWS environment for staging would double the cost. The AWS account has no credits left, so every charge is real money. A test week plus a demo week costs about EUR 40.
+**AL has one environment: production.** Developers work on their laptops with the Firebase emulators, a local Hardhat node, Ollama and a local gateway. A second AWS environment for staging would double the cost. The deployment will run in Nikoloz's AWS account, which Nic sets up and manages. Nic's own account has no credits left, so check what credits Nikoloz's account has before assuming anything is free. A test week plus a demo week costs about EUR 40.
 
 A typical production setup uses several environments and moves each change between them:
 
@@ -98,7 +100,7 @@ AWS groups good cloud design into six pillars. This table records AL's plans for
 
 The commands below are planned; the Terraform and wrapper scripts still need to be written.
 
-**One-time setup.** Set up the Terraform state bucket, a GitHub deploy role that trusts only this repository and the `main` branch, and look up the DNS zone that Route 53 created when the domain was registered. Terraform will add the DNS records used to validate the certificate to that zone. Route 53 will point `api.<domain>` to the load balancer.
+**One-time setup.** Set up the Terraform state bucket, a GitHub deploy role that trusts only this repository and the `main` branch, and set up the DNS zone for the domain (the one Route 53 created at registration, or a new one in Nikoloz's account as described in section 1). Terraform will add the DNS records used to validate the certificate to that zone. Route 53 will point `api.<domain>` to the load balancer.
 
 1. **Build.** When a change is merged to `main`, GitHub Actions builds both images and pushes them to ECR, tagged with the commit id. ECR runs a basic scan each time an image is pushed. It reports findings but does not stop a deploy.
 2. **Deploy.** A person signs in with `aws sso login` and runs `deploy <tag>`. The GitHub Actions deploy button does the same work using the GitHub role instead of a person's login. Terraform changes both ECS services to the new image.
@@ -124,7 +126,7 @@ Estimated monthly costs if the full setup runs all month. These estimates use pu
 | Private subnets in the demo week | about EUR 9 a week for the NAT gateway plus data charges, and about EUR 3 a week less for the task IP addresses |
 | Bedrock calls | pennies at this volume |
 
-The AWS account has no active credits. The sign-up credits expired on 14 September 2026, so every charge is paid by card. Budgets send alerts but do not limit spending. Guardrails:
+Nic's own AWS account has no active credits, because its sign-up credits expired on 14 September 2026. The deployment will run in Nikoloz's account instead. Before the first deploy, check that account's credits and payment method in its Billing console and agree who pays any charges. Budgets send alerts but do not limit spending. Guardrails:
 - Set two budget alerts on actual charges, one at about EUR 20 and one at about EUR 50.
 - Use the AWS account spend limit if this account can access it (paid plan only, limited release).
 - Keep task counts fixed with no autoscaling, and set a WAF rate limit on the load balancer.
@@ -140,7 +142,7 @@ The WAF allows about 300 requests per source IP in a rolling five-minute window,
 | Bedrock model for the affordability agent | Claude Haiku 4.5, gpt-oss-120b, Claude Sonnet 4.6 | Nic, team meeting |
 | Where the smart contracts run when deployed | Public testnet or a Hardhat container on AWS | Dumi and Nic, team meeting |
 | iOS demo build | Simulator, iPhone through Xcode or TestFlight | Ibrahima, needs a paid Apple Developer account |
-| AWS account and who pays | Nic's own account with budget caps, a friend's account with Nic as admin, or another cloud (Azure for Students, GCP) | Nic, leaning to his own account. Waiting for the supervisor's reply about AWS Academy and course credits |
+| AWS account and who pays | Nic's own account with budget caps, Nikoloz's account with Nic as admin, or another cloud (Azure for Students, GCP) | Decided: Nikoloz's account, which Nic sets up and manages with admin access. Still to agree: who pays any charges and whether that account has credits. The supervisor has also been asked about AWS Academy and course credits |
 | Stripe test payments | Webhook through the load balancer | Nic, after the items above |
 | Task sizes | Start small, then measure | Nic, during the test week |
 | Domain | `agentic-lender.com` is registered at Route 53. The registrant email must be verified | Nic, within 15 days of registering |
@@ -151,7 +153,7 @@ Problems found while writing this design, and how each was resolved.
 
 | Issue | What happened | Resolution |
 |---|---|---|
-| The AWS credits had expired | The plan assumed $100 of credits. The Billing console showed no active credits: the three sign-up credits expired on 14 September 2026. | The plan now treats every charge as real money, about EUR 40 for a test week and a demo week. Budget alerts and teardown are the guardrails (section 7). The account question is in section 8 |
+| The AWS credits had expired | The plan assumed $100 of credits. The Billing console showed no active credits: the three sign-up credits expired on 14 September 2026. | Nikoloz offered their AWS account and Nic will set it up and manage it. The plan still treats every charge as real money until that account's credits are checked, about EUR 40 for a test week and a demo week. Budget alerts and teardown are the guardrails (section 7). The account question is in section 8 |
 | AWS Academy would not fit | The Learner Lab is limited to us-east-1 and us-west-2, allows a restricted set of services and stops after about 4 hours. AWS Educate and Student Rewards offer about $30. These details come from secondary sources and are not confirmed | Not used for now. The supervisor has been asked whether the college has Academy access |
 | The first cost estimate was too low | It missed the charge for public IPv4 addresses, so EUR 58 became about EUR 74 a month | Corrected after a review, and the table in section 7 now lists the addresses |
 | The first diagram showed the wrong request path | It drew Route 53, then the WAF, then the load balancer as one chain, and put the WAF inside the VPC | Route 53 now appears as a DNS lookup. The WAF is attached to the load balancer and sits in the Region, outside the VPC |

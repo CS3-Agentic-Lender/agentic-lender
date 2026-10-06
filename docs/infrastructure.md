@@ -84,7 +84,7 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 
 **Decision (Oct 2026): the AWS tasks run in public subnets for the December test week and in private subnets for the demo week if the budget allows.** The task security group accepts traffic only from the load balancer in both cases. Private subnets need a NAT gateway (about EUR 30 a month), so the switch is a single Terraform setting. See `docs/deployment.md`.
 
-**Decision (Oct 2026): cost guardrails are set before anything deploys.** The AWS account has no credits left, so every charge is real money: about EUR 40 for a test week and a demo week. The guardrails are budget alerts at about EUR 20 and EUR 50 on actual charges, fixed task counts with no autoscaling, the WAF rate limit, and a tear-down after the demo. Which account runs the deployment is still open (see the deployment doc).
+**Decision (Oct 2026): cost guardrails are set before anything deploys.** The deployment runs in Nikoloz's AWS account, which Nic sets up and manages with admin access. Nic's own account has no credits left, so until Nikoloz's account is checked every charge counts as real money: about EUR 40 for a test week and a demo week. The guardrails are budget alerts at about EUR 20 and EUR 50 on actual charges, fixed task counts with no autoscaling, the WAF rate limit, and a tear-down after the demo. Who pays any charges is still to agree (see the deployment doc).
 
 ### Design tokens
 
