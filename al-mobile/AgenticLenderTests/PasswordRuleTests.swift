@@ -31,6 +31,13 @@ final class PasswordRuleTests: XCTestCase {
         XCTAssertTrue(PasswordRule.allMet(by: "1234567a"))
     }
 
+    func testOnlyTheDigitsZeroToNineCountAsANumber() {
+        // Arabic-Indic three and a full-width one are numbers to Swift, but not 0 to 9.
+        XCTAssertFalse(PasswordRule.containsNumber.isMet(by: "abcdefg\u{0663}"))
+        XCTAssertFalse(PasswordRule.containsNumber.isMet(by: "abcdefg\u{FF11}"))
+        XCTAssertTrue(PasswordRule.containsNumber.isMet(by: "abcdefg7"))
+    }
+
     func testEmptyPasswordMeetsNoRule() {
         for rule in PasswordRule.allCases {
             XCTAssertFalse(rule.isMet(by: ""), "\(rule)")
