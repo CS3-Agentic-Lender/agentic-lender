@@ -21,7 +21,7 @@ enum PasswordRule: CaseIterable, Hashable {
         switch self {
         case .minimumLength: password.count >= Self.requiredLength
         case .containsLetter: password.contains(where: \.isLetter)
-        case .containsNumber: password.contains(where: \.isWholeNumber)
+        case .containsNumber: password.contains { $0.isASCII && $0.isWholeNumber }
         }
     }
 
