@@ -79,7 +79,7 @@ struct SignUpView: View {
                     .accessibilityIdentifier("signUp.fullName")
             }
             FormField("Email", error: model.visibleError(for: .email)) {
-                TextField("name@example.com", text: $model.form.email)
+                TextField("Email", text: $model.form.email, prompt: Text(verbatim: "name@example.com"))
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
