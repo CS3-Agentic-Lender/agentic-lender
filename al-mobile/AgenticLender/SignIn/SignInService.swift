@@ -21,7 +21,7 @@ enum SignInError: Error, Equatable {
         case .tooManyAttempts:
             "Too many attempts. Try again in a few minutes, or reset your password."
         case .network:
-            "Can't reach the server. Check your connection and try again."
+            CommonMessage.cantReachServer
         case .unknown:
             "Something went wrong signing in. Try again."
         }

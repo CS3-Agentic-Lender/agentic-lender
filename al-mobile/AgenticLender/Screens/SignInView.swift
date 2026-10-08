@@ -59,7 +59,7 @@ struct SignInView: View {
                     Spacer()
                     NavigationLink("Forgot password?", value: Route.resetPassword(email: model.normalizedEmail))
                         .foregroundStyle(Theme.text)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: Theme.minTapTarget)
                         .accessibilityIdentifier("signIn.forgotPassword")
                 }
             }

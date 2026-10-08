@@ -1,4 +1,5 @@
 import Observation
+import os
 
 /// Drives the sign-in screen (Figma "Sign in (error state)" and 02a Signing in).
 @MainActor
@@ -13,16 +14,17 @@ final class SignInViewModel {
     private(set) var isSignedIn = false
 
     private let service: SignInService
+    private let logger = Logger(category: "SignIn")
 
     init(service: SignInService) {
         self.service = service
     }
 
     /// The email as Firebase expects it: trimmed and lower case.
-    var normalizedEmail: String { email.trimmed.lowercased() }
+    var normalizedEmail: String { Email.normalized(email) }
 
     func signIn() async {
-        emailError = Self.emailError(for: email)
+        emailError = Email.error(for: email)
         passwordError = password.isEmpty ? "Enter your password" : nil
         guard emailError == nil, passwordError == nil else { return }
 
@@ -34,12 +36,8 @@ final class SignInViewModel {
         } catch let error as SignInError {
             signInError = error.message
         } catch {
+            logger.error("Unexpected sign-in error: \(error.localizedDescription, privacy: .public)")
             signInError = SignInError.unknown.message
         }
-    }
-
-    static func emailError(for email: String) -> String? {
-        if email.isBlank { return "Enter your email" }
-        return Email.isValid(email) ? nil : "Enter an email like name@example.com"
     }
 }

@@ -1,4 +1,5 @@
 import Observation
+import os
 
 /// Drives "Reset password" and "Check your email" (Figma frames 03 and 03b).
 ///
@@ -14,6 +15,7 @@ final class ResetPasswordViewModel {
     private(set) var sentTo: String?
 
     private let service: SignInService
+    private let logger = Logger(category: "SignIn")
 
     init(service: SignInService, email: String = "") {
         self.service = service
@@ -21,10 +23,10 @@ final class ResetPasswordViewModel {
     }
 
     func sendLink() async {
-        error = SignInViewModel.emailError(for: email)
+        error = Email.error(for: email)
         guard error == nil else { return }
 
-        let address = email.trimmed.lowercased()
+        let address = Email.normalized(email)
         isSending = true
         defer { isSending = false }
         do {
@@ -35,6 +37,7 @@ final class ResetPasswordViewModel {
         } catch let failure as SignInError {
             error = failure.message
         } catch {
+            logger.error("Unexpected password reset error: \(error.localizedDescription, privacy: .public)")
             self.error = SignInError.unknown.message
         }
     }
