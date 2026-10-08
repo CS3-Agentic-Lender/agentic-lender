@@ -3,4 +3,5 @@ enum Route: Hashable {
     case signIn
     case signUp
     case affordability
+    case resetPassword(email: String)
 }

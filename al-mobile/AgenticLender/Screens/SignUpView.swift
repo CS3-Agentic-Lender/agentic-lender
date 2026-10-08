@@ -4,7 +4,6 @@ import SwiftUI
 struct SignUpView: View {
     @State private var model: SignUpViewModel
     @FocusState private var focused: SignUpField?
-    @State private var isPasswordVisible = false
     @State private var isCountySheetShown = false
 
     init(service: AccountService) {
@@ -91,37 +90,17 @@ struct SignUpView: View {
             }
             // The checklist explains a weak password, so only a missing one gets an error line.
             FormField("Password", error: model.form.password.isEmpty ? model.visibleError(for: .password) : nil) {
-                passwordField
+                PasswordField(
+                    text: $model.form.password,
+                    contentType: .newPassword,
+                    focus: $focused,
+                    field: .password,
+                    identifier: "signUp.password"
+                )
+                .submitLabel(.continue)
+                .onSubmit { model.continueFromAccount() }
             }
             PasswordChecklist(rulesMet: model.passwordRulesMet)
-        }
-    }
-
-    private var passwordField: some View {
-        HStack {
-            Group {
-                if isPasswordVisible {
-                    TextField("Password", text: $model.form.password)
-                } else {
-                    SecureField("Password", text: $model.form.password)
-                }
-            }
-            .textContentType(.newPassword)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .focused($focused, equals: .password)
-            .submitLabel(.continue)
-            .onSubmit { model.continueFromAccount() }
-            .accessibilityIdentifier("signUp.password")
-
-            Button {
-                isPasswordVisible.toggle()
-            } label: {
-                Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
-                    .frame(width: 44, height: 44)
-            }
-            .foregroundStyle(Theme.mutedText)
-            .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password") // betterleaks:allow — button label, not a secret
         }
     }
 
@@ -205,17 +184,7 @@ struct SignUpView: View {
 
     /// Shown until choosing a broker is built as the next step after sign-up.
     private var accountCreated: some View {
-        ContentUnavailableView {
-            Label("Account created", systemImage: "checkmark.circle")
-        } description: {
-            Text("Next you'll choose your broker.")
-        } actions: {
-            NavigationLink("What can I borrow?", value: Route.affordability)
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.pine)
-                .accessibilityIdentifier("signUp.affordability")
-        }
-        .foregroundStyle(Theme.text)
+        SignedInPlaceholderView(title: "Account created", message: "Next you'll choose your broker.")
     }
 }
 
