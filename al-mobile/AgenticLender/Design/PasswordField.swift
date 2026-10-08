@@ -29,7 +29,7 @@ struct PasswordField<Field: Hashable>: View {
                 isVisible.toggle()
             } label: {
                 Image(systemName: isVisible ? "eye.slash" : "eye")
-                    .frame(width: 44, height: 44)
+                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
             .foregroundStyle(Theme.mutedText)
             .accessibilityLabel(isVisible ? "Hide password" : "Show password") // betterleaks:allow — button label, not a secret

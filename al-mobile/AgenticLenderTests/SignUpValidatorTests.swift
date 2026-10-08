@@ -84,17 +84,6 @@ final class SignUpValidatorTests: XCTestCase {
 
     // MARK: - Email
 
-    func testAcceptsAPlainEmail() {
-        XCTAssertTrue(SignUpValidator.isValidEmail("alice@test.com"))
-        XCTAssertTrue(SignUpValidator.isValidEmail(" alice.murphy+loans@mail.example.ie "))
-    }
-
-    func testRejectsMalformedEmails() {
-        for email in ["alice", "alice@", "@test.com", "alice@test", "alice @test.com", "alice@test.c"] {
-            XCTAssertFalse(SignUpValidator.isValidEmail(email), email)
-        }
-    }
-
     func testInvalidEmailShowsFormatError() {
         var form = validForm()
         form.email = "alice@test"

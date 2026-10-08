@@ -40,6 +40,6 @@ final class SignInViewModel {
 
     static func emailError(for email: String) -> String? {
         if email.isBlank { return "Enter your email" }
-        return SignUpValidator.isValidEmail(email) ? nil : "Enter an email like name@example.com"
+        return Email.isValid(email) ? nil : "Enter an email like name@example.com"
     }
 }
