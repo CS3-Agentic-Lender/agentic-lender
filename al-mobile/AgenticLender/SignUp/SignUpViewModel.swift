@@ -25,6 +25,16 @@ final class SignUpViewModel {
         return SignUpValidator.error(for: field, in: form)
     }
 
+    /// The checklist under the password field ticks these off as the borrower types.
+    var passwordRulesMet: Set<PasswordRule> {
+        PasswordRule.met(by: form.password)
+    }
+
+    /// Continue stays disabled until the password meets every rule.
+    var canContinueFromAccount: Bool {
+        PasswordRule.allMet(by: form.password)
+    }
+
     func markTouched(_ field: SignUpField) {
         touched.insert(field)
     }

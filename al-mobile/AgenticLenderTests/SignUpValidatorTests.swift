@@ -63,6 +63,25 @@ final class SignUpValidatorTests: XCTestCase {
         XCTAssertEqual(Set(errors.keys), [.phone, .addressLine1, .county, .eircode])
     }
 
+    // MARK: - Password
+
+    func testMissingPasswordAsksForOne() {
+        var form = validForm()
+        form.password = ""
+
+        XCTAssertEqual(SignUpValidator.errors(for: form)[.password], "Enter a password")
+    }
+
+    func testWeakPasswordIsRejected() {
+        var form = validForm()
+        form.password = TestFixtures.lettersOnlyPassword
+
+        XCTAssertEqual(
+            SignUpValidator.errors(for: form)[.password],
+            "Use at least 8 characters, with a letter and a number"
+        )
+    }
+
     // MARK: - Email
 
     func testAcceptsAPlainEmail() {

@@ -2,7 +2,7 @@ import Foundation
 
 /// Checks the sign-up form and returns one message per field that is wrong.
 ///
-/// Password strength is checked separately by the password rules; here a password only has to be present.
+/// The password has to meet every `PasswordRule`.
 enum SignUpValidator {
     static func errors(for form: SignUpForm) -> [SignUpField: String] {
         errors(for: form, fields: SignUpField.allCases)
@@ -26,7 +26,9 @@ enum SignUpValidator {
             if form.email.isBlank { return "Enter your email" }
             return isValidEmail(form.email) ? nil : "Enter an email like name@example.com"
         case .password:
-            return form.password.isEmpty ? "Enter a password" : nil
+            if form.password.isEmpty { return "Enter a password" }
+            return PasswordRule.allMet(by: form.password)
+                ? nil : "Use at least \(PasswordRule.requiredLength) characters, with a letter and a number"
         case .phone:
             if form.phone.isBlank { return "Enter your phone number" }
             return normalizedIrishPhone(form.phone) == nil

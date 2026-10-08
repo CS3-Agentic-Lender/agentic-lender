@@ -69,6 +69,37 @@ final class SignUpViewModelTests: XCTestCase {
         XCTAssertEqual(model.step, .details)
     }
 
+    func testContinueIsDisabledUntilThePasswordMeetsEveryRule() {
+        let model = SignUpViewModel(service: FakeAccountService())
+        fill(model)
+
+        model.form.password = TestFixtures.lettersOnlyPassword
+        XCTAssertFalse(model.canContinueFromAccount)
+
+        model.form.password = TestFixtures.eightCharacterPassword
+        XCTAssertTrue(model.canContinueFromAccount)
+    }
+
+    func testRulesTickOffAsThePasswordIsTyped() {
+        let model = SignUpViewModel(service: FakeAccountService())
+
+        model.form.password = "a" // betterleaks:allow — one typed letter, not a password
+        XCTAssertEqual(model.passwordRulesMet, [.containsLetter])
+
+        model.form.password = TestFixtures.eightCharacterPassword
+        XCTAssertEqual(model.passwordRulesMet, Set(PasswordRule.allCases))
+    }
+
+    func testWeakPasswordStaysOnTheAccountStep() {
+        let model = SignUpViewModel(service: FakeAccountService())
+        fill(model)
+        model.form.password = TestFixtures.numbersOnlyPassword
+
+        model.continueFromAccount()
+
+        XCTAssertEqual(model.step, .account)
+    }
+
     func testSubmitWithErrorsDoesNotCallTheService() async {
         let service = FakeAccountService()
         let model = SignUpViewModel(service: service)
