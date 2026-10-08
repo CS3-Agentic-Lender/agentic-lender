@@ -20,10 +20,10 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Container images | Amazon ECR | Planned |
 | Secrets | AWS Secrets Manager | Planned |
 | Logs | CloudWatch Logs, kept 7 days | Planned |
-| Affordability LLM | Amazon Bedrock on the live site in place of Ollama, through an EU cross-Region inference profile. Ollama on a laptop locally | Model open |
+| Affordability LLM | Qwen3 32B on Amazon Bedrock on the live site in place of Ollama. Qwen3.5 9B on Ollama locally (`qwen3.5:9b`), from the same Qwen family | Decided |
 | Data and login | Firebase: Firestore and Auth | Decided (the hosted project is its own ticket) |
-| Smart contracts | A public testnet or a Hardhat container on AWS | Open |
-| iOS app | Simulator or iPhone through Xcode. TestFlight needs a paid Apple Developer account | Open |
+| Smart contracts | A public testnet. Dumi picks Polygon Amoy or Arbitrum Sepolia | Decided (network open) |
+| iOS app | The App Store through Ibrahima's paid Apple Developer account, bought at the end of October 2026. The Simulator is the backup | Decided |
 | Stripe | Test mode. Its webhook calls the load balancer | Later |
 | Infrastructure | Terraform in a `deploy/` folder | Planned |
 
@@ -80,8 +80,8 @@ AL's budget will not cover two full copies, so it will replace the running tasks
 | Infrastructure | Console clicks, shell scripts, OpenTofu, Terraform | Terraform | It is widely used, has a large community and the team already knows the commands. The plan uses one flat folder and four wrapper commands. State will sit in an encrypted, versioned and locked S3 bucket |
 | Deploys | Fully automatic, or started by a person | Started by a person | Images are built after a merge. A button or one command starts the deploy and helps prevent accidental releases |
 | Valuation model | Inside al-ai, its own container, SageMaker, Lambda | Inside al-ai | The model loads at start-up and should respond in milliseconds. Testing will measure this. The other options add cost and a network hop |
-| Affordability model | Claude Haiku 4.5, gpt-oss-120b, Claude Sonnet 4.6 (all usable from EU regions) | Open | Owner Nic, decided at the team meeting |
-| Smart contracts | Public testnet, or a Hardhat container on AWS | Open | Both choices fit the brief. The team will decide at its meeting |
+| Affordability model | Claude Haiku 4.5, Claude Sonnet 4.6, gpt-oss-120b, Qwen3 32B, Mistral and others usable from eu-west-1 | Qwen3 32B | Bedrock replaces Ollama on AWS, so the team picked a model from the same Qwen family as the local `qwen3.5:9b`. Local runs and the live site then behave alike. Decided at the team meeting on 8 Oct 2026 |
+| Smart contracts | Public testnet, or a Hardhat container on AWS | Public testnet | It is free, keeps its state and anyone can check a loan note on the block explorer. A Hardhat container costs money and loses everything when it restarts. Only the loan note and the audit hash go on-chain, never personal data. Decided on 8 Oct 2026; Dumi picks the network |
 
 ## 5. Well-Architected review
 
@@ -126,7 +126,7 @@ Estimated monthly costs if the full setup runs all month. These estimates use pu
 | Private subnets in the demo week | about EUR 9 a week for the NAT gateway plus data charges, and about EUR 3 a week less for the task IP addresses |
 | Bedrock calls | pennies at this volume |
 
-Nic's own AWS account has no active credits, because its sign-up credits expired on 14 September 2026. The deployment will run in Nikoloz's account instead. Before the first deploy, check that account's credits and payment method in its Billing console and agree who pays any charges. Budgets send alerts but do not limit spending. Guardrails:
+Nic's own AWS account has no active credits, because its sign-up credits expired on 14 September 2026. The deployment will run in Nikoloz's account instead. Before the first deploy, check that account's credits and payment method in its Billing console. Nic covers any charges the credits do not. Budgets send alerts but do not limit spending. Guardrails:
 - Set two budget alerts on actual charges, one at about EUR 20 and one at about EUR 50.
 - Use the AWS account spend limit if this account can access it (paid plan only, limited release).
 - Keep task counts fixed with no autoscaling, and set a WAF rate limit on the load balancer.
@@ -139,11 +139,9 @@ The WAF allows about 300 requests per source IP in a rolling five-minute window,
 
 | Decision | Options | Owner and when |
 |---|---|---|
-| Bedrock model for the affordability agent | Claude Haiku 4.5, gpt-oss-120b, Claude Sonnet 4.6 | Nic, team meeting |
-| Where the smart contracts run when deployed | Public testnet or a Hardhat container on AWS | Dumi and Nic, team meeting |
-| iOS demo build | Simulator, iPhone through Xcode or TestFlight | Ibrahima, needs a paid Apple Developer account |
-| AWS account and who pays | Nic's own account with budget caps, Nikoloz's account with Nic as admin, or another cloud (Azure for Students, GCP) | Decided: Nikoloz's account, which Nic sets up and manages with admin access. Still to agree: who pays any charges and whether that account has credits. The supervisor has also been asked about AWS Academy and course credits |
-| Stripe test payments | Webhook through the load balancer | Nic, after the items above |
+| Which public testnet | Polygon Amoy or Arbitrum Sepolia | Dumi |
+| AWS account and who pays | Nic's own account with budget caps, Nikoloz's account with Nic as admin, or another cloud (Azure for Students, GCP) | Decided: Nikoloz's account, which Nic sets up and manages with admin access. Nic covers any charges the account's credits do not, and sets the budget alerts. The supervisor has also been asked about AWS Academy and course credits |
+| Stripe test payments | Webhook through the load balancer, tested locally with the Stripe CLI | Nic makes the Stripe sandbox account. Sprint 3 |
 | Task sizes | Start small, then measure | Nic, during the test week |
 | Domain | `agentic-lender.com` is registered at Route 53. The registrant email must be verified | Nic, within 15 days of registering |
 

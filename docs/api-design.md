@@ -53,12 +53,15 @@ Both services use the Admin SDK to read and write Firestore.
 | Collection | Who reads it | What it holds |
 |---|---|---|
 | `users/{uid}` | That user, underwriters | Profile and chosen broker |
-| `applications/{id}` | The borrower, the assigned broker, underwriters | Status, loan terms, LTV, DTI, approval likelihood, decision, loan note |
-| `applications/{id}/review/underwriting` | The assigned broker, underwriters | Risk tier, DTI breakdown, valuation detail |
+| `applications/{id}` | The borrower, the assigned broker, underwriters | Status, `aiRunStatus`, loan type, loan terms, LTV, DTI, approval likelihood, decision, loan note |
+| `applications/{id}/review/underwriting` | The assigned broker, underwriters | Risk tier (A to D), DTI breakdown, valuation detail |
+| `applications/{id}/audit/record` | The assigned broker, underwriters | The audit record behind the audit hash, written at mint |
 | `ai_runs`, `ai_calls` | The assigned broker, underwriters | One record per committee run and per AI call |
 | `applications/{id}/messages` | The borrower, the assigned broker, underwriters | The message thread |
 
 Firestore grants access one document at a time. Underwriter-only details therefore live in a separate `review/underwriting` document, hidden from borrowers.
+
+**Audit hash.** At mint, al-ai builds one JSON audit record: the application id, the decision, the risk tier, the credit memo, the underwriter's id, the sign-off time, and every `ai_calls` id for the run with the SHA-256 of that call's document. The record is turned into text with sorted keys and no spaces (`json.dumps(record, sort_keys=True, separators=(",", ":"))`), and the SHA-256 of that text is the audit hash. Both services use one shared function for this, so they always get the same hash. al-core stores the full record at `audit/record` and the hash on-chain, once per application. To check a loan, hash the stored record again and compare it with the on-chain value. Declined applications have no audit record.
 
 ## 4. Authentication
 
@@ -212,7 +215,7 @@ Endpoints do not substitute made-up numbers when something fails. A missing or s
 | `Underwriter Approved` | `Funded` | The loan note is minted |
 | `Funded` or `Declined` | `Closed` | Underwriter closes it |
 
-No other status changes are valid. `aiRunStatus` separately records whether the AI run is `running`, `failed` or `complete`.
+No other status changes are valid. Firestore stores each status as exactly the string shown (`Draft`, `Applied`, `AI Deliberated`, `Underwriter Approved`, `Declined`, `Funded`, `Closed`), because al-ai matches on it. `aiRunStatus` separately records whether the AI run is `running`, `failed` or `complete`.
 
 ## 10. Key flows
 

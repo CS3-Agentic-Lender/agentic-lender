@@ -80,11 +80,13 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 
 **Decision (Sep 2026): the live site uses Amazon Bedrock for the local-model role.** The brief asks for a locally hosted model through Ollama. Exposing Ollama on a team laptop to a public site is a security risk, so the app deployed on AWS calls a model on Amazon Bedrock instead. Ollama stays in local development, and at the demo a local run of the app shows Ollama working. The two cloud LLM APIs are unchanged. Agreed with the supervisor. Budget alerts go on the AWS account before anything is deployed.
 
+**Decision (8 Oct 2026): the Bedrock model is Qwen3 32B.** On AWS, the affordability agent uses Qwen3 32B on Bedrock. Locally, it stays on `qwen3.5:9b` through Ollama. Both are Qwen models, so local runs and the live site behave alike.
+
 **Decision (Oct 2026): the live site runs on AWS ECS Fargate behind one load balancer.** al-ai and al-core each run as one Fargate task in eu-west-1. One Application Load Balancer sends `/ai/*` to al-ai and `/core/*` to al-core on one host (`api.<domain>`), with HTTPS from a free AWS certificate. HTTPS needs a domain we own, so the team buys one. A WAF rate limit sits on the load balancer. Keys live in AWS Secrets Manager. The setup is written in Terraform and run with a few simple commands, so it can be built before the demo and destroyed after it. GitHub Actions builds the images when code merges to `main` and a person starts each deploy.
 
 **Decision (Oct 2026): the AWS tasks run in public subnets for the December test week and in private subnets for the demo week if the budget allows.** The task security group accepts traffic only from the load balancer in both cases. Private subnets need a NAT gateway (about EUR 30 a month), so the switch is a single Terraform setting. See `docs/deployment.md`.
 
-**Decision (Oct 2026): cost guardrails are set before anything deploys.** The deployment runs in Nikoloz's AWS account, which Nic sets up and manages with admin access. Nic's own account has no credits left, so until Nikoloz's account is checked every charge counts as real money: about EUR 40 for a test week and a demo week. The guardrails are budget alerts at about EUR 20 and EUR 50 on actual charges, fixed task counts with no autoscaling, the WAF rate limit, and a tear-down after the demo. Who pays any charges is still to agree (see the deployment doc).
+**Decision (Oct 2026): cost guardrails are set before anything deploys.** The deployment runs in Nikoloz's AWS account, which Nic sets up and manages with admin access. Nic's own account has no credits left, so until Nikoloz's account is checked every charge counts as real money: about EUR 40 for a test week and a demo week. The guardrails are budget alerts at about EUR 20 and EUR 50 on actual charges, fixed task counts with no autoscaling, the WAF rate limit, and a tear-down after the demo. Nic covers any charges the account's credits do not.
 
 ### Design tokens
 
@@ -131,7 +133,7 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | Firestore emulator | (same) | 8080 |
 | Hardhat node | `npx hardhat node` | 8545 |
 | al-ai (FastAPI) | TBD | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
-| al-core (FastAPI) | TBD | 5002 |
+| al-core (FastAPI) | Docker Compose, behind the gateway | 5002 |
 | Local gateway (nginx) | `docker compose up gateway` (planned) | 8000 |
 | Ollama | `ollama serve` | 11434 |
 | al-web (Vite) | `npm run dev` | 5173 |
@@ -166,12 +168,10 @@ Status key as above. Items marked TBD are decided at the team meeting.
 | al-web | Firebase Hosting at `app.<domain>` | Planned |
 | al-ai and al-core | AWS ECS Fargate in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
 | Infrastructure | Terraform in `deploy/`, run with simple wrapper commands. Images built by GitHub Actions on merge to `main`, deploy started by hand | Planned |
-| al-core contracts | Public testnet (Polygon Amoy or Arbitrum Sepolia) or a Hardhat container on AWS | TBD |
-| al-mobile | iOS Simulator build, or an iPhone signed with a free Apple ID (the app expires after 7 days). TestFlight needs a paid Apple Developer account | TBD, waiting on the Apple Developer account |
+| al-core contracts | Public testnet, Polygon Amoy or Arbitrum Sepolia (Dumi picks) | Decided, network open |
+| al-mobile | The App Store through Ibrahima's paid Apple Developer account (end of October 2026). The iOS Simulator is the backup | Decided |
 
 ## Open decisions
 
-- The Bedrock model for the affordability agent
-- Where the ledger runs when the site is deployed
-- The iOS demo build
+- Which public testnet the contracts use (Dumi)
 - Local dev: whether Docker Compose also wraps Hardhat
