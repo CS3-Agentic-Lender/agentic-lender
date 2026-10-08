@@ -25,7 +25,7 @@ struct BorrowerProfile: Codable, Equatable {
         self.uid = uid
         self.role = "borrower"
         self.fullName = form.fullName.trimmed
-        self.email = form.email.trimmed.lowercased()
+        self.email = Email.normalized(form.email)
         self.phone = phone
         self.addressLine1 = form.addressLine1.trimmed
         self.addressLine2 = form.addressLine2.isBlank ? nil : form.addressLine2.trimmed

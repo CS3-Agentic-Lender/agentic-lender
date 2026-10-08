@@ -127,14 +127,40 @@ final class SignUpViewModelTests: XCTestCase {
 
     func testFailedSubmitShowsTheServiceError() async {
         let service = FakeAccountService()
-        service.result = .failure(.emailAlreadyInUse)
+        service.result = .failure(.network)
         let model = SignUpViewModel(service: service)
         fill(model)
 
         await model.submit()
 
-        XCTAssertEqual(model.submitError, AccountError.emailAlreadyInUse.message)
+        XCTAssertEqual(model.submitError, AccountError.network.message)
         XCTAssertFalse(model.isAccountCreated)
         XCTAssertFalse(model.isSubmitting)
+    }
+
+    func testEmailAlreadyInUseGoesBackToTheEmailFieldAndShowsTheErrorThere() async {
+        let service = FakeAccountService()
+        service.result = .failure(.emailAlreadyInUse)
+        let model = SignUpViewModel(service: service)
+        fill(model)
+        model.continueFromAccount()
+
+        await model.submit()
+
+        XCTAssertEqual(model.step, .account)
+        XCTAssertEqual(model.visibleError(for: .email), AccountError.emailAlreadyInUse.message)
+        XCTAssertNil(model.submitError)
+    }
+
+    func testRejectedEmailErrorClearsOnceTheEmailIsChanged() async {
+        let service = FakeAccountService()
+        service.result = .failure(.invalidEmail)
+        let model = SignUpViewModel(service: service)
+        fill(model)
+        await model.submit()
+
+        model.form.email = "alice.murphy@test.com"
+
+        XCTAssertNil(model.visibleError(for: .email))
     }
 }
