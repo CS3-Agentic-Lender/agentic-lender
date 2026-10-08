@@ -6,6 +6,7 @@ enum AffordabilityValidator {
 
     private static let notAnAmount = "Enter an amount of €0 or more, in whole euro"
     private static let incomeTooHigh = "Enter an amount up to €\(EuroAmount.format(maximumIncome))"
+    private static let termOutOfRange = "Choose a term from \(termRange.lowerBound) to \(termRange.upperBound) years"
 
     static func errors(for form: AffordabilityForm) -> [AffordabilityField: String] {
         Dictionary(uniqueKeysWithValues: AffordabilityField.allCases.compactMap { field in
@@ -25,7 +26,7 @@ enum AffordabilityValidator {
         case .deposit:
             return amountError(form.deposit, whenEmpty: "Enter your deposit, or 0 if you have none")
         case .term:
-            return termRange.contains(form.termYears) ? nil : "Choose a term from 5 to 35 years"
+            return termRange.contains(form.termYears) ? nil : termOutOfRange
         }
     }
 
