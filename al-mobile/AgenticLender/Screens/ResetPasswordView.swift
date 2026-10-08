@@ -2,6 +2,9 @@ import SwiftUI
 
 /// "Reset password" then "Check your email" (Figma frames 03 and 03b).
 struct ResetPasswordView: View {
+    /// The envelope circle on "Check your email" (Figma frame 03b).
+    private static let iconSize: CGFloat = 72
+
     @State private var model: ResetPasswordViewModel
     @Environment(\.dismiss) private var dismiss
 
@@ -56,7 +59,7 @@ struct ResetPasswordView: View {
             Image(systemName: "envelope")
                 .font(.title2)
                 .foregroundStyle(Theme.text)
-                .frame(width: 72, height: 72)
+                .frame(width: Self.iconSize, height: Self.iconSize)
                 .background(Theme.tint)
                 .clipShape(Circle())
                 .accessibilityHidden(true)

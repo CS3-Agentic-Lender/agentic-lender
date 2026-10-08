@@ -3,7 +3,7 @@ import os
 
 /// Email and password sign-in and password reset through Firebase Auth.
 struct FirebaseSignInService: SignInService {
-    private let logger = Logger(subsystem: "ie.mtu.agenticlender", category: "SignIn")
+    private let logger = Logger(category: "SignIn")
 
     func signIn(email: String, password: String) async throws {
         do {
