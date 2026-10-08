@@ -7,7 +7,7 @@ import os
 /// If the profile can't be saved, the new login is deleted again so the borrower
 /// can retry with the same email instead of being left with half an account.
 struct FirebaseAccountService: AccountService {
-    private let logger = Logger(subsystem: "ie.mtu.agenticlender", category: "SignUp")
+    private let logger = Logger(category: "SignUp")
 
     func createAccount(_ account: NewAccount) async throws -> String {
         let result: AuthDataResult
