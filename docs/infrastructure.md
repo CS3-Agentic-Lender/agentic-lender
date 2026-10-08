@@ -82,11 +82,11 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 
 **Decision (8 Oct 2026): the Bedrock model is Qwen3 32B.** On AWS, the affordability agent uses Qwen3 32B on Bedrock. Locally, it stays on `qwen3.5:9b` through Ollama. Both are Qwen models, so local runs and the live site behave alike.
 
-**Decision (Oct 2026): the live site runs on AWS ECS Fargate behind one load balancer.** al-ai and al-core each run as one Fargate task in eu-west-1. One Application Load Balancer sends `/ai/*` to al-ai and `/core/*` to al-core on one host (`api.<domain>`), with HTTPS from a free AWS certificate. HTTPS needs a domain we own, so the team buys one. A WAF rate limit sits on the load balancer. Keys live in AWS Secrets Manager. The setup is written in Terraform and run with a few simple commands, so it can be built before the demo and destroyed after it. GitHub Actions builds the images when code merges to `main` and a person starts each deploy.
+**Decision (Oct 2026): the live site runs on AWS ECS Fargate behind one load balancer.** al-ai and al-core each run as one Fargate task (ARM64) in eu-west-1. One Application Load Balancer sends `/ai/*` to al-ai and `/core/*` to al-core on one host (`api.<domain>`), with HTTPS from a free AWS certificate. HTTPS needs a domain we own, so the team buys one. A WAF rate limit sits on the load balancer. Keys live in AWS Secrets Manager. The setup is written in Terraform and run with a few simple commands, so it can be built before the demo and destroyed after it. GitHub Actions builds the ARM64 images when code merges to `main` (laptops only build images for local testing) and a person starts each deploy.
 
-**Decision (Oct 2026): the AWS tasks run in public subnets for the December test week and in private subnets for the demo week if the budget allows.** The task security group accepts traffic only from the load balancer in both cases. Private subnets need a NAT gateway (about EUR 30 a month), so the switch is a single Terraform setting. See `docs/deployment.md`.
+**Decision (Oct 2026): the AWS tasks run in public subnets for the Sprint 3 test run and in private subnets for the demo week if the budget allows.** The task security group accepts traffic only from the load balancer in both cases. Private subnets need a NAT gateway (about EUR 30 a month), so the switch is a single Terraform setting. See `docs/deployment.md`.
 
-**Decision (Oct 2026): cost guardrails are set before anything deploys.** The deployment runs in Nikoloz's AWS account, which Nic sets up and manages with admin access. Nic's own account has no credits left, so until Nikoloz's account is checked every charge counts as real money: about EUR 40 for a test week and a demo week. The guardrails are budget alerts at about EUR 20 and EUR 50 on actual charges, fixed task counts with no autoscaling, the WAF rate limit, and a tear-down after the demo. Nic covers any charges the account's credits do not.
+**Decision (Oct 2026): cost guardrails are set before anything deploys.** The deployment runs in Nikoloz's AWS account, which Nic sets up and manages with admin access. Nic's own account has no credits left, so until Nikoloz's account is checked every charge counts as real money: about EUR 40 for the Sprint 3 test run and demo week. The guardrails are budget alerts at about EUR 20 and EUR 50 on actual charges, fixed task counts with no autoscaling, the WAF rate limit, and a tear-down after the demo. Nic covers any charges the account's credits do not.
 
 ### Design tokens
 
@@ -166,7 +166,7 @@ Status key as above. Items marked TBD are decided at the team meeting.
 | Subsystem | Where it runs | Status |
 |---|---|---|
 | al-web | Firebase Hosting at `app.<domain>` | Planned |
-| al-ai and al-core | AWS ECS Fargate in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
+| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
 | Infrastructure | Terraform in `deploy/`, run with simple wrapper commands. Images built by GitHub Actions on merge to `main`, deploy started by hand | Planned |
 | al-core contracts | Public testnet, Polygon Amoy or Arbitrum Sepolia (Dumi picks) | Decided, network open |
 | al-mobile | The App Store through Ibrahima's paid Apple Developer account (end of October 2026). The iOS Simulator is the backup | Decided |

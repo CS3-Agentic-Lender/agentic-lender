@@ -161,6 +161,8 @@ The seed data has one user per role, all with the password `password123`:
 
 Re-seeding and the security rules tests are in [al-core/README.md](al-core/README.md).
 
+**Docker images.** When you run the services in Docker, the images are built for your own laptop (ARM on a Mac, x86 on most Windows PCs) and stay on it. You never build or push the images that get deployed: GitHub Actions does that for ARM64 when your PR merges, and it also test-builds them on every PR, so you find out there if your Dockerfile doesn't build on ARM. See [docs/deployment.md](docs/deployment.md) section 6.
+
 ## 8. Your part of the codebase
 
 Each part's own README covers opening, running and testing it against the local backend.
