@@ -23,8 +23,7 @@ enum SignUpValidator {
         case .fullName:
             return form.fullName.isBlank ? "Enter your full name" : nil
         case .email:
-            if form.email.isBlank { return "Enter your email" }
-            return isValidEmail(form.email) ? nil : "Enter an email like name@example.com"
+            return Email.error(for: form.email)
         case .password:
             return form.password.isEmpty ? "Enter a password" : nil
         case .phone:
@@ -39,14 +38,6 @@ enum SignUpValidator {
             if form.eircode.isBlank { return "Enter your Eircode" }
             return normalizedEircode(form.eircode) == nil ? "Enter an Eircode like A65 F4E2" : nil
         }
-    }
-
-    // MARK: - Email
-
-    private static let emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-
-    static func isValidEmail(_ email: String) -> Bool {
-        email.trimmed.wholeMatch(of: emailPattern) != nil
     }
 
     // MARK: - Irish phone
@@ -78,9 +69,4 @@ enum SignUpValidator {
         guard let match = compact.wholeMatch(of: eircodePattern) else { return nil }
         return "\(match.1) \(match.2)"
     }
-}
-
-extension String {
-    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
-    var isBlank: Bool { trimmed.isEmpty }
 }

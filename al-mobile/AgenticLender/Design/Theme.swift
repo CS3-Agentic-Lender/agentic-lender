@@ -18,6 +18,8 @@ enum Theme {
     static let cornerRadius: CGFloat = 10
     static let fieldHeight: CGFloat = 50
     static let screenPadding: CGFloat = 16
+    /// Apple's minimum touch target.
+    static let minTapTarget: CGFloat = 44
 }
 
 extension Color {

@@ -2,7 +2,7 @@
 struct NewAccount: Equatable {
     let form: SignUpForm
 
-    var email: String { form.email.trimmed.lowercased() }
+    var email: String { Email.normalized(form.email) }
     var password: String { form.password }
 
     /// The Firestore profile for this account once Firebase Auth has given it a uid.
@@ -35,11 +35,20 @@ enum AccountError: Error, Equatable {
         case .weakPassword:
             "Choose a stronger password."
         case .network:
-            "Can't reach the server. Check your connection and try again."
+            CommonMessage.cantReachServer
         case .profileNotSaved:
             "Your details couldn't be saved. Try again."
         case .unknown:
             "Something went wrong creating your account. Try again."
+        }
+    }
+
+    /// The sign-up field the error is about, so it can show under that field.
+    var field: SignUpField? {
+        switch self {
+        case .emailAlreadyInUse, .invalidEmail: .email
+        case .weakPassword: .password
+        case .network, .profileNotSaved, .unknown: nil
         }
     }
 }
