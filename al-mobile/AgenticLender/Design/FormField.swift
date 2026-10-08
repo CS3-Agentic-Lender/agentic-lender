@@ -46,6 +46,7 @@ struct FormField<Content: View>: View {
 struct PrimaryButton: View {
     let title: String
     var isLoading = false
+    var isEnabled = true
     let action: () -> Void
 
     var body: some View {
@@ -59,15 +60,23 @@ struct PrimaryButton: View {
             .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
         }
         .buttonStyle(PineButtonStyle())
-        .disabled(isLoading)
+        .disabled(isLoading || !isEnabled)
     }
 }
 
+/// Pine when enabled; muted Line and Muted text when disabled (Figma frame 04).
 private struct PineButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(Theme.surface)
-            .background(configuration.isPressed ? Theme.pinePressed : Theme.pine)
+            .foregroundStyle(isEnabled ? Theme.surface : Theme.mutedText)
+            .background(background(isPressed: configuration.isPressed))
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+    }
+
+    private func background(isPressed: Bool) -> Color {
+        guard isEnabled else { return Theme.line }
+        return isPressed ? Theme.pinePressed : Theme.pine
     }
 }

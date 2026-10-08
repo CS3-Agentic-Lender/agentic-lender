@@ -89,9 +89,11 @@ struct SignUpView: View {
                     .onSubmit { focused = .password }
                     .accessibilityIdentifier("signUp.email")
             }
-            FormField("Password", error: model.visibleError(for: .password)) {
+            // The checklist explains a weak password, so only a missing one gets an error line.
+            FormField("Password", error: model.form.password.isEmpty ? model.visibleError(for: .password) : nil) {
                 passwordField
             }
+            PasswordChecklist(rulesMet: model.passwordRulesMet)
         }
     }
 
@@ -186,7 +188,8 @@ struct SignUpView: View {
             }
             PrimaryButton(
                 title: model.isSubmitting ? "Creating account..." : "Continue",
-                isLoading: model.isSubmitting
+                isLoading: model.isSubmitting,
+                isEnabled: model.step == .details || model.canContinueFromAccount
             ) {
                 focused = nil
                 switch model.step {
