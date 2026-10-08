@@ -108,6 +108,10 @@ struct AffordabilityFormView: View {
 
 /// The Single / Joint switch, styled like the Figma segmented control.
 private struct ApplicantsPicker: View {
+    /// The selected segment sits inset by this much inside the track (Figma frame "Affordability form").
+    private static let inset: CGFloat = 3
+    private static let segmentHeight: CGFloat = 34
+
     @Binding var selection: AffordabilityForm.Applicants
 
     var body: some View {
@@ -115,7 +119,7 @@ private struct ApplicantsPicker: View {
             segment("Single", value: .single)
             segment("Joint", value: .joint)
         }
-        .padding(3)
+        .padding(Self.inset)
         .background(Theme.tint)
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
     }
@@ -128,15 +132,15 @@ private struct ApplicantsPicker: View {
             Text(title)
                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? Theme.text : Theme.mutedText)
-                .frame(maxWidth: .infinity, minHeight: 34)
+                .frame(maxWidth: .infinity, minHeight: Self.segmentHeight)
                 .background(isSelected ? Theme.surface : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius - 2))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius - Self.inset))
         }
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
-/// A 44-point square − / + button for the term.
+/// A square − / + button for the term, at the minimum tap target size.
 private struct StepButton: View {
     let systemImage: String
     let label: String
@@ -147,7 +151,7 @@ private struct StepButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.headline)
-                .frame(width: 44, height: 44)
+                .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                 .background(Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
                 .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.line))
