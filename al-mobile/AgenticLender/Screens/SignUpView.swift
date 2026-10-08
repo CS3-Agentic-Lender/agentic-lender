@@ -205,11 +205,16 @@ struct SignUpView: View {
 
     /// Shown until choosing a broker is built as the next step after sign-up.
     private var accountCreated: some View {
-        ContentUnavailableView(
-            "Account created",
-            systemImage: "checkmark.circle",
-            description: Text("Next you'll choose your broker.")
-        )
+        ContentUnavailableView {
+            Label("Account created", systemImage: "checkmark.circle")
+        } description: {
+            Text("Next you'll choose your broker.")
+        } actions: {
+            NavigationLink("What can I borrow?", value: Route.affordability)
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.pine)
+                .accessibilityIdentifier("signUp.affordability")
+        }
         .foregroundStyle(Theme.text)
     }
 }
