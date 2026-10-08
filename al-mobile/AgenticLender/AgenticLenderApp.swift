@@ -13,7 +13,9 @@ struct AgenticLenderApp: App {
                     .navigationDestination(for: Route.self) { route in
                         switch route {
                         case .signIn:
-                            SignInView()
+                            SignInView(service: FirebaseSignInService())
+                        case .resetPassword(let email):
+                            ResetPasswordView(service: FirebaseSignInService(), email: email)
                         case .signUp:
                             SignUpView(service: FirebaseAccountService())
                         case .affordability:
