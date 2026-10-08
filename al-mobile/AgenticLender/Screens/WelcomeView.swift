@@ -8,8 +8,11 @@ struct WelcomeView: View {
                 .font(.largeTitle.bold())
             Text("Borrower app")
                 .foregroundStyle(.secondary)
-            NavigationLink("Sign in", value: Route.signIn)
+            NavigationLink("Create account", value: Route.signUp)
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("welcome.signUp")
+            NavigationLink("Sign in", value: Route.signIn)
+                .buttonStyle(.bordered)
                 .accessibilityIdentifier("welcome.signIn")
         }
         .padding()

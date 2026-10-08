@@ -38,9 +38,12 @@ Use any iPhone Simulator name from `xcrun simctl list devices`. GitHub Actions r
 
 ```
 AgenticLender/
-  AgenticLenderApp.swift   entry point and navigation stack
+  AgenticLenderApp.swift   entry point and navigation stack; starts Firebase
   Screens/                 one SwiftUI view per screen, plus Route (where a screen can navigate)
+  SignUp/                  sign-up form, validation, Firestore profile and account service
+  Design/                  Pine & Oat colour tokens and shared form controls
   Config/BackendConfig.swift   where the app finds the Firebase emulators
+  Config/FirebaseSetup.swift   connects Firebase Auth and Firestore to the emulators
   Assets.xcassets
 AgenticLenderTests/        XCTest unit tests
 ```
