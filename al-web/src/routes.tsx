@@ -1,11 +1,25 @@
-import type { RouteObject } from 'react-router';
+import { Navigate, useRoutes, type RouteObject } from 'react-router';
+import { RequireRole } from './components/auth/RequireRole';
+import { ForbiddenPage } from './pages/ForbiddenPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PortalPage } from './pages/PortalPage';
 
 export const appRoutes: RouteObject[] = [
-  { path: '/', element: <LoginPage /> },
+  { path: '/', element: <Navigate replace to="/login" /> },
   { path: '/login', element: <LoginPage /> },
-  { path: '/portal', element: <PortalPage /> },
+  { path: '/forbidden', element: <ForbiddenPage /> },
+  {
+    element: <RequireRole allowedRoles={['broker']} />,
+    children: [{ path: '/broker', element: <PortalPage role="broker" /> }],
+  },
+  {
+    element: <RequireRole allowedRoles={['underwriter']} />,
+    children: [{ path: '/underwriter', element: <PortalPage role="underwriter" /> }],
+  },
   { path: '*', element: <NotFoundPage /> },
 ];
+
+export function AppRoutes() {
+  return useRoutes(appRoutes);
+}
