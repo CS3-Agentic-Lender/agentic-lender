@@ -7,16 +7,17 @@ Follow these steps once, in order. Each step says how to check it worked.
 >
 > *"Help me set up my laptop for this project by following https://github.com/CS3-Agentic-Lender/agentic-lender/blob/main/DEVELOPER_SETUP.md step by step. I'm on [Mac / Windows / Linux]. Run the commands with me, check each step worked before moving on, and stop and explain if something fails."*
 >
-> Steps 1 (accepting invites) and 4 (logging in to Jira) need you to click things in the browser yourself. The agent can tell you what to click, but you have to do it.
+> Steps 1 (accepting invites) and 4 (logging in to Jira and Slack) need you to click things in the browser yourself. The agent can tell you what to click, but you have to do it.
 
 ## 1. Accept your invites
 
-You should get two emails:
+You should get three invites:
 
 - **GitHub**: an invite to the `CS3-Agentic-Lender` organisation.
 - **Jira**: an invite to `alprojectcs3.atlassian.net`.
+- **Slack**: an invite link to the Agentic Lender CS3 workspace, from Nic.
 
-Accept both. **Check:** you can open https://github.com/CS3-Agentic-Lender/agentic-lender and https://alprojectcs3.atlassian.net.
+Accept all three. **Check:** you can open https://github.com/CS3-Agentic-Lender/agentic-lender and https://alprojectcs3.atlassian.net, and you can see `#announcements` in Slack.
 
 ## 2. Get the code
 
@@ -93,6 +94,16 @@ Start Codex. It should open a browser to log in. If it doesn't, run `codex mcp l
 
 **Check (any agent):** ask it *"List the epics in the AL Jira space."* You should see about 12 epics, such as "Accounts & Roles" and "Fair-Price Property Checker".
 
+### Connect Slack
+
+When we can't meet, the team talks in Slack: questions, meeting notes and announcements. Your agent reads the channels for context and drafts messages for you to send.
+
+1. In Slack, join `#announcements`, `#dev`, `#standups` and `#meetings`. Read the pinned message in `#announcements`.
+2. In any channel, run `/github signin`. Then open the **Jira Cloud** app in the Slack sidebar and click **Connect**. Anything you do from Slack then shows under your own name.
+3. **Claude (app, claude.ai or Claude Code):** go to Settings → Connectors → Slack, click **Connect** and pick the Agentic Lender CS3 workspace. Claude Code uses the same connectors when you're signed in with that account.
+
+**Check:** ask your agent *"What's the latest message in #announcements?"* It should quote the channel guide Nic posted.
+
 ## 5. Secret scanning
 
 [betterleaks](https://github.com/betterleaks/betterleaks) checks every commit for leaked keys. The repo is public, so this step is required.
@@ -113,7 +124,7 @@ git config core.hooksPath .githooks
 
 From now on, `git commit` is blocked if betterleaks finds a secret, or if betterleaks isn't installed. Every PR is also scanned in GitHub Actions, so a skipped hook still gets caught before merge.
 
-If it flags something that isn't a secret, ask in the team chat before working around it.
+If it flags something that isn't a secret, ask in `#dev` on Slack before working around it.
 
 ## 6. Install the local dev tools
 

@@ -150,6 +150,19 @@ One per person per sprint, named `<sprint name> summary - <Name>`, written as yo
 
 Write it yourself. An agent may format it, add diagrams or tidy the wording, but the account of what you did and why is yours: you are interviewed on it, and 25% of the grade rides on that interview.
 
+## Team communication
+
+When we can't meet in person, the team talks in Slack channels (workspace Agentic Lender CS3), so there is one written record:
+
+- `#announcements`: deadlines, sprint start and end, team decisions
+- `#meetings`: agendas, meeting notes and decisions
+- `#dev`: questions for another developer, PRs waiting for review, CI and merge problems
+- `#standups`: the daily update on days we don't meet
+
+A question about a ticket, including the Ollama hand-off in [Tech stack](#tech-stack), stays a comment on that Jira ticket, with its link posted in `#dev` so the teammate sees it.
+
+When the work needs something from a teammate (an answer, a review, an Ollama run), draft the message for the right channel: a Slack draft through the Slack connector when it is connected, otherwise the text in chat. The person reads it and sends it, the same as [opening the PR](#opening-the-pr).
+
 ## Agent skills
 
 ### Skill folders
