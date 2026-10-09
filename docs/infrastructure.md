@@ -19,7 +19,7 @@ Every external service has two admins so no single person blocks the team.
 
 | Tool | Purpose | Status |
 |---|---|---|
-| Microsoft Teams | Day-to-day chat. Channels: general, mobile, web, core, ai | In use |
+| Slack | Day-to-day chat. Channels: general, mobile, web, core, ai | Planned |
 | Weekly standup | Progress, blockers, next actions | Planned |
 | Email to supervisor | Formal meeting requests, kept as evidence | Planned |
 
@@ -84,6 +84,14 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 
 **Decision (Sep 2026): the live site uses Amazon Bedrock for the local-model role.** The brief asks for a locally hosted model through Ollama. Exposing Ollama on a team laptop to a public site is a security risk, so the app deployed on AWS calls a model on Amazon Bedrock instead. Ollama stays in local development, and at the demo a local run of the app shows Ollama working. The two cloud LLM APIs are unchanged. Agreed with the supervisor. Budget alerts go on the AWS account before anything is deployed.
 
+**Decision (8 Oct 2026): the Bedrock model is Qwen3 32B.** On AWS, the affordability agent uses Qwen3 32B on Bedrock. Locally, it stays on `qwen3.5:9b` through Ollama. Both are Qwen models, so local runs and the live site behave alike.
+
+**Decision (Oct 2026): the live site runs on AWS ECS Fargate behind one load balancer.** al-ai and al-core each run as one Fargate task (ARM64) in eu-west-1. One Application Load Balancer sends `/ai/*` to al-ai and `/core/*` to al-core on one host (`api.<domain>`), with HTTPS from a free AWS certificate. HTTPS needs a domain we own, so the team buys one. A WAF rate limit sits on the load balancer. Keys live in AWS Secrets Manager. The setup is written in Terraform and run with a few simple commands, so it can be built before the demo and destroyed after it. GitHub Actions builds the ARM64 images when code merges to `main` (laptops only build images for local testing) and a person starts each deploy.
+
+**Decision (Oct 2026): the AWS tasks run in public subnets for the Sprint 3 test run and in private subnets for the demo week if the budget allows.** The task security group accepts traffic only from the load balancer in both cases. Private subnets need a NAT gateway (about EUR 30 a month), so the switch is a single Terraform setting. See `docs/deployment.md`.
+
+**Decision (Oct 2026): cost guardrails are set before anything deploys.** The deployment runs in Nikoloz's AWS account, which Nic sets up and manages with admin access. Nic's own account has no credits left, so until Nikoloz's account is checked every charge counts as real money: about EUR 40 for the Sprint 3 test run and demo week. The guardrails are budget alerts at about EUR 20 and EUR 50 on actual charges, fixed task counts with no autoscaling, the WAF rate limit, and a tear-down after the demo. Nic covers any charges the account's credits do not.
+
 ### Design tokens
 
 **Decision (Sep 2026): Pine & Oat, dark green on warm off-white.** Ibrahima and Nikoloz agreed on it, replacing the earlier proposal (palette A, navy and blue). It comes from the [borrower app Figma file](https://www.figma.com/design/l1dzCYxViJsNVEceRstuH1), where each token in the first table is a colour variable in the "Pine & Oat" collection. Ibrahima and Nikoloz can change any value, but only when both agree, so the app and the portal stay one product. Record any change here and in the Figma variables.
@@ -129,9 +137,12 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | Firestore emulator | (same) | 8080 |
 | Hardhat node | `npx hardhat node` | 8545 |
 | al-ai (FastAPI) | TBD | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
+| al-core (FastAPI) | Docker Compose, behind the gateway | 5002 |
+| Local gateway (nginx) | `docker compose up gateway` (planned) | 8000 |
 | Ollama | `ollama serve` | 11434 |
 | al-web (Vite) | `npm run dev` | 5173 |
 
+- The local gateway sends `/ai/*` to al-ai and `/core/*` to al-core and applies the same rate limit as the WAF, so developers test the AWS behaviour on a laptop. It does not copy the managed rule sets that AWS WAF adds.
 - The `demo-` prefix marks a demo project: no real Firebase project, login or service account is needed, and nothing can reach production resources.
 - The emulators need Java 21+ and `firebase-tools` (`npm install -g firebase-tools`).
 - The iOS Simulator shares the Mac's network, so it reaches the emulators at `localhost`.
@@ -154,16 +165,17 @@ GitHub Actions runs each suite on every PR, filtered by path so only the changed
 
 ## 6. Deploy
 
-Deployment targets are decided as each subsystem becomes deployable. This section is updated when a choice is made.
+Status key as above. Items marked TBD are decided at the team meeting.
 
-| Subsystem | Options under consideration | Status |
+| Subsystem | Where it runs | Status |
 |---|---|---|
-| al-web | Firebase Hosting | Planned |
-| al-ai | AWS: API container behind a load balancer, Amazon Bedrock for the local-model role (see section 4) | Planned |
-| al-core contracts | Local Hardhat node, Polygon Amoy or Arbitrum Sepolia testnet | TBD |
-| al-mobile | iOS Simulator build, or an iPhone signed with a free Apple ID (the app expires after 7 days), for the demo. TestFlight needs a paid Apple Developer account | TBD |
+| al-web | Firebase Hosting at `app.<domain>` | Planned |
+| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
+| Infrastructure | Terraform in `deploy/`, run with simple wrapper commands. Images built by GitHub Actions on merge to `main`, deploy started by hand | Planned |
+| al-core contracts | Public testnet, Polygon Amoy or Arbitrum Sepolia (Dumi picks) | Decided, network open |
+| al-mobile | The App Store through Ibrahima's paid Apple Developer account (end of October 2026). The iOS Simulator is the backup | Decided |
 
 ## Open decisions
 
-- Local dev: al-ai run command and whether Docker Compose wraps Hardhat + FastAPI (section 4)
-- Deployment targets (section 6)
+- Which public testnet the contracts use (Dumi)
+- Local dev: whether Docker Compose also wraps Hardhat

@@ -1,0 +1,22 @@
+sequenceDiagram
+  autonumber
+  actor B as Borrower
+  participant M as al-mobile
+  participant C as al-core API
+  participant FS as Firestore
+  participant AI as al-ai
+  participant X as LLMs and data
+  B->>M: submit application
+  M->>C: POST /core/applications/{id}/submit
+  C->>FS: validate, set status Applied
+  FS-->>AI: listener fires
+  AI->>FS: claim the application in a transaction (runs once)
+  AI->>FS: LTV, DTI and approval likelihood
+  loop each committee step
+    AI->>X: valuation model, ECB, Serper, Gemini, Mistral, Ollama
+    X-->>AI: reply (checked against our schema)
+    AI->>FS: log the call in ai_calls
+  end
+  AI->>FS: run record, valuation and affordability fields, status AI Deliberated
+  FS-->>M: listener shows the result to the borrower
+  Note over AI,FS: If a required step still fails after its retries<br/>the run is saved as failed and the application stays Applied.

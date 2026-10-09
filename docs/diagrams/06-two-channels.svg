@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" font-family="Helvetica Neue, Helvetica, Arial, sans-serif"><rect width="100%" height="100%" fill="#ffffff"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  </defs>
+  <rect width="1200" height="560" fill="#FFFFFF"/>
+  <text x="40" y="44" font-size="24" font-weight="700" fill="#0F172A">Two channels, one host</text>
+
+  <!-- clients -->
+  <rect x="40" y="200" width="220" height="130" rx="10" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.5"/>
+  <g fill="#0F172A" text-anchor="middle">
+    <text x="150" y="246" font-size="18" font-weight="700">Clients</text>
+    <text x="150" y="272" font-size="14" fill="#475569">al-web portal</text>
+    <text x="150" y="292" font-size="14" fill="#475569">al-mobile iOS app</text>
+  </g>
+
+  <!-- entry -->
+  <rect x="380" y="170" width="260" height="190" rx="10" fill="#FEF3C7" stroke="#B45309" stroke-width="2"/>
+  <g fill="#0F172A" text-anchor="middle">
+    <text x="510" y="212" font-size="18" font-weight="700">One host</text>
+    <text x="510" y="238" font-size="14">HTTPS, rate limits</text>
+    <text x="510" y="262" font-size="14">routes by path</text>
+    <text x="510" y="300" font-size="14" font-weight="700">/ai/*  to the AI channel</text>
+    <text x="510" y="322" font-size="14" font-weight="700">/core/*  to the core channel</text>
+  </g>
+
+  <!-- channels -->
+  <rect x="780" y="90" width="380" height="170" rx="10" fill="#2563A8" stroke="#1D4F86" stroke-width="2"/>
+  <rect x="780" y="300" width="380" height="170" rx="10" fill="#2563A8" stroke="#1D4F86" stroke-width="2"/>
+  <g fill="#FFFFFF" text-anchor="middle">
+    <text x="970" y="128" font-size="19" font-weight="700">AI channel: al-ai</text>
+    <text x="970" y="158" font-size="14">valuation · affordability</text>
+    <text x="970" y="180" font-size="14">AI committee runs that take minutes</text>
+    <text x="970" y="202" font-size="14">portfolio stress tests</text>
+    <text x="970" y="238" font-size="12" fill="#DBEAFE">own container · scales on its own</text>
+    <text x="970" y="338" font-size="19" font-weight="700">Core channel: al-core</text>
+    <text x="970" y="368" font-size="14">applications · sign-off · mint</text>
+    <text x="970" y="390" font-size="14">payments · Stripe webhook · messages</text>
+    <text x="970" y="412" font-size="14">stays fast, never waits for the AI</text>
+    <text x="970" y="448" font-size="12" fill="#DBEAFE">own container · scales on its own</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <path d="M262 265 H378" marker-end="url(#a)"/>
+    <path d="M642 230 H710 V175 H778" marker-end="url(#a)"/>
+    <path d="M642 300 H710 V385 H778" marker-end="url(#a)"/>
+  </g>
+
+  <text x="40" y="520" font-size="14" fill="#475569">A slow committee run only uses the AI channel, so payments, sign-off and the Stripe webhook keep working at full speed.</text>
+</svg>

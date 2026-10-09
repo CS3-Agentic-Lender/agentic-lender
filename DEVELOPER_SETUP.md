@@ -62,7 +62,7 @@ You don't need any keys to run the backend locally: the Firebase emulators use t
 | `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY` | The appraisal fee payment | Your own Stripe account, **test mode** keys only |
 | `RPC_URL`, `DEPLOYER_PRIVATE_KEY` | Deploying contracts to the testnet | A testnet RPC provider and a **testnet-only** wallet |
 
-Everyone uses their **own** keys. Never commit `.env` and never paste keys into Teams, Jira or any other chat.
+Everyone uses their **own** keys. Never commit `.env` and never paste keys into Slack, Jira or any other chat.
 
 ## 4. Set up your AI agent
 
@@ -160,6 +160,8 @@ The seed data has one user per role, all with the password `password123`:
 **Check:** open http://127.0.0.1:4000, go to **Authentication**, and you see the three users above.
 
 Re-seeding and the security rules tests are in [al-core/README.md](al-core/README.md).
+
+**Docker images.** When you run the services in Docker, the images are built for your own laptop (ARM on a Mac, x86 on most Windows PCs) and stay on it. You never build or push the images that get deployed: GitHub Actions does that for ARM64 when your PR merges, and it also test-builds them on every PR, so you find out there if your Dockerfile doesn't build on ARM. See [docs/deployment.md](docs/deployment.md) section 6.
 
 ## 8. Your part of the codebase
 
