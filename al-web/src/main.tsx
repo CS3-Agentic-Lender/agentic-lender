@@ -1,19 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Route, Routes } from 'react-router';
-import { LandingPage } from './pages/LandingPage';
-import { LoginPage } from './pages/LoginPage';
-import { PortalPage } from './pages/PortalPage';
+import { BrowserRouter, useRoutes } from 'react-router';
+import { appRoutes } from './routes';
 import './styles.css';
+
+function App() {
+  return useRoutes(appRoutes);
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/portal" element={<PortalPage />} />
-      </Routes>
+      <App />
     </BrowserRouter>
   </React.StrictMode>,
 );
