@@ -306,6 +306,12 @@ describe('broker client file', () => {
     expect(await screen.findByRole('heading', { name: 'Client not found' })).toBeInTheDocument();
   });
 
+  it('keeps a top-level heading on the client file while it loads', async () => {
+    renderAs('broker-1', 'broker', '/broker/clients/borrower-1', new FakeClientsService());
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Loading your clients' })).toBeInTheDocument();
+  });
+
   it('follows the link from the list to the client file', async () => {
     renderAs('broker-1', 'broker', '/broker/clients', new FakeClientsService(seededFiles));
 
