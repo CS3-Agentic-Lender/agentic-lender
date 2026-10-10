@@ -2,6 +2,7 @@ import type { BrokerClientsState } from '../../context/BrokerClientsContext';
 
 interface BrokerClientsStatusProps {
   status: Exclude<BrokerClientsState['status'], 'ready'>;
+  headingLevel?: 'h1' | 'h2';
 }
 
 const messages = {
@@ -19,7 +20,7 @@ const messages = {
   },
 };
 
-export function BrokerClientsStatus({ status }: BrokerClientsStatusProps) {
+export function BrokerClientsStatus({ status, headingLevel: Heading = 'h2' }: BrokerClientsStatusProps) {
   const { heading, detail } = messages[status];
 
   return (
@@ -28,7 +29,7 @@ export function BrokerClientsStatus({ status }: BrokerClientsStatusProps) {
       aria-live="polite"
       className="rounded-2xl border border-line bg-surface p-8"
     >
-      <h2 className="text-xl font-semibold">{heading}</h2>
+      <Heading className="text-xl font-semibold">{heading}</Heading>
       <p className="mt-3 leading-7 text-muted">{detail}</p>
     </section>
   );

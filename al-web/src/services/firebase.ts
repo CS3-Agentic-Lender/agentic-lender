@@ -52,6 +52,6 @@ if (import.meta.env.DEV && !registry.__agenticLenderFirestoreEmulators.has(db)) 
   const emulator = new URL(
     import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_URL ?? 'http://127.0.0.1:8080',
   );
-  connectFirestoreEmulator(db, emulator.hostname, Number(emulator.port));
+  connectFirestoreEmulator(db, emulator.hostname, Number(emulator.port || 80));
   registry.__agenticLenderFirestoreEmulators.add(db);
 }

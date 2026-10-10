@@ -25,7 +25,7 @@ export function ClientDetailPage() {
 
         <div className="mt-8">
           {state.status !== 'ready' ? (
-            <BrokerClientsStatus status={state.status} />
+            <BrokerClientsStatus headingLevel="h1" status={state.status} />
           ) : !client ? (
             <section className="rounded-2xl border border-line bg-surface p-8">
               <h1 className="text-3xl font-semibold tracking-tight">Client not found</h1>
