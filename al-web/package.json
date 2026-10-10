@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
-    "test:auth-emulator": "node scripts/auth-emulator-smoke.mjs"
+    "test:auth-emulator": "node scripts/auth-emulator-smoke.mjs",
+    "test:clients-emulator": "node scripts/broker-clients-emulator-smoke.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

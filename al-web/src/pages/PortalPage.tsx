@@ -1,5 +1,4 @@
-import { useNavigate } from 'react-router';
-import { Mark } from '../components/Mark';
+import { PortalHeader } from '../components/PortalHeader';
 import { useAuth } from '../context/AuthContext';
 import type { PortalRole } from '../services/authService';
 
@@ -8,38 +7,14 @@ interface PortalPageProps {
 }
 
 export function PortalPage({ role }: PortalPageProps) {
-  const { signOut, user, action, authError } = useAuth();
-  const navigate = useNavigate();
+  const { user, authError } = useAuth();
   const heading = role === 'broker' ? 'Broker portal' : 'Underwriter portal';
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate('/login', { replace: true });
-    } catch {
-      // The provider exposes a safe error while retaining the authenticated state.
-    }
-  };
 
   return (
     <div className="min-h-screen bg-oat text-ink">
-      <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex min-h-20 w-full max-w-5xl items-center justify-between gap-6 px-6">
-          <div className="text-pine">
-            <Mark />
-          </div>
-          <button
-            className="min-h-11 cursor-pointer rounded-lg border border-pine px-4 py-2 font-semibold text-pine transition-colors hover:bg-tint disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={action === 'signing-out'}
-            onClick={() => void handleSignOut()}
-            type="button"
-          >
-            {action === 'signing-out' ? 'Signing out…' : 'Sign out'}
-          </button>
-        </div>
-      </header>
+      <PortalHeader />
 
-      <main className="mx-auto w-full max-w-5xl px-6 py-16 sm:py-24">
+      <main className="mx-auto w-full max-w-6xl px-6 py-16 sm:py-24">
         <p className="font-mono text-xs font-medium uppercase tracking-widest text-muted">
           {role} workspace
         </p>
