@@ -98,7 +98,7 @@ export function toClientProfile(uid: string, data: DocumentData): ClientProfile 
   };
 }
 
-function newestFirst(a: BrokerApplication, b: BrokerApplication) {
+export function newestFirst(a: BrokerApplication, b: BrokerApplication) {
   return (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0) || a.id.localeCompare(b.id);
 }
 

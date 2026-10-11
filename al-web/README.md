@@ -53,7 +53,8 @@ npm test
 npm run build
 ```
 
-`npm test` runs the Vitest auth, trusted-claim, route-guard, and broker client list tests.
+`npm test` runs the Vitest auth, trusted-claim, route-guard, broker client list, and pipeline queue
+tests.
 `npm run build` type-checks the project and creates a production bundle in `dist/`.
 
 With the seeded Auth emulator running, verify all three real custom claims without printing tokens:
@@ -82,6 +83,7 @@ A broker missing from the seed is reported as `SKIP`, not as a pass.
 - `/broker/clients` — the signed-in broker's referred clients and their applications, live
 - `/broker/clients/:clientId` — one client's file; any ID outside the broker's own list is "not found"
 - `/underwriter` — underwriter-only placeholder
+- `/underwriter/pipeline` — the underwriter's pipeline queue, live, grouped by LTV band, risk tier or status
 - `/forbidden` — explicit refused-access state
 - any other path — not-found page
 
@@ -114,5 +116,33 @@ not treated as a result: the page stays on loading until the server answers. `lo
 `ltvPct`, `loanType` and `updatedAt` are the field names in `al-core/SCHEMA.md`; they are read in
 `toBrokerApplication` only and show as "—" when a document has none.
 
-The placeholders use the Pine & Oat token set from `src/styles.css` and contain no pipeline, risk,
-or lending-decision functionality.
+## Underwriter pipeline queue
+
+`src/services/pipelineService.ts` holds one live Firestore query on the whole `applications`
+collection, which the rules on `main` allow for the underwriter role only. The queue groups those
+applications by LTV band (`<=80%`, `>80% to 90%`, `>90%`, and "No LTV yet"), by risk tier (A to D)
+or by lifecycle status, and can be filtered by status. The grouping is in
+`src/pages/underwriter/pipelineGroups.ts`. The summary line says whether the group counts are of
+all applications or of the filtered ones. The listeners stop when the page is left or the
+underwriter signs out.
+
+Draft contract, not agreed with the backend owners:
+
+- `loanAmountEur`, `ltvPct` and `updatedAt` are draft-schema names, read through the same
+  `toBrokerApplication` mapping as the client list. A document without them shows "—" and lands in
+  "No LTV yet".
+- The risk tier is read from `applications/{id}/review/underwriting` (field `riskTier`) with a single
+  collection-group query on `review`. No rule on `main` covers that subcollection, so the read is
+  refused today: the queue shows every tier as "Unavailable" with a notice and does not split by
+  tier. It starts working when a collection-group rule (`match /{path=**}/review/{doc}`) lets an
+  underwriter read those documents. A tier is only ever a stored `A`, `B`, `C` or `D`; it is never
+  derived from the LTV or mapped from another scale.
+
+Status badges share one status-to-tone mapping (`src/utils/statusTone.ts`), used by the queue and the
+client list, with the badge colours from `docs/infrastructure.md`: Draft, Applied and Closed are
+Neutral; AI Deliberated is Tint; Underwriter Approved and Funded are Success; Declined is Danger. A
+status outside the agreed list stays Neutral and is grouped as "Unrecognised status". Every badge
+shows the status as text.
+
+The `/broker` and `/underwriter` placeholders use the Pine & Oat token set from `src/styles.css` and
+contain no lending-decision functionality.
