@@ -1,0 +1,23 @@
+[project]
+name = "al-ai"
+version = "0.1.0"
+description = "AL AI service: valuation, affordability and the agent committee"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "firebase-admin>=6.5",
+    "uvicorn>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pytest>=8",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
