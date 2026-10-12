@@ -5,6 +5,7 @@ household totals: for a joint application the caller adds the applicants up firs
 rounded; round only when showing a number to a person.
 """
 
+import math
 from dataclasses import dataclass
 
 STRESS_MARGIN = 0.02  # Central Bank stress rule: +2 percentage points
@@ -19,13 +20,21 @@ SURPLUS_COMFORTABLE_MIN = 500
 SURPLUS_CAUTION_MIN = 0
 
 
+def _finite(name: str, value) -> None:
+    # NaN and infinity are never "below zero", so the comparisons alone let them through.
+    if value is None or not math.isfinite(value):
+        raise ValueError(f"{name} must be a finite number")
+
+
 def _at_least_zero(name: str, value) -> None:
-    if value is None or value < 0:
+    _finite(name, value)
+    if value < 0:
         raise ValueError(f"{name} must be 0 or more")
 
 
 def _above_zero(name: str, value) -> None:
-    if value is None or value <= 0:
+    _finite(name, value)
+    if value <= 0:
         raise ValueError(f"{name} must be greater than 0")
 
 
@@ -78,12 +87,14 @@ def net_surplus(net_monthly_income: float, monthly_living_costs: float, monthly_
 
 
 def dti_band(value: float) -> str:
+    _finite("value", value)
     if value <= DTI_COMFORTABLE_MAX:
         return "Comfortable"
     return "Caution" if value <= DTI_CAUTION_MAX else "Adverse"
 
 
 def surplus_band(value: float) -> str:
+    _finite("value", value)
     if value >= SURPLUS_COMFORTABLE_MIN:
         return "Comfortable"
     return "Caution" if value >= SURPLUS_CAUTION_MIN else "Adverse"
