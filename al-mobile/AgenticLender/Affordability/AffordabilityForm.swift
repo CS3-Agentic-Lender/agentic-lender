@@ -26,7 +26,7 @@ enum AffordabilityField: CaseIterable, Hashable {
 }
 
 /// A checked affordability form in whole euro, ready to send to the affordability endpoint.
-struct AffordabilityRequest: Equatable {
+struct AffordabilityRequest: Hashable {
     let isJoint: Bool
     let grossIncome: Int
     let secondGrossIncome: Int?

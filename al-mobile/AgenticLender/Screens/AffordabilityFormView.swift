@@ -18,7 +18,10 @@ struct AffordabilityFormView: View {
                     .foregroundStyle(Theme.text)
                     .accessibilityAddTraits(.isHeader)
 
-                ApplicantsPicker(selection: $model.form.applicants)
+                SegmentedPicker(
+                    selection: $model.form.applicants,
+                    options: [(.single, "Single"), (.joint, "Joint")]
+                )
 
                 let isJoint = model.form.applicants == .joint
                 amountField(isJoint ? "Your gross yearly income" : "Gross yearly income", field: .income, placeholder: "60,000")
@@ -62,7 +65,7 @@ struct AffordabilityFormView: View {
             .background(Theme.oat)
         }
         .navigationDestination(item: $model.outcome) { outcome in
-            AffordabilityResultView(summary: outcome.summary)
+            AffordabilityResultView(outcome: outcome)
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
@@ -103,83 +106,16 @@ struct AffordabilityFormView: View {
     }
 
     private var termStepper: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Term").font(.subheadline.weight(.medium)).foregroundStyle(Theme.text)
-                Text("\(model.form.termYears) years")
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(Theme.text)
-            }
-            Spacer()
-            StepButton(systemImage: "minus", label: "Shorter term", isEnabled: model.canDecreaseTerm) { model.decreaseTerm() }
-            StepButton(systemImage: "plus", label: "Longer term", isEnabled: model.canIncreaseTerm) { model.increaseTerm() }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Term")
-        .accessibilityValue("\(model.form.termYears) years")
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment: model.increaseTerm()
-            case .decrement: model.decreaseTerm()
-            @unknown default: break
-            }
-        }
-    }
-}
-
-/// The Single / Joint switch, styled like the Figma segmented control.
-private struct ApplicantsPicker: View {
-    /// The selected segment sits inset by this much inside the track (Figma frame "Affordability form").
-    private static let inset: CGFloat = 3
-    private static let segmentHeight: CGFloat = 34
-
-    @Binding var selection: AffordabilityForm.Applicants
-
-    var body: some View {
-        HStack(spacing: 0) {
-            segment("Single", value: .single)
-            segment("Joint", value: .joint)
-        }
-        .padding(Self.inset)
-        .background(Theme.tint)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-    }
-
-    private func segment(_ title: String, value: AffordabilityForm.Applicants) -> some View {
-        let isSelected = selection == value
-        return Button {
-            selection = value
-        } label: {
-            Text(title)
-                .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? Theme.text : Theme.mutedText)
-                .frame(maxWidth: .infinity, minHeight: Self.segmentHeight)
-                .background(isSelected ? Theme.surface : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius - Self.inset))
-        }
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-/// A square − / + button for the term, at the minimum tap target size.
-private struct StepButton: View {
-    let systemImage: String
-    let label: String
-    let isEnabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.headline)
-                .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-                .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.line))
-        }
-        .foregroundStyle(isEnabled ? Theme.text : Theme.mutedText)
-        .disabled(!isEnabled)
-        .accessibilityLabel(label)
+        StepperRow(
+            label: "Term",
+            value: "\(model.form.termYears) years",
+            decreaseLabel: "Shorter term",
+            increaseLabel: "Longer term",
+            canDecrease: model.canDecreaseTerm,
+            canIncrease: model.canIncreaseTerm,
+            decrease: model.decreaseTerm,
+            increase: model.increaseTerm
+        )
     }
 }
 

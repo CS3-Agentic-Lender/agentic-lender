@@ -2,10 +2,13 @@ import SwiftUI
 
 /// "You could borrow" (Figma frames "Affordability result" and 08a Limited by deposit).
 ///
-/// The "Check a property" and "Start application" buttons arrive with the screens they open:
-/// the property checker (Sprint 2) and the application form.
+/// "Start application" opens the application form. "Check a property" arrives with the
+/// property checker in Sprint 2.
 struct AffordabilityResultView: View {
-    let summary: AffordabilitySummary
+    let outcome: AffordabilityOutcome
+    @State private var isApplying = false
+
+    private var summary: AffordabilitySummary { outcome.summary }
 
     var body: some View {
         ScrollView {
@@ -21,8 +24,20 @@ struct AffordabilityResultView: View {
             }
             .padding(Theme.screenPadding)
         }
+        .safeAreaInset(edge: .bottom) {
+            SecondaryButton(title: "Start application") { isApplying = true }
+                .accessibilityIdentifier("affordabilityResult.startApplication")
+                .padding(Theme.screenPadding)
+                .background(Theme.oat)
+        }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $isApplying) {
+            ApplicationFormView(form: ApplicationForm(
+                affordability: outcome.request,
+                maxLoanEur: outcome.result.maxLoanEur
+            ))
+        }
     }
 
     private var maximumLoanCard: some View {
@@ -98,14 +113,20 @@ private struct FigureRow: View {
 }
 
 #Preview {
-    NavigationStack {
-        AffordabilityResultView(summary: AffordabilitySummary(
-            result: AffordabilityResult(
-                maxLoanEur: 240_000, maxPropertyPriceEur: 280_000, monthlyRepaymentEur: 1145.80,
-                stressedRepaymentEur: 1438.92, limitedBy: .income, benchmarkRatePct: 4.0,
-                stressedRatePct: 6.0, rateDate: "2026-08"
-            ),
-            termYears: 30, isFirstTimeBuyer: true
+    var form = AffordabilityForm()
+    form.income = "60,000"
+    form.monthlyDebts = "0"
+    form.deposit = "40,000"
+    let result = AffordabilityResult(
+        maxLoanEur: 240_000, maxPropertyPriceEur: 280_000, monthlyRepaymentEur: 1145.80,
+        stressedRepaymentEur: 1438.92, limitedBy: .income, benchmarkRatePct: 4.0,
+        stressedRatePct: 6.0, rateDate: "2026-08"
+    )
+    return NavigationStack {
+        AffordabilityResultView(outcome: AffordabilityOutcome(
+            request: AffordabilityRequest(form: form)!,
+            result: result,
+            summary: AffordabilitySummary(result: result, termYears: 30, isFirstTimeBuyer: true)
         ))
     }
 }
