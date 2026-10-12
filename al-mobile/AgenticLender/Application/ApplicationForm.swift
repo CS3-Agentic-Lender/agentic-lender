@@ -7,6 +7,8 @@ struct ApplicationForm: Equatable {
     let affordability: AffordabilityRequest
     /// The maximum loan from the affordability check, for the above-maximum warning.
     let maxLoanEur: Double
+    /// Chosen at the start of the affordability check (AL-206).
+    let loanType: LoanType
 
     var loanAmount = ""
     var termYears: Int
@@ -15,9 +17,10 @@ struct ApplicationForm: Equatable {
     var monthlyTakeHome = ""
     var monthlyLivingCosts = ""
 
-    init(affordability: AffordabilityRequest, maxLoanEur: Double) {
+    init(affordability: AffordabilityRequest, maxLoanEur: Double, loanType: LoanType = .mortgage) {
         self.affordability = affordability
         self.maxLoanEur = maxLoanEur
+        self.loanType = loanType
         termYears = affordability.termYears
     }
 
@@ -47,6 +50,7 @@ enum ApplicationField: CaseIterable, Hashable {
 /// A checked application, in whole euro, with the field values of the agreed applications schema.
 /// Saving it is the application endpoint's job (AL-221).
 struct ApplicationDraft: Equatable {
+    let loanType: String
     let applicants: String
     let grossIncomeEur: Int
     let monthlyDebtsEur: Int
@@ -67,6 +71,7 @@ struct ApplicationDraft: Equatable {
         else { return nil }
 
         let affordability = form.affordability
+        loanType = form.loanType.rawValue
         applicants = affordability.isJoint ? "joint" : "single"
         grossIncomeEur = affordability.householdGrossIncome
         monthlyDebtsEur = affordability.monthlyDebts
