@@ -5,9 +5,9 @@ struct NewAccount: Equatable {
     var email: String { Email.normalized(form.email) }
     var password: String { form.password }
 
-    /// The Firestore profile for this account once Firebase Auth has given it a uid.
-    func profile(uid: String) -> BorrowerProfile? {
-        BorrowerProfile(uid: uid, form: form)
+    /// The profile to send to `POST /core/me` once the Firebase Auth user exists.
+    var profile: BorrowerProfile? {
+        BorrowerProfile(form: form)
     }
 }
 
