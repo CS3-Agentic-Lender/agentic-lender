@@ -1,10 +1,12 @@
 /// Checks the affordability form: amounts are whole euro from €0, each income is at most
-/// €10m, and the term is 5 to 35 years. Returns one message per field that is wrong.
+/// €10m, the household income is above €0, and the term is 5 to 35 years.
+/// Returns one message per field that is wrong.
 enum AffordabilityValidator {
     static let maximumIncome = 10_000_000
     static let termRange = 5...35
 
     private static let notAnAmount = "Enter an amount of €0 or more, in whole euro"
+    private static let noIncome = "Enter an income of more than €0"
     private static let incomeTooHigh = "Enter an amount up to €\(EuroAmount.format(maximumIncome))"
     static let termOutOfRange = "Choose a term from \(termRange.lowerBound) to \(termRange.upperBound) years"
 
@@ -17,7 +19,8 @@ enum AffordabilityValidator {
     static func error(for field: AffordabilityField, in form: AffordabilityForm) -> String? {
         switch field {
         case .income:
-            return incomeError(form.income, whenEmpty: "Enter your gross yearly income")
+            if let error = incomeError(form.income, whenEmpty: "Enter your gross yearly income") { return error }
+            return hasHouseholdIncome(form) ? nil : noIncome
         case .secondIncome:
             guard form.applicants == .joint else { return nil }
             return incomeError(form.secondIncome, whenEmpty: "Enter the second applicant's gross yearly income")
@@ -28,6 +31,13 @@ enum AffordabilityValidator {
         case .term:
             return termRange.contains(form.termYears) ? nil : termOutOfRange
         }
+    }
+
+    /// The affordability endpoint needs a household income above €0; one joint applicant may earn nothing.
+    /// An unreadable second income counts as €0 here, since its own error already shows.
+    private static func hasHouseholdIncome(_ form: AffordabilityForm) -> Bool {
+        let second = form.applicants == .joint ? EuroAmount.parse(form.secondIncome) ?? 0 : 0
+        return (EuroAmount.parse(form.income) ?? 0) + second > 0
     }
 
     /// A whole-euro amount from €0. Shared with the HELOC check.
