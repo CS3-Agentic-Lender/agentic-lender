@@ -12,7 +12,10 @@ enum SignUpValidator {
         errors(for: form, fields: step.fields)
     }
 
-    private static func errors(for form: SignUpForm, fields: [SignUpField]) -> [SignUpField: String] {
+    /// The fields saved as the profile: everything except the password, which a Google user doesn't have.
+    static let profileFields = SignUpField.allCases.filter { $0 != .password }
+
+    static func errors(for form: SignUpForm, fields: [SignUpField]) -> [SignUpField: String] {
         Dictionary(uniqueKeysWithValues: fields.compactMap { field in
             error(for: field, in: form).map { (field, $0) }
         })
