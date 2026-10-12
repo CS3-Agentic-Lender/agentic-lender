@@ -131,6 +131,8 @@ Estimated monthly costs if the full setup runs all month. These estimates use pu
 
 Nic's own AWS account has no active credits, because its sign-up credits expired on 14 September 2026. The deployment will run in Nikoloz's account instead. Before the first deploy, check that account's credits and payment method in its Billing console. Nic covers any charges the credits do not. Budgets send alerts but do not limit spending. Guardrails:
 - Set two budget alerts on actual charges, one at about EUR 20 and one at about EUR 50.
+- Add an AWS Budgets action at the higher threshold that attaches a deny policy to the deploy role, so nothing new can be started. Billing data arrives hours late, so this slows runaway spend and is not a hard cap. Check it works in the Sprint 3 test run, and run `down` if it fires.
+- Everyone on the team gets the budget alert emails.
 - Use the AWS account spend limit if this account can access it (paid plan only, limited release).
 - Keep task counts fixed with no autoscaling, and set a WAF rate limit on the load balancer.
 - Set a spend cap in each LLM provider dashboard that offers one.
