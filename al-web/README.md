@@ -30,8 +30,12 @@ firebase emulators:start --project demo-al --import=./seed-data
 
 The development build connects Firebase Auth to `http://127.0.0.1:9099` by default. Copy
 `.env.example` to `.env.local` only when a different local URL or Firebase project configuration is
-needed. Production builds require all four `VITE_FIREBASE_*` application configuration values and
-never connect to the emulator.
+needed. Production builds never connect to the emulator.
+
+A production build needs `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
+`VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID`. If any of them is missing,
+`src/services/firebase.ts` throws when the app loads, so the page stays blank and the error is only
+in the browser console. Set all four before building for deployment.
 
 Then start the web app:
 

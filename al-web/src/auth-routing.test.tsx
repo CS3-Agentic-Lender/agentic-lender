@@ -150,11 +150,39 @@ describe('authenticated routing', () => {
     expect(screen.queryByRole('heading', { name: 'Underwriter portal' })).not.toBeInTheDocument();
   });
 
+  it('offers a denied broker a link back to the broker portal', async () => {
+    const auth = new FakeAuthService({ resolution: { role: 'broker', denialReason: null } });
+    renderAt('/underwriter', auth);
+    auth.restore(brokerUser);
+    const user = userEvent.setup();
+    const link = await screen.findByRole('link', { name: 'Go to the broker portal' });
+    expect(link).toHaveAttribute('href', '/broker');
+    await user.click(link);
+    expect(await screen.findByRole('heading', { name: 'Broker portal' })).toBeInTheDocument();
+  });
+
+  it('offers a denied underwriter a link back to the underwriter portal', async () => {
+    const auth = new FakeAuthService({ resolution: { role: 'underwriter', denialReason: null } });
+    renderAt('/broker', auth);
+    auth.restore(underwriterUser);
+    const link = await screen.findByRole('link', { name: 'Go to the underwriter portal' });
+    expect(link).toHaveAttribute('href', '/underwriter');
+  });
+
   it('refuses borrower accounts with the required portal message', async () => {
     const auth = new FakeAuthService({ resolution: { role: 'borrower', denialReason: null } });
     renderAt('/broker', auth);
     auth.restore({ ...brokerUser, uid: 'borrower-1' });
     expect(await screen.findByText('This portal is for brokers and bank staff.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /portal/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the not-found page for an unknown path', async () => {
+    const auth = new FakeAuthService();
+    renderAt('/no-such-page', auth);
+    auth.restore(null);
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Return to portal access' })).toHaveAttribute('href', '/');
   });
 
   it('lets a refused borrower sign out and removes the denied session', async () => {
