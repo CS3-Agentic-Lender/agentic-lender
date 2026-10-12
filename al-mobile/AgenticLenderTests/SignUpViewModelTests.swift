@@ -120,7 +120,7 @@ final class SignUpViewModelTests: XCTestCase {
         let request = try XCTUnwrap(service.requests.first)
         XCTAssertEqual(request.email, "alice@test.com")
         XCTAssertEqual(request.password, TestFixtures.password)
-        XCTAssertEqual(request.profile(uid: "uid-1")?.eircode, "A65 F4E2")
+        XCTAssertEqual(request.profile?.eircode, "A65 F4E2")
         XCTAssertTrue(model.isAccountCreated)
         XCTAssertFalse(model.isSubmitting)
     }

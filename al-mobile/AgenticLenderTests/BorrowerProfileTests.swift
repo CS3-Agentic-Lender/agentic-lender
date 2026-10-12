@@ -13,11 +13,9 @@ final class BorrowerProfileTests: XCTestCase {
         eircode: "a65f4e2"
     )
 
-    func testBuildsTheProfileSavedToFirestore() throws {
-        let profile = try XCTUnwrap(BorrowerProfile(uid: "uid-1", form: form))
+    func testBuildsTheCleanedUpProfile() throws {
+        let profile = try XCTUnwrap(BorrowerProfile(form: form))
 
-        XCTAssertEqual(profile.uid, "uid-1")
-        XCTAssertEqual(profile.role, "borrower")
         XCTAssertEqual(profile.fullName, "Alice Murphy")
         XCTAssertEqual(profile.email, "alice@test.com")
         XCTAssertEqual(profile.phone, "+353871234567")
@@ -25,14 +23,14 @@ final class BorrowerProfileTests: XCTestCase {
         XCTAssertEqual(profile.county, "Cork")
     }
 
-    func testSavesTheEircodeInCapitalsWithASpace() throws {
-        let profile = try XCTUnwrap(BorrowerProfile(uid: "uid-1", form: form))
+    func testSendsTheEircodeInCapitalsWithASpace() throws {
+        let profile = try XCTUnwrap(BorrowerProfile(form: form))
 
         XCTAssertEqual(profile.eircode, "A65 F4E2")
     }
 
     func testLeavesOutAnEmptyAddressLine2() throws {
-        let profile = try XCTUnwrap(BorrowerProfile(uid: "uid-1", form: form))
+        let profile = try XCTUnwrap(BorrowerProfile(form: form))
 
         XCTAssertNil(profile.addressLine2)
     }
@@ -41,6 +39,36 @@ final class BorrowerProfileTests: XCTestCase {
         var invalid = form
         invalid.eircode = "nope"
 
-        XCTAssertNil(BorrowerProfile(uid: "uid-1", form: invalid))
+        XCTAssertNil(BorrowerProfile(form: invalid))
+    }
+
+    // MARK: - POST /core/me body (field names agreed with Dumi on AL-220)
+
+    func testBodyUsesTheAgreedSnakeCaseFieldNames() throws {
+        var withSecondLine = form
+        withSecondLine.addressLine2 = "Ballintemple"
+        let profile = try XCTUnwrap(BorrowerProfile(form: withSecondLine))
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: profile.body()) as? [String: String])
+
+        XCTAssertEqual(body, [
+            "full_name": "Alice Murphy",
+            "email": "alice@test.com",
+            "phone": "+353871234567",
+            "address_line_1": "12 Oak Park",
+            "address_line_2": "Ballintemple",
+            "county": "Cork",
+            "eircode": "A65 F4E2",
+        ])
+    }
+
+    func testBodyLeavesOutAnEmptyAddressLine2AndNeverSendsARole() throws {
+        let profile = try XCTUnwrap(BorrowerProfile(form: form))
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: profile.body()) as? [String: Any])
+
+        XCTAssertNil(body["address_line_2"])
+        XCTAssertNil(body["role"])
+        XCTAssertNil(body["uid"])
     }
 }

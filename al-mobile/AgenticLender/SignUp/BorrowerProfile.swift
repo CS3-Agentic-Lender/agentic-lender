@@ -1,12 +1,11 @@
-/// The borrower's profile as saved in Firestore at `users/{uid}`.
+import Foundation
+
+/// The borrower's profile as sent to `POST /core/me` (AL-220), which saves it to `users/{uid}`.
 ///
 /// Built only from a form that passes `SignUpValidator`, so every value is already
 /// cleaned up: trimmed text, lower-case email, phone in `+353` form, Eircode in capitals.
-struct BorrowerProfile: Codable, Equatable {
-    static let collection = "users"
-
-    let uid: String
-    let role: String
+/// There is no uid or role: the API takes the uid from the ID token and sets the role itself.
+struct BorrowerProfile: Encodable, Equatable {
     let fullName: String
     let email: String
     let phone: String
@@ -15,15 +14,25 @@ struct BorrowerProfile: Codable, Equatable {
     let county: String
     let eircode: String
 
-    init?(uid: String, form: SignUpForm) {
+    /// The field names agreed with Dumi on AL-220. Spelled out because the automatic
+    /// snake_case conversion would turn `addressLine1` into `address_line1`.
+    private enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
+        case email
+        case phone
+        case addressLine1 = "address_line_1"
+        case addressLine2 = "address_line_2"
+        case county
+        case eircode
+    }
+
+    init?(form: SignUpForm) {
         guard SignUpValidator.errors(for: form).isEmpty,
               let phone = SignUpValidator.normalizedIrishPhone(form.phone),
               let eircode = SignUpValidator.normalizedEircode(form.eircode),
               let county = form.county
         else { return nil }
 
-        self.uid = uid
-        self.role = "borrower"
         self.fullName = form.fullName.trimmed
         self.email = Email.normalized(form.email)
         self.phone = phone
@@ -31,5 +40,10 @@ struct BorrowerProfile: Codable, Equatable {
         self.addressLine2 = form.addressLine2.isBlank ? nil : form.addressLine2.trimmed
         self.county = county.name
         self.eircode = eircode
+    }
+
+    /// The JSON body for `POST /core/me`; an empty second address line is left out.
+    func body() throws -> Data {
+        try JSONEncoder().encode(self)
     }
 }
