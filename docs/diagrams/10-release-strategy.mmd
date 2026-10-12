@@ -1,0 +1,15 @@
+flowchart LR
+  DEV["<b>Development</b><br/>developer laptop"] --> CI["<b>Test</b><br/>automated tests<br/>on every change"]
+  CI --> STG["<b>Staging</b><br/>full copy of production<br/>final checks"]
+  STG --> GREEN
+  subgraph PROD["Production in a real business"]
+    direction LR
+    LB{{"Load balancer<br/>weighted target groups"}}
+    BLUE["<b>Blue</b><br/>current version"]
+    GREEN["<b>Green</b><br/>new version"]
+    LB -- "95% then 75% then 0%" --> BLUE
+    LB -- "5% then 25% then 100%" --> GREEN
+  end
+  GREEN --> BAKE["<b>One clean week</b><br/>with all users"]
+  BAKE --> RETIRE["<b>Retire blue</b><br/>green becomes production"]
+  LB -. "any problem: shift back to blue at once" .-> BLUE

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 690" width="1200" height="690" font-family="Helvetica Neue, Helvetica, Arial, sans-serif"><rect width="100%" height="100%" fill="#ffffff"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  </defs>
+  <rect width="1200" height="690" fill="#FFFFFF"/>
+
+  <text x="40" y="44" font-size="24" font-weight="700" fill="#0F172A">AL system overview</text>
+
+  <!-- clients -->
+  <g fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.5">
+    <rect x="290" y="80" width="280" height="80" rx="10"/>
+    <rect x="630" y="80" width="280" height="80" rx="10"/>
+  </g>
+  <g fill="#0F172A" text-anchor="middle">
+    <text x="430" y="114" font-size="18" font-weight="700">al-web portal</text>
+    <text x="430" y="138" font-size="14" fill="#475569">brokers and underwriters</text>
+    <text x="770" y="114" font-size="18" font-weight="700">al-mobile iOS app</text>
+    <text x="770" y="138" font-size="14" fill="#475569">borrowers</text>
+  </g>
+
+  <!-- bus from clients -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <path d="M430 160 V210"/>
+    <path d="M770 160 V210"/>
+    <path d="M170 210 H1030"/>
+    <path d="M170 210 V256" marker-end="url(#a)"/>
+    <path d="M600 210 V256" marker-end="url(#a)"/>
+    <path d="M1030 210 V256" marker-end="url(#a)"/>
+  </g>
+  <g font-size="13" fill="#0F172A">
+    <text x="182" y="236">HTTPS + Firebase ID token</text>
+    <text x="182" y="252" fill="#475569">all writes</text>
+    <text x="612" y="236">sign in, read, listen</text>
+    <text x="1018" y="236" text-anchor="end">HTTPS + Firebase ID token</text>
+    <text x="1018" y="252" text-anchor="end" fill="#475569">all writes</text>
+  </g>
+
+  <!-- middle row -->
+  <g stroke-width="2">
+    <rect x="40" y="260" width="260" height="150" rx="10" fill="#2563A8" stroke="#1D4F86"/>
+    <rect x="900" y="260" width="260" height="150" rx="10" fill="#2563A8" stroke="#1D4F86"/>
+    <rect x="480" y="260" width="240" height="150" rx="10" fill="#FEF3C7" stroke="#B45309"/>
+  </g>
+  <g text-anchor="middle">
+    <g fill="#FFFFFF">
+      <text x="170" y="296" font-size="19" font-weight="700">al-ai service</text>
+      <text x="170" y="318" font-size="14">/ai/*</text>
+      <text x="170" y="346" font-size="14">valuation · affordability</text>
+      <text x="170" y="366" font-size="14">AI committee</text>
+      <text x="170" y="392" font-size="12" fill="#DBEAFE">starts itself when a status becomes Applied</text>
+      <text x="1030" y="296" font-size="19" font-weight="700">al-core service</text>
+      <text x="1030" y="318" font-size="14">/core/*</text>
+      <text x="1030" y="346" font-size="14">applications · decisions</text>
+      <text x="1030" y="366" font-size="14">ledger · payments · messages</text>
+    </g>
+    <g fill="#0F172A">
+      <text x="600" y="296" font-size="19" font-weight="700">Firebase</text>
+      <text x="600" y="326" font-size="14">Auth: sign in and roles</text>
+      <text x="600" y="348" font-size="14">Firestore: the data</text>
+      <text x="600" y="380" font-size="12" fill="#475569">clients can only read it</text>
+    </g>
+  </g>
+
+  <!-- services <-> firebase -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <path d="M302 335 H478" marker-start="url(#a)" marker-end="url(#a)"/>
+    <path d="M722 335 H898" marker-start="url(#a)" marker-end="url(#a)"/>
+  </g>
+  <g font-size="13" fill="#0F172A" text-anchor="middle">
+    <text x="390" y="326">Admin SDK</text>
+    <text x="810" y="326">Admin SDK</text>
+  </g>
+
+  <!-- outside calls -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <path d="M170 412 V496" marker-end="url(#a)"/>
+    <path d="M1030 412 V496" marker-start="url(#a)" marker-end="url(#a)"/>
+  </g>
+  <g fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.5">
+    <rect x="40" y="500" width="260" height="100" rx="10"/>
+    <rect x="900" y="500" width="260" height="100" rx="10"/>
+  </g>
+  <g fill="#0F172A" text-anchor="middle">
+    <text x="170" y="534" font-size="16" font-weight="700">LLM providers</text>
+    <text x="170" y="556" font-size="13" fill="#475569">Gemini · Mistral · Ollama or Bedrock</text>
+    <text x="170" y="578" font-size="13" fill="#475569">ECB rates · Serper search</text>
+    <text x="1030" y="534" font-size="16" font-weight="700">Ledger and payments</text>
+    <text x="1030" y="556" font-size="13" fill="#475569">loan note and audit contracts</text>
+    <text x="1030" y="578" font-size="13" fill="#475569">Stripe (webhook comes back)</text>
+  </g>
+
+  <text x="40" y="650" font-size="14" fill="#475569">Clients read Firebase directly. Every write goes through an API.</text>
+</svg>
