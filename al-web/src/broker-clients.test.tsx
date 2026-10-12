@@ -113,8 +113,8 @@ function application(id: string, borrowerId: string, status: string): BrokerAppl
   };
 }
 
-function files(profiles: ClientProfile[], applications: BrokerApplication[], profilesAvailable = true) {
-  return { clients: buildBrokerClients(profiles, applications), profilesAvailable };
+function files(profiles: ClientProfile[], applications: BrokerApplication[], profilesState: BrokerClientsSnapshot['profilesState'] = 'available') {
+  return { clients: buildBrokerClients(profiles, applications), profilesState };
 }
 
 const alice = profile('borrower-1', 'Alice Byrne');
@@ -244,7 +244,7 @@ describe('broker client list', () => {
 
   it('lists clients by ID and says why when profiles cannot be read', async () => {
     const clients = new FakeClientsService({
-      'broker-1': files([], [application('LN-1001', 'borrower-1', 'Applied')], false),
+      'broker-1': files([], [application('LN-1001', 'borrower-1', 'Applied')], 'unavailable'),
     });
     renderAs('broker-1', 'broker', '/broker/clients', clients);
 
@@ -319,5 +319,55 @@ describe('broker client file', () => {
 
     expect(await screen.findByRole('heading', { name: 'Alice Byrne' })).toBeInTheDocument();
     expect(screen.getByText('Client ID')).toBeInTheDocument();
+  });
+});
+
+describe.each([
+  ['/broker/clients', 'link'],
+  ['/broker/clients/borrower-1', 'heading'],
+] as const)('pending profiles on %s', (pathname, nameRole) => {
+  function pendingFiles() {
+    return files([], [application('LN-1001', 'borrower-1', 'Applied')], 'pending');
+  }
+
+  it('shows applications and client IDs while profiles are pending without the unavailable notice', async () => {
+    renderAs('broker-1', 'broker', pathname, new FakeClientsService({ 'broker-1': pendingFiles() }));
+
+    expect(await screen.findByRole(nameRole, { name: 'Loading name' })).toBeInTheDocument();
+    expect(screen.getByText('borrower-1')).toBeInTheDocument();
+    expect(screen.getByText('LN-1001')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Loading your clients' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Client names are not available yet/)).not.toBeInTheDocument();
+  });
+
+  it('shows names arriving later without a reload', async () => {
+    const clients = new FakeClientsService({ 'broker-1': pendingFiles() });
+    renderAs('broker-1', 'broker', pathname, clients);
+    await screen.findByRole(nameRole, { name: 'Loading name' });
+
+    act(() => {
+      clients.push('broker-1', files([alice], [application('LN-1001', 'borrower-1', 'Applied')]));
+    });
+
+    expect(await screen.findByRole(nameRole, { name: 'Alice Byrne' })).toBeInTheDocument();
+    expect(screen.queryByText('Loading name')).not.toBeInTheDocument();
+    expect(screen.getByText('LN-1001')).toBeInTheDocument();
+    expect(screen.queryByText(/Client names are not available yet/)).not.toBeInTheDocument();
+    expect(clients.subscriptions).toHaveLength(1);
+  });
+
+  it('shows the notice when profiles are refused later and keeps applications visible', async () => {
+    const clients = new FakeClientsService({ 'broker-1': pendingFiles() });
+    renderAs('broker-1', 'broker', pathname, clients);
+    await screen.findByRole(nameRole, { name: 'Loading name' });
+
+    act(() => {
+      clients.push('broker-1', files([], [application('LN-1001', 'borrower-1', 'Applied')], 'unavailable'));
+    });
+
+    expect(await screen.findByRole(nameRole, { name: 'Name unavailable' })).toBeInTheDocument();
+    expect(screen.getByText(/Client names are not available yet/)).toBeInTheDocument();
+    expect(screen.getByText('LN-1001')).toBeInTheDocument();
+    expect(clients.subscriptions).toHaveLength(1);
   });
 });

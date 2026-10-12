@@ -100,8 +100,13 @@ broker's uid: `applications` where `brokerId` matches, and `users` where `broker
 is a borrower in either result. The Firestore rules are the access boundary: an unfiltered query is
 refused, and the client file page only looks inside the broker's own list.
 
-The `users` query follows the draft schema and is refused by the rules currently on `main`. Until
-the broker-client assignment rules land, clients are listed by ID with a notice. `loanAmountEur`,
+Applications appear as soon as their query answers, even while profiles are pending. Pending
+names show as "Loading name" alongside the client ID, without an unavailable-names notice.
+Names update live when profiles arrive; a refused or failed profiles query keeps applications
+visible by client ID and shows the notice.
+
+The `users` query follows the draft schema and is refused by the rules currently on `main`. When
+that query is refused, clients are listed by ID with a notice. `loanAmountEur`,
 `ltvPct`, `loanType` and `updatedAt` are also draft-schema names; they are read in
 `toBrokerApplication` only and show as "—" when a document has none.
 

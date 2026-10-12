@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useBrokerClients } from '../../context/BrokerClientsContext';
-import { APPLICATION_STATUSES } from '../../services/clientsService';
+import { APPLICATION_STATUSES, type BrokerClientsSnapshot } from '../../services/clientsService';
 import { formatDate, formatEuro, formatPercent } from '../../utils/formatters';
 import { BrokerClientsStatus } from './BrokerClientsStatus';
 import { ALL_STATUSES, filterClientRows, toClientRows, type ClientRow } from './clientRows';
@@ -11,7 +11,7 @@ import { ALL_STATUSES, filterClientRows, toClientRows, type ClientRow } from './
 const headerCellClass = 'px-4 py-3 text-left text-xs font-semibold tracking-wide text-muted uppercase';
 const cellClass = 'px-4 py-4 align-middle';
 
-function ClientTableRow({ client, application }: ClientRow) {
+function ClientTableRow({ client, application, profilesState }: ClientRow & Pick<BrokerClientsSnapshot, 'profilesState'>) {
   return (
     <tr className="border-t border-line">
       <th className={`${cellClass} text-left font-normal`} scope="row">
@@ -19,7 +19,7 @@ function ClientTableRow({ client, application }: ClientRow) {
           className="font-medium text-pine underline-offset-4 hover:underline"
           to={`/broker/clients/${encodeURIComponent(client.id)}`}
         >
-          {client.profile?.fullName ?? 'Name unavailable'}
+          {client.profile?.fullName ?? (profilesState === 'pending' ? 'Loading name' : 'Name unavailable')}
         </Link>
         <span className="mt-1 block font-mono text-xs text-muted">{client.id}</span>
       </th>
@@ -110,11 +110,11 @@ export function ClientsPage() {
                 </p>
               </div>
 
-              {state.profilesAvailable ? null : (
+              {state.profilesState === 'unavailable' ? (
                 <p className="mt-6 rounded-lg border border-line bg-tint p-3 text-sm text-ink">
                   Client names are not available yet, so clients are listed by ID.
                 </p>
-              )}
+              ) : null}
 
               <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-surface">
                 <table className="w-full min-w-3xl border-collapse">
@@ -153,6 +153,7 @@ export function ClientsPage() {
                         <ClientTableRow
                           application={row.application}
                           client={row.client}
+                          profilesState={state.profilesState}
                           key={`${row.client.id}:${row.application?.id ?? 'none'}`}
                         />
                       ))
