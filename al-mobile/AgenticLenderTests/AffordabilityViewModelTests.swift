@@ -85,7 +85,7 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertTrue(model.canCalculate)
     }
 
-    func testCalculateSendsTheRequestAndKeepsTheResult() async throws {
+    func testCalculateSendsTheRequestAndShowsTheResult() async throws {
         let service = FakeAffordabilityService()
         let model = makeModel(service)
         fill(model)
@@ -93,7 +93,9 @@ final class AffordabilityViewModelTests: XCTestCase {
         await model.calculate()
 
         XCTAssertEqual(service.requests.first?.grossIncome, 60_000)
-        XCTAssertEqual(model.result?.maxLoanEur, 240_000)
+        let outcome = try XCTUnwrap(model.outcome)
+        XCTAssertEqual(outcome.result.maxLoanEur, 240_000)
+        XCTAssertEqual(outcome.summary.limit, "Limited by income (4× income)")
         XCTAssertFalse(model.isCalculating)
         XCTAssertNil(model.calculationError)
     }
@@ -105,7 +107,7 @@ final class AffordabilityViewModelTests: XCTestCase {
         await model.calculate()
 
         XCTAssertTrue(service.requests.isEmpty)
-        XCTAssertNil(model.result)
+        XCTAssertNil(model.outcome)
         XCTAssertEqual(model.visibleError(for: .deposit), "Enter your deposit, or 0 if you have none")
     }
 
@@ -117,7 +119,7 @@ final class AffordabilityViewModelTests: XCTestCase {
 
         await model.calculate()
 
-        XCTAssertNil(model.result)
+        XCTAssertNil(model.outcome)
         XCTAssertEqual(model.calculationError, "We couldn't calculate right now. Check your connection and try again.")
     }
 
@@ -133,7 +135,7 @@ final class AffordabilityViewModelTests: XCTestCase {
         await model.calculate()
 
         XCTAssertNil(model.calculationError)
-        XCTAssertNotNil(model.result)
+        XCTAssertNotNil(model.outcome)
     }
 
     private func makeModel(_ service: FakeAffordabilityService = FakeAffordabilityService()) -> AffordabilityViewModel {
