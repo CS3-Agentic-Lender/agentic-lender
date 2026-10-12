@@ -1,6 +1,6 @@
 from fastapi import APIRouter, FastAPI
 
-from app import errors
+from app import affordability_endpoint, errors
 
 app = FastAPI(title="al-ai", docs_url="/ai/docs", openapi_url="/ai/openapi.json", redoc_url=None)
 errors.install(app)
@@ -14,3 +14,4 @@ def health():
 
 
 app.include_router(router)
+app.include_router(affordability_endpoint.router)

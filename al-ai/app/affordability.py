@@ -11,6 +11,7 @@ STRESS_MARGIN = 0.02  # Central Bank stress rule: +2 percentage points
 DTI_CAP = 0.40  # prototype policy, used for the largest-loan calculation
 LTI_CAP_FIRST_TIME = 4.0  # Central Bank limits for owner-occupiers
 LTI_CAP_OTHER = 3.5
+LTV_CAP = 0.90  # Central Bank limit, the same for every buyer since 1 Jan 2023
 
 # Prototype bands on stressed values (docs: agent committee plan, "Rule flags and bands").
 DTI_COMFORTABLE_MAX = 0.40
@@ -148,4 +149,43 @@ def assess(
         stressed_surplus=stressed_surplus,
         dti_band=dti_band(stressed_dti),
         surplus_band=surplus_band(stressed_surplus),
+    )
+
+
+@dataclass(frozen=True)
+class Capacity:
+    max_loan: float
+    max_property_price: float  # loan plus deposit
+    repayment: float
+    stressed_repayment: float
+    limited_by: str  # "income", "deposit" or "debts"
+
+
+def borrowing_capacity(
+    gross_annual_income: float,
+    monthly_debts: float,
+    deposit: float,
+    benchmark_rate: float,
+    years: float,
+    first_time_buyer: bool,
+) -> Capacity:
+    """The largest loan: the lowest of the income multiple, the 90% LTV cap and the debt-to-income budget.
+
+    On a tie the first of income, deposit, debts is reported.
+    """
+    _above_zero("gross_annual_income", gross_annual_income)
+    _at_least_zero("deposit", deposit)
+    limits = {
+        "income": gross_annual_income * (LTI_CAP_FIRST_TIME if first_time_buyer else LTI_CAP_OTHER),
+        "deposit": deposit * LTV_CAP / (1 - LTV_CAP),  # loan / (loan + deposit) = 90% at this loan
+        "debts": max_loan_for_dti(gross_annual_income, monthly_debts, benchmark_rate, years),
+    }
+    limited_by = min(limits, key=limits.get)
+    loan = limits[limited_by]
+    return Capacity(
+        max_loan=loan,
+        max_property_price=loan + deposit,
+        repayment=monthly_repayment(loan, benchmark_rate, years),
+        stressed_repayment=stressed_repayment(loan, benchmark_rate, years),
+        limited_by=limited_by,
     )
