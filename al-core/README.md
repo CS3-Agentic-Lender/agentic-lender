@@ -112,3 +112,18 @@ uv run pytest
 ```
 
 These need no emulator.
+
+## Endpoints
+
+| Endpoint | Who | What |
+|---|---|---|
+| `POST /core/me` | Any signed-in user without a staff role | Creates the borrower profile in `users/{uid}` and sets the `role: borrower` claim. First call `201`, repeat calls `200` with the existing profile unchanged. Bad input `422` naming the field. |
+| `GET /core/me` | Any signed-in user | The caller's profile, or `404` if there is none yet |
+
+After `POST /core/me` the app must refresh its ID token (`getIdToken(true)`) so the token carries the new `role` claim.
+
+End-to-end check against the emulators (API running as above, from `al-core/`):
+
+```
+uv run python scripts/smoke_me.py
+```
