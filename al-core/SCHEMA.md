@@ -1,6 +1,6 @@
 # al-core: Firestore schema
 
-Version 0.1 (draft for team confirmation). Follows the API design doc (AL-199).
+Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 
 ## Rules that apply everywhere
 
@@ -23,6 +23,9 @@ Version 0.1 (draft for team confirmation). Follows the API design doc (AL-199).
 | `applications/{id}/messages/{messageId}` | The borrower, the assigned broker, underwriters | al-core | The message thread |
 | `ai_runs/{runId}` | The assigned broker, underwriters | al-ai | One record per committee run |
 | `ai_calls/{callId}` | The assigned broker, underwriters | al-ai | One record per AI call |
+| `support_requests/{requestId}` | The user who sent it, underwriters | al-core (`POST /core/support-requests`) | A support request from a user |
+| `reviews/{uid}` | That user, underwriters | al-core | One review per user |
+| `users/{uid}/saved_checks/{checkId}` | That user | al-core (`POST` and `DELETE /core/saved-checks`) | A borrower's saved property checks |
 
 ## users/{uid}
 
@@ -83,7 +86,7 @@ Version 0.1 (draft for team confirmation). Follows the API design doc (AL-199).
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `estimatedValueEur` | number | no | From `POST /ai/valuation` |
-| `ltvPct` | number | no | Loan to value: loanAmountEur ÷ estimatedValueEur for now. Whether to use the lower of the valuation and the asking price is an open question |
+| `ltvPct` | number | no | Loan to value: (loanAmountEur / estimatedValueEur) * 100 for now. Whether to use the lower of the valuation and the asking price is an open question |
 | `dtiPct` | number | no | Debt to income |
 | `aprPct` | number | no | Rate offered |
 | `approvalLikelihoodPct` | number | no | From the AI committee |
@@ -111,7 +114,7 @@ Underwriter-only details, kept in a separate document so borrowers can't read th
 
 ## applications/{id}/audit/record
 
-Written once at mint. Declined applications have none. The audit hash is the SHA-256 of this record serialised with `json.dumps(record, sort_keys=True, separators=(",", ":"))`.
+Written once at mint. Declined applications have none. The audit hash is the SHA-256 of the record **without** its `auditHash` field, serialised with `json.dumps(record, sort_keys=True, separators=(",", ":"))`. To verify a loan, remove `auditHash` from the stored record, hash the rest the same way, and compare with the on-chain value.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -132,6 +135,7 @@ Written once at mint. Declined applications have none. The audit hash is the SHA
 | `senderRole` | string | `borrower`, `broker` or `underwriter` |
 | `text` | string | |
 | `sentAt` | timestamp | |
+| `read` | boolean | Whether the recipient has read it. Set through POST /core/applications/{id}/messages/read |
 
 ## ai_runs/{runId} (Nic to confirm)
 
@@ -159,6 +163,39 @@ Written once at mint. Declined applications have none. The audit hash is the SHA
 | `model` | string | |
 | `output` | string | The agent's recommendation and reasoning |
 | `latencyMs` | number | |
+| `createdAt` | timestamp | |
+
+## support_requests/{requestId} (proposal, from the API design doc's endpoints)
+
+Who reads it: the user who sent it, underwriters. Written by al-core (`POST /core/support-requests`).
+
+| Field | Type | Notes |
+|---|---|---|
+| `userId` | string | uid of the sender |
+| `subject` | string | |
+| `message` | string | |
+| `status` | string | `open` or `closed` |
+| `createdAt` | timestamp | |
+
+## reviews/{uid} (proposal, from the API design doc's endpoints)
+
+One per user, so `PUT /core/reviews/me` can replace it. Who reads it: that user, underwriters. Written by al-core.
+
+| Field | Type | Notes |
+|---|---|---|
+| `userId` | string | Same as the document ID |
+| `rating` | number | 1 to 5 |
+| `comment` | string | Optional |
+| `updatedAt` | timestamp | |
+
+## users/{uid}/saved_checks/{checkId} (proposal, from the API design doc's endpoints)
+
+A borrower's saved property checks. Who reads it: that user. Written by al-core (`POST` and `DELETE /core/saved-checks`).
+
+| Field | Type | Notes |
+|---|---|---|
+| `property` | map | Same shape as the application's property map |
+| `estimatedValueEur` | number | From `POST /ai/valuation` |
 | `createdAt` | timestamp | |
 
 ## Open questions
