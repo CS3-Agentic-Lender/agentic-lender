@@ -20,6 +20,14 @@ final class BackendConfigTests: XCTestCase {
         XCTAssertEqual(config.emulatorHost, "localhost")
     }
 
+    func testAPIGoesThroughTheLocalGatewayOnTheSameHost() {
+        XCTAssertEqual(BackendConfig(environment: [:]).apiBaseURL.absoluteString, "http://localhost:8000")
+        XCTAssertEqual(
+            BackendConfig(environment: ["EMULATOR_HOST": "192.168.1.20"]).apiBaseURL.absoluteString,
+            "http://192.168.1.20:8000"
+        )
+    }
+
     func testPortsMatchTheFirebaseEmulatorConfig() {
         // Must match al-core/firebase.json.
         XCTAssertEqual(BackendConfig.authEmulatorPort, 9099)

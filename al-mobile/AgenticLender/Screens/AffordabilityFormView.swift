@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// "What can I borrow?" (Figma frames "Affordability form", 07a Joint and 07b Errors).
+/// "What can I borrow?" (Figma frames "Affordability form", 07a Joint, 07b Errors,
+/// 07c Calculating and 07d Couldn't calculate).
 struct AffordabilityFormView: View {
-    @State private var model = AffordabilityViewModel()
+    @State private var model: AffordabilityViewModel
     @FocusState private var focused: AffordabilityField?
-    let onCalculate: (AffordabilityRequest) -> Void
+
+    init(service: AffordabilityService) {
+        _model = State(initialValue: AffordabilityViewModel(service: service))
+    }
 
     var body: some View {
         ScrollView {
@@ -40,11 +44,20 @@ struct AffordabilityFormView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: "Calculate", isEnabled: model.canCalculate) {
-                focused = nil
-                if let request = model.calculate() { onCalculate(request) }
+            VStack(spacing: 12) {
+                if let error = model.calculationError {
+                    CalculationErrorBanner(message: error)
+                }
+                PrimaryButton(
+                    title: calculateTitle,
+                    isLoading: model.isCalculating,
+                    isEnabled: model.canCalculate
+                ) {
+                    focused = nil
+                    Task { await model.calculate() }
+                }
+                .accessibilityIdentifier("affordability.calculate")
             }
-            .accessibilityIdentifier("affordability.calculate")
             .padding(Theme.screenPadding)
             .background(Theme.oat)
         }
@@ -53,6 +66,11 @@ struct AffordabilityFormView: View {
         .onChange(of: focused) { previous, _ in
             if let previous { model.markTouched(previous) }
         }
+    }
+
+    private var calculateTitle: String {
+        if model.isCalculating { return "Calculating…" }
+        return model.calculationError == nil ? "Calculate" : "Try again"
     }
 
     private func amountField(_ label: String, field: AffordabilityField, placeholder: String) -> some View {
@@ -162,6 +180,26 @@ private struct StepButton: View {
     }
 }
 
+/// Why the last calculation failed, above the Try again button (Figma 07d).
+private struct CalculationErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        Label {
+            Text(message)
+        } icon: {
+            Image(systemName: "exclamationmark.circle")
+        }
+        .font(.footnote)
+        .foregroundStyle(Theme.error)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Theme.error.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+        .accessibilityIdentifier("affordability.calculationError")
+    }
+}
+
 #Preview {
-    NavigationStack { AffordabilityFormView(onCalculate: { _ in }) }
+    NavigationStack { AffordabilityFormView(service: APIAffordabilityService.live()) }
 }
