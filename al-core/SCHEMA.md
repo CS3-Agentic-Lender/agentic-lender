@@ -45,6 +45,8 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 
 ## applications/{id}
 
+**Required** means required when the application is submitted (Draft → Applied). A Draft only needs `borrowerId`, `brokerId`, `status`, `loanType`, `createdAt` and `updatedAt`, so a borrower can save partway through.
+
 ### People and status
 
 | Field | Type | Required | Notes |
@@ -64,9 +66,15 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 |---|---|---|---|
 | `grossIncomeEur` | number | yes | Yearly gross income |
 | `monthlyDebtsEur` | number | yes | Existing monthly debt repayments |
+| `monthlyTakeHomeEur` | number | yes | Net monthly pay |
+| `monthlyLivingCostsEur` | number | yes | Monthly living costs excluding debt repayments |
+| `employmentType` | string | yes | `employed`, `self_employed` or `other` |
+| `yearsInCurrentJob` | number | yes | |
+| `applicants` | string | yes | `single` or `joint`. For joint applications the income and debt fields hold combined amounts |
+| `existingMortgageBalanceEur` | number | HELOC only | Outstanding balance on the home |
 | `depositEur` | number | mortgage only | |
 | `firstTimeBuyer` | boolean | mortgage only | Sets the income multiple (4x first-time, 3.5x otherwise) |
-| `loanAmountEur` | number | yes | Amount requested |
+| `loanAmountEur` | number | yes | Amount requested. For a HELOC, the requested credit limit |
 | `termYears` | number | yes | |
 | `property` | map | yes | See below |
 
@@ -86,7 +94,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `estimatedValueEur` | number | no | From `POST /ai/valuation` |
-| `ltvPct` | number | no | Loan to value: (loanAmountEur / estimatedValueEur) * 100 for now. Whether to use the lower of the valuation and the asking price is an open question |
+| `ltvPct` | number | no | Loan to value: (loanAmountEur / estimatedValueEur) * 100 for a mortgage, and (existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur * 100 (combined LTV) for a HELOC. Whether to use the lower of the valuation and the asking price is an open question |
 | `dtiPct` | number | no | Debt to income |
 | `aprPct` | number | no | Rate offered |
 | `approvalLikelihoodPct` | number | no | From the AI committee |
@@ -201,7 +209,7 @@ A borrower's saved property checks. Who reads it: that user. Written by al-core 
 ## Open questions
 
 1. **ai_runs and ai_calls fields:** Nic to confirm or replace.
-2. **Loan terms for HELOC:** does a HELOC need different fields (credit limit, draw period) from a mortgage?
+2. **Loan terms for HELOC:** resolved. A HELOC uses `loanAmountEur` for the credit limit plus `existingMortgageBalanceEur`, and its LTV is the combined LTV.
 3. **Stress-test results:** stored, or calculated on demand by `/ai/portfolio/*`?
 4. **Custom feature:** extra fields once the team chooses it.
 5. **Risk tier rule:** what decides A to D? Proposal: A LTV ≤ 80% and DTI ≤ 30%; B ≤ 85% and ≤ 35%; C ≤ 90% and ≤ 40%; D otherwise. Nic to confirm.
