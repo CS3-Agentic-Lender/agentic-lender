@@ -1,12 +1,11 @@
 # Runs al-ai's pytest suite on PRs that change al-ai/.
-# ponytail: add ".github/workflows/ai.yml" to paths once al-ai/pyproject.toml is on main;
-# until then a change to this file alone would run it against an empty folder.
 name: AI tests
 
 on:
   pull_request:
     paths:
       - "al-ai/**"
+      - ".github/workflows/ai.yml"
 
 permissions:
   contents: read

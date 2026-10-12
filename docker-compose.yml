@@ -1,0 +1,20 @@
+# Local stack behind one gateway on localhost:8000, the same paths as api.<domain> on AWS.
+# The Firebase emulators run on the host (firebase emulators:start --project demo-al).
+# al-core joins here as service "al-core" on port 5002; until then /core/* returns 502.
+services:
+  al-ai:
+    build: ./al-ai
+    ports:
+      - "5001:5001"
+    environment:
+      FIREBASE_PROJECT_ID: demo-al
+      FIREBASE_AUTH_EMULATOR_HOST: host.docker.internal:9099
+
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - al-ai
