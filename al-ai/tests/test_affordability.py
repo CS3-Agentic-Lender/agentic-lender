@@ -174,3 +174,42 @@ def test_the_error_names_the_bad_field(call, field):
 def test_the_error_names_the_field():
     with pytest.raises(ValueError, match="gross_annual_income"):
         a.dti(0, 1_000, 0)
+
+
+# ---- NaN and infinity are not valid numbers ------------------------------------------------
+# They slip past a plain "< 0" check, so every numeric input must be refused explicitly.
+
+GOOD = {
+    a.monthly_repayment: dict(loan=100_000, annual_rate=0.04, years=30),
+    a.stressed_repayment: dict(loan=100_000, benchmark_rate=0.04, years=30, stress_margin=0.02),
+    a.dti: dict(monthly_debts=500, repayment=1_000, gross_annual_income=60_000),
+    a.loan_to_income: dict(loan=100_000, gross_annual_income=60_000),
+    a.net_surplus: dict(net_monthly_income=3_000, monthly_living_costs=1_000, monthly_debts=0, repayment=1_000),
+    a.dti_band: dict(value=0.3),
+    a.surplus_band: dict(value=500),
+    a.max_loan_for_dti: dict(gross_annual_income=60_000, monthly_debts=0, benchmark_rate=0.04, years=30,
+                             dti_cap=0.4, stress_margin=0.02),
+    a.assess: dict(loan=200_000, years=30, benchmark_rate=0.04, gross_annual_income=60_000,
+                   net_monthly_income=3_500, monthly_debts=0, monthly_living_costs=1_000, stress_margin=0.02),
+}
+NON_FINITE = [float("nan"), float("inf"), float("-inf")]
+CASES = [(fn, name) for fn, good in GOOD.items() for name in good]
+
+
+@pytest.mark.parametrize("fn, name", CASES, ids=[f"{fn.__name__}-{name}" for fn, name in CASES])
+@pytest.mark.parametrize("bad", NON_FINITE, ids=["nan", "inf", "-inf"])
+def test_non_finite_input_is_rejected(fn, name, bad):
+    with pytest.raises(ValueError):
+        fn(**{**GOOD[fn], name: bad})
+
+
+@pytest.mark.parametrize("fn", [a.monthly_repayment, a.dti, a.loan_to_income, a.net_surplus, a.dti_band, a.max_loan_for_dti])
+def test_the_error_for_a_non_finite_input_names_the_field(fn):
+    name = next(iter(GOOD[fn]))
+    with pytest.raises(ValueError, match=name):
+        fn(**{**GOOD[fn], name: float("nan")})
+
+
+def test_the_good_inputs_used_above_really_are_good():
+    for fn, good in GOOD.items():
+        fn(**good)
