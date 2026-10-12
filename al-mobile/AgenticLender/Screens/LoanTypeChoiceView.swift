@@ -35,7 +35,7 @@ struct LoanTypeChoiceView: View {
     private func destination(for loanType: LoanType) -> some View {
         switch loanType {
         case .mortgage: AffordabilityFormView(service: affordabilityService)
-        case .heloc: EmptyView()
+        case .heloc: HELOCCheckFormView()
         }
     }
 }

@@ -8,7 +8,7 @@ enum AffordabilityValidator {
     private static let notAnAmount = "Enter an amount of €0 or more, in whole euro"
     private static let noIncome = "Enter an income of more than €0"
     private static let incomeTooHigh = "Enter an amount up to €\(EuroAmount.format(maximumIncome))"
-    private static let termOutOfRange = "Choose a term from \(termRange.lowerBound) to \(termRange.upperBound) years"
+    static let termOutOfRange = "Choose a term from \(termRange.lowerBound) to \(termRange.upperBound) years"
 
     static func errors(for form: AffordabilityForm) -> [AffordabilityField: String] {
         Dictionary(uniqueKeysWithValues: AffordabilityField.allCases.compactMap { field in
@@ -40,12 +40,14 @@ enum AffordabilityValidator {
         return (EuroAmount.parse(form.income) ?? 0) + second > 0
     }
 
-    private static func amountError(_ text: String, whenEmpty: String) -> String? {
+    /// A whole-euro amount from €0. Shared with the HELOC check.
+    static func amountError(_ text: String, whenEmpty: String) -> String? {
         if text.isBlank { return whenEmpty }
         return EuroAmount.parse(text) == nil ? notAnAmount : nil
     }
 
-    private static func incomeError(_ text: String, whenEmpty: String) -> String? {
+    /// A whole-euro income from €0 up to €10m. Shared with the HELOC check.
+    static func incomeError(_ text: String, whenEmpty: String) -> String? {
         if let error = amountError(text, whenEmpty: whenEmpty) { return error }
         guard let amount = EuroAmount.parse(text), amount <= maximumIncome else { return incomeTooHigh }
         return nil
