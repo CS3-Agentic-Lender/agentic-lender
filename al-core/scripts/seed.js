@@ -128,6 +128,8 @@ function application(spec) {
       approvalLikelihoodPct: spec.approvalLikelihoodPct,
     });
     review = {
+      applicationId: id,
+      brokerId,
       riskTier: spec.riskTier,
       dtiBreakdown: {
         incomeMonthlyEur: incomeMonthly,
@@ -280,7 +282,7 @@ function build() {
           creditMemo,
           decision: spec.decision.outcome,
           riskTier: spec.riskTier,
-          signedOffAt: spec.decision.decidedAt,
+          signedOffAt: at(spec.decision.decidedAt).toISOString(),
           underwriterId: spec.decision.underwriterId,
         };
         const auditHash = sha256(canonicalJson(record));
