@@ -1,15 +1,26 @@
-const { initializeTestEnvironment, assertFails, assertSucceeds } = require("@firebase/rules-unit-testing");
-const fs = require("fs");
-const path = require("path");
+// Firestore rules tests. Needs the Firestore emulator running on 127.0.0.1:8080
+// (firebase emulators:start --project demo-al), then: npx jest
+//
+// Each test seeds the same small fixture with rules disabled, then checks one read
+// or write as a given user. Every collection has an allowed read, a denied read and
+// a denied write.
+
+const {
+  initializeTestEnvironment,
+  assertFails,
+  assertSucceeds,
+} = require('@firebase/rules-unit-testing');
+const fs = require('fs');
+const path = require('path');
 
 let testEnv;
 
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
-    projectId: "demo-al-test",
+    projectId: 'demo-al-test',
     firestore: {
-      rules: fs.readFileSync(path.resolve(__dirname, "../firestore.rules"), "utf8"),
-      host: "127.0.0.1",
+      rules: fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8'),
+      host: '127.0.0.1',
       port: 8080,
     },
   });
@@ -19,62 +30,178 @@ afterAll(async () => {
   await testEnv.cleanup();
 });
 
-afterEach(async () => {
+beforeEach(async () => {
   await testEnv.clearFirestore();
-});
-
-async function seedApplications() {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
-    await db.collection("applications").doc("app1").set({
-      borrowerId: "borrower1",
-      brokerId: "broker1",
-      status: "Applied",
-    });
-    await db.collection("applications").doc("app2").set({
-      borrowerId: "borrower2",
-      brokerId: "broker2",
-      status: "Applied",
-    });
+    const set = (p, data) => db.doc(p).set(data);
+
+    await set('users/borrower1', { uid: 'borrower1', role: 'borrower', fullName: 'Alice', brokerId: 'broker1' });
+    await set('users/borrower2', { uid: 'borrower2', role: 'borrower', fullName: 'Ben', brokerId: 'broker2' });
+    await set('users/broker1', { uid: 'broker1', role: 'broker', fullName: 'Bob' });
+    await set('users/broker2', { uid: 'broker2', role: 'broker', fullName: 'Ciara' });
+    await set('users/underwriter1', { uid: 'underwriter1', role: 'underwriter', fullName: 'Uma' });
+    await set('users/borrower1/saved_checks/check1', { estimatedValueEur: 310000 });
+
+    await set('applications/app1', { borrowerId: 'borrower1', brokerId: 'broker1', status: 'AI Deliberated' });
+    await set('applications/app2', { borrowerId: 'borrower2', brokerId: 'broker2', status: 'AI Deliberated' });
+    await set('applications/app1/review/underwriting', { applicationId: 'app1', brokerId: 'broker1', riskTier: 'B' });
+    await set('applications/app2/review/underwriting', { applicationId: 'app2', brokerId: 'broker2', riskTier: 'D' });
+    await set('applications/app1/audit/record', { applicationId: 'app1', auditHash: 'abc' });
+    await set('applications/app1/messages/msg1', { senderId: 'broker1', text: 'Hi', read: false });
+
+    await set('ai_runs/run1', { applicationId: 'app1', brokerId: 'broker1', status: 'complete' });
+    await set('ai_runs/run2', { applicationId: 'app2', brokerId: 'broker2', status: 'complete' });
+    await set('ai_calls/call1', { runId: 'run1', applicationId: 'app1', brokerId: 'broker1' });
+    await set('ai_calls/call2', { runId: 'run2', applicationId: 'app2', brokerId: 'broker2' });
+
+    await set('support_requests/req1', { userId: 'borrower1', subject: 'Help', status: 'open' });
+    await set('reviews/borrower1', { userId: 'borrower1', rating: 5 });
   });
-}
-
-test("broker can't read another broker's client", async () => {
-  await seedApplications();
-  const broker2 = testEnv.authenticatedContext("broker2", { role: "broker" });
-  await assertFails(
-    broker2.firestore().collection("applications").doc("app1").get()
-  );
 });
 
-test("broker can read their own client", async () => {
-  await seedApplications();
-  const broker1 = testEnv.authenticatedContext("broker1", { role: "broker" });
-  await assertSucceeds(
-    broker1.firestore().collection("applications").doc("app1").get()
-  );
+// Firestore handles for each test user.
+const as = (uid, role) => testEnv.authenticatedContext(uid, { role }).firestore();
+const borrower1 = () => as('borrower1', 'borrower');
+const borrower2 = () => as('borrower2', 'borrower');
+const broker1 = () => as('broker1', 'broker');
+const broker2 = () => as('broker2', 'broker');
+const underwriter = () => as('underwriter1', 'underwriter');
+const signedOut = () => testEnv.unauthenticatedContext().firestore();
+
+describe('users', () => {
+  test('a borrower can read their own profile', () =>
+    assertSucceeds(borrower1().doc('users/borrower1').get()));
+  test("a borrower can't read another user's profile", () =>
+    assertFails(borrower1().doc('users/borrower2').get()));
+  test("a broker can read their client's profile", () =>
+    assertSucceeds(broker1().doc('users/borrower1').get()));
+  test("a broker can't read another broker's client", () =>
+    assertFails(broker1().doc('users/borrower2').get()));
+  test("a broker can't read another staff member's profile", () =>
+    assertFails(broker1().doc('users/underwriter1').get()));
+  test('a broker can list their clients when filtering on brokerId', () =>
+    assertSucceeds(broker1().collection('users').where('brokerId', '==', 'broker1').get()));
+  test("a broker can't list users without the brokerId filter", () =>
+    assertFails(broker1().collection('users').get()));
+  test('an underwriter can read any profile', () =>
+    assertSucceeds(underwriter().doc('users/borrower2').get()));
+  test("a signed-out user can't read profiles", () =>
+    assertFails(signedOut().doc('users/borrower1').get()));
+  test("a borrower can't write their own profile", () =>
+    assertFails(borrower1().doc('users/borrower1').set({ fullName: 'Changed' }, { merge: true })));
 });
 
-test("underwriter can read any application", async () => {
-  await seedApplications();
-  const underwriter = testEnv.authenticatedContext("underwriter1", { role: "underwriter" });
-  await assertSucceeds(
-    underwriter.firestore().collection("applications").doc("app1").get()
-  );
+describe('users/{uid}/saved_checks', () => {
+  test('a borrower can read their own saved checks', () =>
+    assertSucceeds(borrower1().collection('users/borrower1/saved_checks').get()));
+  test("a broker can't read a client's saved checks", () =>
+    assertFails(broker1().doc('users/borrower1/saved_checks/check1').get()));
+  test("a borrower can't add a saved check directly", () =>
+    assertFails(borrower1().collection('users/borrower1/saved_checks').add({ estimatedValueEur: 1 })));
 });
 
-test("borrower can read their own application", async () => {
-  await seedApplications();
-  const borrower1 = testEnv.authenticatedContext("borrower1", { role: "borrower" });
-  await assertSucceeds(
-    borrower1.firestore().collection("applications").doc("app1").get()
-  );
+describe('applications', () => {
+  test('a borrower can read their own application', () =>
+    assertSucceeds(borrower1().doc('applications/app1').get()));
+  test("a borrower can't read someone else's application", () =>
+    assertFails(borrower1().doc('applications/app2').get()));
+  test("a broker can read their client's application", () =>
+    assertSucceeds(broker1().doc('applications/app1').get()));
+  test("a broker can't read another broker's client's application", () =>
+    assertFails(broker2().doc('applications/app1').get()));
+  test('an underwriter can read any application', () =>
+    assertSucceeds(underwriter().doc('applications/app2').get()));
+  test("a borrower can't change their application's status", () =>
+    assertFails(borrower1().doc('applications/app1').update({ status: 'Underwriter Approved' })));
+  test("a borrower can't create an application directly", () =>
+    assertFails(borrower1().collection('applications').add({ borrowerId: 'borrower1', brokerId: 'broker1', status: 'Draft' })));
 });
 
-test("borrower can't read someone else's application", async () => {
-  await seedApplications();
-  const borrower1 = testEnv.authenticatedContext("borrower1", { role: "borrower" });
-  await assertFails(
-    borrower1.firestore().collection("applications").doc("app2").get()
-  );
+describe('applications/{id}/review/underwriting', () => {
+  test('an underwriter can read a review', () =>
+    assertSucceeds(underwriter().doc('applications/app2/review/underwriting').get()));
+  test("a broker can read their client's review", () =>
+    assertSucceeds(broker1().doc('applications/app1/review/underwriting').get()));
+  test("a broker can't read another broker's review", () =>
+    assertFails(broker1().doc('applications/app2/review/underwriting').get()));
+  test("a borrower can't read their own review", () =>
+    assertFails(borrower1().doc('applications/app1/review/underwriting').get()));
+  test('an underwriter can query every review across applications', () =>
+    assertSucceeds(underwriter().collectionGroup('review').get()));
+  test('a broker can query reviews across applications when filtering on brokerId', () =>
+    assertSucceeds(broker1().collectionGroup('review').where('brokerId', '==', 'broker1').get()));
+  test("a broker can't query reviews across applications without the brokerId filter", () =>
+    assertFails(broker1().collectionGroup('review').get()));
+  test("a borrower can't query reviews across applications", () =>
+    assertFails(borrower1().collectionGroup('review').where('brokerId', '==', 'broker1').get()));
+  test("an underwriter can't write a review directly", () =>
+    assertFails(underwriter().doc('applications/app1/review/underwriting').set({ riskTier: 'A' })));
+});
+
+describe('applications/{id}/audit/record', () => {
+  test('an underwriter can read an audit record', () =>
+    assertSucceeds(underwriter().doc('applications/app1/audit/record').get()));
+  test("a broker can read their client's audit record", () =>
+    assertSucceeds(broker1().doc('applications/app1/audit/record').get()));
+  test("a broker can't read another broker's audit record", () =>
+    assertFails(broker2().doc('applications/app1/audit/record').get()));
+  test("a borrower can't read their own audit record", () =>
+    assertFails(borrower1().doc('applications/app1/audit/record').get()));
+  test("an underwriter can't write an audit record directly", () =>
+    assertFails(underwriter().doc('applications/app1/audit/record').set({ auditHash: 'x' })));
+});
+
+describe('applications/{id}/messages', () => {
+  test('a borrower can read messages on their own application', () =>
+    assertSucceeds(borrower1().collection('applications/app1/messages').get()));
+  test("a borrower can't read messages on someone else's application", () =>
+    assertFails(borrower2().collection('applications/app1/messages').get()));
+  test("a broker can read messages on their client's application", () =>
+    assertSucceeds(broker1().collection('applications/app1/messages').get()));
+  test("a broker can't read messages on another broker's application", () =>
+    assertFails(broker2().collection('applications/app1/messages').get()));
+  test('an underwriter can read messages on any application', () =>
+    assertSucceeds(underwriter().collection('applications/app1/messages').get()));
+  test("a borrower can't send a message directly", () =>
+    assertFails(borrower1().collection('applications/app1/messages').add({ senderId: 'borrower1', text: 'Hi' })));
+});
+
+describe('ai_runs and ai_calls', () => {
+  test('an underwriter can read any AI run', () =>
+    assertSucceeds(underwriter().doc('ai_runs/run2').get()));
+  test("a broker can read their client's AI run", () =>
+    assertSucceeds(broker1().doc('ai_runs/run1').get()));
+  test("a broker can't read another broker's AI run", () =>
+    assertFails(broker1().doc('ai_runs/run2').get()));
+  test("a borrower can't read an AI run", () =>
+    assertFails(borrower1().doc('ai_runs/run1').get()));
+  test('a broker can list their AI calls when filtering on brokerId', () =>
+    assertSucceeds(broker1().collection('ai_calls').where('brokerId', '==', 'broker1').get()));
+  test("a borrower can't read an AI call", () =>
+    assertFails(borrower1().doc('ai_calls/call1').get()));
+  test("an underwriter can't write an AI run directly", () =>
+    assertFails(underwriter().doc('ai_runs/run1').update({ status: 'failed' })));
+});
+
+describe('support_requests', () => {
+  test('a borrower can read their own support request', () =>
+    assertSucceeds(borrower1().doc('support_requests/req1').get()));
+  test("a borrower can't read someone else's support request", () =>
+    assertFails(borrower2().doc('support_requests/req1').get()));
+  test('an underwriter can read any support request', () =>
+    assertSucceeds(underwriter().doc('support_requests/req1').get()));
+  test("a borrower can't create a support request directly", () =>
+    assertFails(borrower1().collection('support_requests').add({ userId: 'borrower1', subject: 'Hi' })));
+});
+
+describe('reviews', () => {
+  test('a borrower can read their own review', () =>
+    assertSucceeds(borrower1().doc('reviews/borrower1').get()));
+  test("a borrower can't read someone else's review", () =>
+    assertFails(borrower2().doc('reviews/borrower1').get()));
+  test('an underwriter can read any review', () =>
+    assertSucceeds(underwriter().doc('reviews/borrower1').get()));
+  test("a borrower can't write their review directly", () =>
+    assertFails(borrower1().doc('reviews/borrower1').set({ userId: 'borrower1', rating: 1 })));
 });

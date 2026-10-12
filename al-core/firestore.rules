@@ -1,19 +1,95 @@
 rules_version = '2';
+
+// Clients only read. Every write goes through al-core or al-ai with the Admin SDK,
+// which bypasses these rules, so there is no `allow write` anywhere: all client
+// writes are denied. Roles come from the `role` claim on the ID token, never from
+// a document field. See al-core/SCHEMA.md and docs/api-design.md section 3.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /users/{userId} {
-      allow read: if request.auth != null &&
-        (request.auth.uid == userId || request.auth.token.role == 'underwriter');
+    function signedIn() {
+      return request.auth != null;
     }
 
+    function isRole(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+
+    // The parent application, for subcollections that don't carry brokerId themselves.
+    function application(appId) {
+      return get(/databases/$(database)/documents/applications/$(appId)).data;
+    }
+
+    function canReadApplication(appId) {
+      return isRole('underwriter')
+        || (isRole('broker') && application(appId).brokerId == request.auth.uid)
+        || (isRole('borrower') && application(appId).borrowerId == request.auth.uid);
+    }
+
+    // ---------- users ----------
+
+    // A broker's query must filter on brokerId == their uid, or Firestore refuses it.
+    match /users/{userId} {
+      allow read: if signedIn() && (
+        request.auth.uid == userId
+        || isRole('underwriter')
+        || (isRole('broker') && resource.data.brokerId == request.auth.uid)
+      );
+
+      match /saved_checks/{checkId} {
+        allow read: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // ---------- applications ----------
+
     match /applications/{appId} {
-      allow read: if request.auth != null && (
-        request.auth.token.role == 'underwriter' ||
-        (request.auth.token.role == 'broker' &&
-         resource.data.brokerId == request.auth.uid) ||
-        (request.auth.token.role == 'borrower' &&
-         resource.data.borrowerId == request.auth.uid)
+      allow read: if isRole('underwriter')
+        || (isRole('broker') && resource.data.brokerId == request.auth.uid)
+        || (isRole('borrower') && resource.data.borrowerId == request.auth.uid);
+
+      // Written once at mint. Not readable by the borrower.
+      match /audit/{docId} {
+        allow read: if isRole('underwriter')
+          || (isRole('broker') && application(appId).brokerId == request.auth.uid);
+      }
+
+      match /messages/{messageId} {
+        allow read: if canReadApplication(appId);
+      }
+    }
+
+    // review/underwriting: matched at any depth so the portal's collection-group
+    // query works. The document carries brokerId so the rule can check it without
+    // reading the parent; a broker's query must filter on brokerId == their uid.
+    match /{path=**}/review/{docId} {
+      allow read: if isRole('underwriter')
+        || (isRole('broker') && resource.data.brokerId == request.auth.uid);
+    }
+
+    // ---------- AI committee records ----------
+
+    match /ai_runs/{runId} {
+      allow read: if isRole('underwriter')
+        || (isRole('broker') && resource.data.brokerId == request.auth.uid);
+    }
+
+    match /ai_calls/{callId} {
+      allow read: if isRole('underwriter')
+        || (isRole('broker') && resource.data.brokerId == request.auth.uid);
+    }
+
+    // ---------- support and reviews ----------
+
+    match /support_requests/{requestId} {
+      allow read: if signedIn() && (
+        isRole('underwriter') || resource.data.userId == request.auth.uid
+      );
+    }
+
+    match /reviews/{reviewerId} {
+      allow read: if signedIn() && (
+        request.auth.uid == reviewerId || isRole('underwriter')
       );
     }
   }
