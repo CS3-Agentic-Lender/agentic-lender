@@ -9,13 +9,14 @@ Version 0.1 (draft for team confirmation). Follows the API design doc (AL-199).
 - **Money** is a euro amount (never cents) in a field ending `Eur`, for example `loanAmountEur`. The API name ends `_eur`.
 - **Percentages** are numbers in a field ending `Pct`, where `4.0` means 4%. The API name ends `_pct`.
 - **Timestamps** are Firestore timestamps. The API sends them as ISO 8601 UTC strings.
+- **Timestamps inside hashed data** use exactly one string format: UTC with milliseconds and a Z, for example `2026-09-18T11:00:00.000Z`. The audit record stores its times as these strings. Stored Firestore timestamps that get hashed, such as `ai_calls.createdAt`, stay as timestamps in Firestore and are converted to this string format before hashing. JavaScript's `toISOString()` gives this format; in Python use `dt.astimezone(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')`. Any other format changes the hash.
 - **IDs** are strings.
 
 ## Collections
 
 | Path | Who reads it | Written by | Holds |
 |---|---|---|---|
-| `users/{uid}` | That user, underwriters | al-core (`POST /core/me`) | Profile and chosen broker |
+| `users/{uid}` | That user, their broker, underwriters | al-core (`POST /core/me`) | Profile and chosen broker |
 | `applications/{id}` | The borrower, the assigned broker, underwriters | al-core, al-ai | Status, loan terms, results, decision, loan note |
 | `applications/{id}/review/underwriting` | The assigned broker, underwriters | al-ai | Risk tier, DTI breakdown, valuation detail |
 | `applications/{id}/audit/record` | The assigned broker, underwriters | al-core (at mint) | The record behind the on-chain audit hash |
@@ -46,7 +47,7 @@ Version 0.1 (draft for team confirmation). Follows the API design doc (AL-199).
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `borrowerId` | string | yes | uid of the borrower |
-| `brokerId` | string | yes | uid of the assigned broker. Copied from the borrower's profile when the application is created |
+| `brokerId` | string | yes | uid of the assigned broker. Copied from the borrower's profile when the application is created, and kept if the borrower later changes broker (proposal) |
 | `status` | string | yes | Exactly one of: `Draft`, `Applied`, `AI Deliberated`, `Underwriter Approved`, `Declined`, `Funded`, `Closed`. al-ai matches on these strings |
 | `aiRunStatus` | string | no | `running`, `failed` or `complete`. Absent until the first AI run starts |
 | `loanType` | string | yes | `mortgage` or `heloc` |
@@ -82,7 +83,7 @@ Version 0.1 (draft for team confirmation). Follows the API design doc (AL-199).
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `estimatedValueEur` | number | no | From `POST /ai/valuation` |
-| `ltvPct` | number | no | Loan to value |
+| `ltvPct` | number | no | Loan to value: loanAmountEur ÷ estimatedValueEur for now. Whether to use the lower of the valuation and the asking price is an open question |
 | `dtiPct` | number | no | Debt to income |
 | `aprPct` | number | no | Rate offered |
 | `approvalLikelihoodPct` | number | no | From the AI committee |
@@ -101,6 +102,8 @@ Underwriter-only details, kept in a separate document so borrowers can't read th
 
 | Field | Type | Notes |
 |---|---|---|
+| `applicationId` | string | The parent application's id |
+| `brokerId` | string | Copied from the application, so a collection-group query and its rule can check broker access |
 | `riskTier` | string | `A`, `B`, `C` or `D` |
 | `dtiBreakdown` | map | `incomeMonthlyEur`, `existingDebtsMonthlyEur`, `newRepaymentMonthlyEur` |
 | `valuationDetail` | map | `baselineEur`, `contributions` (feature name to euro effect), `estimatedValueEur` |
@@ -117,7 +120,7 @@ Written once at mint. Declined applications have none. The audit hash is the SHA
 | `riskTier` | string | |
 | `creditMemo` | string | |
 | `underwriterId` | string | |
-| `signedOffAt` | string | ISO 8601 UTC, so the hash is reproducible |
+| `signedOffAt` | string | UTC with milliseconds and Z (see the timestamp rule above), so the hash is reproducible |
 | `aiCalls` | array | Each item: `id` and `sha256` of that `ai_calls` document |
 | `auditHash` | string | The SHA-256 stored on chain |
 
@@ -164,3 +167,5 @@ Written once at mint. Declined applications have none. The audit hash is the SHA
 2. **Loan terms for HELOC:** does a HELOC need different fields (credit limit, draw period) from a mortgage?
 3. **Stress-test results:** stored, or calculated on demand by `/ai/portfolio/*`?
 4. **Custom feature:** extra fields once the team chooses it.
+5. **Risk tier rule:** what decides A to D? Proposal: A LTV ≤ 80% and DTI ≤ 30%; B ≤ 85% and ≤ 35%; C ≤ 90% and ≤ 40%; D otherwise. Nic to confirm.
+6. **LTV basis:** model valuation, or the lower of valuation and asking price? Nic to confirm.
