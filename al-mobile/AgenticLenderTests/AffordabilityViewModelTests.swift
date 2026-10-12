@@ -10,7 +10,7 @@ final class AffordabilityViewModelTests: XCTestCase {
     }
 
     func testCalculateIsDisabledUntilTheFormIsValid() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
         XCTAssertFalse(model.canCalculate)
 
         fill(model)
@@ -19,7 +19,7 @@ final class AffordabilityViewModelTests: XCTestCase {
     }
 
     func testADisabledCalculateSaysWhatIsMissingFirst() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
         fill(model)
         model.form.applicants = .joint
 
@@ -28,20 +28,20 @@ final class AffordabilityViewModelTests: XCTestCase {
     }
 
     func testNoHintOnceCalculateIsAllowed() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
         fill(model)
 
         XCTAssertNil(model.calculateHint)
     }
 
     func testNoErrorsShowBeforeAFieldIsLeft() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
 
         XCTAssertNil(model.visibleError(for: .income))
     }
 
     func testErrorShowsOnceTheFieldIsLeft() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
         model.form.income = "12,000,000"
 
         model.markTouched(.income)
@@ -50,7 +50,7 @@ final class AffordabilityViewModelTests: XCTestCase {
     }
 
     func testTypingRegroupsTheAmount() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
 
         model.updateAmount(.income, to: "60000")
 
@@ -58,7 +58,7 @@ final class AffordabilityViewModelTests: XCTestCase {
     }
 
     func testTermStepsByOneYearWithinFiveToThirtyFive() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
 
         model.increaseTerm()
         XCTAssertEqual(model.form.termYears, 31)
@@ -75,7 +75,7 @@ final class AffordabilityViewModelTests: XCTestCase {
     }
 
     func testSwitchingToJointNeedsTheSecondIncomeBeforeCalculating() {
-        let model = AffordabilityViewModel()
+        let model = makeModel()
         fill(model)
 
         model.form.applicants = .joint
@@ -85,19 +85,75 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertTrue(model.canCalculate)
     }
 
-    func testCalculateReturnsTheRequestWhenValid() throws {
-        let model = AffordabilityViewModel()
+    func testCalculateSendsTheRequestAndKeepsTheResult() async throws {
+        let service = FakeAffordabilityService()
+        let model = makeModel(service)
         fill(model)
 
-        let request = try XCTUnwrap(model.calculate())
+        await model.calculate()
 
-        XCTAssertEqual(request.grossIncome, 60_000)
+        XCTAssertEqual(service.requests.first?.grossIncome, 60_000)
+        XCTAssertEqual(model.result?.maxLoanEur, 240_000)
+        XCTAssertFalse(model.isCalculating)
+        XCTAssertNil(model.calculationError)
     }
 
-    func testCalculateWithErrorsShowsThemAndReturnsNothing() {
-        let model = AffordabilityViewModel()
+    func testCalculateWithErrorsShowsThemAndSendsNothing() async {
+        let service = FakeAffordabilityService()
+        let model = makeModel(service)
 
-        XCTAssertNil(model.calculate())
+        await model.calculate()
+
+        XCTAssertTrue(service.requests.isEmpty)
+        XCTAssertNil(model.result)
         XCTAssertEqual(model.visibleError(for: .deposit), "Enter your deposit, or 0 if you have none")
+    }
+
+    func testNoConnectionShowsTheCouldNotCalculateMessage() async {
+        let service = FakeAffordabilityService()
+        service.result = .failure(.network)
+        let model = makeModel(service)
+        fill(model)
+
+        await model.calculate()
+
+        XCTAssertNil(model.result)
+        XCTAssertEqual(model.calculationError, "We couldn't calculate right now. Check your connection and try again.")
+    }
+
+    func testTryingAgainClearsTheMessage() async {
+        let service = FakeAffordabilityService()
+        service.result = .failure(.unavailable)
+        let model = makeModel(service)
+        fill(model)
+        await model.calculate()
+        XCTAssertNotNil(model.calculationError)
+
+        service.result = .success(FakeAffordabilityService.referenceCaseOne)
+        await model.calculate()
+
+        XCTAssertNil(model.calculationError)
+        XCTAssertNotNil(model.result)
+    }
+
+    private func makeModel(_ service: FakeAffordabilityService = FakeAffordabilityService()) -> AffordabilityViewModel {
+        AffordabilityViewModel(service: service)
+    }
+}
+
+/// Records affordability requests instead of calling the endpoint.
+final class FakeAffordabilityService: AffordabilityService, @unchecked Sendable {
+    static let referenceCaseOne = AffordabilityResult(
+        maxLoanEur: 240_000, maxPropertyPriceEur: 280_000, monthlyRepaymentEur: 1145.80,
+        stressedRepaymentEur: 1438.92, limitedBy: .income, benchmarkRatePct: 4.0,
+        stressedRatePct: 6.0, rateDate: "2026-08"
+    )
+
+    var result: Result<AffordabilityResult, AffordabilityError> = .success(referenceCaseOne)
+    private(set) var requests: [AffordabilityRequest] = []
+
+    func calculate(_ request: AffordabilityRequest) async throws -> AffordabilityResult {
+        requests.append(request)
+        return try result.get()
     }
 }

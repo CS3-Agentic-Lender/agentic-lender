@@ -1,13 +1,26 @@
 import Observation
+import os
 
-/// Drives the affordability form: which errors show, the term stepper, and when Calculate is allowed.
+/// Drives the affordability form: which errors show, the term stepper, when Calculate is allowed,
+/// and the calculation itself.
 ///
 /// Like sign-up, an error only shows once the borrower has left that field or pressed Calculate.
 @MainActor
 @Observable
 final class AffordabilityViewModel {
     var form = AffordabilityForm()
+    /// The latest result from the affordability endpoint.
+    private(set) var result: AffordabilityResult?
+    private(set) var isCalculating = false
+    private(set) var calculationError: String?
     private var touched: Set<AffordabilityField> = []
+
+    private let service: AffordabilityService
+    private let logger = Logger(category: "Affordability")
+
+    init(service: AffordabilityService) {
+        self.service = service
+    }
 
     var canCalculate: Bool {
         AffordabilityValidator.errors(for: form).isEmpty
@@ -53,9 +66,22 @@ final class AffordabilityViewModel {
         form.termYears -= 1
     }
 
-    /// The checked request, or nil after showing every error.
-    func calculate() -> AffordabilityRequest? {
+    /// Checks the form, then asks the endpoint for the result (Figma 07c Calculating, 07d Couldn't calculate).
+    /// With errors in the form it shows them all and sends nothing.
+    func calculate() async {
         touched.formUnion(AffordabilityField.allCases)
-        return AffordabilityRequest(form: form)
+        guard let request = AffordabilityRequest(form: form) else { return }
+
+        calculationError = nil
+        isCalculating = true
+        defer { isCalculating = false }
+        do {
+            result = try await service.calculate(request)
+        } catch let error as AffordabilityError {
+            calculationError = error.message
+        } catch {
+            logger.error("Unexpected affordability error: \(error.localizedDescription, privacy: .public)")
+            calculationError = AffordabilityError.unavailable.message
+        }
     }
 }
