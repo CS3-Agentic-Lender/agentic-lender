@@ -149,9 +149,25 @@ def test_max_loan_for_dti_is_zero_when_debts_already_use_the_budget():
     lambda: a.dti(-1, 1_000, 60_000),
     lambda: a.net_surplus(3_000, -1, 0, 0),
     lambda: a.max_loan_for_dti(60_000, -1, RATE, 30),
+    lambda: a.stressed_repayment(100_000, -0.01, 30),
+    lambda: a.max_loan_for_dti(60_000, 0, -0.01, 30),
+    lambda: a.max_loan_for_dti(60_000, 0, RATE, 30, dti_cap=-0.1),
+    lambda: a.max_loan_for_dti(60_000, 5_000, RATE, -1),   # invalid term, even though the budget is already used
+    lambda: a.max_loan_for_dti(60_000, 5_000, -0.01, 30),  # invalid rate, even though the budget is already used
 ])
 def test_bad_input_raises(call):
     with pytest.raises(ValueError):
+        call()
+
+
+@pytest.mark.parametrize("call, field", [
+    (lambda: a.stressed_repayment(100_000, -0.01, 30), "benchmark_rate"),
+    (lambda: a.max_loan_for_dti(60_000, 0, -0.01, 30), "benchmark_rate"),
+    (lambda: a.max_loan_for_dti(60_000, 0, RATE, 30, dti_cap=-0.1), "dti_cap"),
+    (lambda: a.max_loan_for_dti(60_000, 5_000, RATE, -1), "years"),
+])
+def test_the_error_names_the_bad_field(call, field):
+    with pytest.raises(ValueError, match=field):
         call()
 
 

@@ -44,6 +44,7 @@ def monthly_repayment(loan: float, annual_rate: float, years: float) -> float:
 
 
 def stressed_repayment(loan: float, benchmark_rate: float, years: float, stress_margin: float = STRESS_MARGIN) -> float:
+    _at_least_zero("benchmark_rate", benchmark_rate)  # before the margin is added, or a negative rate hides
     _at_least_zero("stress_margin", stress_margin)
     return monthly_repayment(loan, benchmark_rate + stress_margin, years)
 
@@ -99,6 +100,9 @@ def max_loan_for_dti(
     """Largest loan whose stressed repayment plus existing debts reaches `dti_cap` of gross monthly income."""
     _above_zero("gross_annual_income", gross_annual_income)
     _at_least_zero("monthly_debts", monthly_debts)
+    _at_least_zero("benchmark_rate", benchmark_rate)
+    _above_zero("years", years)
+    _at_least_zero("dti_cap", dti_cap)
     _at_least_zero("stress_margin", stress_margin)
     budget = dti_cap * gross_annual_income / 12 - monthly_debts
     if budget <= 0:
