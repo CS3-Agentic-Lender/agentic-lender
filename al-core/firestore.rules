@@ -62,6 +62,11 @@ service cloud.firestore {
     // review/underwriting: matched at any depth so the portal's collection-group
     // query works. The document carries brokerId so the rule can check it without
     // reading the parent; a broker's query must filter on brokerId == their uid.
+    //
+    // review, ai_runs and ai_calls check a copied brokerId; audit and messages read the
+    // parent application. If a borrower's broker is ever reassigned, the copies must be
+    // updated in the same write as the application's brokerId, or the old broker keeps
+    // access to them.
     match /{path=**}/review/{docId} {
       allow read: if isRole('underwriter')
         || (isRole('broker') && resource.data.brokerId == request.auth.uid);
