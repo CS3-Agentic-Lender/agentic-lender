@@ -59,8 +59,9 @@ struct AffordabilitySummary: Hashable {
     }
 }
 
-/// A calculation the result screen can show.
+/// A calculation the result screen can show, with the answers it came from for the application form.
 struct AffordabilityOutcome: Hashable {
+    let request: AffordabilityRequest
     let result: AffordabilityResult
     let summary: AffordabilitySummary
 }

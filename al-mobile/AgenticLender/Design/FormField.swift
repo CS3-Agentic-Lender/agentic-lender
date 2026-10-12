@@ -71,6 +71,24 @@ struct PrimaryButton: View {
     }
 }
 
+/// The full-width outlined button beside a primary one, such as "Start application" (Figma "Affordability result").
+struct SecondaryButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
+        }
+        .foregroundStyle(Theme.pine)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.pine))
+    }
+}
+
 private struct PineButtonStyle: ButtonStyle {
     let isLoading: Bool
     @Environment(\.isEnabled) private var isEnabled

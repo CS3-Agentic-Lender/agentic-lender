@@ -16,6 +16,24 @@ enum TestFixtures {
         return form
     }
 
+    /// An application form started from reference case 1 (maximum loan €240,000).
+    static func applicationForm() -> ApplicationForm {
+        ApplicationForm(
+            affordability: AffordabilityRequest(form: affordabilityForm(income: "60,000", deposit: "40,000"))!,
+            maxLoanEur: 240_000
+        )
+    }
+
+    /// Reference case 2: joint, not first-time buyers, €50,000 + €40,000 income, €30,000 deposit, 25 years.
+    static func jointAffordabilityRequest() -> AffordabilityRequest {
+        var form = affordabilityForm(income: "50,000", deposit: "30,000")
+        form.applicants = .joint
+        form.secondIncome = "40,000"
+        form.isFirstTimeBuyer = false
+        form.termYears = 25
+        return AffordabilityRequest(form: form)!
+    }
+
     /// Reference case 1's response from the affordability endpoint, with the limit swapped.
     static func affordabilityJSON(limitedBy: String = "income") -> String {
         """
