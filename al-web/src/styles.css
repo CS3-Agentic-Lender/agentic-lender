@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --color-pine: #1e342e;
+  --color-pine-pressed: #142520;
+  --color-oat: #f6f4ee;
+  --color-surface: #fffcf4;
+  --color-line: #d6dfd4;
+  --color-tint: #e8efe7;
+  --color-neutral: #eeebe3;
+  --color-ink: #16241d;
+  --color-muted: #4c5851;
+  --color-success: #166534;
+  --color-error: #991b1b;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+@layer base {
+  :root {
+    color: var(--color-ink);
+    background: var(--color-oat);
+    font-family: var(--font-sans);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    min-width: 320px;
+    margin: 0;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  a,
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-pine);
+    outline-offset: 4px;
+  }
+
+  ::selection {
+    color: var(--color-surface);
+    background: var(--color-pine);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
