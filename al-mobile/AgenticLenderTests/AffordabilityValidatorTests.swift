@@ -36,13 +36,41 @@ final class AffordabilityValidatorTests: XCTestCase {
         XCTAssertEqual(errors[.deposit], "Enter your deposit, or 0 if you have none")
     }
 
-    func testZeroIsAllowedForEveryAmount() {
+    func testZeroIsAllowedForDebtsAndDeposit() {
         var form = validForm()
-        form.income = "0"
         form.monthlyDebts = "0"
         form.deposit = "0"
 
         XCTAssertEqual(AffordabilityValidator.errors(for: form), [:])
+    }
+
+    // MARK: - Income above €0 (the affordability endpoint needs a household income above €0)
+
+    func testSingleIncomeOfZeroIsRejected() {
+        var form = validForm()
+        form.income = "0"
+
+        XCTAssertEqual(AffordabilityValidator.errors(for: form)[.income], "Enter an income of more than €0")
+    }
+
+    func testJointWithOneIncomeOfZeroIsAllowed() {
+        var form = validForm()
+        form.applicants = .joint
+        form.income = "0"
+        form.secondIncome = "45,000"
+
+        XCTAssertEqual(AffordabilityValidator.errors(for: form), [:])
+    }
+
+    func testJointWithBothIncomesZeroIsRejectedOnTheFirstIncome() {
+        var form = validForm()
+        form.applicants = .joint
+        form.income = "0"
+        form.secondIncome = "0"
+
+        let errors = AffordabilityValidator.errors(for: form)
+        XCTAssertEqual(errors[.income], "Enter an income of more than €0")
+        XCTAssertNil(errors[.secondIncome])
     }
 
     func testNegativeOrNonNumericAmountsAreRejected() {
