@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -97,6 +99,15 @@ def test_bad_input_is_422_and_names_the_field(field, value):
     r = post(body(**{field: value}))
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "INVALID_FIELD" and r.json()["error"]["field"] == field
+
+
+@pytest.mark.parametrize("field", ["gross_income_eur", "monthly_debts_eur", "deposit_eur", "term_years"])
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
+def test_nan_and_infinity_are_422_and_name_the_field(field, literal):
+    # The test client won't write these into JSON, so send the raw text a real client could.
+    text = json.dumps(body(**{field: "__X__"})).replace('"__X__"', literal)
+    r = client.post("/ai/affordability", content=text, headers={**AUTH, "Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json()["error"]["field"] == field
 
 
 @pytest.mark.parametrize("field", ["gross_income_eur", "monthly_debts_eur", "deposit_eur", "term_years", "first_time_buyer"])

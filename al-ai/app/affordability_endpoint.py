@@ -13,9 +13,10 @@ router = APIRouter(prefix="/ai")
 
 class AffordabilityRequest(BaseModel):
     # Bounds match the iOS form: income up to EUR 10m, term 5 to 35 years. Incomes and debts are household totals.
-    gross_income_eur: float = Field(gt=0, le=10_000_000)
-    monthly_debts_eur: float = Field(ge=0)
-    deposit_eur: float = Field(ge=0)
+    # allow_inf_nan=False: NaN and Infinity pass a plain >= 0 check, so they are refused outright.
+    gross_income_eur: float = Field(gt=0, le=10_000_000, allow_inf_nan=False)
+    monthly_debts_eur: float = Field(ge=0, allow_inf_nan=False)
+    deposit_eur: float = Field(ge=0, allow_inf_nan=False)
     term_years: int = Field(ge=5, le=35)
     first_time_buyer: StrictBool
 
