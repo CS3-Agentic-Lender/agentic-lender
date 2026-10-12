@@ -5,6 +5,7 @@
 - Node.js 22+
 - Java (JDK 21+) — required by the Firebase emulators
 - `npm install -g firebase-tools`
+- [uv](https://docs.astral.sh/uv/) for the Python API (`uv --version` to check)
 
 ## Start the emulators
 
@@ -75,3 +76,39 @@ npx jest
 ```
 
 Requires the emulator (above) running in a separate terminal on port 8080.
+## Running the API (port 5002)
+
+The al-core API is a FastAPI service on port 5002, under `/core/*`. With the emulators running, from `al-core/`:
+
+Windows PowerShell:
+
+```
+$env:FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099"
+$env:FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080"
+uv run uvicorn app.main:app --port 5002 --reload
+```
+
+macOS / Linux:
+
+```
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 uv run uvicorn app.main:app --port 5002 --reload
+```
+
+Check it: http://127.0.0.1:5002/core/health returns `{"status": "ok"}`. Interactive docs: http://127.0.0.1:5002/core/docs
+
+Every request except `/core/health` needs `Authorization: Bearer <Firebase ID token>`. The role comes from the token's `role` claim. Errors use the shared shape in `docs/api-design.md` and every response carries `X-Request-ID`.
+
+With Docker instead:
+
+```
+docker build -t al-core .
+docker run -p 5002:5002 -e FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099 -e FIRESTORE_EMULATOR_HOST=host.docker.internal:8080 al-core
+```
+
+## Running the API tests
+
+```
+uv run pytest
+```
+
+These need no emulator.
