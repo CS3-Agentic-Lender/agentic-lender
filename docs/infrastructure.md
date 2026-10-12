@@ -128,7 +128,8 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | Firebase Auth emulator | (same) | 9099 |
 | Firestore emulator | (same) | 8080 |
 | Hardhat node | `npx hardhat node` | 8545 |
-| al-ai (FastAPI) | TBD | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
+| al-ai (FastAPI) | `docker compose up --build` (starts al-ai and the gateway) | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
+| API gateway (nginx) | (same) | 8000 |
 | Ollama | `ollama serve` | 11434 |
 | al-web (Vite) | `npm run dev` | 5173 |
 
@@ -137,6 +138,13 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 - The iOS Simulator shares the Mac's network, so it reaches the emulators at `localhost`.
 - Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator` on iOS).
 - Seed data (one borrower, one broker, one underwriter, a few applications) is loaded with emulator import/export so everyone starts from the same state.
+
+**Gateway and al-ai.** `docker compose up --build` from the repo root starts al-ai (5001) and an nginx gateway on `localhost:8000`, the stand-in for `api.<domain>` on AWS. Clients call the gateway: `/ai/*` goes to al-ai, `/core/*` to al-core, which returns 502 until al-core joins `docker-compose.yml` on port 5002.
+
+- Start the Firebase emulators on the host first (`firebase emulators:start --project demo-al`). The al-ai container reaches the Auth emulator at `host.docker.internal:9099` through `FIREBASE_AUTH_EMULATOR_HOST`, with `FIREBASE_PROJECT_ID=demo-al`. Both are set in `docker-compose.yml`.
+- Docker Compose wraps al-ai and the gateway only. The Firebase emulators and Hardhat stay on the host, since they need Java and Node and are already one command each.
+- Without Docker: `cd al-ai && FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 uv run uvicorn app.main:app --port 5001`, then call `localhost:5001` directly.
+- Gateway limits per IP: 300 requests per 5 minutes, 20 `POST /core/me` per minute, then `429` with `Retry-After`. nginx uses a leaky bucket rather than a rolling window, so the limits are sized as a ceiling: a full burst is allowed, then sustained traffic is held to half the limit (30 requests a minute). `python3 gateway/check_limits.py` checks it against a running stack.
 
 **Ollama.** Local models need a reasonably strong machine (roughly 16 GB+ RAM for an 8B model), so only some laptops run Ollama. If yours can't, don't swap in a cloud model and don't point at someone else's machine. Comment on the Jira ticket, @mention a teammate who runs Ollama, and say exactly what to run (branch, command, expected result). They reply on the ticket with the output.
 
@@ -165,5 +173,4 @@ Deployment targets are decided as each subsystem becomes deployable. This sectio
 
 ## Open decisions
 
-- Local dev: al-ai run command and whether Docker Compose wraps Hardhat + FastAPI (section 4)
 - Deployment targets (section 6)
