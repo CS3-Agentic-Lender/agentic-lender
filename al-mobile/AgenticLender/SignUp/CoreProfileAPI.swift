@@ -1,10 +1,11 @@
 import Foundation
 import os
 
-/// Calls `POST /core/me` through the API gateway with the new user's Firebase ID token.
+/// Calls `/core/me` through the API gateway with the user's Firebase ID token.
 ///
-/// Agreed with Dumi on AL-220: 201 creates the profile, a repeat call returns 200 and changes
-/// nothing, and refused input comes back as 422. Both 201 and 200 mean the profile is saved.
+/// Agreed with Dumi on AL-220: `POST` returns 201 when it creates the profile, a repeat call
+/// returns 200 and changes nothing, and refused input comes back as 422. Both 201 and 200 mean
+/// the profile is saved. `GET` returns the profile, or 404 if there is none yet.
 struct CoreProfileAPI: Sendable {
     static let path = "core/me"
 
@@ -33,6 +34,28 @@ struct CoreProfileAPI: Sendable {
         guard status == 201 || status == 200 else {
             logger.error("POST /core/me returned \(status, privacy: .public)")
             throw AccountError.profileNotSaved
+        }
+    }
+
+    /// Whether the signed-in user already has a profile: 200 yes, 404 not yet.
+    func hasProfile(idToken: String) async throws -> Bool {
+        var request = URLRequest(url: baseURL.appending(path: Self.path))
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let response: URLResponse
+        do {
+            (_, response) = try await send(request)
+        } catch let error as URLError {
+            logger.error("GET /core/me failed: \(error.localizedDescription, privacy: .public)")
+            throw AccountError.network
+        }
+
+        switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
+        case 200: return true
+        case 404: return false
+        case let status:
+            logger.error("GET /core/me returned \(status, privacy: .public)")
+            throw AccountError.unknown
         }
     }
 }

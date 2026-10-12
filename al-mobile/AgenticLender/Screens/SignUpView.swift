@@ -105,56 +105,13 @@ struct SignUpView: View {
     }
 
     private var detailsFields: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            FormField("Phone", error: model.visibleError(for: .phone), isDisabled: model.isSubmitting) {
-                TextField("087 123 4567", text: $model.form.phone)
-                    .textContentType(.telephoneNumber)
-                    .keyboardType(.phonePad)
-                    .focused($focused, equals: .phone)
-                    .accessibilityIdentifier("signUp.phone")
-            }
-            FormField("Address line 1", error: model.visibleError(for: .addressLine1), isDisabled: model.isSubmitting) {
-                TextField("Address line 1", text: $model.form.addressLine1)
-                    .textContentType(.streetAddressLine1)
-                    .focused($focused, equals: .addressLine1)
-                    .accessibilityIdentifier("signUp.addressLine1")
-            }
-            FormField("Address line 2 (optional)", error: nil, isDisabled: model.isSubmitting) {
-                TextField("Apartment, estate or area", text: $model.form.addressLine2)
-                    .textContentType(.streetAddressLine2)
-                    .accessibilityIdentifier("signUp.addressLine2")
-            }
-            FormField("County", error: model.visibleError(for: .county), isDisabled: model.isSubmitting) {
-                countyButton
-            }
-            FormField("Eircode", error: model.visibleError(for: .eircode), isDisabled: model.isSubmitting) {
-                TextField("A65 F4E2", text: $model.form.eircode)
-                    .textContentType(.postalCode)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .focused($focused, equals: .eircode)
-                    .accessibilityIdentifier("signUp.eircode")
-            }
-        }
-        .disabled(model.isSubmitting)
-    }
-
-    private var countyButton: some View {
-        Button {
-            focused = nil
-            isCountySheetShown = true
-        } label: {
-            HStack {
-                Text(model.form.county?.name ?? "Choose county")
-                    .foregroundStyle(model.form.county == nil ? Theme.mutedText : Theme.text)
-                Spacer()
-                Image(systemName: "chevron.down").foregroundStyle(Theme.mutedText)
-            }
-            .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
-            .contentShape(Rectangle())
-        }
-        .accessibilityLabel("County, \(model.form.county?.name ?? "not chosen")")
-        .accessibilityIdentifier("signUp.county")
+        ProfileDetailsFields(
+            form: $model.form,
+            error: model.visibleError(for:),
+            focus: $focused,
+            isDisabled: model.isSubmitting,
+            chooseCounty: { isCountySheetShown = true }
+        )
     }
 
     private var footer: some View {

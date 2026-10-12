@@ -42,6 +42,15 @@ final class BorrowerProfileTests: XCTestCase {
         XCTAssertNil(BorrowerProfile(form: invalid))
     }
 
+    func testNeedsNoPasswordBecauseAGoogleUserHasNone() throws {
+        var google = form
+        google.password = ""
+
+        let profile = try XCTUnwrap(BorrowerProfile(form: google))
+
+        XCTAssertEqual(profile.email, "alice@test.com")
+    }
+
     // MARK: - POST /core/me body (field names agreed with Dumi on AL-220)
 
     func testBodyUsesTheAgreedSnakeCaseFieldNames() throws {

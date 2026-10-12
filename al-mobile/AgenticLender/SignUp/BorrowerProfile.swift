@@ -2,8 +2,9 @@ import Foundation
 
 /// The borrower's profile as sent to `POST /core/me` (AL-220), which saves it to `users/{uid}`.
 ///
-/// Built only from a form that passes `SignUpValidator`, so every value is already
+/// Built only from a form whose profile fields pass `SignUpValidator`, so every value is already
 /// cleaned up: trimmed text, lower-case email, phone in `+353` form, Eircode in capitals.
+/// The password isn't checked here: it isn't part of the profile, and a Google user has none.
 /// There is no uid or role: the API takes the uid from the ID token and sets the role itself.
 struct BorrowerProfile: Encodable, Equatable {
     let fullName: String
@@ -27,7 +28,7 @@ struct BorrowerProfile: Encodable, Equatable {
     }
 
     init?(form: SignUpForm) {
-        guard SignUpValidator.errors(for: form).isEmpty,
+        guard SignUpValidator.errors(for: form, fields: SignUpValidator.profileFields).isEmpty,
               let phone = SignUpValidator.normalizedIrishPhone(form.phone),
               let eircode = SignUpValidator.normalizedEircode(form.eircode),
               let county = form.county
