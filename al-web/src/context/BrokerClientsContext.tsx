@@ -1,14 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
   firestoreClientsService,
-  type BrokerClient,
+  type BrokerClientsSnapshot,
   type ClientsService,
 } from '../services/clientsService';
 import { useAuth } from './AuthContext';
 
 export type BrokerClientsState =
   | { status: 'loading' }
-  | { status: 'ready'; clients: BrokerClient[]; profilesAvailable: boolean }
+  | ({ status: 'ready' } & BrokerClientsSnapshot)
   | { status: 'denied' }
   | { status: 'error' };
 

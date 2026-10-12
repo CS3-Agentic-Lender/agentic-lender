@@ -44,7 +44,7 @@ export interface BrokerClient {
 
 export interface BrokerClientsSnapshot {
   clients: BrokerClient[];
-  profilesAvailable: boolean;
+  profilesState: 'pending' | 'available' | 'unavailable';
 }
 
 export type ClientsError = 'permission-denied' | 'unavailable';
@@ -153,7 +153,7 @@ export const firestoreClientsService: ClientsService = {
   subscribeToBrokerClients(brokerUid, listener, onError) {
     let applications: BrokerApplication[] | null = null;
     let profiles: ClientProfile[] | null = null;
-    let profilesAvailable = true;
+    let profilesState: BrokerClientsSnapshot['profilesState'] = 'pending';
     let stopped = false;
     const unsubscribers: Array<() => void> = [];
 
@@ -163,11 +163,11 @@ export const firestoreClientsService: ClientsService = {
     };
 
     const emit = () => {
-      if (stopped || applications === null || (profiles === null && profilesAvailable)) {
+      if (stopped || applications === null) {
         return;
       }
 
-      listener({ clients: buildBrokerClients(profiles ?? [], applications), profilesAvailable });
+      listener({ clients: buildBrokerClients(profiles ?? [], applications), profilesState });
     };
 
     // Both queries filter on brokerId, which is what the Firestore rules check: an unfiltered
@@ -197,13 +197,13 @@ export const firestoreClientsService: ClientsService = {
         query(collection(db, 'users'), where('brokerId', '==', brokerUid)),
         (snapshot) => {
           profiles = snapshot.docs.map((doc) => toClientProfile(doc.id, doc.data()));
-          profilesAvailable = true;
+          profilesState = 'available';
           emit();
         },
         () => {
           // Client files stay usable without profiles; the page says names are unavailable.
           profiles = null;
-          profilesAvailable = false;
+          profilesState = 'unavailable';
           emit();
         },
       ),
