@@ -3,7 +3,7 @@ import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { usePipeline } from '../../context/PipelineContext';
 import { APPLICATION_STATUSES } from '../../services/clientsService';
-import type { PipelineApplication } from '../../services/pipelineService';
+import type { PipelineApplication, PipelineError, RiskTierState } from '../../services/pipelineService';
 import { formatDate, formatEuro, formatPercent } from '../../utils/formatters';
 import { PipelineStatus } from './PipelineStatus';
 import {
@@ -11,6 +11,7 @@ import {
   GROUP_BY_OPTIONS,
   filterByStatus,
   groupApplications,
+  ltvBand,
   type GroupBy,
 } from './pipelineGroups';
 
@@ -23,25 +24,40 @@ const groupOptionClass = [
   'has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-pine',
 ].join(' ');
 
+// Shown only once the tier query has been refused or has failed, never while it is pending.
+const riskTierNotices: Record<PipelineError, string> = {
+  'permission-denied':
+    'Risk tiers are not available yet, so every application shows its tier as unavailable and the queue cannot be split by tier.',
+  unavailable:
+    'Risk tiers could not be loaded, so every application shows its tier as unavailable and the queue cannot be split by tier. Reload the page to try again.',
+};
+
 function countLabel(count: number) {
   return count === 1 ? '1 application' : `${count} applications`;
 }
 
 interface PipelineTableRowProps {
   application: PipelineApplication;
-  riskTiersAvailable: boolean;
+  riskTierState: RiskTierState;
 }
 
-function PipelineTableRow({ application, riskTiersAvailable }: PipelineTableRowProps) {
+function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps) {
   return (
     <tr className="border-t border-line">
       <th className={`${cellClass} text-left font-mono text-sm font-normal`} scope="row">
         {application.id}
       </th>
       <td className={`${cellClass} font-mono text-sm`}>{formatEuro(application.loanAmountEur)}</td>
-      <td className={`${cellClass} font-mono text-sm`}>{formatPercent(application.ltvPct)}</td>
       <td className={`${cellClass} text-sm`}>
-        {!riskTiersAvailable ? (
+        <span className="font-mono">{formatPercent(application.ltvPct)}</span>
+        <span className="ml-2 text-xs whitespace-nowrap text-muted">
+          {ltvBand(application.ltvPct)}
+        </span>
+      </td>
+      <td className={`${cellClass} text-sm`}>
+        {riskTierState === 'pending' ? (
+          <span className="text-muted">Checking</span>
+        ) : riskTierState !== 'available' ? (
           <span className="text-muted">Unavailable</span>
         ) : application.riskTier ? (
           <span className="font-mono">{application.riskTier}</span>
@@ -63,11 +79,15 @@ export function PipelinePage() {
   const [status, setStatus] = useState(ALL_STATUSES);
 
   const applications = state.status === 'ready' ? state.applications : null;
-  const riskTiersAvailable = state.status === 'ready' && state.riskTiersAvailable;
+  const riskTierState = state.status === 'ready' ? state.riskTierState : 'pending';
+  const riskTierNotice =
+    state.status === 'ready' && state.riskTierState === 'unavailable'
+      ? riskTierNotices[state.riskTierError ?? 'unavailable']
+      : null;
   const visible = useMemo(() => filterByStatus(applications ?? [], status), [applications, status]);
   const groups = useMemo(
-    () => groupApplications(visible, groupBy, riskTiersAvailable),
-    [visible, groupBy, riskTiersAvailable],
+    () => groupApplications(visible, groupBy, riskTierState),
+    [visible, groupBy, riskTierState],
   );
 
   return (
@@ -133,19 +153,21 @@ export function PipelinePage() {
                     ))}
                   </select>
                 </div>
-                <p aria-live="polite" className="ml-auto max-w-sm text-sm text-muted">
+                <p className="ml-auto max-w-sm text-sm text-muted" role="status">
                   {status === ALL_STATUSES
                     ? `Showing all ${countLabel(state.applications.length)}. Group counts are of all applications.`
                     : `Showing ${visible.length} of ${countLabel(state.applications.length)}, filtered to ${status}. Group counts are of the filtered applications only.`}
                 </p>
               </div>
 
-              {state.riskTiersAvailable ? null : (
-                <p className="mt-6 rounded-lg border border-line bg-tint p-3 text-sm text-ink">
-                  Risk tiers are not available yet, so every application shows its tier as unavailable
-                  and the queue cannot be split by tier.
+              {riskTierNotice ? (
+                <p
+                  className="mt-6 rounded-lg border border-line bg-tint p-3 text-sm text-ink"
+                  role="status"
+                >
+                  {riskTierNotice}
                 </p>
-              )}
+              ) : null}
 
               <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-surface">
                 <table className="w-full min-w-3xl border-collapse">
@@ -200,7 +222,7 @@ export function PipelinePage() {
                           <PipelineTableRow
                             application={application}
                             key={application.id}
-                            riskTiersAvailable={state.riskTiersAvailable}
+                            riskTierState={riskTierState}
                           />
                         ))}
                       </tbody>

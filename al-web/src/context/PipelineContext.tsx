@@ -2,13 +2,20 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import {
   firestorePipelineService,
   type PipelineApplication,
+  type PipelineError,
   type PipelineService,
+  type RiskTierState,
 } from '../services/pipelineService';
 import { useAuth } from './AuthContext';
 
 export type PipelineState =
   | { status: 'loading' }
-  | { status: 'ready'; applications: PipelineApplication[]; riskTiersAvailable: boolean }
+  | {
+      status: 'ready';
+      applications: PipelineApplication[];
+      riskTierState: RiskTierState;
+      riskTierError: PipelineError | null;
+    }
   | { status: 'denied' }
   | { status: 'error' };
 

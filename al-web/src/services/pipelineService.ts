@@ -2,23 +2,27 @@ import {
   collection,
   collectionGroup,
   onSnapshot,
+  type DocumentData,
   type FirestoreError,
 } from 'firebase/firestore';
-import { newestFirst, toBrokerApplication, type BrokerApplication } from './clientsService';
+import { newestFirst, toApplicationSummary, type ApplicationSummary } from './clientsService';
 import { db } from './firebase';
 
 export const RISK_TIERS = ['A', 'B', 'C', 'D'] as const;
 
 export type RiskTier = (typeof RISK_TIERS)[number];
 
-export interface PipelineApplication extends BrokerApplication {
+// Pending means the tier query has not answered; unavailable carries a separate failure reason.
+export type RiskTierState = 'pending' | 'available' | 'unavailable';
+
+export interface PipelineApplication extends ApplicationSummary {
   riskTier: RiskTier | null;
 }
 
 export interface PipelineSnapshot {
   applications: PipelineApplication[];
-  // False when the underwriting review documents cannot be read, so no tier is known.
-  riskTiersAvailable: boolean;
+  riskTierState: RiskTierState;
+  riskTierError: PipelineError | null;
 }
 
 export type PipelineError = 'permission-denied' | 'unavailable';
@@ -34,8 +38,42 @@ export function readRiskTier(value: unknown): RiskTier | null {
   return RISK_TIERS.find((tier) => tier === value) ?? null;
 }
 
+// The application a review document belongs to, or null when the document is anything other
+// than applications/{id}/review/underwriting.
+export function applicationIdOfReview(path: string): string | null {
+  const [root, applicationId, subcollection, documentId, ...rest] = path.split('/');
+
+  return root === 'applications' &&
+    applicationId &&
+    subcollection === 'review' &&
+    documentId === 'underwriting' &&
+    rest.length === 0
+    ? applicationId
+    : null;
+}
+
+interface ReviewDocument {
+  ref: { path: string };
+  data(): DocumentData;
+}
+
+export function toRiskTiers(documents: readonly ReviewDocument[]): Map<string, RiskTier> {
+  const tiers = new Map<string, RiskTier>();
+
+  for (const document of documents) {
+    const applicationId = applicationIdOfReview(document.ref.path);
+    const riskTier = readRiskTier(document.data().riskTier);
+
+    if (applicationId && riskTier) {
+      tiers.set(applicationId, riskTier);
+    }
+  }
+
+  return tiers;
+}
+
 export function withRiskTiers(
-  applications: readonly BrokerApplication[],
+  applications: readonly ApplicationSummary[],
   riskTiers: ReadonlyMap<string, RiskTier>,
 ): PipelineApplication[] {
   return applications
@@ -49,36 +87,42 @@ function toPipelineError(error: FirestoreError): PipelineError {
 
 export const firestorePipelineService: PipelineService = {
   subscribeToPipeline(listener, onError) {
-    let applications: BrokerApplication[] | null = null;
-    let riskTiers: Map<string, RiskTier> | null = null;
-    let riskTiersAvailable = true;
+    let applications: ApplicationSummary[] | null = null;
+    let riskTiers: ReadonlyMap<string, RiskTier> = new Map();
+    let riskTierState: RiskTierState = 'pending';
+    let riskTierError: PipelineError | null = null;
     let stopped = false;
     const unsubscribers: Array<() => void> = [];
 
     const stop = () => {
+      if (stopped) {
+        return;
+      }
+
       stopped = true;
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
 
+    // The queue is published as soon as the applications answer; tiers never hold it back.
     const emit = () => {
-      if (stopped || applications === null || (riskTiers === null && riskTiersAvailable)) {
+      if (stopped || applications === null) {
         return;
       }
 
-      listener({
-        applications: withRiskTiers(applications, riskTiers ?? new Map()),
-        riskTiersAvailable,
-      });
+      listener({ applications: withRiskTiers(applications, riskTiers), riskTierState, riskTierError });
     };
 
-    // The rules let an underwriter read every application, so the whole collection is one query.
+    // The rules let an underwriter read every application, so the whole collection is one
+    // query. Every document is kept, including one with no borrower.
     unsubscribers.push(
       onSnapshot(
         collection(db, 'applications'),
         (snapshot) => {
-          applications = snapshot.docs
-            .map((doc) => toBrokerApplication(doc.id, doc.data()))
-            .filter((application) => application !== null);
+          if (stopped) {
+            return;
+          }
+
+          applications = snapshot.docs.map((doc) => toApplicationSummary(doc.id, doc.data()));
           emit();
         },
         (error) => {
@@ -99,25 +143,24 @@ export const firestorePipelineService: PipelineService = {
       onSnapshot(
         collectionGroup(db, 'review'),
         (snapshot) => {
-          const tiers = new Map<string, RiskTier>();
-
-          for (const doc of snapshot.docs) {
-            const application = doc.ref.parent.parent;
-            const riskTier = readRiskTier(doc.data().riskTier);
-
-            if (doc.id === 'underwriting' && application?.parent.id === 'applications' && riskTier) {
-              tiers.set(application.id, riskTier);
-            }
+          if (stopped) {
+            return;
           }
 
-          riskTiers = tiers;
-          riskTiersAvailable = true;
+          riskTiers = toRiskTiers(snapshot.docs);
+          riskTierState = 'available';
+          riskTierError = null;
           emit();
         },
-        () => {
-          // The queue stays usable without tiers; the page says they are unavailable.
-          riskTiers = null;
-          riskTiersAvailable = false;
+        (error) => {
+          if (stopped) {
+            return;
+          }
+
+          // The queue stays usable without tiers; the page says why they are missing.
+          riskTiers = new Map();
+          riskTierState = 'unavailable';
+          riskTierError = toPipelineError(error);
           emit();
         },
       ),

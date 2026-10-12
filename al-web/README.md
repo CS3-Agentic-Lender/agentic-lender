@@ -113,14 +113,15 @@ own uid, so the `users` query is allowed and names load. If it is refused or fai
 are listed by ID with a notice, and a broker with no known application sees that names could not be
 loaded rather than "No clients yet". An empty first answer that came only from the local cache is
 not treated as a result: the page stays on loading until the server answers. `loanAmountEur`,
-`ltvPct`, `loanType` and `updatedAt` are the field names in `al-core/SCHEMA.md`; they are read in
-`toBrokerApplication` only and show as "—" when a document has none.
+`ltvPct`, `loanType` and `updatedAt` are the field names in `al-core/SCHEMA.md`; they are read
+through the shared `toApplicationSummary` mapping and show as "—" when a document has none.
 
 ## Underwriter pipeline queue
 
-`src/services/pipelineService.ts` holds one live Firestore query on the whole `applications`
-collection, which the rules on `main` allow for the underwriter role only. The queue groups those
-applications by LTV band (`<=80%`, `>80% to 90%`, `>90%`, and "No LTV yet"), by risk tier (A to D)
+`src/services/pipelineService.ts` holds two live Firestore listeners: one on the whole `applications`
+collection, which the rules on `main` allow for the underwriter role only, and one collection-group
+query on `review`. Applications appear as soon as their listener answers; the tier listener never
+holds back the queue. The queue groups those applications by LTV band (`<=80%`, `>80% to 90%`, `>90%`, and "No LTV yet"), by risk tier (A to D)
 or by lifecycle status, and can be filtered by status. The grouping is in
 `src/pages/underwriter/pipelineGroups.ts`. The summary line says whether the group counts are of
 all applications or of the filtered ones. The listeners stop when the page is left or the
@@ -129,14 +130,20 @@ underwriter signs out.
 Draft contract, not agreed with the backend owners:
 
 - `loanAmountEur`, `ltvPct` and `updatedAt` are draft-schema names, read through the same
-  `toBrokerApplication` mapping as the client list. A document without them shows "—" and lands in
-  "No LTV yet".
+  `toApplicationSummary` mapping as the client list. The pipeline keeps documents without a
+  `borrowerId`; the broker client list still skips them. A document without figures shows "—"; a
+  missing, non-finite or negative LTV lands in "No LTV yet".
 - The risk tier is read from `applications/{id}/review/underwriting` (field `riskTier`) with a single
-  collection-group query on `review`. No rule on `main` covers that subcollection, so the read is
-  refused today: the queue shows every tier as "Unavailable" with a notice and does not split by
-  tier. It starts working when a collection-group rule (`match /{path=**}/review/{doc}`) lets an
-  underwriter read those documents. A tier is only ever a stored `A`, `B`, `C` or `D`; it is never
+  collection-group query on `review`. While pending, rows show "Checking" and tier grouping uses
+  "Checking risk tiers", with no unavailable notice. No rule on `main` covers that subcollection, so
+  the read is refused today: the queue shows every tier as "Unavailable" with a notice and does not split by
+  tier. A permission refusal says tiers are not available yet; any other query failure says tiers
+  could not be loaded. Later tier results update rows and groups without a reload. It starts working
+  when a collection-group rule (`match /{path=**}/review/{doc}`) lets an underwriter read those
+  documents. A tier is only ever a stored `A`, `B`, `C` or `D`; it is never
   derived from the LTV or mapped from another scale.
+
+The queue treats `ltvPct` as a whole-number percentage (83 means 83%); a fraction such as 0.83 would be banded wrongly, which is an open question for the backend owner.
 
 Status badges share one status-to-tone mapping (`src/utils/statusTone.ts`), used by the queue and the
 client list, with the badge colours from `docs/infrastructure.md`: Draft, Applied and Closed are
