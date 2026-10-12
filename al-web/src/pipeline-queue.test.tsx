@@ -14,6 +14,7 @@ import type {
   PipelineService,
   PipelineSnapshot,
   RiskTier,
+  RiskTierState,
 } from './services/pipelineService';
 
 function authUser(uid: string): AuthUser {
@@ -101,7 +102,6 @@ function application(
 ): PipelineApplication {
   return {
     id,
-    borrowerId: 'borrower-1',
     status,
     loanType: 'mortgage',
     loanAmountEur: 230000,
@@ -111,8 +111,12 @@ function application(
   };
 }
 
-function queue(applications: PipelineApplication[], riskTiersAvailable = true): PipelineSnapshot {
-  return { applications, riskTiersAvailable };
+function queue(
+  applications: PipelineApplication[],
+  riskTierState: RiskTierState = 'available',
+  riskTierError: PipelineError | null = null,
+): PipelineSnapshot {
+  return { applications, riskTierState, riskTierError };
 }
 
 const applied = application('LN-1001', 'Applied', 72, 'A');
@@ -146,6 +150,77 @@ function group(name: string) {
 afterEach(cleanup);
 
 describe('underwriter pipeline queue', () => {
+
+  it('shows applications while tiers are pending in one checking group without an unavailable notice', async () => {
+    const withoutTiers = [applied, deliberated].map((item) => ({ ...item, riskTier: null }));
+    renderQueue(new FakePipelineService(queue(withoutTiers, 'pending')));
+    await screen.findByRole('rowheader', { name: 'LN-1001' });
+
+    expect(screen.getAllByText('Checking')).toHaveLength(2);
+    expect(screen.queryByText(/Risk tiers are not available yet|Risk tiers could not be loaded/)).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('radio', { name: 'Risk tier' }));
+
+    expect(within(group('Checking risk tiers')).getByText('2 applications')).toBeInTheDocument();
+    expect(screen.queryByRole('rowgroup', { name: 'Risk tier unavailable' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('rowgroup', { name: /^Tier / })).not.toBeInTheDocument();
+  });
+
+  it('re-groups when tiers arrive later without a reload or a new subscription', async () => {
+    const pipeline = new FakePipelineService(queue([applied, deliberated], 'pending'));
+    renderQueue(pipeline);
+    await screen.findByRole('table');
+    await userEvent.setup().click(screen.getByRole('radio', { name: 'Risk tier' }));
+    expect(within(group('Checking risk tiers')).getByText('2 applications')).toBeInTheDocument();
+
+    act(() => pipeline.push(queue([applied, deliberated])));
+
+    expect(within(group('Tier A')).getByRole('rowheader', { name: 'LN-1001' })).toBeInTheDocument();
+    expect(within(group('Tier B')).getByRole('rowheader', { name: 'LN-1002' })).toBeInTheDocument();
+    const row = screen.getByRole('rowheader', { name: 'LN-1002' }).closest('tr')!;
+    expect(within(row).getByText('B')).toBeInTheDocument();
+    expect(screen.queryByText('Checking')).not.toBeInTheDocument();
+    expect(screen.queryByRole('rowgroup', { name: 'Checking risk tiers' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Risk tiers are not available yet|Risk tiers could not be loaded/)).not.toBeInTheDocument();
+    expect(pipeline.subscriptions).toHaveLength(1);
+  });
+
+  it.each([
+    ['permission-denied', 'Risk tiers are not available yet', 'Risk tiers could not be loaded'],
+    ['unavailable', 'Risk tiers could not be loaded', 'Risk tiers are not available yet'],
+  ] as const)('updates rows, grouping and notice when tiers fail later with %s', async (error, notice, absentNotice) => {
+    const pipeline = new FakePipelineService(queue([applied, deliberated], 'pending'));
+    renderQueue(pipeline);
+    await screen.findByRole('table');
+    await userEvent.setup().click(screen.getByRole('radio', { name: 'Risk tier' }));
+
+    act(() => pipeline.push(queue([applied, deliberated], 'unavailable', error)));
+
+    expect(screen.getByText(new RegExp(notice))).toHaveAttribute('role', 'status');
+    expect(screen.queryByText(new RegExp(absentNotice))).not.toBeInTheDocument();
+    expect(within(group('Risk tier unavailable')).getByText('2 applications')).toBeInTheDocument();
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.queryByText('Checking')).not.toBeInTheDocument();
+    expect(screen.queryByRole('rowgroup', { name: 'Checking risk tiers' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('rowgroup', { name: /^Tier / })).not.toBeInTheDocument();
+    expect(pipeline.subscriptions).toHaveLength(1);
+  });
+
+  it('shows each LTV band beside its figure without grouping by LTV', async () => {
+    renderQueue(new FakePipelineService(seededQueue));
+    await screen.findByRole('table');
+
+    for (const [id, figure, band] of [
+      ['LN-1001', '72%', '<=80%'],
+      ['LN-1002', '85.5%', '>80% to 90%'],
+      ['LN-1003', '94%', '>90%'],
+      ['LN-1004', '—', 'No LTV yet'],
+    ]) {
+      const row = screen.getByRole('rowheader', { name: id }).closest('tr')!;
+      const cell = within(row).getByText(figure).closest('td')!;
+      expect(within(cell).getByText(band)).toBeInTheDocument();
+    }
+  });
+
   it('shows an underwriter every application with its figures, tier and status', async () => {
     renderQueue(new FakePipelineService(seededQueue));
 
@@ -153,6 +228,7 @@ describe('underwriter pipeline queue', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Pipeline queue' })).toBeInTheDocument();
     expect(within(row).getByText('€230,000')).toBeInTheDocument();
     expect(within(row).getByText('85.5%')).toBeInTheDocument();
+    expect(within(row).getByText('>80% to 90%')).toBeInTheDocument();
     expect(within(row).getByText('B')).toBeInTheDocument();
     expect(within(row).getByText('AI Deliberated')).toBeInTheDocument();
     expect(within(row).getByText('5 Oct 2026')).toBeInTheDocument();
@@ -241,7 +317,7 @@ describe('underwriter pipeline queue', () => {
 
   it('says tiers are unavailable instead of showing any when they cannot be read', async () => {
     const withoutTiers = [applied, deliberated].map((item) => ({ ...item, riskTier: null }));
-    renderQueue(new FakePipelineService(queue(withoutTiers, false)));
+    renderQueue(new FakePipelineService(queue(withoutTiers, 'unavailable', 'permission-denied')));
     const user = userEvent.setup();
     await screen.findByRole('table');
 
@@ -266,6 +342,8 @@ describe('underwriter pipeline queue', () => {
 
     expect(await screen.findByRole('heading', { name: 'Loading the pipeline' })).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the pipeline');
+    expect(screen.getByRole('status')).not.toHaveAttribute('aria-live');
   });
 
   it('says so when there are no applications', async () => {
@@ -288,6 +366,8 @@ describe('underwriter pipeline queue', () => {
     });
 
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(heading);
+    expect(screen.getByRole('status')).not.toHaveAttribute('aria-live');
     expect(screen.queryByText('LN-1001')).not.toBeInTheDocument();
   });
 

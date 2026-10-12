@@ -19,14 +19,18 @@ export const APPLICATION_STATUSES = [
   'Closed',
 ] as const;
 
-export interface BrokerApplication {
+// What every portal screen reads from an application document, whoever is looking at it.
+export interface ApplicationSummary {
   id: string;
-  borrowerId: string;
   status: string;
   loanType: string | null;
   loanAmountEur: number | null;
   ltvPct: number | null;
   updatedAt: Date | null;
+}
+
+export interface BrokerApplication extends ApplicationSummary {
+  borrowerId: string;
 }
 
 export interface ClientProfile {
@@ -71,6 +75,18 @@ function readDate(value: unknown) {
   return value instanceof Timestamp ? value.toDate() : null;
 }
 
+export function toApplicationSummary(id: string, data: DocumentData): ApplicationSummary {
+  return {
+    id,
+    status: readString(data.status) ?? 'Unknown',
+    loanType: readString(data.loanType),
+    loanAmountEur: readNumber(data.loanAmountEur),
+    ltvPct: readNumber(data.ltvPct),
+    updatedAt: readDate(data.updatedAt) ?? readDate(data.createdAt),
+  };
+}
+
+// The client list files an application under its borrower, so one without a borrower is skipped.
 export function toBrokerApplication(id: string, data: DocumentData): BrokerApplication | null {
   const borrowerId = readString(data.borrowerId);
 
@@ -78,15 +94,7 @@ export function toBrokerApplication(id: string, data: DocumentData): BrokerAppli
     return null;
   }
 
-  return {
-    id,
-    borrowerId,
-    status: readString(data.status) ?? 'Unknown',
-    loanType: readString(data.loanType),
-    loanAmountEur: readNumber(data.loanAmountEur),
-    ltvPct: readNumber(data.ltvPct),
-    updatedAt: readDate(data.updatedAt) ?? readDate(data.createdAt),
-  };
+  return { ...toApplicationSummary(id, data), borrowerId };
 }
 
 export function toClientProfile(uid: string, data: DocumentData): ClientProfile {
@@ -98,7 +106,7 @@ export function toClientProfile(uid: string, data: DocumentData): ClientProfile 
   };
 }
 
-export function newestFirst(a: BrokerApplication, b: BrokerApplication) {
+export function newestFirst(a: ApplicationSummary, b: ApplicationSummary) {
   return (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0) || a.id.localeCompare(b.id);
 }
 

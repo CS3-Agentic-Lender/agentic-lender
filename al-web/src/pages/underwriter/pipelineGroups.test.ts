@@ -16,7 +16,6 @@ function application(
 ): PipelineApplication {
   return {
     id,
-    borrowerId: 'borrower-1',
     status,
     loanType: 'mortgage',
     loanAmountEur: 230000,
@@ -49,12 +48,33 @@ describe('LTV bands', () => {
     [90.1, '>90%'],
     [120, '>90%'],
     [null, 'No LTV yet'],
+    [Number.NaN, 'No LTV yet'],
+    [Number.POSITIVE_INFINITY, 'No LTV yet'],
+    [Number.NEGATIVE_INFINITY, 'No LTV yet'],
+    [-1, 'No LTV yet'],
   ] as const)('puts an LTV of %s in the %s band', (ltvPct, band) => {
     expect(ltvBand(ltvPct)).toBe(band);
   });
 });
 
 describe('grouping the pipeline', () => {
+  it('keeps non-finite and negative LTV rows in the no LTV group', () => {
+    const rows = [
+      application('LN-1011', 'Applied', Number.NaN, null),
+      application('LN-1012', 'Applied', -1, null),
+      application('LN-1013', 'Applied', Number.POSITIVE_INFINITY, null),
+    ];
+
+    const groups = groupApplications(rows, 'ltvBand');
+
+    expect(counts(groups)).toEqual([['No LTV yet', 3]]);
+    expect(groups[0].applications).toEqual(rows);
+  });
+
+  it('makes one pending group while the tier query has not answered', () => {
+    expect(counts(groupApplications(sample, 'riskTier', 'pending'))).toEqual([['Checking risk tiers', 7]]);
+  });
+
   it('groups by LTV band and counts each band', () => {
     expect(counts(groupApplications(sample, 'ltvBand'))).toEqual([
       ['<=80%', 3],
@@ -105,7 +125,7 @@ describe('grouping the pipeline', () => {
   });
 
   it('makes one unavailable group when tier data cannot be read', () => {
-    expect(counts(groupApplications(sample, 'riskTier', false))).toEqual([['Risk tier unavailable', 7]]);
+    expect(counts(groupApplications(sample, 'riskTier', 'unavailable'))).toEqual([['Risk tier unavailable', 7]]);
   });
 
   it('keeps a status outside the agreed list in its own group instead of renaming it', () => {

@@ -1,5 +1,9 @@
 import { APPLICATION_STATUSES } from '../../services/clientsService';
-import { RISK_TIERS, type PipelineApplication } from '../../services/pipelineService';
+import {
+  RISK_TIERS,
+  type PipelineApplication,
+  type RiskTierState,
+} from '../../services/pipelineService';
 import { isApplicationStatus } from '../../utils/statusTone';
 
 export type GroupBy = 'ltvBand' | 'riskTier' | 'status';
@@ -13,6 +17,7 @@ export const GROUP_BY_OPTIONS: ReadonlyArray<{ value: GroupBy; label: string }> 
 export const LTV_BANDS = ['<=80%', '>80% to 90%', '>90%'] as const;
 export const NO_LTV = 'No LTV yet';
 export const NO_RISK_TIER = 'No risk tier yet';
+export const RISK_TIER_PENDING = 'Checking risk tiers';
 export const RISK_TIER_UNAVAILABLE = 'Risk tier unavailable';
 export const UNRECOGNISED_STATUS = 'Unrecognised status';
 export const ALL_STATUSES = 'all';
@@ -23,9 +28,10 @@ export interface PipelineGroup {
   applications: PipelineApplication[];
 }
 
-// LTV arrives as a whole-number percentage: 80 means 80%. Each upper bound belongs to its band.
+// LTV is read as a whole-number percentage: 80 means 80%. Each upper bound belongs to its band.
+// A value that is not a usable LTV (missing, not finite, negative) is not put in a band.
 export function ltvBand(ltvPct: number | null) {
-  if (ltvPct === null) {
+  if (ltvPct === null || !Number.isFinite(ltvPct) || ltvPct < 0) {
     return NO_LTV;
   }
 
@@ -48,7 +54,7 @@ interface Grouping {
   keyOf(application: PipelineApplication): string;
 }
 
-function groupingFor(groupBy: GroupBy, riskTiersAvailable: boolean): Grouping {
+function groupingFor(groupBy: GroupBy, riskTierState: RiskTierState): Grouping {
   if (groupBy === 'ltvBand') {
     return {
       groups: [...LTV_BANDS, NO_LTV].map((band) => ({ key: band, label: band })),
@@ -64,12 +70,11 @@ function groupingFor(groupBy: GroupBy, riskTiersAvailable: boolean): Grouping {
     };
   }
 
-  // Without readable tier data there is nothing to split on, and no tier is guessed.
-  if (!riskTiersAvailable) {
-    return {
-      groups: [{ key: RISK_TIER_UNAVAILABLE, label: RISK_TIER_UNAVAILABLE }],
-      keyOf: () => RISK_TIER_UNAVAILABLE,
-    };
+  // Until tier data has been read there is nothing to split on, and no tier is guessed.
+  if (riskTierState !== 'available') {
+    const label = riskTierState === 'pending' ? RISK_TIER_PENDING : RISK_TIER_UNAVAILABLE;
+
+    return { groups: [{ key: label, label }], keyOf: () => label };
   }
 
   return {
@@ -85,9 +90,9 @@ function groupingFor(groupBy: GroupBy, riskTiersAvailable: boolean): Grouping {
 export function groupApplications(
   applications: readonly PipelineApplication[],
   groupBy: GroupBy,
-  riskTiersAvailable = true,
+  riskTierState: RiskTierState = 'available',
 ): PipelineGroup[] {
-  const { groups, keyOf } = groupingFor(groupBy, riskTiersAvailable);
+  const { groups, keyOf } = groupingFor(groupBy, riskTierState);
   const byKey = new Map<string, PipelineApplication[]>();
 
   for (const application of applications) {
