@@ -1,0 +1,18 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant A as App or portal
+  participant AU as Firebase Auth
+  participant API as al-ai or al-core
+  participant FS as Firestore
+  U->>A: email and password, or Google
+  A->>AU: sign in
+  AU-->>A: ID token (user id and role claim, valid 1 hour)
+  Note over A,AU: The SDK refreshes the token before it expires
+  A->>FS: read with the token
+  FS-->>A: allowed or denied by the rules (role and ownership)
+  A->>API: request with Authorization: Bearer token
+  API->>AU: verify signature and expiry (Admin SDK)
+  API->>API: check role and ownership, validate the body
+  API->>FS: write with the service account key
+  API-->>A: response or error body

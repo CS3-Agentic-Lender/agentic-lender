@@ -1,0 +1,5 @@
+{
+  "theme": "neutral",
+  "themeVariables": { "fontFamily": "Helvetica Neue, Helvetica, Arial, sans-serif", "fontSize": "15px" },
+  "sequence": { "mirrorActors": false, "showSequenceNumbers": true, "actorMargin": 60, "messageMargin": 38, "boxMargin": 10, "noteMargin": 12 }
+}

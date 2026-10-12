@@ -1,0 +1,17 @@
+flowchart LR
+  A["Validate<br/>application"] --> B["Valuation<br/>model"]
+  B --> C["Market and<br/>macro agent<br/><i>Gemini + Serper</i>"]
+  C --> D["Code<br/>calculations<br/><i>repayments, DTI,<br/>LTV, bands</i>"]
+  D --> E1["Affordability agent<br/><i>Ollama / Bedrock</i>"]
+  D --> E2["Valuation agent<br/><i>Mistral</i>"]
+  E1 --> F["Strategist<br/><i>Gemini</i><br/>credit memo"]
+  E2 --> F
+  C -.-> F
+  F --> G["Policy gate<br/><i>code, Central Bank caps</i>"]
+  G --> H["Save run record<br/>and ai_calls"]
+
+  classDef code fill:#E0F2FE,stroke:#0369A1,color:#0F172A
+  classDef llm fill:#FEF3C7,stroke:#B45309,color:#0F172A
+  classDef plain fill:#F1F5F9,stroke:#475569,color:#0F172A
+  class A,B,D,G,H code
+  class C,E1,E2,F llm

@@ -1,0 +1,19 @@
+sequenceDiagram
+  autonumber
+  actor U as Underwriter
+  participant W as al-web
+  participant FS as Firestore
+  participant C as core API
+  participant L as Ledger
+  U->>W: open the loan file
+  W->>FS: read application, AI run and ai_calls
+  U->>W: approve or decline with a justification
+  W->>C: POST /core/applications/{id}/decision
+  C->>FS: save decision, status Underwriter Approved or Declined
+  U->>W: mint the loan note
+  W->>C: POST /core/applications/{id}/mint
+  C->>L: mint loan note and store the audit hash
+  L-->>C: token ID and transaction hash
+  C->>FS: save token ID and hash, status Funded
+  FS-->>W: listener updates the loan file
+  Note over C,L: The audit pack is available once the loan note is minted.
