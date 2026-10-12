@@ -229,4 +229,17 @@ final class ApplicationValidatorTests: XCTestCase {
 
         XCTAssertEqual(property["address_line_2"] as? String, "Bishopstown")
     }
+
+    func testDraftBodyCarriesTheChosenLoanType() throws {
+        let filled = TestFixtures.filledApplicationForm()
+        var form = ApplicationForm(affordability: filled.affordability, maxLoanEur: filled.maxLoanEur, loanType: .heloc)
+        form.loanAmount = filled.loanAmount
+        form.monthlyTakeHome = filled.monthlyTakeHome
+        form.monthlyLivingCosts = filled.monthlyLivingCosts
+        let draft = try XCTUnwrap(ApplicationDraft(form: form))
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: draft.body()) as? [String: Any])
+
+        XCTAssertEqual(body["loan_type"] as? String, "heloc")
+    }
 }
