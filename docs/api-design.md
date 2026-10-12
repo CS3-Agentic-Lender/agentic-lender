@@ -57,11 +57,16 @@ Both services use the Admin SDK to read and write Firestore.
 | `applications/{id}/review/underwriting` | The assigned broker, underwriters | Risk tier (A to D), DTI breakdown, valuation detail |
 | `applications/{id}/audit/record` | The assigned broker, underwriters | The audit record behind the audit hash, written at mint |
 | `ai_runs`, `ai_calls` | The assigned broker, underwriters | One record per committee run and per AI call |
-| `applications/{id}/messages` | The borrower, the assigned broker, underwriters | The message thread |
+| `applications/{id}/messages` | The borrower, the assigned broker, underwriters | The message thread. Each message has a `read` flag, which `.../messages/read` sets |
+| `support_requests/{id}` | The borrower who sent it, underwriters | A support request from `POST /core/support-requests` |
+| `reviews/{uid}` | Underwriters | One review per borrower, replaced by `PUT /core/reviews/me` |
+| `users/{uid}/saved_checks/{id}` | That user | A saved property check |
+
+The EUR 150 appraisal fee has no collection of its own: the webhook sets `feeStatus` and `feeIntentId` on the application.
 
 Firestore grants access one document at a time. Underwriter-only details therefore live in a separate `review/underwriting` document, hidden from borrowers.
 
-**Audit hash.** At mint, al-ai builds one JSON audit record: the application id, the decision, the risk tier, the credit memo, the underwriter's id, the sign-off time, and every `ai_calls` id for the run with the SHA-256 of that call's document. The record is turned into text with sorted keys and no spaces (`json.dumps(record, sort_keys=True, separators=(",", ":"))`), and the SHA-256 of that text is the audit hash. Both services use one shared function for this, so they always get the same hash. al-core stores the full record at `audit/record` and the hash on-chain, once per application. To check a loan, hash the stored record again and compare it with the on-chain value. Declined applications have no audit record.
+**Audit hash.** At mint, al-core builds one JSON audit record from the stored decision, review and `ai_calls` documents, using the shared hash function: the application id, the decision, the risk tier, the credit memo, the underwriter's id, the sign-off time, and every `ai_calls` id for the run with the SHA-256 of that call's document. Every field is a string or a whole number, and the sign-off time is an ISO 8601 UTC string, because a Firestore timestamp read back does not hash the same. The record is turned into text with sorted keys and no spaces (`json.dumps(record, sort_keys=True, separators=(",", ":"))`), and the SHA-256 of that text is the audit hash. The function is shared by al-ai and al-core, so they always get the same hash. al-core stores the full record at `audit/record` and the hash on-chain, once per application. To check a loan, hash the stored record again and compare it with the on-chain value. Declined applications have no audit record.
 
 ## 4. Authentication
 
@@ -70,7 +75,7 @@ Firestore grants access one document at a time. Underwriter-only details therefo
 3. Every API request from the client includes `Authorization: Bearer <token>`.
 4. The service uses the Admin SDK to check the token's signature, expiry and revocation. It reads the role and confirms the caller owns the resource or has permission to act on it.
 
-`POST /core/me` sets the role at sign-up. The service never accepts it from a request body.
+`POST /core/me` sets the role at sign-up. The service never accepts it from a request body. Only borrowers can sign up this way. Broker and underwriter accounts cannot sign themselves up: they come from the seed data locally, or an admin script that sets the `role` claim for deployed accounts. After `POST /core/me` the client must refresh its ID token (`getIdToken(true)`), because the old token does not yet carry the `role` claim.
 
 ![Sign in and token](diagrams/07-auth-sequence.png)
 
@@ -94,7 +99,7 @@ Two calls skip Firebase tokens. Stripe's signature verifies the webhook; the loa
 | Input validation | Typed models validate each request body. An invalid value returns `422` and names the field. |
 | Service account key | The key stays on the servers. App Firebase config is public and does not grant access by itself. |
 | Secrets | Local secrets go in `.env`; deployed secrets go in AWS Secrets Manager. They never enter the repo or logs. Every commit is scanned. |
-| CORS | Only the portal's origin can call the APIs. Tokens use a header, so the APIs do not use cookies. |
+| CORS | Only the portal's origin can call the APIs: `http://localhost:5173` locally and `https://app.agentic-lender.com` when deployed. Tokens use a header, so the APIs do not use cookies. |
 | Stripe webhook | Stripe's signature is checked against the raw body. The fee is paid only when the payment succeeded and its intent id matches the stored id, amount EUR 150 and currency `eur`. |
 | No personal data on chain | The ledger stores the terms, a public id and a hash. It stores no identifying details. |
 | Safe errors | Errors expose no stack trace, key or another user's data. The request id links to details in the logs. |
@@ -111,7 +116,7 @@ Rate limits cap traffic and spending. Requests to an AI service can start paid L
 
 ## 7. Endpoints
 
-All endpoints below use the same host. The generated request and response models at `/ai/docs` and `/core/docs` define each field.
+All endpoints below use the same host: `http://localhost:8000` on a laptop (the local gateway in `docker-compose.yml`) and `https://api.agentic-lender.com` when deployed. The generated request and response models at `/ai/docs` and `/core/docs` define each field.
 
 **al-ai** (`/ai/*`)
 
@@ -190,8 +195,8 @@ Adding the contributions to the baseline gives the estimate. It is an indicative
 | Status | Code | Meaning |
 |---|---|---|
 | 401 | `UNAUTHENTICATED` | The token is missing, expired or invalid |
-| 403 | `FORBIDDEN` | The token is valid, but the role is wrong or the caller does not own the resource |
-| 404 | `NOT_FOUND` | The resource is missing or hidden from this caller |
+| 403 | `FORBIDDEN` | The token is valid, but the role is not allowed to call this endpoint |
+| 404 | `NOT_FOUND` | The resource is missing, or it belongs to someone else. The API gives the same answer for both, so it never reveals that another borrower's application exists |
 | 409 | `CONFLICT` | The current status blocks the action or it has already happened |
 | 422 | `INVALID_FIELD` | A value failed validation; `field` identifies it |
 | 503 | `UPSTREAM_UNAVAILABLE` | ECB, an LLM provider, the chain or Stripe cannot respond |
@@ -200,6 +205,71 @@ Adding the contributions to the baseline gives the estimate. It is an indicative
 Endpoints do not substitute made-up numbers when something fails. A missing or stale ECB rate causes the request to fail.
 
 **Repeating a call.** Submit, decision, mint, close, rerun and fee-intent requests can be repeated safely. The API returns the same result or `409` if the current state blocks the action. Mint creates only one loan note.
+
+**Underwriter calls.** Examples for the portal. Every call needs the underwriter's ID token. A repeat of the same call returns the same body, or `409` if the status blocks it.
+
+`POST /core/applications/{id}/decision` (`outcome` is `approved` or `declined`; `reason` is optional):
+
+```json
+{ "outcome": "approved", "reason": "Low LTV and DTI within limits" }
+```
+
+```json
+{
+  "application_id": "app-deliberated",
+  "status": "Underwriter Approved",
+  "decision": {
+    "outcome": "approved",
+    "underwriter_id": "underwriter1",
+    "decided_at": "2026-09-30T14:00:00Z",
+    "reason": "Low LTV and DTI within limits"
+  }
+}
+```
+
+`POST /core/applications/{id}/mint` has no body and returns `201`. It works only on `Underwriter Approved` and moves the status to `Funded`:
+
+```json
+{
+  "application_id": "app-approved",
+  "status": "Funded",
+  "loan_note": {
+    "token_id": "4",
+    "contract_address": "0x0000000000000000000000000000000000000000",
+    "tx_hash": "0x9a1f...",
+    "audit_hash": "3b7c...",
+    "minted_at": "2026-09-30T14:30:00Z"
+  }
+}
+```
+
+`POST /ai/committee/runs` takes the application id, returns `201` and runs in the background. Watch `aiRunStatus` on the application for the result:
+
+```json
+{ "application_id": "app-deliberated" }
+```
+
+```json
+{ "run_id": "run-app-deliberated-2", "application_id": "app-deliberated", "status": "running", "trigger": "rerun" }
+```
+
+`GET /core/applications/{id}/audit-pack` returns the stored audit record plus its hash. The `record` keeps the exact keys it is stored and hashed with (camelCase), so hash it as it is and compare the result with `audit_hash`:
+
+```json
+{
+  "application_id": "app-funded",
+  "audit_hash": "3b7c...",
+  "record": {
+    "aiCalls": [ { "id": "call-1", "sha256": "e4d9..." } ],
+    "applicationId": "app-funded",
+    "creditMemo": "Strong affordability ...",
+    "decision": "approved",
+    "riskTier": "A",
+    "signedOffAt": "2026-09-18T11:00:00Z",
+    "underwriterId": "underwriter1"
+  }
+}
+```
 
 ## 9. Application status
 
