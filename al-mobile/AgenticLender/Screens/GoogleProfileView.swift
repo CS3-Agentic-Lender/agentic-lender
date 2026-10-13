@@ -13,7 +13,7 @@ struct GoogleProfileView: View {
     var body: some View {
         Group {
             if model.isProfileSaved {
-                SignedInPlaceholderView(title: "Account created", message: "Next you'll choose your broker.")
+                HomeView()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
