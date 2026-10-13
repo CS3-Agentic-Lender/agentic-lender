@@ -179,9 +179,26 @@ def test_phone_message_says_plus_353_and_eircode_message_gives_the_example(fake)
 
 
 def test_email_is_stored_in_lower_case_and_phone_spaces_are_removed(fake):
+    fake["claims"]["email"] = "Mixed.Case@example.ie"  # the token's case doesn't matter either
     post({**VALID, "email": "MIXED.Case@Example.IE", "phone": "+353 87 123 4567"})
     doc = fake["db"].store["users/new1"]
     assert doc["email"] == "mixed.case@example.ie" and doc["phone"] == "+353871234567"
+
+
+def test_email_different_from_the_signed_in_one_is_422_naming_email(fake):
+    r = post({**VALID, "email": "someone.else@example.ie"})
+    assert r.status_code == 422
+    err = r.json()["error"]
+    assert err["code"] == "INVALID_FIELD" and err["field"] == "email"
+    assert "signed in with" in err["message"]
+    assert fake["db"].store == {} and fake["set_claims"] == []
+
+
+def test_email_mismatch_is_rejected_on_a_repeat_call_too(fake):
+    post(VALID)
+    r = post({**VALID, "email": "someone.else@example.ie"})
+    assert r.status_code == 422 and r.json()["error"]["field"] == "email"
+    assert fake["db"].store["users/new1"]["email"] == "aoife.byrne@example.ie"
 
 
 def test_eircode_with_d6w_routing_key_is_accepted(fake):

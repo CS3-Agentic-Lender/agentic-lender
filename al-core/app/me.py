@@ -8,6 +8,7 @@ import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.exceptions import RequestValidationError
 from firebase_admin import auth as fb_auth
 from google.api_core.exceptions import AlreadyExists
 from google.cloud.firestore import SERVER_TIMESTAMP
@@ -92,6 +93,13 @@ def sign_up(body: SignUp, response: Response, user: dict = Depends(current_user)
     role = user.get("role")
     if role and role != "borrower":
         raise HTTPException(403, "Only borrowers can sign up here")
+
+    # One email per person: the profile keeps the one they signed in with.
+    token_email = (user.get("email") or "").lower()
+    if token_email and body.email != token_email:
+        raise RequestValidationError(
+            [{"loc": ("body", "email"), "msg": "must match the email you signed in with", "type": "value_error"}]
+        )
 
     ref = db().collection("users").document(uid)
     data = {

@@ -74,6 +74,9 @@ results.append(check("GET after sign-up is 200 with the profile", s == 200 and m
 s, err = call("POST", f"{CORE}/core/me", {**profile, "eircode": "t12x5r2"}, token)
 results.append(check("bad eircode is 422 naming the field", s == 422 and err["error"]["field"] == "eircode", s))
 
+s, err = call("POST", f"{CORE}/core/me", {**profile, "email": "someone.else@example.ie"}, token)
+results.append(check("email not matching the sign-in is 422 naming email", s == 422 and err["error"]["field"] == "email", s))
+
 s, err = call("GET", f"{CORE}/core/me")
 results.append(check("no token is 401", s == 401, s))
 

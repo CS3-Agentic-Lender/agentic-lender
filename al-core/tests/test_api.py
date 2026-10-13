@@ -1,3 +1,4 @@
+import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
 from firebase_admin import auth as fb_auth
@@ -43,6 +44,20 @@ def test_bad_token_is_401(monkeypatch):
 
     monkeypatch.setattr(auth.fb_auth, "verify_id_token", reject)
     r = client.get("/core/_whoami", headers={"Authorization": "Bearer nope"})
+    assert r.status_code == 401 and r.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [fb_auth.UserDisabledError("disabled"), fb_auth.UserNotFoundError("deleted")],
+    ids=["disabled user", "deleted user"],
+)
+def test_disabled_or_deleted_user_is_401_not_500(monkeypatch, error):
+    def reject(token, check_revoked):
+        raise error
+
+    monkeypatch.setattr(auth.fb_auth, "verify_id_token", reject)
+    r = client.get("/core/_whoami", headers={"Authorization": "Bearer old"})
     assert r.status_code == 401 and r.json()["error"]["code"] == "UNAUTHENTICATED"
 
 
