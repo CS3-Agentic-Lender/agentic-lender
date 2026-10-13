@@ -41,6 +41,17 @@ def test_bad_token_is_401(monkeypatch):
     assert r.status_code == 401 and r.json()["error"]["code"] == "UNAUTHENTICATED"
 
 
+@pytest.mark.parametrize("error", [fb_auth.UserDisabledError("disabled"), fb_auth.UserNotFoundError("deleted")])
+def test_disabled_or_deleted_user_is_401_not_500(monkeypatch, error):
+    def reject(token, check_revoked):
+        raise error
+
+    monkeypatch.setattr(auth.fb_auth, "verify_id_token", reject)
+    r = client.get("/ai/_whoami", headers={"Authorization": "Bearer ok"})
+    assert r.status_code == 401
+    assert set(r.json()["error"]) == SHAPE and r.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
 def test_good_token_passes_and_revocation_is_checked(monkeypatch):
     calls = []
 
