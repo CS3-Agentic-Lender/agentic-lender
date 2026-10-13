@@ -3,11 +3,8 @@ import XCTest
 
 @MainActor
 final class HomeViewModelTests: XCTestCase {
-    private func model(
-        fullName: Result<String, AccountError> = .success("Aoife Byrne"),
-        onSignOut: @escaping () -> Void = {}
-    ) -> HomeViewModel {
-        HomeViewModel(loadFullName: { try fullName.get() }, onSignOut: onSignOut)
+    private func model(fullName: Result<String, AccountError> = .success("Aoife Byrne")) -> HomeViewModel {
+        HomeViewModel(loadFullName: { try fullName.get() })
     }
 
     func testGreetsTheBorrowerByFirstNameOnceTheProfileLoads() async {
@@ -50,14 +47,5 @@ final class HomeViewModelTests: XCTestCase {
         await home.load()
 
         XCTAssertEqual(home.greeting, "Hello")
-    }
-
-    func testSignOutHandsOverToTheSignOutAction() {
-        var signOutCount = 0
-        let home = model(onSignOut: { signOutCount += 1 })
-
-        home.signOut()
-
-        XCTAssertEqual(signOutCount, 1)
     }
 }
