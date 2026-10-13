@@ -9,6 +9,10 @@ services:
     environment:
       FIREBASE_PROJECT_ID: demo-al
       FIREBASE_AUTH_EMULATOR_HOST: host.docker.internal:9099
+      # Stand-in benchmark mortgage rate (percent) and its month, the 4.00% test rate from the ticket,
+      # until the ECB rate tool exists. Without both, /ai/affordability returns 503.
+      BENCHMARK_RATE_PCT: "4.0"
+      BENCHMARK_RATE_DATE: "2026-08"
 
   gateway:
     image: nginx:1.27-alpine
