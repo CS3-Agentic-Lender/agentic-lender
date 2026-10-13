@@ -106,6 +106,10 @@ describe('applications', () => {
     assertSucceeds(borrower1().doc('applications/app1').get()));
   test("a borrower can't read someone else's application", () =>
     assertFails(borrower1().doc('applications/app2').get()));
+  test('a borrower can list their applications when filtering on borrowerId', () =>
+    assertSucceeds(borrower1().collection('applications').where('borrowerId', '==', 'borrower1').get()));
+  test("a borrower can't list applications without the borrowerId filter", () =>
+    assertFails(borrower1().collection('applications').get()));
   test("a broker can read their client's application", () =>
     assertSucceeds(broker1().doc('applications/app1').get()));
   test("a broker can't read another broker's client's application", () =>
