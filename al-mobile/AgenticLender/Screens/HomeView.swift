@@ -3,17 +3,16 @@ import SwiftUI
 /// Where a borrower lands after signing up or signing in (Figma Home, Sprint 1 content only):
 /// a greeting, "What can I borrow?" and Sign out. The application card joins it in Sprint 2.
 struct HomeView: View {
+    @Environment(AppSession.self) private var session
     @State private var model: HomeViewModel
 
-    init(loadFullName: @escaping () async throws -> String, onSignOut: @escaping () -> Void) {
-        _model = State(initialValue: HomeViewModel(loadFullName: loadFullName, onSignOut: onSignOut))
+    init(loadFullName: @escaping () async throws -> String) {
+        _model = State(initialValue: HomeViewModel(loadFullName: loadFullName))
     }
 
     /// Home against Firebase and al-core.
     init() {
-        // Signing out (Firebase sign-out, back to Welcome) is the stay-signed-in subtask's job;
-        // until it lands, the button is in place and does nothing.
-        self.init(loadFullName: { try await FirebaseHomeProfile.loadFullName() }, onSignOut: {})
+        self.init(loadFullName: { try await FirebaseHomeProfile.loadFullName() })
     }
 
     var body: some View {
@@ -76,8 +75,22 @@ struct HomeView: View {
     }
 
     private var footer: some View {
+        VStack(spacing: 8) {
+            if let error = session.signOutError {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            signOutButton
+        }
+        .padding(Theme.screenPadding)
+        .background(Theme.oat)
+    }
+
+    private var signOutButton: some View {
         Button {
-            model.signOut()
+            session.signOut()
         } label: {
             Text("Sign out")
                 .font(.headline)
@@ -89,15 +102,19 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("home.signOut")
-        .padding(Theme.screenPadding)
-        .background(Theme.oat)
     }
 }
 
 #if DEBUG
+private struct PreviewSignedInState: SignedInState {
+    var hasSignedInUser: Bool { true }
+    func signOut() throws {}
+}
+
 #Preview {
     NavigationStack {
-        HomeView(loadFullName: { "Aoife Byrne" }, onSignOut: {})
+        HomeView(loadFullName: { "Aoife Byrne" })
     }
+    .environment(AppSession(state: PreviewSignedInState()))
 }
 #endif
