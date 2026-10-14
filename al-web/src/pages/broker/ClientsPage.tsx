@@ -12,14 +12,17 @@ const headerCellClass = 'px-4 py-3 text-left text-xs font-semibold tracking-wide
 const cellClass = 'px-4 py-4 align-middle';
 
 function ClientTableRow({ client, application, profilesState }: ClientRow & Pick<BrokerClientsSnapshot, 'profilesState'>) {
+  const displayName = client.profile?.fullName ?? (profilesState === 'pending' ? 'Loading name' : 'Name unavailable');
+
   return (
     <tr className="border-t border-line">
       <th className={`${cellClass} text-left font-normal`} scope="row">
         <Link
+          aria-label={`${displayName}, client ${client.id}`}
           className="font-medium text-pine underline-offset-4 hover:underline"
           to={`/broker/clients/${encodeURIComponent(client.id)}`}
         >
-          {client.profile?.fullName ?? (profilesState === 'pending' ? 'Loading name' : 'Name unavailable')}
+          {displayName}
         </Link>
         <span className="mt-1 block font-mono text-xs text-muted">{client.id}</span>
       </th>
@@ -64,6 +67,18 @@ export function ClientsPage() {
         <div className="mt-10">
           {state.status !== 'ready' ? (
             <BrokerClientsStatus status={state.status} />
+          ) : rows.length === 0 && state.profilesState === 'pending' ? (
+            // A client with no application yet appears only in the profiles result, so an empty
+            // list is not known to be empty until that query answers.
+            <BrokerClientsStatus status="loading" />
+          ) : rows.length === 0 && state.profilesState === 'unavailable' ? (
+            <section className="rounded-2xl border border-line bg-surface p-8">
+              <h2 className="text-xl font-semibold">Clients could not be fully loaded</h2>
+              <p className="mt-3 leading-7 text-muted">
+                Client names are not available yet, so clients without an application cannot be listed.
+                Reload the page to try again.
+              </p>
+            </section>
           ) : rows.length === 0 ? (
             <section className="rounded-2xl border border-line bg-surface p-8">
               <h2 className="text-xl font-semibold">No clients yet</h2>

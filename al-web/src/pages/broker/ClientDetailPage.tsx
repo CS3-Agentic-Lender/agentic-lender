@@ -26,6 +26,10 @@ export function ClientDetailPage() {
         <div className="mt-8">
           {state.status !== 'ready' ? (
             <BrokerClientsStatus headingLevel="h1" status={state.status} />
+          ) : !client && state.profilesState === 'pending' ? (
+            // A client with no application yet appears only in the profiles result, so it is not
+            // known to be missing until that query answers.
+            <BrokerClientsStatus headingLevel="h1" status="loading" />
           ) : !client ? (
             <section className="rounded-2xl border border-line bg-surface p-8">
               <h1 className="text-3xl font-semibold tracking-tight">Client not found</h1>
