@@ -62,7 +62,9 @@ export function getSignInErrorMessage(error: unknown) {
     return 'Too many sign-in attempts. Wait a moment and try again.';
   }
 
-  return 'Sign-in failed. Check the Auth emulator and try again.';
+  return import.meta.env.DEV
+    ? 'Sign-in failed. Try again. In development, check that the Auth emulator is running.'
+    : 'Sign-in failed. Try again.';
 }
 
 export async function getCurrentFirebaseIdToken(forceRefresh = false) {

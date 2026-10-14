@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSignInErrorMessage, resolveRoleClaim } from './authService';
 
 describe('trusted Firebase role claims', () => {
@@ -16,9 +16,28 @@ describe('trusted Firebase role claims', () => {
 });
 
 describe('authentication errors', () => {
-  it('does not expose Firebase internals for an unknown sign-in failure', () => {
-    expect(getSignInErrorMessage(new Error('internal implementation detail'))).toBe(
-      'Sign-in failed. Check the Auth emulator and try again.',
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('shows a neutral message for an unknown sign-in failure in a production build', () => {
+    vi.stubEnv('DEV', false);
+
+    const message = getSignInErrorMessage(new Error('internal implementation detail'));
+
+    expect(message).toBe('Sign-in failed. Try again.');
+    expect(message).not.toContain('emulator');
+    expect(message).not.toContain('internal implementation detail');
+  });
+
+  it('adds the emulator hint for an unknown sign-in failure in a development build', () => {
+    vi.stubEnv('DEV', true);
+
+    const message = getSignInErrorMessage(new Error('internal implementation detail'));
+
+    expect(message).toBe(
+      'Sign-in failed. Try again. In development, check that the Auth emulator is running.',
     );
+    expect(message).not.toContain('internal implementation detail');
   });
 });
