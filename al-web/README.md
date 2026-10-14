@@ -135,6 +135,10 @@ Field names follow `al-core/SCHEMA.md`, merged on `main`:
   "Unavailable", the queue still lists applications, and it does not split by tier. Later tier
   results update rows and groups without a reload. A tier is only ever a stored `A`, `B`, `C` or
   `D`; it is never derived from the LTV or mapped from another scale.
+- A snapshot that comes from the local cache and is empty is not published as a real empty result,
+  for applications or for tiers: the queue stays in its loading state ("Checking" for tiers) until
+  the server answers or a listener fails. This stops an unreachable backend from showing "No
+  applications yet".
 
 The queue treats `ltvPct` as a whole-number percentage (83 means 83%); a fraction such as 0.83 would be banded wrongly, which is an open question for the backend owner.
 

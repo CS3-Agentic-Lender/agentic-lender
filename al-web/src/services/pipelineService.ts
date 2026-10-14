@@ -81,6 +81,13 @@ export function withRiskTiers(
     .sort(newestFirst);
 }
 
+// When the backend cannot be reached the SDK can raise a first snapshot from an empty local
+// cache. That is not an answer, so it is never published as a real empty result: the listener
+// stays pending until the server answers or the error path fires.
+function isUnconfirmedEmpty(snapshot: { empty: boolean; metadata: { fromCache: boolean } }) {
+  return snapshot.metadata.fromCache && snapshot.empty;
+}
+
 function toPipelineError(error: FirestoreError): PipelineError {
   return error.code === 'permission-denied' ? 'permission-denied' : 'unavailable';
 }
@@ -118,7 +125,7 @@ export const firestorePipelineService: PipelineService = {
       onSnapshot(
         collection(db, 'applications'),
         (snapshot) => {
-          if (stopped) {
+          if (stopped || isUnconfirmedEmpty(snapshot)) {
             return;
           }
 
@@ -143,7 +150,7 @@ export const firestorePipelineService: PipelineService = {
       onSnapshot(
         collectionGroup(db, 'review'),
         (snapshot) => {
-          if (stopped) {
+          if (stopped || isUnconfirmedEmpty(snapshot)) {
             return;
           }
 
