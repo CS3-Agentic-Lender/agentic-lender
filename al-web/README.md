@@ -140,7 +140,9 @@ Field names follow `al-core/SCHEMA.md`, merged on `main`:
   the server answers or a listener fails. This stops an unreachable backend from showing "No
   applications yet".
 
-The queue treats `ltvPct` as a whole-number percentage (83 means 83%); a fraction such as 0.83 would be banded wrongly, which is an open question for the backend owner.
+The queue treats `ltvPct` as a whole-number percentage (83 means 83%); a fraction such as 0.83 would be banded wrongly, which is an open question for the backend owner. The LTV figure is shown to one decimal, and to
+as many more as it takes to stay in the same band as the stored value (80.04 shows as "80.04%"
+beside ">80% to 90%"); a value with no band shows "—".
 
 Status badges share one status-to-tone mapping (`src/utils/statusTone.ts`), used by the queue and the
 client list, with the badge colours from `docs/infrastructure.md`: Draft, Applied and Closed are

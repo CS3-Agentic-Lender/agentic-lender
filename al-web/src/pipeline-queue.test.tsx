@@ -221,6 +221,37 @@ describe('underwriter pipeline queue', () => {
     }
   });
 
+  it('shows a figure consistent with its band at a band edge', async () => {
+    renderQueue(
+      new FakePipelineService(
+        queue([
+          application('LN-2001', 'Applied', 80.04, 'A'),
+          application('LN-2002', 'Applied', 90.04, 'B'),
+        ]),
+      ),
+    );
+    await screen.findByRole('table');
+
+    for (const [id, figure, band] of [
+      ['LN-2001', '80.04%', '>80% to 90%'],
+      ['LN-2002', '90.04%', '>90%'],
+    ]) {
+      const row = screen.getByRole('rowheader', { name: id }).closest('tr')!;
+      const cell = within(row).getByText(figure).closest('td')!;
+      expect(within(cell).getByText(band)).toBeInTheDocument();
+    }
+  });
+
+  it('shows a dash beside "No LTV yet" for a negative LTV', async () => {
+    renderQueue(new FakePipelineService(queue([application('LN-2003', 'Applied', -5, 'A')])));
+    await screen.findByRole('table');
+
+    const row = screen.getByRole('rowheader', { name: 'LN-2003' }).closest('tr')!;
+    const cell = within(row).getByText('—').closest('td')!;
+    expect(within(cell).getByText('No LTV yet')).toBeInTheDocument();
+    expect(within(row).queryByText(/-5|^0%/)).not.toBeInTheDocument();
+  });
+
   it('shows an underwriter every application with its figures, tier and status', async () => {
     renderQueue(new FakePipelineService(seededQueue));
 

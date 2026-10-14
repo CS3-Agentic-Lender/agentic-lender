@@ -4,12 +4,13 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { usePipeline } from '../../context/PipelineContext';
 import { APPLICATION_STATUSES } from '../../services/clientsService';
 import type { PipelineApplication, PipelineError, RiskTierState } from '../../services/pipelineService';
-import { formatDate, formatEuro, formatPercent } from '../../utils/formatters';
+import { formatDate, formatEuro } from '../../utils/formatters';
 import { PipelineStatus } from './PipelineStatus';
 import {
   ALL_STATUSES,
   GROUP_BY_OPTIONS,
   filterByStatus,
+  formatLtv,
   groupApplications,
   ltvBand,
   type GroupBy,
@@ -49,7 +50,7 @@ function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps)
       </th>
       <td className={`${cellClass} font-mono text-sm`}>{formatEuro(application.loanAmountEur)}</td>
       <td className={`${cellClass} text-sm`}>
-        <span className="font-mono">{formatPercent(application.ltvPct)}</span>
+        <span className="font-mono">{formatLtv(application.ltvPct)}</span>
         <span className="ml-2 text-xs whitespace-nowrap text-muted">
           {ltvBand(application.ltvPct)}
         </span>

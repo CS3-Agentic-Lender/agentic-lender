@@ -3,6 +3,7 @@ import type { PipelineApplication, RiskTier } from '../../services/pipelineServi
 import {
   ALL_STATUSES,
   filterByStatus,
+  formatLtv,
   groupApplications,
   ltvBand,
   type PipelineGroup,
@@ -54,6 +55,39 @@ describe('LTV bands', () => {
     [-1, 'No LTV yet'],
   ] as const)('puts an LTV of %s in the %s band', (ltvPct, band) => {
     expect(ltvBand(ltvPct)).toBe(band);
+  });
+});
+
+describe('the LTV figure shown beside its band', () => {
+  it.each([
+    [72, '72%'],
+    [85.5, '85.5%'],
+    [85.54, '85.5%'],
+    [80, '80%'],
+    [90, '90%'],
+    [79.96, '80%'],
+    [80.04, '80.04%'],
+    [80.001, '80.001%'],
+    [90.04, '90.04%'],
+    [94, '94%'],
+  ])('shows %s as %s', (ltvPct, figure) => {
+    expect(formatLtv(ltvPct)).toBe(figure);
+  });
+
+  it.each([null, -5, -0.4, Number.NaN, Number.POSITIVE_INFINITY])(
+    'shows a dash, never a percentage, for %s',
+    (ltvPct) => {
+      expect(ltvBand(ltvPct)).toBe('No LTV yet');
+      expect(formatLtv(ltvPct)).toBe('—');
+    },
+  );
+
+  it('never shows a figure that belongs to a different band', () => {
+    for (const ltvPct of [79.95, 80.04, 80.0001, 89.96, 90.04, 90.0001, 100.05]) {
+      const shown = Number.parseFloat(formatLtv(ltvPct));
+
+      expect(ltvBand(shown), String(ltvPct)).toBe(ltvBand(ltvPct));
+    }
   });
 });
 

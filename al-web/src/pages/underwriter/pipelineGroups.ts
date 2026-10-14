@@ -16,6 +16,7 @@ export const GROUP_BY_OPTIONS: ReadonlyArray<{ value: GroupBy; label: string }> 
 
 export const LTV_BANDS = ['<=80%', '>80% to 90%', '>90%'] as const;
 export const NO_LTV = 'No LTV yet';
+export const NO_LTV_FIGURE = '—';
 export const NO_RISK_TIER = 'No risk tier yet';
 export const RISK_TIER_PENDING = 'Checking risk tiers';
 export const RISK_TIER_UNAVAILABLE = 'Risk tier unavailable';
@@ -40,6 +41,29 @@ export function ltvBand(ltvPct: number | null) {
   }
 
   return ltvPct <= 90 ? LTV_BANDS[1] : LTV_BANDS[2];
+}
+
+const MAX_LTV_DECIMALS = 6;
+
+// The figure shown beside the band. It is rounded to one decimal, but never to a value that
+// belongs to a different band than the stored one: 80.04 shows as "80.04%" beside ">80% to 90%",
+// not as "80%". A value with no band shows a dash, never a negative or zero percentage.
+export function formatLtv(ltvPct: number | null) {
+  if (ltvPct === null || ltvBand(ltvPct) === NO_LTV) {
+    return NO_LTV_FIGURE;
+  }
+
+  const band = ltvBand(ltvPct);
+
+  for (let decimals = 1; decimals <= MAX_LTV_DECIMALS; decimals += 1) {
+    const rounded = Number(ltvPct.toFixed(decimals));
+
+    if (ltvBand(rounded) === band) {
+      return `${new Intl.NumberFormat('en-IE', { maximumFractionDigits: decimals }).format(rounded)}%`;
+    }
+  }
+
+  return `${ltvPct}%`;
 }
 
 export function filterByStatus(applications: readonly PipelineApplication[], status: string) {
