@@ -127,21 +127,21 @@ or by lifecycle status, and can be filtered by status. The grouping is in
 all applications or of the filtered ones. The listeners stop when the page is left or the
 underwriter signs out.
 
-Draft contract, not agreed with the backend owners:
+Field names follow `al-core/SCHEMA.md`, merged on `main`:
 
-- `loanAmountEur`, `ltvPct` and `updatedAt` are draft-schema names, read through the same
-  `toApplicationSummary` mapping as the client list. The pipeline keeps documents without a
-  `borrowerId`; the broker client list still skips them. A document without figures shows "—"; a
-  missing, non-finite or negative LTV lands in "No LTV yet".
+- `loanAmountEur`, `ltvPct` and `updatedAt` are read through the same `toApplicationSummary`
+  mapping as the client list. The pipeline keeps documents without a `borrowerId`; the broker
+  client list still skips them. A document without figures shows "—"; a missing, non-finite or
+  negative LTV lands in "No LTV yet".
 - The risk tier is read from `applications/{id}/review/underwriting` (field `riskTier`) with a single
-  collection-group query on `review`. While pending, rows show "Checking" and tier grouping uses
-  "Checking risk tiers", with no unavailable notice. No rule on `main` covers that subcollection, so
-  the read is refused today: the queue shows every tier as "Unavailable" with a notice and does not split by
-  tier. A permission refusal says tiers are not available yet; any other query failure says tiers
-  could not be loaded. Later tier results update rows and groups without a reload. It starts working
-  when a collection-group rule (`match /{path=**}/review/{doc}`) lets an underwriter read those
-  documents. A tier is only ever a stored `A`, `B`, `C` or `D`; it is never
-  derived from the LTV or mapped from another scale.
+  collection-group query on `review`. The rules merged in PR 41 (`match /{path=**}/review/{docId}`)
+  let an underwriter read those documents, so the read is allowed for the underwriter role. While
+  pending, rows show "Checking" and tier grouping uses "Checking risk tiers", with no notice. If the
+  read fails, the cause is shown generically: a permission failure says tiers could not be read for
+  this account, any other failure says tiers could not be loaded. Either way every tier shows as
+  "Unavailable", the queue still lists applications, and it does not split by tier. Later tier
+  results update rows and groups without a reload. A tier is only ever a stored `A`, `B`, `C` or
+  `D`; it is never derived from the LTV or mapped from another scale.
 
 The queue treats `ltvPct` as a whole-number percentage (83 means 83%); a fraction such as 0.83 would be banded wrongly, which is an open question for the backend owner.
 

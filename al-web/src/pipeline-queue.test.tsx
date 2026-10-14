@@ -157,7 +157,7 @@ describe('underwriter pipeline queue', () => {
     await screen.findByRole('rowheader', { name: 'LN-1001' });
 
     expect(screen.getAllByText('Checking')).toHaveLength(2);
-    expect(screen.queryByText(/Risk tiers are not available yet|Risk tiers could not be loaded/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Risk tiers could not be (read for this account|loaded)/)).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('radio', { name: 'Risk tier' }));
 
     expect(within(group('Checking risk tiers')).getByText('2 applications')).toBeInTheDocument();
@@ -180,13 +180,13 @@ describe('underwriter pipeline queue', () => {
     expect(within(row).getByText('B')).toBeInTheDocument();
     expect(screen.queryByText('Checking')).not.toBeInTheDocument();
     expect(screen.queryByRole('rowgroup', { name: 'Checking risk tiers' })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Risk tiers are not available yet|Risk tiers could not be loaded/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Risk tiers could not be (read for this account|loaded)/)).not.toBeInTheDocument();
     expect(pipeline.subscriptions).toHaveLength(1);
   });
 
   it.each([
-    ['permission-denied', 'Risk tiers are not available yet', 'Risk tiers could not be loaded'],
-    ['unavailable', 'Risk tiers could not be loaded', 'Risk tiers are not available yet'],
+    ['permission-denied', 'Risk tiers could not be read for this account', 'Risk tiers could not be loaded'],
+    ['unavailable', 'Risk tiers could not be loaded', 'Risk tiers could not be read for this account'],
   ] as const)('updates rows, grouping and notice when tiers fail later with %s', async (error, notice, absentNotice) => {
     const pipeline = new FakePipelineService(queue([applied, deliberated], 'pending'));
     renderQueue(pipeline);
@@ -321,7 +321,7 @@ describe('underwriter pipeline queue', () => {
     const user = userEvent.setup();
     await screen.findByRole('table');
 
-    expect(screen.getByText(/Risk tiers are not available yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Risk tiers could not be read for this account/)).toBeInTheDocument();
     const row = screen.getByRole('rowheader', { name: 'LN-1001' }).closest('tr')!;
     expect(within(row).getByText('Unavailable')).toBeInTheDocument();
 
@@ -334,7 +334,7 @@ describe('underwriter pipeline queue', () => {
     renderQueue(new FakePipelineService(seededQueue));
     await screen.findByRole('table');
 
-    expect(screen.queryByText(/Risk tiers are not available yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Risk tiers could not be read for this account/)).not.toBeInTheDocument();
   });
 
   it('shows a loading state before the first answer and no table', async () => {

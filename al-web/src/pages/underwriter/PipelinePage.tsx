@@ -24,10 +24,10 @@ const groupOptionClass = [
   'has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-pine',
 ].join(' ');
 
-// Shown only once the tier query has been refused or has failed, never while it is pending.
+// Shown only once the tier query has failed, never while it is pending. The cause is stated generically.
 const riskTierNotices: Record<PipelineError, string> = {
   'permission-denied':
-    'Risk tiers are not available yet, so every application shows its tier as unavailable and the queue cannot be split by tier.',
+    'Risk tiers could not be read for this account, so every application shows its tier as unavailable and the queue cannot be split by tier.',
   unavailable:
     'Risk tiers could not be loaded, so every application shows its tier as unavailable and the queue cannot be split by tier. Reload the page to try again.',
 };

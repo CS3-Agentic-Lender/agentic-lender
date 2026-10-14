@@ -136,9 +136,9 @@ export const firestorePipelineService: PipelineService = {
       ),
     );
 
-    // Draft contract, not agreed: the tier is read from applications/{id}/review/underwriting
-    // with one collection-group query. No rule allows it yet, so today this is refused and the
-    // queue says tiers are unavailable.
+    // The tier is read from applications/{id}/review/underwriting with one collection-group
+    // query. The rules on main allow an underwriter to read every review document. If the read
+    // fails anyway, the queue still lists applications and says tiers are unavailable.
     unsubscribers.push(
       onSnapshot(
         collectionGroup(db, 'review'),
