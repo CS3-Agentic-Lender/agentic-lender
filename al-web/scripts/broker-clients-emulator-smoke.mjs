@@ -21,7 +21,8 @@ if (!password) {
   throw new Error('Set AL_EMULATOR_TEST_PASSWORD to the documented local seed password.');
 }
 
-// The first broker is in every seed. The second arrives with the two-broker seed and may be missing.
+// Both brokers are in the seed on main. An older seed has only the first, so a missing second broker
+// is skipped rather than failed.
 const seededBrokers = ['bob@test.com', 'ciara@test.com'];
 const [requiredBroker] = seededBrokers;
 
@@ -85,11 +86,25 @@ try {
       `${email} is refused an unfiltered read of every application`,
     );
 
-    const profilesRefused = await refused(() =>
-      getDocs(query(collection(db, 'users'), where('brokerId', '==', uid))),
+    // The rules on main let a broker read users whose brokerId is their own uid, and nothing wider.
+    let profiles = null;
+    try {
+      profiles = await getDocs(query(collection(db, 'users'), where('brokerId', '==', uid)));
+    } catch (error) {
+      if (error.code !== 'permission-denied') {
+        throw error;
+      }
+    }
+    check(
+      profiles !== null && profiles.docs.every((snapshot) => snapshot.data().brokerId === uid),
+      profiles === null
+        ? `${email} is refused the profiles of the borrowers who chose them, which the rules on main allow`
+        : `${email} reads ${profiles.size} profile(s) of borrowers who chose them, all with their brokerId`,
     );
-    console.log(
-      `INFO  ${email} ${profilesRefused ? 'cannot read' : 'can read'} the profiles of borrowers who chose them`,
+
+    check(
+      await refused(() => getDocs(collection(db, 'users'))),
+      `${email} is refused an unfiltered read of every user`,
     );
 
     await signOut(auth);

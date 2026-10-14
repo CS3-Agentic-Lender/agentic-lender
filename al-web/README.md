@@ -65,7 +65,8 @@ AL_EMULATOR_TEST_PASSWORD=<local-seed-password> npm run test:auth-emulator
 In PowerShell, set the environment variable for the current process before running the npm command.
 
 With the seeded Auth and Firestore emulators running, check that each seeded broker reads only the
-applications assigned to them and that the rules refuse anything wider:
+applications assigned to them and the profiles of the borrowers who chose them, and that the rules
+refuse anything wider:
 
 ```sh
 AL_EMULATOR_TEST_PASSWORD=<local-seed-password> npm run test:clients-emulator
@@ -105,9 +106,12 @@ names show as "Loading name" alongside the client ID, without an unavailable-nam
 Names update live when profiles arrive; a refused or failed profiles query keeps applications
 visible by client ID and shows the notice.
 
-The `users` query follows the draft schema and is refused by the rules currently on `main`. When
-that query is refused, clients are listed by ID with a notice. `loanAmountEur`,
-`ltvPct`, `loanType` and `updatedAt` are also draft-schema names; they are read in
+The rules on `main` (`al-core/firestore.rules`) let a broker read `users` where `brokerId` is their
+own uid, so the `users` query is allowed and names load. If it is refused or fails anyway, clients
+are listed by ID with a notice, and a broker with no known application sees that names could not be
+loaded rather than "No clients yet". An empty first answer that came only from the local cache is
+not treated as a result: the page stays on loading until the server answers. `loanAmountEur`,
+`ltvPct`, `loanType` and `updatedAt` are the field names in `al-core/SCHEMA.md`; they are read in
 `toBrokerApplication` only and show as "—" when a document has none.
 
 The placeholders use the Pine & Oat token set from `src/styles.css` and contain no pipeline, risk,
