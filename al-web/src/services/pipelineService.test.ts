@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApplicationSummary } from './clientsService';
+import { db } from './firebase';
 import {
   firestorePipelineService,
   readRiskTier,
@@ -16,29 +17,65 @@ interface TestDocument {
   data(): Record<string, unknown>;
 }
 
+interface TestSnapshot {
+  docs: TestDocument[];
+  // Defaults to a server answer; a cache answer sets fromCache.
+  fromCache?: boolean;
+}
+
 interface TestSubscription {
-  next(snapshot: { docs: TestDocument[] }): void;
+  query: unknown;
+  next(snapshot: TestSnapshot): void;
   fail(error: { code: string }): void;
   unsubscribe: ReturnType<typeof vi.fn>;
 }
 
-const { subscriptions } = vi.hoisted(() => ({ subscriptions: [] as TestSubscription[] }));
+interface TestQuery {
+  kind: string;
+  args: unknown[];
+}
 
-vi.mock('firebase/firestore', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('firebase/firestore')>()),
-  onSnapshot: vi.fn((
-    _query: unknown,
-    next: TestSubscription['next'],
-    fail: TestSubscription['fail'],
-  ) => {
-    const unsubscribe = vi.fn();
-    subscriptions.push({ next, fail, unsubscribe });
-    return unsubscribe;
-  }),
+const { subscriptions, queryCalls } = vi.hoisted(() => ({
+  subscriptions: [] as TestSubscription[],
+  queryCalls: [] as TestQuery[],
 }));
+
+// The query builders record their arguments so a test can assert the queries themselves.
+vi.mock('firebase/firestore', async (importOriginal) => {
+  const record = (kind: string) =>
+    vi.fn((...args: unknown[]): TestQuery => {
+      const call = { kind, args };
+      queryCalls.push(call);
+      return call;
+    });
+
+  return {
+    ...(await importOriginal<typeof import('firebase/firestore')>()),
+    collection: record('collection'),
+    collectionGroup: record('collectionGroup'),
+    query: record('query'),
+    where: record('where'),
+    onSnapshot: vi.fn((
+      query: unknown,
+      next: (snapshot: unknown) => void,
+      fail: TestSubscription['fail'],
+    ) => {
+      const unsubscribe = vi.fn();
+      subscriptions.push({
+        query,
+        next: ({ docs, fromCache = false }) =>
+          next({ docs, empty: docs.length === 0, metadata: { fromCache } }),
+        fail,
+        unsubscribe,
+      });
+      return unsubscribe;
+    }),
+  };
+});
 
 beforeEach(() => {
   subscriptions.length = 0;
+  queryCalls.length = 0;
 });
 
 function document(path: string, data: Record<string, unknown>): TestDocument {
@@ -105,6 +142,100 @@ describe('attaching risk tiers to applications', () => {
     );
 
     expect(result.map(({ id }) => id)).toEqual(['LN-1002', 'LN-1001']);
+  });
+});
+
+describe('pipeline queries', () => {
+  it('reads the whole applications collection with no filter', () => {
+    const { applications, stop } = subscribe();
+
+    expect(applications.query).toEqual({ kind: 'collection', args: [db, 'applications'] });
+    expect(queryCalls.filter(({ kind }) => kind === 'where' || kind === 'query')).toEqual([]);
+    stop();
+  });
+
+  it('reads the review collection group for tiers, not reviews', () => {
+    const { tiers, stop } = subscribe();
+
+    expect(tiers.query).toEqual({ kind: 'collectionGroup', args: [db, 'review'] });
+    stop();
+  });
+});
+
+describe('an empty snapshot from the cache', () => {
+  it('is not published as an empty queue until the server answers', () => {
+    const { listener, applications, onError, stop } = subscribe();
+
+    applications.next({ docs: [], fromCache: true });
+    expect(listener).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+
+    applications.next({ docs: [], fromCache: false });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.lastCall?.[0].applications).toEqual([]);
+    stop();
+  });
+
+  it('still lets the error path fire for the applications listener', () => {
+    const { listener, applications, onError, stop } = subscribe();
+
+    applications.next({ docs: [], fromCache: true });
+    applications.fail({ code: 'unavailable' });
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledExactlyOnceWith('unavailable');
+    stop();
+  });
+
+  it('publishes a cache snapshot that holds documents', () => {
+    const { listener, applications, stop } = subscribe();
+
+    applications.next({ docs: [storedApplication], fromCache: true });
+
+    expect(listener.mock.lastCall?.[0].applications).toMatchObject([{ id: 'LN-1001' }]);
+    stop();
+  });
+
+  it('keeps tiers pending instead of marking them available', () => {
+    const { listener, applications, tiers, stop } = subscribe();
+    applications.next({ docs: [storedApplication] });
+    tiers.next({ docs: [], fromCache: true });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.lastCall?.[0]).toMatchObject({ riskTierState: 'pending', riskTierError: null });
+
+    tiers.next({ docs: [storedTier], fromCache: false });
+    expect(listener.mock.lastCall?.[0]).toMatchObject({
+      applications: [{ id: 'LN-1001', riskTier: 'B' }],
+      riskTierState: 'available',
+    });
+    stop();
+  });
+
+  it('marks tiers available once the server confirms there are none', () => {
+    const { listener, applications, tiers, stop } = subscribe();
+    applications.next({ docs: [storedApplication] });
+    tiers.next({ docs: [], fromCache: true });
+    tiers.next({ docs: [], fromCache: false });
+
+    expect(listener.mock.lastCall?.[0]).toMatchObject({
+      applications: [{ id: 'LN-1001', riskTier: null }],
+      riskTierState: 'available',
+    });
+    stop();
+  });
+
+  it('lets a tier failure follow a cache-empty tier snapshot', () => {
+    const { listener, applications, tiers, stop } = subscribe();
+    applications.next({ docs: [storedApplication] });
+    tiers.next({ docs: [], fromCache: true });
+    tiers.fail({ code: 'permission-denied' });
+
+    expect(listener.mock.lastCall?.[0]).toMatchObject({
+      riskTierState: 'unavailable',
+      riskTierError: 'permission-denied',
+    });
+    stop();
   });
 });
 
