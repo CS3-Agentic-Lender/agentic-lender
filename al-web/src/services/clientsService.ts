@@ -145,6 +145,16 @@ export function buildBrokerClients(
   return [...clients.values()].sort(byNameThenId);
 }
 
+// Metadata changes are listened for so that a server answer is delivered even when it only
+// replaces an empty cache result with an empty server result.
+const LISTEN_OPTIONS = { includeMetadataChanges: true } as const;
+
+// With no backend reachable the SDK raises the first snapshot from an empty cache. That is not an
+// answer: publishing it would show "No clients yet" for a broker who has clients.
+function isUnconfirmedEmpty(snapshot: { empty: boolean; metadata: { fromCache: boolean } }) {
+  return snapshot.metadata.fromCache && snapshot.empty;
+}
+
 function toClientsError(error: FirestoreError): ClientsError {
   return error.code === 'permission-denied' ? 'permission-denied' : 'unavailable';
 }
@@ -175,7 +185,12 @@ export const firestoreClientsService: ClientsService = {
     unsubscribers.push(
       onSnapshot(
         query(collection(db, 'applications'), where('brokerId', '==', brokerUid)),
+        LISTEN_OPTIONS,
         (snapshot) => {
+          if (isUnconfirmedEmpty(snapshot)) {
+            return;
+          }
+
           applications = snapshot.docs
             .map((doc) => toBrokerApplication(doc.id, doc.data()))
             .filter((application) => application !== null);
@@ -195,7 +210,12 @@ export const firestoreClientsService: ClientsService = {
     unsubscribers.push(
       onSnapshot(
         query(collection(db, 'users'), where('brokerId', '==', brokerUid)),
+        LISTEN_OPTIONS,
         (snapshot) => {
+          if (isUnconfirmedEmpty(snapshot)) {
+            return;
+          }
+
           profiles = snapshot.docs.map((doc) => toClientProfile(doc.id, doc.data()));
           profilesState = 'available';
           emit();
