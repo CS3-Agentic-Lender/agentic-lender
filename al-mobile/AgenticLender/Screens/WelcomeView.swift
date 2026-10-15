@@ -48,8 +48,7 @@ struct WelcomeView: View {
         .navigationDestination(item: destination) { destination in
             switch destination {
             case .home:
-                SignedInPlaceholderView(title: "Signed in", message: "Welcome back.")
-                    .navigationBarBackButtonHidden()
+                HomeView()
             case .profile(let user):
                 GoogleProfileView(user: user, service: googleService)
             }

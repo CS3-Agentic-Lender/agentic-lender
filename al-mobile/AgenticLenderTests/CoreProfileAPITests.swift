@@ -9,6 +9,7 @@ final class CoreProfileAPITests: XCTestCase {
     /// Records the request it's given and answers with a fixed status, or fails with `failure`.
     private final class FakeNetwork: @unchecked Sendable {
         var status = 201
+        var body = "{}"
         var failure: Error?
         private(set) var sent: URLRequest?
 
@@ -16,7 +17,7 @@ final class CoreProfileAPITests: XCTestCase {
             sent = request
             if let failure { throw failure }
             let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
-            return (Data("{}".utf8), response)
+            return (Data(body.utf8), response)
         }
     }
 
@@ -130,6 +131,47 @@ final class CoreProfileAPITests: XCTestCase {
 
         do {
             _ = try await api(network).hasProfile(idToken: "test-token")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? AccountError, .network)
+        }
+    }
+
+    func testFullNameReadsTheProfileFromCoreMe() async throws {
+        let network = FakeNetwork()
+        network.status = 200
+        network.body = #"{"uid": "u1", "role": "borrower", "full_name": "Aoife Byrne", "email": "aoife@test.com"}"#
+
+        let fullName = try await api(network).fullName(idToken: "test-token")
+
+        XCTAssertEqual(fullName, "Aoife Byrne")
+        let sent = try XCTUnwrap(network.sent)
+        XCTAssertEqual(sent.httpMethod, "GET")
+        XCTAssertEqual(sent.url?.absoluteString, "http://localhost:8000/core/me")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+    }
+
+    func testFullNameFailsWithoutAProfileOrOnABadAnswer() async throws {
+        for (status, body) in [(404, "{}"), (500, "{}"), (200, "not json"), (200, #"{"uid": "u1"}"#)] {
+            let network = FakeNetwork()
+            network.status = status
+            network.body = body
+
+            do {
+                _ = try await api(network).fullName(idToken: "test-token")
+                XCTFail("status \(status) with \(body) should throw")
+            } catch {
+                XCTAssertEqual(error as? AccountError, .unknown, "status \(status) with \(body)")
+            }
+        }
+    }
+
+    func testNoConnectionWhenReadingTheNameIsANetworkError() async throws {
+        let network = FakeNetwork()
+        network.failure = URLError(.notConnectedToInternet)
+
+        do {
+            _ = try await api(network).fullName(idToken: "test-token")
             XCTFail("should throw")
         } catch {
             XCTAssertEqual(error as? AccountError, .network)

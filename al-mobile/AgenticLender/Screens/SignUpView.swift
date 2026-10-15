@@ -13,7 +13,7 @@ struct SignUpView: View {
     var body: some View {
         Group {
             if model.isAccountCreated {
-                accountCreated
+                HomeView()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -137,11 +137,6 @@ struct SignUpView: View {
         }
         .padding(Theme.screenPadding)
         .background(Theme.oat)
-    }
-
-    /// Shown until choosing a broker is built as the next step after sign-up.
-    private var accountCreated: some View {
-        SignedInPlaceholderView(title: "Account created", message: "Next you'll choose your broker.")
     }
 }
 
