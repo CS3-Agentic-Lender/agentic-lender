@@ -80,6 +80,7 @@ final class AffordabilityViewModelTests: XCTestCase {
         let outcome = try XCTUnwrap(model.outcome)
         XCTAssertEqual(outcome.result.maxLoanEur, 240_000)
         XCTAssertEqual(outcome.summary.limit, "Limited by income (4× income)")
+        XCTAssertEqual(outcome.request, service.requests.first, "the application form starts from these answers")
         XCTAssertFalse(model.isCalculating)
         XCTAssertNil(model.calculationError)
     }

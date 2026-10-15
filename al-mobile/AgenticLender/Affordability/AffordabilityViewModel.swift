@@ -72,6 +72,7 @@ final class AffordabilityViewModel {
         do {
             let result = try await service.calculate(request)
             outcome = AffordabilityOutcome(
+                request: request,
                 result: result,
                 summary: AffordabilitySummary(result: result, termYears: request.termYears, isFirstTimeBuyer: request.isFirstTimeBuyer)
             )
