@@ -120,6 +120,15 @@ These need no emulator.
 | `POST /core/me` | Any signed-in user without a staff role | Creates the borrower profile in `users/{uid}` and sets the `role: borrower` claim. First call `201`, repeat calls `200` with the existing profile unchanged. Bad input `422` naming the field, including an `email` that doesn't match the one the user signed in with. |
 | `GET /core/me` | Any signed-in user | The caller's profile, or `404` if there is none yet |
 
+Choosing a broker:
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /core/brokers` | Any signed-in user | Every broker as `uid`, `name` and `firm` (`null` when not set), sorted by name. No contact details |
+| `PUT /core/me/broker` | Borrower | Body `{"broker_id": "..."}`. Sets or changes the borrower's broker and returns the profile. `422` naming `broker_id` if that uid isn't a broker, `404` if there is no profile yet. Applications already created keep their original broker |
+
+`GET /core/me` also returns `broker_name` and `broker_firm` for the chosen broker (`null` when none), so the app never reads a broker's profile.
+
 After `POST /core/me` the app must refresh its ID token (`getIdToken(true)`) so the token carries the new `role` claim.
 
 End-to-end check against the emulators (API running as above, from `al-core/`):

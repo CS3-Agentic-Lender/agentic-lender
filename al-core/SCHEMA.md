@@ -40,7 +40,8 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `addressLine2` | string | no | Left out when empty |
 | `county` | string | yes | For example `Cork` |
 | `eircode` | string | yes | Capitals with a space, for example `A65 F4E2` |
-| `brokerId` | string | no | Borrowers only: uid of the chosen broker (AL-142) |
+| `brokerId` | string | no | Borrowers only: uid of the chosen broker, set with `PUT /core/me/broker` (AL-142) |
+| `firm` | string | no | Brokers only: the firm they work for, shown in the borrower's broker picker |
 | `createdAt` | timestamp | yes | Server timestamp |
 
 ## applications/{id}

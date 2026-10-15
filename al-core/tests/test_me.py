@@ -94,6 +94,8 @@ def test_first_call_creates_the_profile_and_returns_201(fake):
         "county": "Cork",
         "eircode": "T12 X5R2",
         "broker_id": None,
+        "broker_name": None,
+        "broker_firm": None,
         "created_at": "2026-10-12T20:00:00.123Z",
     }
 
