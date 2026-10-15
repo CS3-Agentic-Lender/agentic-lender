@@ -151,3 +151,28 @@ cd chain
 npm install
 npx hardhat test
 ```
+
+### Running a local chain
+
+Two terminals, from `al-core/chain/`:
+
+```
+npx hardhat node
+```
+
+starts a local chain on `http://127.0.0.1:8545` with 20 funded test accounts (test keys only, printed by Hardhat, never used anywhere real). Then:
+
+```
+npx hardhat run scripts/deploy.js --network localhost
+npx hardhat run scripts/demo-mint.js --network localhost
+```
+
+`deploy.js` deploys the loan note and saves its address to `deployments/localhost.json`, which al-core reads to find the contract. `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node.
+
+### Choices for the chain
+
+- **Who signs transactions:** al-core, with a server-held testnet wallet (web3.py). The underwriter clicks sign-off in the portal and the API mints, so nobody needs a browser wallet. The wallet's address gets `MINTER_ROLE` at deploy (`MINTER_ADDRESS`, defaulting to the deployer for local work).
+- **Libraries:** Hardhat and ethers.js for the contracts, tests and scripts; web3.py in al-core for minting.
+- **Where the chain runs:** a local Hardhat node for development. The live site can't reach a node on a laptop, so it will use a public testnet, most likely Polygon Amoy, set up in Sprint 3 (`--network amoy` once `.env` is filled in).
+- **Docker Compose:** not for now (team decision, 13 Oct). `npx hardhat node` runs fine on its own and al-core only needs its URL, so Compose would add a container without changing anything. Revisit when the chain is deployed.
+- **Keys:** testnet wallets only. Private keys live in `chain/.env`, which git ignores; `chain/.env.example` lists the names with empty values.
