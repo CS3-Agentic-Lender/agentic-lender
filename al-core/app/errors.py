@@ -37,7 +37,9 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def invalid_field(request: Request, exc: RequestValidationError):
         first = exc.errors()[0]
-        field = str(first["loc"][-1]) if first["loc"] else None
+        # A nested body field is named by its path, e.g. "property.county"; top-level ones stay "phone".
+        loc = [str(part) for part in first["loc"] if part not in ("body", "query", "path", "header")]
+        field = ".".join(loc) or None
         message = str(first["msg"]).removeprefix("Value error, ")
         return _error(request, 422, "INVALID_FIELD", f"{field}: {message}", field)
 

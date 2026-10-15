@@ -45,7 +45,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 
 ## applications/{id}
 
-**Required** means required when the application is submitted (Draft → Applied). A Draft only needs `borrowerId`, `brokerId`, `status`, `loanType`, `createdAt` and `updatedAt`, so a borrower can save partway through.
+**Required** means required when the application is submitted (Draft → Applied). A Draft only needs `borrowerId`, `brokerId`, `borrowerName`, `status`, `loanType`, `createdAt` and `updatedAt`, so a borrower can save partway through.
 
 ### People and status
 
@@ -53,6 +53,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 |---|---|---|---|
 | `borrowerId` | string | yes | uid of the borrower |
 | `brokerId` | string | yes | uid of the assigned broker. Copied from the borrower's profile when the application is created, and kept if the borrower later changes broker (proposal) |
+| `borrowerName` | string | yes | The borrower's `fullName`, copied when the application is created, so a broker can show it even after the borrower moves to another broker and their profile is no longer readable |
 | `status` | string | yes | Exactly one of: `Draft`, `Applied`, `AI Deliberated`, `Underwriter Approved`, `Declined`, `Funded`, `Closed`. al-ai matches on these strings |
 | `aiRunStatus` | string | no | `running`, `failed` or `complete`. Absent until the first AI run starts |
 | `loanType` | string | yes | `mortgage` or `heloc` |
