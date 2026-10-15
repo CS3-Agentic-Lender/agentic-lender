@@ -1,0 +1,10 @@
+node_modules
+.env
+artifacts
+cache
+coverage
+coverage.json
+typechain-types
+# Written by each deploy; al-core reads the one for its network.
+deployments/localhost.json
+deployments/hardhat.json
