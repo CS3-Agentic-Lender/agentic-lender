@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// "What can I borrow?" (Figma frames "Affordability form", 07a Joint, 07b Errors,
-/// 07c Calculating and 07d Couldn't calculate).
+/// 07c Calculating and 07d Couldn't calculate). Pushes the result screen once calculated.
 struct AffordabilityFormView: View {
     @State private var model: AffordabilityViewModel
     @FocusState private var focused: AffordabilityField?
@@ -60,6 +60,9 @@ struct AffordabilityFormView: View {
             }
             .padding(Theme.screenPadding)
             .background(Theme.oat)
+        }
+        .navigationDestination(item: $model.outcome) { outcome in
+            AffordabilityResultView(summary: outcome.summary)
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
