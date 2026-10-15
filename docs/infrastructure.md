@@ -136,9 +136,9 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 | Firebase Auth emulator | (same) | 9099 |
 | Firestore emulator | (same) | 8080 |
 | Hardhat node | `npx hardhat node` | 8545 |
-| al-ai (FastAPI) | `docker compose up --build` (starts al-ai and the gateway) | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
+| al-ai (FastAPI) | `docker compose up --build` (starts al-ai, al-core and the gateway) | 5001 (avoids clashing with macOS AirPlay Receiver, which often uses 5000) |
 | al-core (FastAPI) | Docker Compose, behind the gateway | 5002 |
-| Local gateway (nginx) | `docker compose up --build` (starts with al-ai) | 8000 |
+| Local gateway (nginx) | `docker compose up --build` (starts with al-ai and al-core) | 8000 |
 | Ollama | `ollama serve` | 11434 |
 | al-web (Vite) | `npm run dev` | 5173 |
 
@@ -149,10 +149,10 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 - Clients connect to the emulators only in dev builds (`connectAuthEmulator` / `connectFirestoreEmulator` on web, `useEmulator` on iOS).
 - Seed data (one borrower, one broker, one underwriter, a few applications) is loaded with emulator import/export so everyone starts from the same state.
 
-**Gateway and al-ai.** `docker compose up --build` from the repo root starts al-ai (5001) and an nginx gateway on `localhost:8000`, the stand-in for `api.<domain>` on AWS. Clients call the gateway: `/ai/*` goes to al-ai, `/core/*` to al-core, which returns 502 until al-core joins `docker-compose.yml` on port 5002.
+**Gateway and al-ai.** `docker compose up --build` from the repo root starts al-ai (5001), al-core (5002) and an nginx gateway on `localhost:8000`, the stand-in for `api.<domain>` on AWS. Clients call the gateway: `/ai/*` goes to al-ai, `/core/*` to al-core.
 
 - Start the Firebase emulators on the host first (`firebase emulators:start --project demo-al`). The al-ai container reaches the Auth emulator at `host.docker.internal:9099` through `FIREBASE_AUTH_EMULATOR_HOST`, with `FIREBASE_PROJECT_ID=demo-al`. Both are set in `docker-compose.yml`.
-- Docker Compose currently wraps al-ai and the gateway only (al-core joins on port 5002). Whether it also wraps Hardhat is an open decision below. The Firebase emulators stay on the host because they need Java.
+- Docker Compose wraps al-ai, al-core and the gateway. al-core also reaches the Firestore emulator, at `host.docker.internal:8080` through `FIRESTORE_EMULATOR_HOST`. Whether it also wraps Hardhat is an open decision below. The Firebase emulators stay on the host because they need Java.
 - Without Docker: `cd al-ai && FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 uv run uvicorn app.main:app --port 5001`, then call `localhost:5001` directly.
 - Gateway limits per IP: 300 requests per 5 minutes, 20 `POST /core/me` per minute, then `429` with `Retry-After`. nginx uses a leaky bucket rather than a rolling window, so the limits are sized as a ceiling: a full burst is allowed, then sustained traffic is held to half the limit (30 requests a minute). `python3 gateway/check_limits.py` checks it against a running stack.
 
