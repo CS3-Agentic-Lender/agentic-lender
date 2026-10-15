@@ -84,6 +84,18 @@ describe('users', () => {
     assertSucceeds(broker1().collection('users').where('brokerId', '==', 'broker1').get()));
   test("a broker can't list users without the brokerId filter", () =>
     assertFails(broker1().collection('users').get()));
+  test('after a broker change the new broker can read the profile and the old one cannot', async () => {
+    await testEnv.withSecurityRulesDisabled((context) =>
+      context.firestore().doc('users/borrower1').update({ brokerId: 'broker2' }));
+    await assertSucceeds(broker2().doc('users/borrower1').get());
+    await assertFails(broker1().doc('users/borrower1').get());
+  });
+  test('after a broker change the old broker keeps the applications made before it', async () => {
+    await testEnv.withSecurityRulesDisabled((context) =>
+      context.firestore().doc('users/borrower1').update({ brokerId: 'broker2' }));
+    await assertSucceeds(broker1().doc('applications/app1').get());
+    await assertFails(broker2().doc('applications/app1').get());
+  });
   test('an underwriter can read any profile', () =>
     assertSucceeds(underwriter().doc('users/borrower2').get()));
   test("a signed-out user can't read profiles", () =>

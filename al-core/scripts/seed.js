@@ -68,12 +68,12 @@ const users = [
     county: 'Cork', eircode: 'T23 K9P1', brokerId: 'broker2', createdAt: at('2026-09-21T09:00:00Z'),
   },
   {
-    uid: 'broker1', role: 'broker', fullName: 'Bob Murphy', email: 'bob@test.com',
+    uid: 'broker1', role: 'broker', fullName: 'Bob Murphy', email: 'bob@test.com', firm: 'Murphy Mortgages',
     phone: '+353871234511', addressLine1: '1 South Mall', county: 'Cork', eircode: 'T12 W8KD',
     createdAt: at('2026-09-01T09:00:00Z'),
   },
   {
-    uid: 'broker2', role: 'broker', fullName: 'Ciara Kelly', email: 'ciara@test.com',
+    uid: 'broker2', role: 'broker', fullName: 'Ciara Kelly', email: 'ciara@test.com', firm: 'Kelly Financial',
     phone: '+353871234512', addressLine1: '22 Patrick Street', county: 'Cork', eircode: 'T12 AB34',
     createdAt: at('2026-09-01T09:00:00Z'),
   },
