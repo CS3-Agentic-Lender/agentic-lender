@@ -63,7 +63,7 @@ Tasks and Bugs skip the grilling, but still get a subsystem label, an owner and 
 
 ## Sprint discipline
 
-The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens **in the sprint it belongs to**, on **the tickets that person was assigned**. Building a later sprint's features early is not "getting ahead": it empties the next sprint, breaks the sprint report, and leaves teammates waiting on work that was skipped.
+The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens on **the tickets that person was assigned**. A ticket from a later sprint can be started early, for example when you would otherwise be waiting on a teammate, so nobody is stuck. The supervisor is fine with this.
 
 ### Sprint cycle
 
@@ -84,19 +84,18 @@ At the end of the sprint, the burndown chart and the list of finished and unfini
 
 ### Check before writing any code
 
-An agent asked to build something runs these three checks first, in order, and **stops** if any of them fails:
+An agent asked to build something runs these two checks first, in order, and **stops** if either fails:
 
 1. **A ticket exists**, and `getJiraIssue` returns it.
-2. **The ticket is in the active sprint.** Check the `Sprint` field, or `searchJiraIssuesUsingJql` with `key = AL-<number> AND sprint in openSprints()`.
-3. **The ticket is assigned to the person asking.** Check `assignee` against `atlassianUserInfo`.
+2. **The ticket is assigned to the person asking.** Check `assignee` against `atlassianUserInfo`.
 
-If a check fails, say which one, and offer the legitimate routes: pick a ticket from the active sprint instead, ask the team to pull the ticket into the sprint, or take the ticket over in Jira first. Do not start the work and sort the ticket out afterwards.
+If a check fails, say which one, and offer the legitimate routes: pick one of the person's own tickets instead, or take the ticket over in Jira first. Do not start the work and sort the ticket out afterwards.
 
 ### While working
 
 - **One ticket per branch and per PR.** Don't add "while I was in there" changes for other tickets; open a new ticket instead.
 - **Work found mid-ticket** that is outside its scope becomes a new Jira ticket with `needs-triage`. It is not quietly built.
-- **Out-of-sprint requests**, however small or however framed (a quick screen, scaffolding, a placeholder, groundwork for next sprint), get the same answer: it goes into a ticket, the team pulls it into a sprint, then it gets built.
+- **Work from a later sprint** is fine to start early on your own ticket. It still needs a ticket, a branch and a PR like anything else.
 - **Don't edit someone else's subsystem to unblock yourself.** Integration work that genuinely needs a change in another owner's directory is allowed, but it is agreed first: comment on their ticket, get their agreement, then do it on its own ticket in its own PR, which `CODEOWNERS` sends to them to review. What is not allowed is quietly changing their code inside your own ticket.
 
 ### Done in Jira, and finished for the sprint
