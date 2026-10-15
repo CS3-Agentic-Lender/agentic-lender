@@ -13,7 +13,7 @@ struct SignUpView: View {
     var body: some View {
         Group {
             if model.isAccountCreated {
-                HomeView()
+                HomeGateView()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {

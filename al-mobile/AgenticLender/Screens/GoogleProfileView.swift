@@ -13,7 +13,7 @@ struct GoogleProfileView: View {
     var body: some View {
         Group {
             if model.isProfileSaved {
-                HomeView()
+                HomeGateView()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
