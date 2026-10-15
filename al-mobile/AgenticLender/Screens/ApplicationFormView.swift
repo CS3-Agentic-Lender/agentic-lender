@@ -2,14 +2,14 @@ import SwiftUI
 
 /// "Your application" (Figma frames "12 Application form" and 12a Above your maximum).
 ///
-/// The property row waits on the team's decision about the property in Sprint 1, and Continue
-/// arrives with saving the draft (the application endpoints) and the review step.
+/// "Save draft" saves it through `POST /core/applications`. The property row waits on the team's
+/// decision about the property in Sprint 1, and reviewing and submitting is the next step.
 struct ApplicationFormView: View {
     @State private var model: ApplicationViewModel
     @FocusState private var focused: ApplicationField?
 
-    init(form: ApplicationForm) {
-        _model = State(initialValue: ApplicationViewModel(form: form))
+    init(form: ApplicationForm, service: ApplicationService = APIApplicationService.live()) {
+        _model = State(initialValue: ApplicationViewModel(form: form, service: service))
     }
 
     var body: some View {
@@ -63,11 +63,42 @@ struct ApplicationFormView: View {
             .padding(Theme.screenPadding)
         }
         .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) { footer }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: focused) { previous, _ in
             if let previous { model.markTouched(previous) }
         }
+    }
+
+    private var footer: some View {
+        VStack(spacing: 8) {
+            if let error = model.saveError {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("application.saveError")
+            }
+            if let message = model.saveMessage {
+                Label(message, systemImage: "checkmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.success)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("application.saved")
+            }
+            PrimaryButton(
+                title: model.isSaving ? "Saving..." : (model.isSaved ? "Saved" : "Save draft"),
+                isLoading: model.isSaving,
+                isEnabled: model.canSave
+            ) {
+                focused = nil
+                Task { await model.save() }
+            }
+            .accessibilityIdentifier("application.save")
+        }
+        .padding(Theme.screenPadding)
+        .background(Theme.oat)
     }
 
     private var affordabilityCard: some View {

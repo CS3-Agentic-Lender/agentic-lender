@@ -127,4 +127,25 @@ final class ApplicationValidatorTests: XCTestCase {
     func testNoDraftFromAnInvalidForm() {
         XCTAssertNil(ApplicationDraft(form: TestFixtures.applicationForm()))
     }
+
+    func testDraftBodyIsAMortgageInTheAPIFieldNames() throws {
+        let draft = try XCTUnwrap(ApplicationDraft(form: TestFixtures.filledApplicationForm()))
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: draft.body()) as? [String: Any])
+
+        XCTAssertEqual(body["loan_type"] as? String, "mortgage")
+        XCTAssertEqual(body["applicants"] as? String, "single")
+        XCTAssertEqual(body["gross_income_eur"] as? Int, 60_000)
+        XCTAssertEqual(body["monthly_debts_eur"] as? Int, 0)
+        XCTAssertEqual(body["deposit_eur"] as? Int, 40_000)
+        XCTAssertEqual(body["first_time_buyer"] as? Bool, true)
+        XCTAssertEqual(body["term_years"] as? Int, 30)
+        XCTAssertEqual(body["loan_amount_eur"] as? Int, 210_000)
+        XCTAssertEqual(body["employment_type"] as? String, "employed")
+        XCTAssertEqual(body["years_in_current_job"] as? Int, 0)
+        XCTAssertEqual(body["monthly_take_home_eur"] as? Int, 3_650)
+        XCTAssertEqual(body["monthly_living_costs_eur"] as? Int, 1_400)
+        XCTAssertNil(body["property"], "the property waits on the team's Sprint 1 decision")
+        XCTAssertEqual(body.count, 12)
+    }
 }
