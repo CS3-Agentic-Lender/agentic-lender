@@ -1,3 +1,5 @@
+import Foundation
+
 /// The loan application form (Figma "12 Application form" and 12a Above your maximum),
 /// started from a completed affordability check.
 struct ApplicationForm: Equatable {
@@ -45,8 +47,8 @@ enum ApplicationField: CaseIterable, Hashable {
 }
 
 /// A checked application, in whole euro, with the field values of the agreed applications schema.
-/// Saving it is the application endpoint's job (AL-221).
-struct ApplicationDraft: Equatable {
+/// It is saved as a mortgage Draft through `POST /core/applications`.
+struct ApplicationDraft: Encodable, Equatable {
     let applicants: String
     let grossIncomeEur: Int
     let monthlyDebtsEur: Int
@@ -78,5 +80,42 @@ struct ApplicationDraft: Equatable {
         yearsInCurrentJob = form.yearsInCurrentJob
         monthlyTakeHomeEur = takeHome
         monthlyLivingCostsEur = livingCosts
+    }
+
+    /// The JSON body for `POST /core/applications`. No property yet: that step follows the
+    /// team's decision on the property in Sprint 1, and a Draft can be saved without one.
+    func body() throws -> Data {
+        try JSONEncoder().encode(self)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case loanType = "loan_type"
+        case applicants
+        case grossIncomeEur = "gross_income_eur"
+        case monthlyDebtsEur = "monthly_debts_eur"
+        case depositEur = "deposit_eur"
+        case firstTimeBuyer = "first_time_buyer"
+        case termYears = "term_years"
+        case loanAmountEur = "loan_amount_eur"
+        case employmentType = "employment_type"
+        case yearsInCurrentJob = "years_in_current_job"
+        case monthlyTakeHomeEur = "monthly_take_home_eur"
+        case monthlyLivingCostsEur = "monthly_living_costs_eur"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode("mortgage", forKey: .loanType)
+        try container.encode(applicants, forKey: .applicants)
+        try container.encode(grossIncomeEur, forKey: .grossIncomeEur)
+        try container.encode(monthlyDebtsEur, forKey: .monthlyDebtsEur)
+        try container.encode(depositEur, forKey: .depositEur)
+        try container.encode(firstTimeBuyer, forKey: .firstTimeBuyer)
+        try container.encode(termYears, forKey: .termYears)
+        try container.encode(loanAmountEur, forKey: .loanAmountEur)
+        try container.encode(employmentType, forKey: .employmentType)
+        try container.encode(yearsInCurrentJob, forKey: .yearsInCurrentJob)
+        try container.encode(monthlyTakeHomeEur, forKey: .monthlyTakeHomeEur)
+        try container.encode(monthlyLivingCostsEur, forKey: .monthlyLivingCostsEur)
     }
 }

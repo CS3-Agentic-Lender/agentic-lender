@@ -24,6 +24,15 @@ enum TestFixtures {
         )
     }
 
+    /// The same form filled in and valid: €210,000 loan, €3,650 take-home pay, €1,400 living costs.
+    static func filledApplicationForm() -> ApplicationForm {
+        var form = applicationForm()
+        form.loanAmount = "210,000"
+        form.monthlyTakeHome = "3,650"
+        form.monthlyLivingCosts = "1,400"
+        return form
+    }
+
     /// Reference case 2: joint, not first-time buyers, €50,000 + €40,000 income, €30,000 deposit, 25 years.
     static func jointAffordabilityRequest() -> AffordabilityRequest {
         var form = affordabilityForm(income: "50,000", deposit: "30,000")
