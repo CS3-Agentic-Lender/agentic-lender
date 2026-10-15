@@ -1,7 +1,7 @@
 import Observation
 import os
 
-/// Drives the home screen: the greeting with the borrower's first name, and handing over to sign-out.
+/// Drives the home screen's greeting with the borrower's first name.
 @MainActor
 @Observable
 final class HomeViewModel {
@@ -9,14 +9,11 @@ final class HomeViewModel {
     private(set) var isLoading = true
 
     private let loadFullName: () async throws -> String
-    private let onSignOut: () -> Void
     private let logger = Logger(category: "Home")
 
-    /// `loadFullName` reads the profile from al-core. `onSignOut` is supplied by whoever owns
-    /// the sign-in state, so this screen only asks for it.
-    init(loadFullName: @escaping () async throws -> String, onSignOut: @escaping () -> Void) {
+    /// `loadFullName` reads the profile from al-core.
+    init(loadFullName: @escaping () async throws -> String) {
         self.loadFullName = loadFullName
-        self.onSignOut = onSignOut
     }
 
     /// "Hello, Aoife", or just "Hello" while the name loads or if it can't be read.
@@ -33,10 +30,6 @@ final class HomeViewModel {
             // The name is a courtesy: everything else on home still works without it.
             logger.error("Loading the borrower's name failed: \(error.localizedDescription, privacy: .public)")
         }
-    }
-
-    func signOut() {
-        onSignOut()
     }
 
     static func firstName(from fullName: String) -> String? {
