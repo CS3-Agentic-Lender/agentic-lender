@@ -59,24 +59,27 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
         }
-        .buttonStyle(PineButtonStyle())
+        .buttonStyle(PineButtonStyle(isLoading: isLoading))
         .disabled(isLoading || !isEnabled)
+    }
+
+    /// Pine when it can be tapped or is working; Line with Muted text when disabled (Figma frame 04).
+    /// A loading button is disabled too, but stays Pine so its Surface spinner shows.
+    static func colours(isEnabled: Bool, isLoading: Bool, isPressed: Bool) -> (background: Color, foreground: Color) {
+        guard isEnabled || isLoading else { return (Theme.line, Theme.mutedText) }
+        return (isPressed ? Theme.pinePressed : Theme.pine, Theme.surface)
     }
 }
 
-/// Pine when enabled; muted Line and Muted text when disabled (Figma frame 04).
 private struct PineButtonStyle: ButtonStyle {
+    let isLoading: Bool
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(isEnabled ? Theme.surface : Theme.mutedText)
-            .background(background(isPressed: configuration.isPressed))
+        let colours = PrimaryButton.colours(isEnabled: isEnabled, isLoading: isLoading, isPressed: configuration.isPressed)
+        return configuration.label
+            .foregroundStyle(colours.foreground)
+            .background(colours.background)
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-    }
-
-    private func background(isPressed: Bool) -> Color {
-        guard isEnabled else { return Theme.line }
-        return isPressed ? Theme.pinePressed : Theme.pine
     }
 }
