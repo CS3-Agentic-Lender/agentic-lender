@@ -122,6 +122,15 @@ These need no emulator.
 | `POST /core/applications` | Borrower | Saves a new Draft. Only `loan_type` is required; the rest of the form is optional until submit. The broker and the borrower's name are copied from their profile. One active application per borrower: if a Draft exists it comes back unchanged with `200`, and an application still in progress gives `409`. `409` too if there is no profile yet or no broker chosen. `422` names the field, with a path for nested ones (`property.county`) |
 | `GET /core/applications/{id}` | Borrower, broker, underwriter | One application: the borrower's own, a broker's assigned client's, or any for an underwriter. Anything else is `404` |
 
+Choosing a broker:
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /core/brokers` | Any signed-in user | Every broker as `uid`, `name` and `firm` (`null` when not set), sorted by name. No contact details |
+| `PUT /core/me/broker` | Borrower | Body `{"broker_id": "..."}`. Sets or changes the borrower's broker and returns the profile. `422` naming `broker_id` if that uid isn't a broker, `404` if there is no profile yet. Applications already created keep their original broker |
+
+`GET /core/me` also returns `broker_name` and `broker_firm` for the chosen broker (`null` when none), so the app never reads a broker's profile.
+
 After `POST /core/me` the app must refresh its ID token (`getIdToken(true)`) so the token carries the new `role` claim.
 
 End-to-end check against the emulators (API running as above, from `al-core/`):
