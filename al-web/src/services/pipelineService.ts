@@ -84,6 +84,7 @@ export function withRiskTiers(
 // When the backend cannot be reached the SDK can raise a first snapshot from an empty local
 // cache. That is not an answer, so it is never published as a real empty result: the listener
 // stays pending until the server answers or the error path fires.
+// Metadata events are needed so the server's confirmation is delivered.
 function isUnconfirmedEmpty(snapshot: { empty: boolean; metadata: { fromCache: boolean } }) {
   return snapshot.metadata.fromCache && snapshot.empty;
 }
@@ -124,6 +125,7 @@ export const firestorePipelineService: PipelineService = {
     unsubscribers.push(
       onSnapshot(
         collection(db, 'applications'),
+        { includeMetadataChanges: true },
         (snapshot) => {
           if (stopped || isUnconfirmedEmpty(snapshot)) {
             return;
@@ -149,6 +151,7 @@ export const firestorePipelineService: PipelineService = {
     unsubscribers.push(
       onSnapshot(
         collectionGroup(db, 'review'),
+        { includeMetadataChanges: true },
         (snapshot) => {
           if (stopped || isUnconfirmedEmpty(snapshot)) {
             return;

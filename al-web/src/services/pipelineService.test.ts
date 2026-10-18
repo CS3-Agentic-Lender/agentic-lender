@@ -21,10 +21,12 @@ interface TestSnapshot {
   docs: TestDocument[];
   // Defaults to a server answer; a cache answer sets fromCache.
   fromCache?: boolean;
+  metadataOnly?: boolean;
 }
 
 interface TestSubscription {
   query: unknown;
+  options: { includeMetadataChanges?: boolean };
   next(snapshot: TestSnapshot): void;
   fail(error: { code: string }): void;
   unsubscribe: ReturnType<typeof vi.fn>;
@@ -57,14 +59,24 @@ vi.mock('firebase/firestore', async (importOriginal) => {
     where: record('where'),
     onSnapshot: vi.fn((
       query: unknown,
-      next: (snapshot: unknown) => void,
-      fail: TestSubscription['fail'],
+      optionsOrNext: TestSubscription['options'] | ((snapshot: unknown) => void),
+      nextOrFail: (snapshot: never) => void,
+      errorHandler?: TestSubscription['fail'],
     ) => {
+      // Support both SDK overloads so removing the options reproduces event suppression.
+      const options = typeof optionsOrNext === 'function' ? {} : optionsOrNext;
+      const next = (typeof optionsOrNext === 'function' ? optionsOrNext : nextOrFail) as (snapshot: unknown) => void;
+      const fail = (typeof optionsOrNext === 'function' ? nextOrFail : errorHandler) as TestSubscription['fail'];
       const unsubscribe = vi.fn();
       subscriptions.push({
         query,
-        next: ({ docs, fromCache = false }) =>
-          next({ docs, empty: docs.length === 0, metadata: { fromCache } }),
+        options,
+        next: ({ docs, fromCache = false, metadataOnly = false }) => {
+          if (metadataOnly && !options.includeMetadataChanges) {
+            return;
+          }
+          next({ docs, empty: docs.length === 0, metadata: { fromCache } });
+        },
         fail,
         unsubscribe,
       });
@@ -150,6 +162,7 @@ describe('pipeline queries', () => {
     const { applications, stop } = subscribe();
 
     expect(applications.query).toEqual({ kind: 'collection', args: [db, 'applications'] });
+    expect(applications.options).toEqual({ includeMetadataChanges: true });
     expect(queryCalls.filter(({ kind }) => kind === 'where' || kind === 'query')).toEqual([]);
     stop();
   });
@@ -158,6 +171,7 @@ describe('pipeline queries', () => {
     const { tiers, stop } = subscribe();
 
     expect(tiers.query).toEqual({ kind: 'collectionGroup', args: [db, 'review'] });
+    expect(tiers.options).toEqual({ includeMetadataChanges: true });
     stop();
   });
 });
@@ -170,7 +184,7 @@ describe('an empty snapshot from the cache', () => {
     expect(listener).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
 
-    applications.next({ docs: [], fromCache: false });
+    applications.next({ docs: [], fromCache: false, metadataOnly: true });
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener.mock.lastCall?.[0].applications).toEqual([]);
     stop();
@@ -216,7 +230,7 @@ describe('an empty snapshot from the cache', () => {
     const { listener, applications, tiers, stop } = subscribe();
     applications.next({ docs: [storedApplication] });
     tiers.next({ docs: [], fromCache: true });
-    tiers.next({ docs: [], fromCache: false });
+    tiers.next({ docs: [], fromCache: false, metadataOnly: true });
 
     expect(listener.mock.lastCall?.[0]).toMatchObject({
       applications: [{ id: 'LN-1001', riskTier: null }],
