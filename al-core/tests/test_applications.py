@@ -575,3 +575,181 @@ def test_openapi_lists_the_patch_with_its_model():
     spec = client.get("/core/openapi.json").json()
     patch = spec["paths"]["/core/applications/{application_id}"]["patch"]
     assert "DraftPatch" in str(patch["requestBody"]) and "ApplicationOut" in str(patch["responses"]["200"])
+
+
+# POST /core/applications/{id}/submit (AL-245)
+
+FULL_HELOC = {
+    **{k: v for k, v in FULL_MORTGAGE.items() if k not in ("deposit_eur", "first_time_buyer")},
+    "loan_type": "heloc",
+    "existing_mortgage_balance_eur": 120000,
+    "loan_amount_eur": 60000,
+}
+
+
+def submit(app_id):
+    return client.post(f"/core/applications/{app_id}/submit", headers=TOKEN)
+
+
+# AC1: a complete Draft moves to Applied
+
+
+def test_a_complete_mortgage_draft_moves_to_applied(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = submit(app_id)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "Applied"
+    assert body["submitted_at"] == body["updated_at"] == "2026-10-14T09:00:00.000Z"
+    assert body["created_at"].startswith("2026-10-13")
+    assert stored(fake)["status"] == "Applied" and stored(fake)["submittedAt"] == LATER
+    assert read(app_id).json() == body
+
+
+def test_a_complete_heloc_draft_moves_to_applied(fake):
+    app_id = create(FULL_HELOC).json()["id"]
+    r = submit(app_id)
+    assert r.status_code == 200 and r.json()["status"] == "Applied"
+
+
+def test_zero_and_false_count_as_answers(fake):
+    app_id = create({**FULL_MORTGAGE, "monthly_debts_eur": 0, "years_in_current_job": 0,
+                     "deposit_eur": 0, "first_time_buyer": False}).json()["id"]
+    assert submit(app_id).json()["status"] == "Applied"
+
+
+def test_address_line_2_is_not_needed(fake):
+    body = {**FULL_MORTGAGE, "property": {k: v for k, v in FULL_MORTGAGE["property"].items() if k != "address_line_2"}}
+    app_id = create(body).json()["id"]
+    assert submit(app_id).status_code == 200
+
+
+# AC2: a missing field is 422 naming the first one, and it stays a Draft
+
+MORTGAGE_NEEDS = [
+    "applicants", "gross_income_eur", "monthly_debts_eur", "monthly_take_home_eur",
+    "monthly_living_costs_eur", "employment_type", "years_in_current_job", "loan_amount_eur",
+    "term_years", "deposit_eur", "first_time_buyer",
+]
+PROPERTY_NEEDS = ["address_line_1", "county", "eircode", "asking_price_eur"]
+
+
+@pytest.mark.parametrize("field", MORTGAGE_NEEDS + [f"property.{f}" for f in PROPERTY_NEEDS])
+def test_a_mortgage_missing_a_field_is_422_naming_it(fake, field):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    edit(app_id, {"property": {field.split(".")[1]: None}} if "." in field else {field: None})
+    before = dict(stored(fake))
+    r = submit(app_id)
+    assert r.status_code == 422, r.json()
+    err = r.json()["error"]
+    assert err["code"] == "INVALID_FIELD" and err["field"] == field
+    assert err["message"] == f"{field}: is required to submit"
+    assert stored(fake) == before and stored(fake)["status"] == "Draft"
+
+
+@pytest.mark.parametrize("field", ["existing_mortgage_balance_eur", "loan_amount_eur"])
+def test_a_heloc_missing_a_field_is_422_naming_it(fake, field):
+    app_id = create(FULL_HELOC).json()["id"]
+    edit(app_id, {field: None})
+    r = submit(app_id)
+    assert r.status_code == 422 and r.json()["error"]["field"] == field
+
+
+def test_a_heloc_does_not_need_the_deposit_fields(fake):
+    app_id = create(FULL_HELOC).json()["id"]
+    assert stored(fake).get("depositEur") is None
+    assert submit(app_id).status_code == 200
+
+
+def test_the_first_missing_field_is_named(fake):
+    app_id = create({"loan_type": "mortgage", "applicants": "single"}).json()["id"]
+    r = submit(app_id)
+    assert r.json()["error"]["field"] == "gross_income_eur"
+
+
+def test_an_empty_property_names_the_first_property_field(fake):
+    body = {k: v for k, v in FULL_MORTGAGE.items() if k != "property"}
+    app_id = create(body).json()["id"]
+    assert submit(app_id).json()["error"]["field"] == "property.address_line_1"
+
+
+def test_after_filling_in_the_missing_field_it_submits(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    edit(app_id, {"property": {"eircode": None}})
+    assert submit(app_id).status_code == 422
+    edit(app_id, {"property": {"eircode": "P31 X2Y3"}})
+    assert submit(app_id).json()["status"] == "Applied"
+
+
+# AC3: submitting again is safe; any later status is 409
+
+
+def test_submitting_again_returns_it_unchanged(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    first = submit(app_id).json()
+    before = dict(stored(fake))
+    again = submit(app_id)
+    assert again.status_code == 200 and again.json() == first
+    assert stored(fake) == before
+
+
+@pytest.mark.parametrize("status", ["AI Deliberated", "Underwriter Approved", "Declined", "Funded", "Closed"])
+def test_submitting_in_a_later_status_is_409(fake, status):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    stored(fake)["status"] = status
+    before = dict(stored(fake))
+    r = submit(app_id)
+    assert r.status_code == 409 and r.json()["error"]["code"] == "CONFLICT"
+    assert status in r.json()["error"]["message"]
+    assert stored(fake) == before
+
+
+# AC4: nobody else can submit it
+
+
+def test_another_borrower_gets_404_on_submit_and_nothing_changes(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    sign_in(fake, "borrower2", "borrower")
+    r = submit(app_id)
+    assert r.status_code == 404 and r.json()["error"]["code"] == "NOT_FOUND"
+    assert stored(fake)["status"] == "Draft"
+
+
+@pytest.mark.parametrize("uid, role", [("broker1", "broker"), ("underwriter1", "underwriter")])
+def test_staff_get_403_on_submit_and_nothing_changes(fake, uid, role):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    sign_in(fake, uid, role)
+    r = submit(app_id)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN"
+    assert stored(fake)["status"] == "Draft"
+
+
+def test_submitting_an_unknown_id_is_404(fake):
+    assert submit("nope").status_code == 404
+
+
+def test_submit_needs_a_token():
+    assert client.post("/core/applications/app1/submit").status_code == 401
+
+
+# AC5: once submitted the borrower can't edit it
+
+
+def test_once_submitted_edits_are_refused(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    submit(app_id)
+    before = dict(stored(fake))
+    r = edit(app_id, {"term_years": 20})
+    assert r.status_code == 409 and "Applied" in r.json()["error"]["message"]
+    assert stored(fake) == before
+
+
+def test_a_new_application_is_refused_while_one_is_submitted(fake):
+    submit(create(FULL_MORTGAGE).json()["id"])
+    assert create({"loan_type": "mortgage"}).status_code == 409
+
+
+def test_openapi_lists_submit():
+    spec = client.get("/core/openapi.json").json()
+    post = spec["paths"]["/core/applications/{application_id}/submit"]["post"]
+    assert "ApplicationOut" in str(post["responses"]["200"]) and "requestBody" not in post

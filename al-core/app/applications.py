@@ -1,4 +1,5 @@
-"""POST /core/applications saves a borrower's Draft, PATCH /core/applications/{id} edits it and
+"""POST /core/applications saves a borrower's Draft, PATCH /core/applications/{id} edits it,
+POST /core/applications/{id}/submit sends it to the broker and the bank, and
 GET /core/applications/{id} reads one back.
 
 A Draft only needs `loan_type`: everything else on the application form is optional until the
@@ -162,6 +163,20 @@ FINISHED = {"Declined", "Closed"}
 MORTGAGE_ONLY = ("deposit_eur", "first_time_buyer")
 HELOC_ONLY = ("existing_mortgage_balance_eur",)
 
+# Needed to submit, checked in this order so the first missing one is named (AL-245).
+REQUIRED_TO_SUBMIT = (
+    "applicants",
+    "gross_income_eur",
+    "monthly_debts_eur",
+    "monthly_take_home_eur",
+    "monthly_living_costs_eur",
+    "employment_type",
+    "years_in_current_job",
+    "loan_amount_eur",
+    "term_years",
+)
+PROPERTY_REQUIRED_TO_SUBMIT = ("address_line_1", "county", "eircode", "asking_price_eur")
+
 
 def _invalid(field: str, message: str) -> RequestValidationError:
     return RequestValidationError([{"loc": ("body", field), "msg": message, "type": "value_error"}])
@@ -299,6 +314,45 @@ def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(requi
     changes["updatedAt"] = SERVER_TIMESTAMP
 
     ref.update(changes)
+    return _out(ref.id, ref.get().to_dict())
+
+
+def _first_missing(doc: dict) -> str | None:
+    """The first field a submit needs that the Draft hasn't filled in, as an API path, or None."""
+    loan_type = doc.get("loanType", "mortgage")
+    needed = REQUIRED_TO_SUBMIT + (MORTGAGE_ONLY if loan_type == "mortgage" else HELOC_ONLY)
+    for api in needed:
+        if doc.get(INPUTS[api]) is None:  # 0 and false are real answers, only missing counts
+            return api
+    prop = doc.get("property") or {}
+    for api in PROPERTY_REQUIRED_TO_SUBMIT:
+        if prop.get(PROPERTY[api]) is None:
+            return f"property.{api}"
+    return None
+
+
+@router.post("/applications/{application_id}/submit", response_model=ApplicationOut)
+def submit(application_id: str, user: dict = Depends(require_role("borrower"))):
+    """Submit the signed-in borrower's Draft: its status moves to Applied, which starts the AI review.
+
+    Every field the assessment needs must be filled in first, or it is 422 naming the first one
+    missing. Safe to repeat: an application that is already Applied comes back unchanged. Any later
+    status is 409. Once submitted the borrower can no longer edit it.
+    """
+    ref, doc = _own_application(application_id, user["uid"])
+    status = doc.get("status")
+    if status == "Applied":
+        return _out(ref.id, doc)
+    if status != "Draft":
+        raise HTTPException(409, f"Only a Draft can be submitted; this application is {status}")
+
+    missing = _first_missing(doc)
+    if missing:
+        raise RequestValidationError(
+            [{"loc": ("body", *missing.split(".")), "msg": "is required to submit", "type": "missing"}]
+        )
+
+    ref.update({"status": "Applied", "submittedAt": SERVER_TIMESTAMP, "updatedAt": SERVER_TIMESTAMP})
     return _out(ref.id, ref.get().to_dict())
 
 

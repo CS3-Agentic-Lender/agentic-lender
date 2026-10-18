@@ -84,15 +84,15 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 
 | Field | Type | Notes |
 |---|---|---|
-| `addressLine1` | string | Typed in by the borrower |
+| `addressLine1` | string | Typed in by the borrower. Needed to submit |
 | `addressLine2` | string | Optional |
-| `eircode` | string | Capitals with a space (`A65 F4E2`), the same rule as the profile |
-| `county` | string | From `GET /ai/valuation/options` |
+| `eircode` | string | Capitals with a space (`A65 F4E2`), the same rule as the profile. Needed to submit |
+| `county` | string | From `GET /ai/valuation/options`. Needed to submit |
 | `propertyType` | string | From `GET /ai/valuation/options` |
 | `bedrooms` | number | |
 | `floorAreaSqm` | number | |
 | `berRating` | string | From `GET /ai/valuation/options` |
-| `askingPriceEur` | number | Optional |
+| `askingPriceEur` | number | Needed to submit (the LTV is worked out from it) |
 
 ### Results and decision
 
