@@ -207,6 +207,8 @@ describe('support_requests', () => {
     assertFails(borrower2().doc('support_requests/req1').get()));
   test('an underwriter can read any support request', () =>
     assertSucceeds(underwriter().doc('support_requests/req1').get()));
+  test("a broker can't read a support request, even their client's", () =>
+    assertFails(broker1().doc('support_requests/req1').get()));
   test("a borrower can't create a support request directly", () =>
     assertFails(borrower1().collection('support_requests').add({ userId: 'borrower1', subject: 'Hi' })));
 });
@@ -218,6 +220,8 @@ describe('reviews', () => {
     assertFails(borrower2().doc('reviews/borrower1').get()));
   test('an underwriter can read any review', () =>
     assertSucceeds(underwriter().doc('reviews/borrower1').get()));
+  test("a broker can't read a review, even their client's", () =>
+    assertFails(broker1().doc('reviews/borrower1').get()));
   test("a borrower can't write their review directly", () =>
     assertFails(borrower1().doc('reviews/borrower1').set({ userId: 'borrower1', rating: 1 })));
 });
