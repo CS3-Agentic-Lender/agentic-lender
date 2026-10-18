@@ -1,11 +1,11 @@
-"""POST /core/applications and GET /core/applications/{id} against an in-memory Firestore."""
+"""POST, PATCH and GET on /core/applications against an in-memory Firestore."""
 
 from datetime import datetime, timezone
 import itertools
 
 import pytest
 from fastapi.testclient import TestClient
-from google.cloud.firestore import SERVER_TIMESTAMP
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
 
 from app import applications, auth
 from app.main import app
@@ -13,6 +13,7 @@ from app.main import app
 client = TestClient(app)
 TOKEN = {"Authorization": "Bearer ok"}
 NOW = datetime(2026, 10, 13, 10, 30, 0, 250000, tzinfo=timezone.utc)
+LATER = datetime(2026, 10, 14, 9, 0, 0, tzinfo=timezone.utc)
 
 ALICE = {"uid": "borrower1", "role": "borrower", "fullName": "Alice Byrne", "brokerId": "broker1"}
 BEN = {"uid": "borrower2", "role": "borrower", "fullName": "Ben Walsh", "brokerId": "broker2"}
@@ -32,6 +33,9 @@ FULL_MORTGAGE = {
     "loan_amount_eur": 270000,
     "term_years": 30,
     "property": {
+        "address_line_1": "12 Main Street",
+        "address_line_2": "Ballincollig",
+        "eircode": "P31 X2Y3",
         "county": "Cork",
         "property_type": "Semi-detached house",
         "bedrooms": 3,
@@ -59,6 +63,19 @@ class FakeDoc:
 
     def set(self, data):
         self.store[self.path] = {k: (NOW if v is SERVER_TIMESTAMP else v) for k, v in data.items()}
+
+    def update(self, changes):
+        """Like Firestore: dotted keys reach into maps, DELETE_FIELD removes, SERVER_TIMESTAMP is LATER."""
+        doc = self.store[self.path]
+        for key, value in changes.items():
+            *parents, last = key.split(".")
+            target = doc
+            for part in parents:
+                target = target.setdefault(part, {})
+            if value is DELETE_FIELD:
+                target.pop(last, None)
+            else:
+                target[last] = LATER if value is SERVER_TIMESTAMP else value
 
     def get(self):
         return FakeSnap(self.id, self.store.get(self.path))
@@ -149,6 +166,9 @@ def test_draft_is_stored_in_camel_case_with_the_broker_and_name_copied(fake):
         "loanAmountEur": 270000,
         "termYears": 30,
         "property": {
+            "addressLine1": "12 Main Street",
+            "addressLine2": "Ballincollig",
+            "eircode": "P31 X2Y3",
             "county": "Cork",
             "propertyType": "Semi-detached house",
             "bedrooms": 3,
@@ -360,3 +380,198 @@ def test_openapi_lists_both_endpoints_with_models():
     assert "DraftIn" in str(post["requestBody"]) and "ApplicationOut" in str(post["responses"]["201"])
     assert "ApplicationOut" in str(get["responses"]["200"])
     assert client.get("/core/docs").status_code == 200
+
+
+# PATCH /core/applications/{id}: edit a Draft (AL-244)
+
+
+def edit(app_id, body):
+    return client.patch(f"/core/applications/{app_id}", json=body, headers=TOKEN)
+
+
+def stored(fake, app_id="app1"):
+    return fake["db"].store[f"applications/{app_id}"]
+
+
+# AC1: change any Draft field; fields not sent stay as they were
+
+
+def test_edit_changes_only_the_fields_sent(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = edit(app_id, {"gross_income_eur": 80000, "term_years": 25})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["gross_income_eur"] == 80000 and body["term_years"] == 25
+    assert body["loan_amount_eur"] == 270000 and body["property"]["county"] == "Cork"
+    assert body["updated_at"] == "2026-10-14T09:00:00.000Z" and body["created_at"].startswith("2026-10-13")
+    assert read(app_id).json() == body
+
+
+def test_every_draft_field_can_be_set_by_edit(fake):
+    app_id = create({"loan_type": "mortgage"}).json()["id"]
+    body = {k: v for k, v in FULL_MORTGAGE.items() if k != "loan_type"}
+    r = edit(app_id, body)
+    assert r.status_code == 200
+    for key, value in body.items():
+        assert r.json()[key] == value, key
+
+
+def test_property_is_merged_field_by_field(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = edit(app_id, {"property": {"bedrooms": 4, "eircode": "T12 X5Y6"}})
+    prop = r.json()["property"]
+    assert prop["bedrooms"] == 4 and prop["eircode"] == "T12 X5Y6"
+    assert prop["county"] == "Cork" and prop["asking_price_eur"] == 315000
+    assert stored(fake)["property"]["eircode"] == "T12 X5Y6"
+
+
+def test_the_new_address_fields_are_stored_in_camel_case(fake):
+    app_id = create({"loan_type": "mortgage"}).json()["id"]
+    edit(app_id, {"property": {"address_line_1": "12 Main Street", "address_line_2": "Ballincollig",
+                               "eircode": "P31 X2Y3", "county": "Cork", "asking_price_eur": 315000}})
+    assert stored(fake)["property"] == {"addressLine1": "12 Main Street", "addressLine2": "Ballincollig",
+                                        "eircode": "P31 X2Y3", "county": "Cork", "askingPriceEur": 315000}
+
+
+def test_the_address_can_be_given_when_the_draft_is_created(fake):
+    r = create({"loan_type": "mortgage", "property": {"address_line_1": "12 Main Street", "eircode": "P31 X2Y3"}})
+    assert r.status_code == 201 and r.json()["property"]["address_line_1"] == "12 Main Street"
+
+
+def test_null_clears_a_field_and_an_empty_line_2_is_absent(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    edit(app_id, {"property": {"address_line_2": "Flat 2"}})
+    r = edit(app_id, {"deposit_eur": None, "property": {"bedrooms": None, "address_line_2": ""}})
+    assert r.json()["deposit_eur"] is None and r.json()["property"]["bedrooms"] is None
+    assert "depositEur" not in stored(fake)
+    assert "bedrooms" not in stored(fake)["property"] and "addressLine2" not in stored(fake)["property"]
+
+
+def test_null_property_clears_the_whole_property(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = edit(app_id, {"property": None})
+    assert r.json()["property"] is None and "property" not in stored(fake)
+
+
+def test_an_empty_body_only_touches_updated_at(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    before = dict(stored(fake))
+    r = edit(app_id, {})
+    assert r.status_code == 200
+    after = dict(stored(fake))
+    assert after.pop("updatedAt") == LATER
+    before.pop("updatedAt")
+    assert after == before
+
+
+def test_status_borrower_broker_name_and_timestamps_are_ignored(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = edit(app_id, {"status": "Funded", "borrower_id": "borrower2", "broker_id": "broker2",
+                      "borrower_name": "Someone Else", "created_at": "2020-01-01T00:00:00Z",
+                      "submitted_at": "2020-01-01T00:00:00Z", "ltv_pct": 5})
+    body = r.json()
+    assert r.status_code == 200 and body["status"] == "Draft"
+    assert body["borrower_id"] == "borrower1" and body["broker_id"] == "broker1"
+    assert body["borrower_name"] == "Alice Byrne" and body["submitted_at"] is None and body["ltv_pct"] is None
+    assert body["created_at"].startswith("2026-10-13")
+
+
+def test_changing_to_a_heloc_drops_the_mortgage_only_fields(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = edit(app_id, {"loan_type": "heloc", "existing_mortgage_balance_eur": 120000})
+    body = r.json()
+    assert r.status_code == 200 and body["loan_type"] == "heloc"
+    assert body["deposit_eur"] is None and body["first_time_buyer"] is None
+    assert body["existing_mortgage_balance_eur"] == 120000
+    assert "depositEur" not in stored(fake) and "firstTimeBuyer" not in stored(fake)
+
+
+def test_changing_to_a_mortgage_drops_the_existing_balance(fake):
+    app_id = create({"loan_type": "heloc", "existing_mortgage_balance_eur": 120000}).json()["id"]
+    r = edit(app_id, {"loan_type": "mortgage"})
+    assert r.json()["loan_type"] == "mortgage" and r.json()["existing_mortgage_balance_eur"] is None
+
+
+# AC2: only a Draft can be edited
+
+
+@pytest.mark.parametrize("status", ["Applied", "AI Deliberated", "Underwriter Approved", "Declined", "Funded", "Closed"])
+def test_editing_a_submitted_application_is_409(fake, status):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    stored(fake)["status"] = status
+    before = dict(stored(fake))
+    r = edit(app_id, {"term_years": 20})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "CONFLICT"
+    assert status in r.json()["error"]["message"]
+    assert stored(fake) == before
+
+
+# AC3: nobody else can edit it
+
+
+def test_another_borrower_gets_404_and_nothing_changes(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    before = dict(stored(fake))
+    sign_in(fake, "borrower2", "borrower")
+    r = edit(app_id, {"term_years": 20})
+    assert r.status_code == 404 and r.json()["error"]["code"] == "NOT_FOUND"
+    assert stored(fake) == before
+
+
+@pytest.mark.parametrize("uid, role", [("broker1", "broker"), ("underwriter1", "underwriter")])
+def test_staff_get_403_and_nothing_changes(fake, uid, role):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    before = dict(stored(fake))
+    sign_in(fake, uid, role)
+    r = edit(app_id, {"term_years": 20})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN"
+    assert stored(fake) == before
+
+
+def test_editing_an_unknown_id_is_404(fake):
+    assert edit("nope", {"term_years": 20}).status_code == 404
+
+
+def test_edit_needs_a_token():
+    assert client.patch("/core/applications/app1", json={}).status_code == 401
+
+
+# AC4: invalid values are 422 naming the field, with the same rules as creating
+
+
+@pytest.mark.parametrize(
+    "body, field",
+    [
+        ({"loan_type": None}, "loan_type"),
+        ({"loan_type": "car"}, "loan_type"),
+        ({"gross_income_eur": -1}, "gross_income_eur"),
+        ({"loan_amount_eur": 0}, "loan_amount_eur"),
+        ({"term_years": 41}, "term_years"),
+        ({"employment_type": "retired"}, "employment_type"),
+        ({"property": {"bedrooms": 21}}, "property.bedrooms"),
+        ({"property": {"eircode": "t12x5y6"}}, "property.eircode"),
+        ({"property": {"eircode": "T12X5Y6"}}, "property.eircode"),
+        ({"property": {"address_line_1": ""}}, "property.address_line_1"),
+        ({"property": {"address_line_1": "x" * 201}}, "property.address_line_1"),
+        ({"existing_mortgage_balance_eur": 100000}, "existing_mortgage_balance_eur"),
+        ({"loan_type": "heloc", "deposit_eur": 20000}, "deposit_eur"),
+    ],
+)
+def test_invalid_edit_is_422_naming_the_field_and_nothing_changes(fake, body, field):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    before = dict(stored(fake))
+    r = edit(app_id, body)
+    assert r.status_code == 422, r.json()
+    assert r.json()["error"]["code"] == "INVALID_FIELD" and r.json()["error"]["field"] == field
+    assert stored(fake) == before
+
+
+def test_a_bad_eircode_is_also_422_when_creating(fake):
+    r = create({"loan_type": "mortgage", "property": {"eircode": "nope"}})
+    assert r.status_code == 422 and r.json()["error"]["field"] == "property.eircode"
+
+
+def test_openapi_lists_the_patch_with_its_model():
+    spec = client.get("/core/openapi.json").json()
+    patch = spec["paths"]["/core/applications/{application_id}"]["patch"]
+    assert "DraftPatch" in str(patch["requestBody"]) and "ApplicationOut" in str(patch["responses"]["200"])
