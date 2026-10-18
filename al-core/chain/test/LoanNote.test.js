@@ -24,9 +24,9 @@ const LOAN = {
 };
 
 async function deploy() {
-  const [admin, minter, stranger] = await ethers.getSigners();
-  const note = await ethers.deployContract("LoanNote", [admin.address, minter.address]);
-  return { note, admin, minter, stranger };
+  const [admin, minter, stranger, bank] = await ethers.getSigners();
+  const note = await ethers.deployContract("LoanNote", [admin.address, minter.address, bank.address]);
+  return { note, admin, minter, stranger, bank };
 }
 
 async function deployAndMint() {
@@ -55,6 +55,21 @@ describe("LoanNote", function () {
       expect(await note.hasRole(await note.MINTER_ROLE(), minter.address)).to.equal(true);
       expect(await note.hasRole(await note.MINTER_ROLE(), stranger.address)).to.equal(false);
     });
+
+    it("records the bank as the holder", async function () {
+      const { note, bank } = await loadFixture(deploy);
+      expect(await note.holder()).to.equal(bank.address);
+    });
+
+    for (const [role, index] of [["admin", 0], ["minter", 1], ["holder", 2]]) {
+      it(`refuses a zero ${role} address`, async function () {
+        const [a, b, c] = await ethers.getSigners();
+        const args = [a.address, b.address, c.address];
+        args[index] = ethers.ZeroAddress;
+        const factory = await ethers.getContractFactory("LoanNote");
+        await expect(factory.deploy(...args)).to.be.revertedWithCustomError(factory, "ZeroAddress").withArgs(role);
+      });
+    }
   });
 
   describe("minting", function () {
@@ -73,10 +88,11 @@ describe("LoanNote", function () {
       expect(stored.closedAt).to.equal(0n);
     });
 
-    it("the note is held by the minting wallet and linked to its application", async function () {
-      const { note, minter } = await loadFixture(deployAndMint);
-      expect(await note.ownerOf(1)).to.equal(minter.address);
-      expect(await note.balanceOf(minter.address)).to.equal(1n);
+    it("the note is held by the bank, not the minter, and linked to its application", async function () {
+      const { note, minter, bank } = await loadFixture(deployAndMint);
+      expect(await note.ownerOf(1)).to.equal(bank.address);
+      expect(await note.balanceOf(bank.address)).to.equal(1n);
+      expect(await note.balanceOf(minter.address)).to.equal(0n);
       expect(await note.tokenOfApplication(LOAN.app)).to.equal(1n);
     });
 
@@ -94,10 +110,10 @@ describe("LoanNote", function () {
     });
 
     it("numbers notes from 1 upwards", async function () {
-      const { note, minter } = await loadFixture(deployAndMint);
+      const { note, minter, bank } = await loadFixture(deployAndMint);
       await mint(note, minter, { ...LOAN, app: applicationRef("app-second") });
       expect(await note.tokenOfApplication(applicationRef("app-second"))).to.equal(2n);
-      expect(await note.ownerOf(2)).to.equal(minter.address);
+      expect(await note.ownerOf(2)).to.equal(bank.address);
     });
 
     it("refuses a mint from any account without the minter role", async function () {
@@ -179,6 +195,36 @@ describe("LoanNote", function () {
     });
   });
 
+  describe("transfers", function () {
+    it("the holder can't transfer an active note", async function () {
+      const { note, bank, stranger } = await loadFixture(deployAndMint);
+      await expect(note.connect(bank).transferFrom(bank.address, stranger.address, 1))
+        .to.be.revertedWithCustomError(note, "NotTransferable")
+        .withArgs(1n);
+      await expect(
+        note.connect(bank)["safeTransferFrom(address,address,uint256)"](bank.address, stranger.address, 1),
+      ).to.be.revertedWithCustomError(note, "NotTransferable");
+      expect(await note.ownerOf(1)).to.equal(bank.address);
+    });
+
+    it("the holder can't transfer a closed note", async function () {
+      const { note, minter, bank, stranger } = await loadFixture(deployAndMint);
+      await note.connect(minter).close(1);
+      await expect(note.connect(bank).transferFrom(bank.address, stranger.address, 1))
+        .to.be.revertedWithCustomError(note, "NotTransferable")
+        .withArgs(1n);
+      expect(await note.ownerOf(1)).to.equal(bank.address);
+    });
+
+    it("an approved account can't move a note either", async function () {
+      const { note, bank, stranger } = await loadFixture(deployAndMint);
+      await note.connect(bank).approve(stranger.address, 1);
+      await expect(note.connect(stranger).transferFrom(bank.address, stranger.address, 1))
+        .to.be.revertedWithCustomError(note, "NotTransferable")
+        .withArgs(1n);
+    });
+  });
+
   describe("reading and roles", function () {
     it("reading a note that doesn't exist reverts", async function () {
       const { note } = await loadFixture(deploy);
@@ -191,7 +237,7 @@ describe("LoanNote", function () {
     });
 
     it("the admin can hand the minter role to a new al-core wallet, and others can't", async function () {
-      const { note, admin, minter, stranger } = await loadFixture(deploy);
+      const { note, admin, minter, stranger, bank } = await loadFixture(deployAndMint);
       const role = await note.MINTER_ROLE();
       await expect(note.connect(stranger).grantRole(role, stranger.address)).to.be.revertedWithCustomError(
         note,
@@ -199,11 +245,14 @@ describe("LoanNote", function () {
       );
       await note.connect(admin).grantRole(role, stranger.address);
       await note.connect(admin).revokeRole(role, minter.address);
-      await mint(note, stranger);
+      await mint(note, stranger, { ...LOAN, app: applicationRef("after-rotation") });
       await expect(mint(note, minter, { ...LOAN, app: applicationRef("other") })).to.be.revertedWithCustomError(
         note,
         "AccessControlUnauthorizedAccount",
       );
+      // Notes minted before and after the change both stay with the bank.
+      expect(await note.ownerOf(1)).to.equal(bank.address);
+      expect(await note.ownerOf(2)).to.equal(bank.address);
     });
 
     it("the borrower reference doesn't reveal the uid and changes with the salt", async function () {

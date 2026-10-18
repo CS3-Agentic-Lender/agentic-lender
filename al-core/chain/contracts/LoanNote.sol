@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.28;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
@@ -8,7 +8,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 /// @notice One ERC-721 token per approved loan, holding its principal, APR, term, loan type and a
 /// borrower reference. No personal data goes on-chain: the borrower reference is a salted SHA-256 of
 /// the borrower's uid and the application reference is a hash of the application id, both made by al-core.
-/// Only al-core's wallet (MINTER_ROLE) can mint or close a note.
+/// Only al-core's wallet (MINTER_ROLE) can mint or close a note. Every note is held by one fixed
+/// holder address (the bank) and can't be transferred: it is a record of the loan, not a tradable asset.
 contract LoanNote is ERC721, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
@@ -45,6 +46,10 @@ contract LoanNote is ERC721, AccessControl {
     /// @notice The token minted for an application, or 0 if none has been minted.
     mapping(bytes32 applicationRef => uint256 tokenId) public tokenOfApplication;
 
+    /// @notice The bank's address, which holds every note. Fixed at deploy, so changing the minter wallet
+    /// doesn't move or strand any notes.
+    address public immutable holder;
+
     uint256 private _nextTokenId = 1;
 
     event NoteMinted(
@@ -62,15 +67,22 @@ contract LoanNote is ERC721, AccessControl {
     error InvalidNote(string reason);
     error UnknownNote(uint256 tokenId);
     error NotActive(uint256 tokenId);
+    error ZeroAddress(string role);
+    error NotTransferable(uint256 tokenId);
 
     /// @param admin can grant and revoke roles (the team's deployer wallet)
     /// @param minter al-core's wallet, the only account that can mint and close notes
-    constructor(address admin, address minter) ERC721("AL Loan Note", "ALLN") {
+    /// @param holder_ the bank's address, which holds every note
+    constructor(address admin, address minter, address holder_) ERC721("AL Loan Note", "ALLN") {
+        if (admin == address(0)) revert ZeroAddress("admin");
+        if (minter == address(0)) revert ZeroAddress("minter");
+        if (holder_ == address(0)) revert ZeroAddress("holder");
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MINTER_ROLE, minter);
+        holder = holder_;
     }
 
-    /// @notice Mint the note for an approved loan. The note is held by the minting wallet (the bank).
+    /// @notice Mint the note for an approved loan. The note goes to the holder (the bank), not the minter.
     /// @return tokenId the new note's id, starting at 1
     function mint(
         bytes32 applicationRef,
@@ -103,7 +115,7 @@ contract LoanNote is ERC721, AccessControl {
         });
         tokenOfApplication[applicationRef] = tokenId;
 
-        _mint(msg.sender, tokenId);
+        _mint(holder, tokenId);
         emit NoteMinted(tokenId, applicationRef, borrowerRef, principalCents, aprBps, termMonths, loanType);
     }
 
@@ -122,6 +134,13 @@ contract LoanNote is ERC721, AccessControl {
         Note memory note = _notes[tokenId];
         if (note.status == Status.None) revert UnknownNote(tokenId);
         return note;
+    }
+
+    /// @dev Every ERC-721 mint, transfer and burn passes through here. Only a mint (no previous owner) is
+    /// allowed, so a note can never leave the holder, whether it is active or closed.
+    function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
+        if (_ownerOf(tokenId) != address(0)) revert NotTransferable(tokenId);
+        return super._update(to, tokenId, auth);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, AccessControl) returns (bool) {
