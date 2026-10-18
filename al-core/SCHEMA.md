@@ -207,7 +207,7 @@ A borrower's saved property checks. Who reads it: that user. Written by al-core 
 
 | Field | Type | Notes |
 |---|---|---|
-| `property` | map | Same shape as the application's property map |
+| `property` | map | Same shape as the application's property map, without the address fields (`addressLine1`, `addressLine2`, `eircode`): a saved check is about the kind of home, not a particular one |
 | `estimatedValueEur` | number | From `POST /ai/valuation` |
 | `createdAt` | timestamp | |
 

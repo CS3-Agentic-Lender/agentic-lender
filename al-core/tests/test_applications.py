@@ -5,6 +5,7 @@ import itertools
 
 import pytest
 from fastapi.testclient import TestClient
+from google.api_core.exceptions import FailedPrecondition
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
 
 from app import applications, auth
@@ -47,25 +48,31 @@ FULL_MORTGAGE = {
 
 
 class FakeSnap:
-    def __init__(self, doc_id, data):
+    def __init__(self, doc_id, data, update_time=None):
         self.id = doc_id
         self._data = data
         self.exists = data is not None
+        self.update_time = update_time
 
     def to_dict(self):
         return dict(self._data) if self._data else None
 
 
 class FakeDoc:
-    def __init__(self, store, path):
-        self.store, self.path = store, path
+    def __init__(self, db, path):
+        self.db, self.store, self.path = db, db.store, path
         self.id = path.split("/")[-1]
 
     def set(self, data):
         self.store[self.path] = {k: (NOW if v is SERVER_TIMESTAMP else v) for k, v in data.items()}
+        self.db.versions[self.path] = self.db.versions.get(self.path, 0) + 1
 
-    def update(self, changes):
-        """Like Firestore: dotted keys reach into maps, DELETE_FIELD removes, SERVER_TIMESTAMP is LATER."""
+    def update(self, changes, option=None):
+        """Like Firestore: dotted keys reach into maps, DELETE_FIELD removes, SERVER_TIMESTAMP is LATER,
+        and a last_update_time option refuses the write if the document changed since that read."""
+        if option is not None and option != self.db.versions.get(self.path):
+            raise FailedPrecondition("document changed since it was read")
+        self.db.versions[self.path] = self.db.versions.get(self.path, 0) + 1
         doc = self.store[self.path]
         for key, value in changes.items():
             *parents, last = key.split(".")
@@ -78,20 +85,24 @@ class FakeDoc:
                 target[last] = LATER if value is SERVER_TIMESTAMP else value
 
     def get(self):
-        return FakeSnap(self.id, self.store.get(self.path))
+        return FakeSnap(self.id, self.store.get(self.path), self.db.versions.get(self.path))
 
 
 class FakeDB:
     def __init__(self):
         self.store = {}
+        self.versions = {}  # path -> write count, standing in for Firestore's update_time
         self.ids = (f"app{n}" for n in itertools.count(1))
+
+    def write_option(self, last_update_time):
+        return last_update_time
 
     def collection(self, name):
         db = self
 
         class Col:
             def document(self, doc_id=None):
-                return FakeDoc(db.store, f"{name}/{doc_id or next(db.ids)}")
+                return FakeDoc(db, f"{name}/{doc_id or next(db.ids)}")
 
             def where(self, filter):
                 field, value = filter.field_path, filter.value
@@ -753,3 +764,45 @@ def test_openapi_lists_submit():
     spec = client.get("/core/openapi.json").json()
     post = spec["paths"]["/core/applications/{application_id}/submit"]["post"]
     assert "ApplicationOut" in str(post["responses"]["200"]) and "requestBody" not in post
+
+
+# Nothing lands on a changed application: an edit racing a submit, or a submit racing an edit
+
+
+def _another_request_in_between(monkeypatch, action):
+    """Run `action` right after the next request has read the application and before it writes."""
+    real = applications._own_application
+    done = []
+
+    def read_then_interrupt(app_id, uid):
+        result = real(app_id, uid)
+        if not done:
+            done.append(True)
+            action()
+        return result
+
+    monkeypatch.setattr(applications, "_own_application", read_then_interrupt)
+
+
+def test_an_edit_that_races_a_submit_is_refused(fake, monkeypatch):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    _another_request_in_between(monkeypatch, lambda: submit(app_id))
+    r = edit(app_id, {"term_years": 20})
+    assert r.status_code == 409 and "changed" in r.json()["error"]["message"]
+    assert stored(fake)["status"] == "Applied" and stored(fake)["termYears"] == 30
+
+
+def test_a_submit_that_races_an_edit_is_refused(fake, monkeypatch):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    _another_request_in_between(monkeypatch, lambda: edit(app_id, {"gross_income_eur": None}))
+    r = submit(app_id)
+    assert r.status_code == 409
+    assert stored(fake)["status"] == "Draft" and "grossIncomeEur" not in stored(fake)
+
+
+def test_after_a_refused_race_trying_again_works(fake, monkeypatch):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    _another_request_in_between(monkeypatch, lambda: edit(app_id, {"term_years": 25}))
+    assert submit(app_id).status_code == 409
+    r = submit(app_id)
+    assert r.status_code == 200 and r.json()["term_years"] == 25 and r.json()["status"] == "Applied"

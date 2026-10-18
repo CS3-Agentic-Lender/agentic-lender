@@ -14,6 +14,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
+from google.api_core.exceptions import FailedPrecondition
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -192,12 +193,25 @@ def _check_loan_type_fields(loan_type: str, sent: dict) -> None:
 
 
 def _own_application(application_id: str, uid: str):
-    """The signed-in borrower's application, or 404 (the same for someone else's, so ids can't be probed)."""
+    """The signed-in borrower's application, or 404 (the same for someone else's, so ids can't be probed).
+
+    Also returns when it was last written, so the change can be made only if nothing else wrote
+    in between (see _update_if_unchanged).
+    """
     ref = db().collection("applications").document(application_id)
     snap = ref.get()
     if not snap.exists or snap.to_dict().get("borrowerId") != uid:
         raise HTTPException(404, "No application with that id")
-    return ref, snap.to_dict()
+    return ref, snap.to_dict(), snap.update_time
+
+
+def _update_if_unchanged(ref, changes: dict, read_at) -> None:
+    """Write only if the application hasn't changed since it was read, so an edit can't land after a
+    submit (or a submit go through on fields an edit has just cleared). Firestore checks this itself."""
+    try:
+        ref.update(changes, option=db().write_option(last_update_time=read_at))
+    except FailedPrecondition:
+        raise HTTPException(409, "The application changed while this request was running; read it again and retry")
 
 
 def _iso(ts) -> str | None:
@@ -286,7 +300,7 @@ def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(requi
     Changing `loan_type` drops the other loan type's fields (a deposit when moving to a HELOC,
     the existing mortgage balance when moving to a mortgage). Once submitted, it can't be edited (409).
     """
-    ref, doc = _own_application(application_id, user["uid"])
+    ref, doc, read_at = _own_application(application_id, user["uid"])
     if doc.get("status") != "Draft":
         raise HTTPException(409, f"Only a Draft can be edited; this application is {doc.get('status')}")
 
@@ -313,7 +327,7 @@ def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(requi
                 changes[f"property.{PROPERTY[api]}"] = DELETE_FIELD if value is None else value
     changes["updatedAt"] = SERVER_TIMESTAMP
 
-    ref.update(changes)
+    _update_if_unchanged(ref, changes, read_at)
     return _out(ref.id, ref.get().to_dict())
 
 
@@ -339,7 +353,7 @@ def submit(application_id: str, user: dict = Depends(require_role("borrower"))):
     missing. Safe to repeat: an application that is already Applied comes back unchanged. Any later
     status is 409. Once submitted the borrower can no longer edit it.
     """
-    ref, doc = _own_application(application_id, user["uid"])
+    ref, doc, read_at = _own_application(application_id, user["uid"])
     status = doc.get("status")
     if status == "Applied":
         return _out(ref.id, doc)
@@ -352,7 +366,7 @@ def submit(application_id: str, user: dict = Depends(require_role("borrower"))):
             [{"loc": ("body", *missing.split(".")), "msg": "is required to submit", "type": "missing"}]
         )
 
-    ref.update({"status": "Applied", "submittedAt": SERVER_TIMESTAMP, "updatedAt": SERVER_TIMESTAMP})
+    _update_if_unchanged(ref, {"status": "Applied", "submittedAt": SERVER_TIMESTAMP, "updatedAt": SERVER_TIMESTAMP}, read_at)
     return _out(ref.id, ref.get().to_dict())
 
 

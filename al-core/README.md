@@ -126,6 +126,8 @@ These need no emulator.
 
 The `property` object takes `address_line_1`, `address_line_2` (optional, an empty string counts as none), `eircode` (capitals with a space, as on the profile), `county`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and `asking_price_eur`, both when creating and when editing a Draft.
 
+An edit and a submit can't overlap: each one writes only if the application hasn't changed since it read it, so an edit can never land on a submitted application. If they do collide, the later one gets `409` and can simply be sent again.
+
 Choosing a broker:
 
 | Endpoint | Who | What |
