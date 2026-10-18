@@ -84,6 +84,9 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 
 | Field | Type | Notes |
 |---|---|---|
+| `addressLine1` | string | Typed in by the borrower |
+| `addressLine2` | string | Optional |
+| `eircode` | string | Capitals with a space (`A65 F4E2`), the same rule as the profile |
 | `county` | string | From `GET /ai/valuation/options` |
 | `propertyType` | string | From `GET /ai/valuation/options` |
 | `bedrooms` | number | |

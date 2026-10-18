@@ -1,4 +1,5 @@
-"""POST /core/applications saves a borrower's Draft; GET /core/applications/{id} reads one back.
+"""POST /core/applications saves a borrower's Draft, PATCH /core/applications/{id} edits it and
+GET /core/applications/{id} reads one back.
 
 A Draft only needs `loan_type`: everything else on the application form is optional until the
 application is submitted (SCHEMA.md, applications). A borrower has one active application at a
@@ -12,12 +13,13 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
-from google.cloud.firestore import SERVER_TIMESTAMP
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
 from google.cloud.firestore_v1.base_query import FieldFilter
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.auth import current_user, require_role
 from app.firestore import db
+from app.me import EIRCODE
 
 router = APIRouter(prefix="/core", tags=["applications"])
 
@@ -32,6 +34,9 @@ class PropertyIn(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True, allow_inf_nan=False)
 
+    address_line_1: str | None = Field(default=None, min_length=1, max_length=200)
+    address_line_2: str | None = Field(default=None, max_length=200)
+    eircode: str | None = None
     county: str | None = Field(default=None, min_length=1, max_length=50)
     property_type: str | None = Field(default=None, min_length=1, max_length=50)
     bedrooms: int | None = Field(default=None, ge=0, le=20)
@@ -39,14 +44,26 @@ class PropertyIn(BaseModel):
     ber_rating: str | None = Field(default=None, min_length=1, max_length=10)
     asking_price_eur: float | None = Field(default=None, gt=0, le=100_000_000)
 
+    @field_validator("address_line_2")
+    @classmethod
+    def empty_is_absent(cls, v: str | None) -> str | None:
+        return v or None
 
-class DraftIn(BaseModel):
-    """A Draft application. Only `loan_type` is required; the rest is checked again at submit."""
+    @field_validator("eircode")
+    @classmethod
+    def eircode_format(cls, v: str | None) -> str | None:
+        # Same rule as the profile (POST /core/me).
+        if v is not None and not EIRCODE.match(v):
+            raise ValueError('must be capitals with a space, for example "A65 F4E2"')
+        return v
+
+
+class ApplicationFields(BaseModel):
+    """The borrower's inputs, shared by creating and editing a Draft. All optional until submit."""
 
     # Unknown fields, such as a `status` or `broker_id` someone adds, are ignored.
     model_config = ConfigDict(str_strip_whitespace=True, allow_inf_nan=False)
 
-    loan_type: Literal["mortgage", "heloc"]
     gross_income_eur: float | None = money()
     monthly_debts_eur: float | None = money()
     monthly_take_home_eur: float | None = money()
@@ -62,7 +79,23 @@ class DraftIn(BaseModel):
     property: PropertyIn | None = None
 
 
+class DraftIn(ApplicationFields):
+    """A new Draft. Only `loan_type` is required; the rest is checked at submit."""
+
+    loan_type: Literal["mortgage", "heloc"]
+
+
+class DraftPatch(ApplicationFields):
+    """Changes to a Draft. Only the fields sent change, `null` clears one, and `property` is
+    merged field by field. `loan_type` can be changed but not cleared."""
+
+    loan_type: Literal["mortgage", "heloc"] | None = None
+
+
 class PropertyOut(BaseModel):
+    address_line_1: str | None = None
+    address_line_2: str | None = None
+    eircode: str | None = None
     county: str | None = None
     property_type: str | None = None
     bedrooms: int | None = None
@@ -114,6 +147,9 @@ INPUTS = {
     "term_years": "termYears",
 }
 PROPERTY = {
+    "address_line_1": "addressLine1",
+    "address_line_2": "addressLine2",
+    "eircode": "eircode",
     "county": "county",
     "property_type": "propertyType",
     "bedrooms": "bedrooms",
@@ -129,6 +165,24 @@ HELOC_ONLY = ("existing_mortgage_balance_eur",)
 
 def _invalid(field: str, message: str) -> RequestValidationError:
     return RequestValidationError([{"loc": ("body", field), "msg": message, "type": "value_error"}])
+
+
+def _check_loan_type_fields(loan_type: str, sent: dict) -> None:
+    """A mortgage-only field on a HELOC, or the other way round, is a 422 naming that field."""
+    wrong = MORTGAGE_ONLY if loan_type == "heloc" else HELOC_ONLY
+    for field in wrong:
+        if sent.get(field) is not None:
+            other = "mortgage" if loan_type == "heloc" else "HELOC"
+            raise _invalid(field, f"only applies to a {other}")
+
+
+def _own_application(application_id: str, uid: str):
+    """The signed-in borrower's application, or 404 (the same for someone else's, so ids can't be probed)."""
+    ref = db().collection("applications").document(application_id)
+    snap = ref.get()
+    if not snap.exists or snap.to_dict().get("borrowerId") != uid:
+        raise HTTPException(404, "No application with that id")
+    return ref, snap.to_dict()
 
 
 def _iso(ts) -> str | None:
@@ -170,11 +224,7 @@ def create_draft(body: DraftIn, response: Response, user: dict = Depends(require
     (200), and if a submitted application is still in progress the call is refused (409).
     """
     sent = body.model_dump(exclude_none=True)
-    wrong = MORTGAGE_ONLY if body.loan_type == "heloc" else HELOC_ONLY
-    for field in wrong:
-        if field in sent:
-            other = "mortgage" if body.loan_type == "heloc" else "HELOC"
-            raise _invalid(field, f"only applies to a {other}")
+    _check_loan_type_fields(body.loan_type, sent)
 
     uid = user["uid"]
     profile = db().collection("users").document(uid).get()
@@ -210,6 +260,45 @@ def create_draft(body: DraftIn, response: Response, user: dict = Depends(require
 
     ref = db().collection("applications").document()
     ref.set(data)
+    return _out(ref.id, ref.get().to_dict())
+
+
+@router.patch("/applications/{application_id}", response_model=ApplicationOut)
+def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(require_role("borrower"))):
+    """Change the signed-in borrower's Draft. Only the fields sent change; `null` clears a field.
+
+    `property` is merged field by field, and `"property": null` clears the whole property.
+    Changing `loan_type` drops the other loan type's fields (a deposit when moving to a HELOC,
+    the existing mortgage balance when moving to a mortgage). Once submitted, it can't be edited (409).
+    """
+    ref, doc = _own_application(application_id, user["uid"])
+    if doc.get("status") != "Draft":
+        raise HTTPException(409, f"Only a Draft can be edited; this application is {doc.get('status')}")
+
+    sent = body.model_dump(exclude_unset=True)
+    if "loan_type" in sent and sent["loan_type"] is None:
+        raise _invalid("loan_type", "can't be cleared, only changed")
+    old_type = doc.get("loanType", "mortgage")
+    loan_type = sent.get("loan_type") or old_type
+    _check_loan_type_fields(loan_type, sent)
+
+    changes = {}
+    if loan_type != old_type:
+        changes["loanType"] = loan_type
+        for api in MORTGAGE_ONLY if loan_type == "heloc" else HELOC_ONLY:
+            changes[INPUTS[api]] = DELETE_FIELD
+    for api, fs in INPUTS.items():
+        if api in sent:
+            changes[fs] = DELETE_FIELD if sent[api] is None else sent[api]
+    if "property" in sent:
+        if sent["property"] is None:
+            changes["property"] = DELETE_FIELD
+        else:
+            for api, value in sent["property"].items():
+                changes[f"property.{PROPERTY[api]}"] = DELETE_FIELD if value is None else value
+    changes["updatedAt"] = SERVER_TIMESTAMP
+
+    ref.update(changes)
     return _out(ref.id, ref.get().to_dict())
 
 
