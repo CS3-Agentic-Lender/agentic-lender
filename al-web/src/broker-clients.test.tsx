@@ -388,7 +388,7 @@ describe('broker client file', () => {
     expect(await screen.findByRole('heading', { name: 'Client not found' })).toBeInTheDocument();
   });
 
-  it('shows not found when profiles are unavailable and the client is not among the applications', async () => {
+  it('says the client could not be checked, not that it is missing, when profiles are unavailable', async () => {
     renderAs(
       'broker-1',
       'broker',
@@ -396,7 +396,22 @@ describe('broker client file', () => {
       new FakeClientsService({ 'broker-1': files([], [], 'unavailable') }),
     );
 
-    expect(await screen.findByRole('heading', { name: 'Client not found' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Could not check this client' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Client not found' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to my clients' })).toBeInTheDocument();
+  });
+
+  it('still opens a client known from its applications when profiles are unavailable', async () => {
+    renderAs(
+      'broker-1',
+      'broker',
+      '/broker/clients/borrower-1',
+      new FakeClientsService({ 'broker-1': files([], [application('LN-1001', 'borrower-1', 'Applied')], 'unavailable') }),
+    );
+
+    expect(await screen.findByText('Name unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Could not check this client' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Client not found' })).not.toBeInTheDocument();
   });
 
   it('follows the link from the list to the client file', async () => {

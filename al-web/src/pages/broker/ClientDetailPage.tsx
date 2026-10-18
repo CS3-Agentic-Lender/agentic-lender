@@ -30,6 +30,16 @@ export function ClientDetailPage() {
             // A client with no application yet appears only in the profiles result, so it is not
             // known to be missing until that query answers.
             <BrokerClientsStatus headingLevel="h1" status="loading" />
+          ) : !client && state.profilesState === 'unavailable' ? (
+            // The profiles query failed, so a client with no application cannot be told apart from
+            // one that is not this broker's. Not found is only said once profiles have answered.
+            <section className="rounded-2xl border border-line bg-surface p-8">
+              <h1 className="text-3xl font-semibold tracking-tight">Could not check this client</h1>
+              <p className="mt-3 leading-7 text-muted">
+                Client names are not available right now, so this client cannot be matched to your referred
+                client list. Try again in a moment.
+              </p>
+            </section>
           ) : !client ? (
             <section className="rounded-2xl border border-line bg-surface p-8">
               <h1 className="text-3xl font-semibold tracking-tight">Client not found</h1>
