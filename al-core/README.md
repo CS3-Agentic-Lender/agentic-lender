@@ -79,7 +79,7 @@ npx jest
 
 Requires the emulator (above) running in a separate terminal on port 8080. `test/risk-tier.test.js` (the LTV band and risk tier rules) needs no emulator: `npx jest test/risk-tier.test.js`.
 
-The queue's composite indexes are in `firestore.indexes.json` (status with LTV band, and status with risk tier, each newest first). The emulator doesn't enforce indexes, so the rules tests check the file has them; the cloud project needs `firebase deploy --only firestore:indexes` once it exists.
+The queue's composite indexes are in `firestore.indexes.json`: status on its own, status with LTV band, and status with risk tier, each newest first by `submittedAt`. The emulator doesn't enforce indexes, so the rules tests check the file has them; the cloud project needs `firebase deploy --only firestore:indexes` once it exists.
 ## Running the API (port 5002)
 
 The al-core API is a FastAPI service on port 5002, under `/core/*`. With the emulators running, from `al-core/`:

@@ -164,13 +164,21 @@ describe('pipeline queue', () => {
     expect(snap.docs.map((d) => d.id)).toEqual(['app2', 'app1']);
   });
   test("a broker can't run the whole queue", () => assertFails(queue(broker1(), 'riskTier', 'B')));
+  // Only al-ai (through the Admin SDK) sets the band and tier.
+  for (const [who, db] of [['borrower', borrower1], ['broker', broker1], ['underwriter', underwriter]]) {
+    test(`a ${who} can't change the LTV band or risk tier`, async () => {
+      await assertFails(db().doc('applications/app1').update({ riskTier: 'A' }));
+      await assertFails(db().doc('applications/app1').update({ ltvBand: '80_or_less' }));
+    });
+  }
   test("a borrower can't run the whole queue", () => assertFails(queue(borrower1(), 'riskTier', 'B')));
 });
 
-test('firestore.indexes.json has the two queue indexes', () => {
+test('firestore.indexes.json has an index for every queue query', () => {
   const { indexes } = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../firestore.indexes.json'), 'utf8'));
   const shapes = indexes.map((i) => `${i.collectionGroup}:${i.fields.map((f) => `${f.fieldPath} ${f.order}`).join(',')}`);
   expect(shapes).toEqual([
+    'applications:status ASCENDING,submittedAt DESCENDING',
     'applications:status ASCENDING,ltvBand ASCENDING,submittedAt DESCENDING',
     'applications:status ASCENDING,riskTier ASCENDING,submittedAt DESCENDING',
   ]);

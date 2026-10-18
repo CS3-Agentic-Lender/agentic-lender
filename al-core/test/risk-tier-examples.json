@@ -1,0 +1,230 @@
+[
+  {
+    "name": "No concerns",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 337500
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "A",
+    "why": "80% LTV, 3.6x income, both bands Comfortable"
+  },
+  {
+    "name": "Stressed DTI in Caution",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 337500
+    },
+    "findings": {
+      "stressedDti": "Caution",
+      "surplus": "Comfortable"
+    },
+    "tier": "B",
+    "why": "1 concern"
+  },
+  {
+    "name": "LTV over 80%",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 320000
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "B",
+    "why": "84.4% LTV: 1 concern"
+  },
+  {
+    "name": "Price needs review",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 337500
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable",
+      "priceNeedsReview": true
+    },
+    "tier": "B",
+    "why": "1 concern"
+  },
+  {
+    "name": "Price needs review and low model support",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 337500
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable",
+      "priceNeedsReview": true,
+      "lowModelSupport": true
+    },
+    "tier": "B",
+    "why": "the same concern, counted once"
+  },
+  {
+    "name": "DTI and surplus both in Caution",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 337500
+    },
+    "findings": {
+      "stressedDti": "Caution",
+      "surplus": "Caution"
+    },
+    "tier": "C",
+    "why": "2 concerns"
+  },
+  {
+    "name": "Four concerns",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 320000
+    },
+    "findings": {
+      "stressedDti": "Caution",
+      "surplus": "Caution",
+      "priceNeedsReview": true
+    },
+    "tier": "C",
+    "why": "4 concerns is still C, never D"
+  },
+  {
+    "name": "Surplus Adverse",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 337500
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Adverse"
+    },
+    "tier": "D",
+    "why": "any Adverse band"
+  },
+  {
+    "name": "LTV over 90%",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 295000
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "D",
+    "why": "91.5% LTV: Central Bank cap"
+  },
+  {
+    "name": "LTV exactly 90%",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 270000,
+      "askingPriceEur": 300000
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "B",
+    "why": "90% is not over the cap, but it is over 80%"
+  },
+  {
+    "name": "First-time buyer over 4x income",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": true,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 300001,
+      "askingPriceEur": 400000
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "D",
+    "why": "300,001 > 4 x 75,000"
+  },
+  {
+    "name": "Second-time buyer exactly 3.5x income",
+    "application": {
+      "loanType": "mortgage",
+      "firstTimeBuyer": false,
+      "grossIncomeEur": 75000,
+      "loanAmountEur": 262500,
+      "askingPriceEur": 400000
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "A",
+    "why": "262,500 = 3.5 x 75,000: not over"
+  },
+  {
+    "name": "HELOC over 3.5x counting the existing mortgage",
+    "application": {
+      "loanType": "heloc",
+      "grossIncomeEur": 80000,
+      "loanAmountEur": 40000,
+      "existingMortgageBalanceEur": 250000,
+      "askingPriceEur": 500000
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "D",
+    "why": "40,000 + 250,000 = 290,000 > 280,000"
+  },
+  {
+    "name": "HELOC exactly 3.5x counting the existing mortgage",
+    "application": {
+      "loanType": "heloc",
+      "grossIncomeEur": 80000,
+      "loanAmountEur": 40000,
+      "existingMortgageBalanceEur": 240000,
+      "askingPriceEur": 500000
+    },
+    "findings": {
+      "stressedDti": "Comfortable",
+      "surplus": "Comfortable"
+    },
+    "tier": "A",
+    "why": "40,000 + 240,000 = 280,000; 56% combined LTV"
+  }
+]

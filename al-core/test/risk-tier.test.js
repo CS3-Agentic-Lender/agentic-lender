@@ -8,7 +8,7 @@ const base = {
   loanType: 'mortgage', firstTimeBuyer: true, grossIncomeEur: 75000,
   loanAmountEur: 270000, askingPriceEur: 337500,
 };
-const clean = { stressedDti: 'Pass', surplus: 'Pass' };
+const clean = { stressedDti: 'Comfortable', surplus: 'Comfortable' };
 
 describe('purchase-price LTV', () => {
   test('a mortgage is the loan over the asking price', () =>
@@ -58,8 +58,22 @@ describe('risk tier', () => {
     expect(riskTier({ ...base, askingPriceEur: 300000 }, clean)).toBe('B'); // 90% exactly: a concern, not D
   });
 
-  test('a HELOC uses the 3.5x cap', () =>
-    expect(riskTier({ loanType: 'heloc', grossIncomeEur: 20000, loanAmountEur: 70001, existingMortgageBalanceEur: 0, askingPriceEur: 400000 }, clean)).toBe('D'));
+  // A HELOC: EUR 40k on top of a EUR 250k mortgage, on EUR 80k income, against a EUR 500k home (58% LTV).
+  const heloc = { loanType: 'heloc', grossIncomeEur: 80000, loanAmountEur: 40000, existingMortgageBalanceEur: 250000, askingPriceEur: 500000 };
+
+  test('a HELOC counts the existing mortgage towards the 3.5x income cap', () => {
+    expect(riskTier(heloc, clean)).toBe('D'); // 290k > 3.5 x 80k = 280k, though the new loan alone is only 40k
+    expect(riskTier({ ...heloc, existingMortgageBalanceEur: 240000 }, clean)).toBe('A'); // 280k: exactly at the cap
+  });
+
+  test('a HELOC uses 3.5x even when the borrower bought as a first-time buyer', () =>
+    expect(riskTier({ ...heloc, firstTimeBuyer: true }, clean)).toBe('D'));
+});
+
+// The worked examples in SCHEMA.md ("Risk tier rule"), so al-ai can test its Python version against the same cases.
+describe('the SCHEMA.md examples', () => {
+  const examples = require('./risk-tier-examples.json');
+  test.each(examples.map((e) => [e.name, e]))('%s', (_, e) => expect(riskTier(e.application, e.findings)).toBe(e.tier));
 });
 
 describe('seed data', () => {
@@ -75,6 +89,12 @@ describe('seed data', () => {
       const reviewed = !['Draft', 'Applied'].includes(a.status);
       expect([a.status, a.ltvBand !== undefined, a.riskTier !== undefined]).toEqual([a.status, reviewed, reviewed]);
     }
+  });
+
+  test("a HELOC's stored ltvPct is combined, on the valuation", () => {
+    const heloc = apps.find((a) => a.loanType === 'heloc');
+    const combined = ((heloc.loanAmountEur + heloc.existingMortgageBalanceEur) / heloc.estimatedValueEur) * 100;
+    expect(heloc.ltvPct).toBeCloseTo(combined, 1);
   });
 
   test('each band matches the application it is on', () => {

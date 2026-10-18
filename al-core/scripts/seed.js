@@ -71,13 +71,15 @@ function ltvBand(ltvPct) {
 }
 
 // The risk tier rule agreed on AL-64. `findings` is what al-ai's run reports: the stressed DTI and
-// surplus bands ('Pass', 'Caution' or 'Adverse'), whether the price needs review and whether the
+// surplus bands ('Comfortable', 'Caution' or 'Adverse', the labels al-ai's affordability module returns), whether the price needs review and whether the
 // model support is low. The committee's vote is never an input.
 const RISK_TIERS = ['A', 'B', 'C', 'D'];
 function riskTier(app, findings) {
   const ltvPct = purchasePriceLtvPct(app);
+  // A HELOC is borrowed on top of the existing mortgage, so its income cap counts both (like its LTV).
+  const totalMortgageEur = app.loanType === 'heloc' ? app.loanAmountEur + (app.existingMortgageBalanceEur || 0) : app.loanAmountEur;
   const incomeMultiple = app.loanType === 'mortgage' && app.firstTimeBuyer ? 4 : 3.5;
-  const capBreach = app.loanAmountEur > incomeMultiple * app.grossIncomeEur || ltvPct > 90;
+  const capBreach = totalMortgageEur > incomeMultiple * app.grossIncomeEur || ltvPct > 90;
   const adverse = findings.stressedDti === 'Adverse' || findings.surplus === 'Adverse';
   if (adverse || capBreach) return 'D';
 
@@ -162,7 +164,8 @@ function application(spec) {
     Object.assign(doc, {
       aiRunStatus: 'complete',
       estimatedValueEur,
-      ltvPct: round1((loanAmountEur / estimatedValueEur) * 100),
+      // On the valuation, as SCHEMA.md says; combined (with the existing mortgage) for a HELOC.
+      ltvPct: round1(((loanAmountEur + (loanType === 'heloc' ? existingMortgageBalanceEur : 0)) / estimatedValueEur) * 100),
       dtiPct: round1(((monthlyDebtsEur + repayment) / incomeMonthly) * 100),
       aprPct,
       approvalLikelihoodPct: spec.approvalLikelihoodPct,
@@ -203,7 +206,7 @@ const applications = [
     grossIncomeEur: 75000, monthlyDebtsEur: 300, depositEur: 40000, firstTimeBuyer: true,
     loanAmountEur: 265000, termYears: 30, askingPriceEur: 310000, estimatedValueEur: 306000,
     approvalLikelihoodPct: 78,
-    findings: { stressedDti: 'Caution', surplus: 'Pass' },
+    findings: { stressedDti: 'Caution', surplus: 'Comfortable' },
     createdAt: '2026-09-28T10:00:00Z', submittedAt: '2026-09-29T09:00:00Z', updatedAt: '2026-09-29T09:06:00Z',
   }),
   application({
@@ -211,7 +214,7 @@ const applications = [
     loanType: 'heloc', grossIncomeEur: 92000, monthlyDebtsEur: 1100, existingMortgageBalanceEur: 180000,
     loanAmountEur: 60000, termYears: 15, askingPriceEur: 420000, estimatedValueEur: 415000,
     approvalLikelihoodPct: 84,
-    findings: { stressedDti: 'Pass', surplus: 'Pass' },
+    findings: { stressedDti: 'Comfortable', surplus: 'Comfortable' },
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-30T14:00:00Z', reason: 'Low LTV and DTI within limits' },
     createdAt: '2026-09-25T10:00:00Z', submittedAt: '2026-09-26T09:00:00Z', updatedAt: '2026-09-30T14:00:00Z',
   }),
@@ -229,7 +232,7 @@ const applications = [
     grossIncomeEur: 88000, monthlyDebtsEur: 200, depositEur: 60000, firstTimeBuyer: false,
     loanAmountEur: 290000, termYears: 30, askingPriceEur: 365000, estimatedValueEur: 366000,
     approvalLikelihoodPct: 91,
-    findings: { stressedDti: 'Pass', surplus: 'Pass' }, funded: true,
+    findings: { stressedDti: 'Comfortable', surplus: 'Comfortable' }, funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-18T11:00:00Z', reason: 'Strong affordability' },
     createdAt: '2026-09-10T10:00:00Z', submittedAt: '2026-09-11T09:00:00Z', updatedAt: '2026-09-18T11:30:00Z',
   }),
@@ -238,7 +241,7 @@ const applications = [
     grossIncomeEur: 70000, monthlyDebtsEur: 150, depositEur: 50000, firstTimeBuyer: false,
     loanAmountEur: 240000, termYears: 25, askingPriceEur: 300000, estimatedValueEur: 302000,
     approvalLikelihoodPct: 88,
-    findings: { stressedDti: 'Pass', surplus: 'Caution' }, funded: true,
+    findings: { stressedDti: 'Comfortable', surplus: 'Caution' }, funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-08T11:00:00Z', reason: 'Within lending rules' },
     createdAt: '2026-09-01T10:00:00Z', submittedAt: '2026-09-02T09:00:00Z', updatedAt: '2026-09-15T10:00:00Z',
   }),
