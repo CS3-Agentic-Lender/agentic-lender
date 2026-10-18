@@ -1,5 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getSignInErrorMessage, resolveRoleClaim } from './authService';
+import { firebaseAuthService, getSignInErrorMessage, resolveRoleClaim } from './authService';
+import { onAuthStateChanged, onIdTokenChanged } from 'firebase/auth';
+import { auth } from './firebase';
+
+vi.mock('firebase/auth', async (importOriginal) => ({
+  ...await importOriginal<typeof import('firebase/auth')>(),
+  onIdTokenChanged: vi.fn(() => vi.fn()),
+  onAuthStateChanged: vi.fn(() => vi.fn()),
+}));
+
+it('subscribes to ID token changes instead of only auth state changes', () => {
+  const listener = vi.fn();
+  const onError = vi.fn();
+  const unsubscribe = firebaseAuthService.subscribe(listener, onError);
+  expect(onIdTokenChanged).toHaveBeenCalledWith(auth, listener, onError);
+  expect(onAuthStateChanged).not.toHaveBeenCalled();
+  expect(unsubscribe).toBe(vi.mocked(onIdTokenChanged).mock.results[0].value);
+});
 
 describe('trusted Firebase role claims', () => {
   it.each(['broker', 'underwriter', 'borrower'] as const)('recognizes the %s custom claim', (role) => {

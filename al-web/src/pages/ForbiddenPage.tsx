@@ -40,16 +40,8 @@ export function ForbiddenPage() {
         {denialReason && !borrower ? (
           <p className="mt-3 text-sm text-muted">Ask an administrator to check your role claim.</p>
         ) : null}
-        {authError ? (
-          <p
-            aria-live="polite"
-            className="mt-6 rounded-lg border border-error/30 bg-error/5 p-3 text-sm text-error"
-          >
-            {authError}
-          </p>
-        ) : null}
         {status === 'authenticated' ? (
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <button
               className="min-h-11 cursor-pointer rounded-lg bg-pine px-5 py-3 font-semibold text-surface transition-colors hover:bg-pine-pressed disabled:cursor-not-allowed disabled:opacity-60"
               disabled={action === 'signing-out'}
@@ -58,6 +50,11 @@ export function ForbiddenPage() {
             >
               {action === 'signing-out' ? 'Signing out…' : 'Sign out'}
             </button>
+            {authError ? (
+              <p className="w-full text-sm text-error" role="alert">
+                {authError}
+              </p>
+            ) : null}
             {ownPortal ? (
               <Link
                 className="inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-5 py-3 font-semibold text-pine transition-colors hover:bg-tint"

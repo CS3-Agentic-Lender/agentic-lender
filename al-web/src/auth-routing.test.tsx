@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { AppRoutes } from './routes';
 import type {
@@ -82,9 +82,9 @@ class FakeAuthService implements AuthService {
     }
 
     if (this.nextResolution) {
-      const resolution = await this.nextResolution;
+      const pending = this.nextResolution;
       this.nextResolution = null;
-      return resolution;
+      return pending;
     }
 
     return this.resolution;
@@ -111,9 +111,9 @@ class FakeAuthService implements AuthService {
   }
 }
 
-function renderAt(pathname: string, auth: FakeAuthService) {
+function renderAt(pathname: string, auth: FakeAuthService, resetSession = vi.fn()) {
   return render(
-    <AuthProvider service={auth}>
+    <AuthProvider service={auth} resetSession={resetSession}>
       <MemoryRouter initialEntries={[pathname]}>
         <AppRoutes />
       </MemoryRouter>
@@ -327,3 +327,147 @@ describe('login', () => {
   });
 });
 
+
+function deferredRole() {
+  let resolve!: (resolution: RoleResolution) => void;
+  const promise = new Promise<RoleResolution>((finish) => {
+    resolve = finish;
+  });
+  return { promise, resolve };
+}
+
+describe('session boundaries', () => {
+  it('blocks a same-user downgrade while resolving and resets once at the current location', async () => {
+    const auth = new FakeAuthService({ resolution: { role: 'underwriter', denialReason: null } });
+    const resetSession = vi.fn();
+    renderAt('/underwriter', auth, resetSession);
+    auth.restore(underwriterUser);
+    await screen.findByRole('heading', { name: 'Underwriter portal' });
+    expect(resetSession).not.toHaveBeenCalled();
+
+    const pending = deferredRole();
+    auth.deferNextRole(pending.promise);
+    act(() => auth.restore(underwriterUser));
+    expect(screen.getByRole('heading', { name: 'Checking portal access' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Underwriter portal' })).not.toBeInTheDocument();
+    await act(async () => pending.resolve({ role: 'broker', denialReason: null }));
+    expect(await screen.findByRole('heading', { name: 'Not allowed' })).toBeInTheDocument();
+    expect(resetSession).toHaveBeenCalledTimes(1);
+    expect(resetSession).toHaveBeenCalledWith();
+
+    auth.changeRole({ role: 'broker', denialReason: null });
+    await act(async () => auth.restore(underwriterUser));
+    expect(resetSession).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['missing', { role: null, denialReason: 'missing-role' }],
+    ['unknown', { role: null, denialReason: 'unknown-role' }],
+    ['malformed', { role: null, denialReason: 'malformed-role' }],
+  ] as const)('refuses a same-user refresh with a %s role', async (_label, resolution) => {
+    const auth = new FakeAuthService({ resolution: { role: 'underwriter', denialReason: null } });
+    const resetSession = vi.fn();
+    renderAt('/underwriter', auth, resetSession);
+    auth.restore(underwriterUser);
+    await screen.findByRole('heading', { name: 'Underwriter portal' });
+    const pending = deferredRole();
+    auth.deferNextRole(pending.promise);
+    act(() => auth.restore(underwriterUser));
+    expect(screen.queryByRole('heading', { name: 'Underwriter portal' })).not.toBeInTheDocument();
+    await act(async () => pending.resolve(resolution));
+    expect(await screen.findByRole('heading', { name: 'Not allowed' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Underwriter portal' })).not.toBeInTheDocument();
+    expect(resetSession).not.toHaveBeenCalled();
+  });
+
+  it('restores an unchanged role as soon as its refresh resolves without resetting', async () => {
+    const auth = new FakeAuthService();
+    const resetSession = vi.fn();
+    renderAt('/broker', auth, resetSession);
+    auth.restore(brokerUser);
+    await screen.findByRole('heading', { name: 'Broker portal' });
+    await act(async () => auth.restore(brokerUser));
+    expect(screen.getByRole('heading', { name: 'Broker portal' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Checking portal access' })).not.toBeInTheDocument();
+    expect(resetSession).not.toHaveBeenCalled();
+  });
+
+  it('ignores a slow older refresh after a newer role resolution', async () => {
+    const auth = new FakeAuthService({ resolution: { role: 'underwriter', denialReason: null } });
+    const resetSession = vi.fn();
+    renderAt('/underwriter', auth, resetSession);
+    auth.restore(underwriterUser);
+    await screen.findByRole('heading', { name: 'Underwriter portal' });
+    const older = deferredRole();
+    auth.deferNextRole(older.promise);
+    act(() => auth.restore(underwriterUser));
+    auth.changeRole({ role: 'broker', denialReason: null });
+    await act(async () => auth.restore(underwriterUser));
+    await screen.findByRole('heading', { name: 'Not allowed' });
+    await act(async () => older.resolve({ role: 'underwriter', denialReason: null }));
+    expect(screen.getByRole('link', { name: 'Go to the broker portal' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Underwriter portal' })).not.toBeInTheDocument();
+    expect(resetSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an older identity resolution after sign-out', async () => {
+    const auth = new FakeAuthService();
+    const resetSession = vi.fn();
+    renderAt('/broker', auth, resetSession);
+    const older = deferredRole();
+    auth.deferNextRole(older.promise);
+    act(() => auth.restore(brokerUser));
+    act(() => auth.restore(null));
+    await act(async () => older.resolve({ role: 'broker', denialReason: null }));
+    expect(screen.getByRole('heading', { name: 'Portal access' })).toBeInTheDocument();
+    expect(resetSession).not.toHaveBeenCalled();
+  });
+
+  it('resets exactly once to login after successful explicit sign-out', async () => {
+    const auth = new FakeAuthService();
+    const resetSession = vi.fn();
+    renderAt('/broker', auth, resetSession);
+    auth.restore(brokerUser);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    expect(resetSession).toHaveBeenCalledTimes(1);
+    expect(resetSession).toHaveBeenCalledWith('/login');
+    expect(screen.queryByRole('heading', { name: 'Broker portal' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['/broker', 'Broker portal'],
+    ['/underwriter', 'Not allowed'],
+  ])('shows a safe sign-out alert beside the button on %s and retains the session', async (path, heading) => {
+    const auth = new FakeAuthService({ signOutError: new Error('private persistence detail') });
+    const resetSession = vi.fn();
+    renderAt(path, auth, resetSession);
+    auth.restore(brokerUser);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Firebase sign-out failed. Try again.');
+    expect(screen.queryByText('private persistence detail')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign out' }).parentElement).toContainElement(alert);
+    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(resetSession).not.toHaveBeenCalled();
+  });
+
+  it('does not reset on initial sign-in or restored page load', async () => {
+    const auth = new FakeAuthService({ signInUser: brokerUser });
+    const resetSession = vi.fn();
+    const view = renderAt('/login', auth, resetSession);
+    act(() => auth.restore(null));
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Email address'), 'broker@example.test');
+    await user.type(screen.getByLabelText('Password'), TEST_PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    await screen.findByRole('heading', { name: 'Broker portal' });
+    expect(resetSession).not.toHaveBeenCalled();
+    view.unmount();
+    renderAt('/broker', auth, resetSession);
+    auth.restore(brokerUser);
+    await screen.findByRole('heading', { name: 'Broker portal' });
+    expect(resetSession).not.toHaveBeenCalled();
+  });
+});
