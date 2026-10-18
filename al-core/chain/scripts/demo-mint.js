@@ -10,6 +10,13 @@ async function main() {
   if (!fs.existsSync(file)) throw new Error(`No deployment for ${network.name}: run scripts/deploy.js first`);
   const { LoanNote } = JSON.parse(fs.readFileSync(file, "utf8"));
 
+  // The local chain starts empty every time the node restarts, so the saved address may point at nothing.
+  if ((await ethers.provider.getCode(LoanNote.address)) === "0x") {
+    throw new Error(
+      `No contract at ${LoanNote.address} on ${network.name}: the node was probably restarted. Run scripts/deploy.js again.`,
+    );
+  }
+
   const [minter] = await ethers.getSigners();
   const note = await ethers.getContractAt("LoanNote", LoanNote.address, minter);
 
@@ -31,10 +38,12 @@ async function main() {
   console.log(`  term            ${n.termMonths} months`);
   console.log(`  loan type       ${["mortgage", "HELOC"][Number(n.loanType)]}`);
   console.log(`  status          ${["none", "active", "closed"][Number(n.status)]}`);
-  console.log(`  owner           ${await note.ownerOf(tokenId)}`);
+  console.log(`  owner           ${await note.ownerOf(tokenId)}  (the holder)`);
 
   try {
     await note.mint(applicationRef, borrowerRef, 1n, 425, 360, 0);
+    console.log("PROBLEM: a second mint for the same application went through. It should have been refused.");
+    process.exitCode = 1;
   } catch (err) {
     console.log(`Second mint for the same application refused: ${err.shortMessage || err.message}`);
   }

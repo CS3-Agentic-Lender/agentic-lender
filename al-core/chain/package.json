@@ -5,7 +5,9 @@
   "description": "AL loan note contract on Hardhat (al-core blockchain half)",
   "scripts": {
     "test": "hardhat test",
-    "node": "hardhat node"
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "demo:local": "hardhat run scripts/demo-mint.js --network localhost"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
