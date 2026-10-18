@@ -144,7 +144,7 @@ The blockchain half of al-core is a Hardhat project in `al-core/chain/`, separat
 
 **Who can do what:** only accounts with `MINTER_ROLE` (al-core's wallet) can mint or close a note. The admin (the deployer) can hand the role to a new wallet. A closed note can't be reopened, and an application can only be minted once.
 
-**Who holds the notes:** every note is minted to one `holder` address (the bank), fixed when the contract is deployed. It is kept separate from the minter, so if al-core's wallet is replaced, the notes already minted stay with the bank instead of being stranded in the old wallet. The constructor refuses a zero address for the admin, minter or holder.
+**Who holds the notes:** every note is minted to one `holder` address (the bank), fixed when the contract is deployed. It is kept separate from the minter, so if al-core's wallet is replaced, the notes already minted stay with the bank instead of being stranded in the old wallet. The constructor refuses a zero address for the admin, minter or holder. The holder is fixed for the life of the contract, so moving the notes to a new bank wallet means deploying a new contract. That's a known limit, fine for this project.
 
 **Notes can't be transferred.** A note is the bank's record of a loan, not something traded in this app, so the contract only allows minting: any transfer, of an active or a closed note, reverts with `NotTransferable`. A real lender sometimes sells loans on, so a production version might allow active notes to move between approved holders. That is left as future work because nothing in the app needs it.
 
@@ -181,4 +181,5 @@ npm run demo:local
 - **Libraries:** Hardhat and ethers.js for the contracts, tests and scripts; web3.py in al-core for minting.
 - **Where the chain runs:** a local Hardhat node for development. The live site can't reach a node on a laptop, so it will use a public testnet, most likely Polygon Amoy, set up in Sprint 3 (`--network amoy` once `.env` is filled in).
 - **Docker Compose:** not for now (team decision, 13 Oct). `npx hardhat node` runs fine on its own and al-core only needs its URL, so Compose would add a container without changing anything. Revisit when the chain is deployed.
+- **Audit registry:** the second contract (the write-once SHA-256 audit hash) comes with the audit hash story in Sprint 2, agreed with Nic on 18 Oct, since the Sprint 1 goal covers the loan note only.
 - **Keys:** testnet wallets only. Private keys live in `chain/.env`, which git ignores; `chain/.env.example` lists the names with empty values.
