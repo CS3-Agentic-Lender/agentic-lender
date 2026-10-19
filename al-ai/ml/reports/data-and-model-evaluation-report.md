@@ -50,14 +50,14 @@ Development data only: 6,047 rows split off (60%), 4,882 of them with a floor ar
 ## How it went
 
 **What went well**
-- Every row is accounted for, the split keeps repeat adverts together, and the whole benchmark is re-runnable: a second full run gave the identical fingerprint (`8f5de9280e5a1ec5`) and a byte-identical split.
-- The first five models also ran on the PC server and matched the Mac to within 0.02 points.
+- Every row is accounted for, the split keeps repeat adverts together, and the benchmark is re-runnable: each machine reproduces itself exactly (the PC gave fingerprint `079e19738c03b2b5` twice, the Mac `8f5de9280e5a1ec5` twice) and the split is byte-identical on both.
+- The full benchmark ran on the PC server with `prun` in under two minutes. The Mac and the PC differ by at most 0.01 points in two models (Random Forest 28.13 vs 28.14, kNN 31.69 vs 31.70), which is floating-point difference between the two chips and operating systems, not a different result. The tables here are the PC run.
 
 **What went wrong, and what we did**
 - **The first baseline scored 187% MAPE.** A handful of rows had floor areas like 0.05 (land in acres typed as a house) or 1,821,087 m². I checked the extremes before comparing models, as the plan says, and we agreed a plausible window of 15 to 1,000 m². The rule looks at area only, never price, so genuine expensive homes (up to 929 m², €10.75m) stay. The baseline then scored 31.9%.
 - **A gap in the tests.** Breaking the grouping code on purpose (ignoring coordinates) did not make any test fail, so a missing test was added. Two weak assertions that could never fail were also replaced with real checks.
 - **The re-run test failed at first.** Multi-threaded models differ in the 13th decimal place between runs, so the fingerprint now rounds to 6 decimals. That is stated in the report rather than hidden.
-- **The PC server had no internet** when it needed to install xgboost and catboost, so the full run used the Mac with identical library versions. The PC run of the full set is still to do.
+- **The PC server lost its internet** while it needed to install xgboost and catboost (the home network was down), so the first full run used the Mac with identical library versions. When the network came back the PC run worked first time.
 
 ## Limits
 

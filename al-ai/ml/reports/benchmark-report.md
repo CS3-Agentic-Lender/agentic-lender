@@ -8,8 +8,8 @@ Development partition only (60% of the kept rows). Calibration and the final tes
 - 10,081 kept rows split into 6,047 development, 2,020 calibration and 2,014 test. Counties missing from a partition: none.
 - Complete-input benchmark: 4,882 development rows with a known floor area. Price bands are the development quartiles (€270,000, €385,000, €550,000).
 - Inputs: county, property type, bedrooms, floor area, BER. The model learns log(price) and is scored in euro.
-- Python 3.12.14, numpy 2.5.4, pandas 3.0.6, scikit-learn 1.9.1, xgboost 3.4.1, catboost 1.2.10.
-- Metrics fingerprint `8f5de9280e5a1ec5` (all metrics, no timings): identical on a re-run with the same inputs (rounded to 6 decimals).
+- Python 3.12.3, numpy 2.5.4, pandas 3.0.6, scikit-learn 1.9.1, xgboost 3.4.1, catboost 1.2.10.
+- Metrics fingerprint `079e19738c03b2b5` (all metrics, no timings): identical on a re-run with the same inputs (rounded to 6 decimals).
 
 ## Leaderboard
 
@@ -17,14 +17,14 @@ Ranked by CV MAPE (mean of the five fold MAPEs). Fold spread is the standard dev
 
 | Rank | Model | CV MAPE % | Fold spread | MdAPE % | Within 10% | MAE € | R² | Fit s/fold | Predict ms/1,000 |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | catboost | 26.31 | 1.39 | 18.59 | 28.6 | 135,195 | 0.618 | 0.4 | 4.0 |
-| 2 | hist_gradient_boosting | 26.78 | 1.35 | 18.94 | 27.7 | 136,862 | 0.605 | 1.6 | 12.2 |
-| 3 | mlp | 27.18 | 1.39 | 19.23 | 27.7 | 138,341 | 0.605 | 1.2 | 3.8 |
-| 4 | xgboost | 27.84 | 1.90 | 19.03 | 27.0 | 142,029 | 0.575 | 0.3 | 3.6 |
-| 5 | random_forest | 28.13 | 1.74 | 19.71 | 27.4 | 140,762 | 0.607 | 0.1 | 17.5 |
-| 6 | ridge | 31.02 | 3.04 | 21.07 | 25.2 | 155,725 | 0.502 | 0.0 | 3.1 |
-| 7 | knn | 31.69 | 2.07 | 21.71 | 25.6 | 152,328 | 0.566 | 0.0 | 18.2 |
-| 8 | baseline | 31.90 | 2.61 | 20.71 | 25.6 | 148,165 | 0.607 | 0.0 | 0.5 |
+| 1 | catboost | 26.31 | 1.39 | 18.59 | 28.6 | 135,195 | 0.618 | 0.7 | 6.9 |
+| 2 | hist_gradient_boosting | 26.78 | 1.35 | 18.94 | 27.7 | 136,862 | 0.605 | 0.2 | 7.3 |
+| 3 | mlp | 27.18 | 1.39 | 19.23 | 27.7 | 138,341 | 0.605 | 2.7 | 6.6 |
+| 4 | xgboost | 27.84 | 1.90 | 19.03 | 27.0 | 142,029 | 0.575 | 0.1 | 7.9 |
+| 5 | random_forest | 28.14 | 1.74 | 19.90 | 27.3 | 140,973 | 0.604 | 0.2 | 30.5 |
+| 6 | ridge | 31.02 | 3.04 | 21.07 | 25.2 | 155,725 | 0.502 | 0.0 | 6.3 |
+| 7 | knn | 31.70 | 2.09 | 21.71 | 25.6 | 152,281 | 0.567 | 0.0 | 16.8 |
+| 8 | baseline | 31.90 | 2.61 | 20.71 | 25.6 | 148,165 | 0.607 | 0.0 | 2.3 |
 
 The baseline fell back to the county median for 19 of 4,882 predictions (0.4%) and to the global median for 0.
 
