@@ -9,8 +9,8 @@ import os
 @Observable
 final class ApplicationViewModel {
     static let savedMessage = "Draft saved. You can review and submit it next."
-    static let existingDraftMessage = "You already have a draft application, so this one wasn't saved. "
-        + "You can change your draft next."
+    /// Changing the existing Draft is AL-101 (PATCH), so this promises nothing more.
+    static let existingDraftMessage = "You already have a draft application, so this one wasn't saved."
 
     var form: ApplicationForm
     private var touched: Set<ApplicationField> = []

@@ -63,6 +63,49 @@ final class APIApplicationServiceTests: XCTestCase {
         await assertSaveFails(with: .inProgress)
     }
 
+    func testConflictWithoutAProfileAsksForTheBorrowersDetails() async throws {
+        StubURLProtocol.response = (409, conflict("Create your profile first with POST /core/me"))
+
+        await assertSaveFails(with: .noProfile)
+        XCTAssertEqual(ApplicationSaveError.noProfile.message, "Finish your details before you start an application.")
+    }
+
+    func testConflictWithoutABrokerAsksForOne() async throws {
+        StubURLProtocol.response = (409, conflict("Choose a broker before starting an application"))
+
+        await assertSaveFails(with: .noBroker)
+        XCTAssertEqual(ApplicationSaveError.noBroker.message, "Choose a broker before you start an application.")
+    }
+
+    func testAnyOtherConflictShowsTheServersMessage() async throws {
+        StubURLProtocol.response = (409, conflict("Applications are closed today"))
+
+        await assertSaveFails(with: .rejected("Applications are closed today"))
+        XCTAssertEqual(ApplicationSaveError.rejected("Applications are closed today").message, "Applications are closed today")
+    }
+
+    func testARejectedPropertyFieldIsNamedSoTheBorrowerKnowsWhatToFix() async throws {
+        StubURLProtocol.response = (422, invalid(field: "property.eircode", message: "must be capitals with a space"))
+
+        await assertSaveFails(with: .invalidField("Eircode"))
+        XCTAssertEqual(
+            ApplicationSaveError.invalidField("Eircode").message,
+            "The Eircode wasn't accepted. Check it and save again."
+        )
+    }
+
+    func testARejectedTopLevelFieldIsNamedToo() async throws {
+        StubURLProtocol.response = (422, invalid(field: "loan_amount_eur", message: "must be greater than 0"))
+
+        await assertSaveFails(with: .invalidField("loan amount"))
+    }
+
+    func testAnUnknownRejectedFieldFallsBackToTheServersMessage() async throws {
+        StubURLProtocol.response = (422, invalid(field: "mystery", message: "mystery: not allowed"))
+
+        await assertSaveFails(with: .rejected("mystery: not allowed"))
+    }
+
     func testAnExpiredTokenAsksTheBorrowerToSignInAgain() async throws {
         StubURLProtocol.response = (401, "{}")
 
@@ -92,6 +135,16 @@ final class APIApplicationServiceTests: XCTestCase {
         StubURLProtocol.failure = URLError(.notConnectedToInternet)
 
         await assertSaveFails(with: .network)
+    }
+
+    /// al-core's error envelope for a 409 (docs/api-design.md section 8).
+    private func conflict(_ message: String) -> String {
+        #"{"error": {"code": "CONFLICT", "message": "\#(message)", "field": null, "request_id": "r1"}}"#
+    }
+
+    /// al-core's error envelope for a 422: the message starts with the field's path.
+    private func invalid(field: String, message: String) -> String {
+        #"{"error": {"code": "INVALID_FIELD", "message": "\#(message)", "field": "\#(field)", "request_id": "r1"}}"#
     }
 
     private func assertSaveFails(

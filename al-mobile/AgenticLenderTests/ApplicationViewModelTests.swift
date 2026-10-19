@@ -126,7 +126,10 @@ final class ApplicationViewModelTests: XCTestCase {
 
         await model.save()
 
-        XCTAssertEqual(model.saveMessage, ApplicationViewModel.existingDraftMessage)
+        XCTAssertEqual(
+            model.saveMessage,
+            "You already have a draft application, so this one wasn't saved."
+        )
         XCTAssertTrue(model.isSaved)
     }
 

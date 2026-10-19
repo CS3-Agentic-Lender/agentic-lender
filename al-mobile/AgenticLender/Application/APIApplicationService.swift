@@ -29,7 +29,9 @@ struct APIApplicationService: ApplicationService {
         case 401:
             throw ApplicationSaveError.signedOut
         case 409:
-            throw ApplicationSaveError.inProgress
+            throw Self.conflictError(from: data)
+        case 422:
+            throw Self.invalidFieldError(from: data)
         default:
             logger.error("POST /core/applications returned \(status, privacy: .public)")
             throw ApplicationSaveError.unavailable
@@ -54,8 +56,66 @@ struct APIApplicationService: ApplicationService {
         }
     }
 
+    /// al-core refuses a new Draft with 409 for three reasons, told apart by its message
+    /// (al-core `app/applications.py`). Anything else is shown as al-core wrote it.
+    static func conflictError(from data: Data) -> ApplicationSaveError {
+        guard let message = ErrorEnvelope.message(in: data) else { return .unavailable }
+        if message.hasPrefix("Create your profile first") { return .noProfile }
+        if message.hasPrefix("Choose a broker") { return .noBroker }
+        if message.contains("already have an application in progress") { return .inProgress }
+        return .rejected(message)
+    }
+
+    /// A 422 names the API field it rejected, as a path for the property (`property.eircode`).
+    static func invalidFieldError(from data: Data) -> ApplicationSaveError {
+        guard let detail = ErrorEnvelope.decode(data) else { return .unavailable }
+        if let field = detail.field, let name = fieldNames[field] { return .invalidField(name) }
+        return ErrorEnvelope.message(in: data).map(ApplicationSaveError.rejected) ?? .unavailable
+    }
+
+    /// API field → how the application form labels it.
+    private static let fieldNames = [
+        "applicants": "single or joint choice",
+        "gross_income_eur": "income",
+        "monthly_debts_eur": "monthly debts",
+        "deposit_eur": "deposit",
+        "first_time_buyer": "first-time buyer choice",
+        "term_years": "term",
+        "loan_amount_eur": "loan amount",
+        "employment_type": "employment",
+        "years_in_current_job": "years in current job",
+        "monthly_take_home_eur": "monthly take-home pay",
+        "monthly_living_costs_eur": "monthly living costs",
+        "property.address_line_1": "first line of the address",
+        "property.address_line_2": "second line of the address",
+        "property.eircode": "Eircode",
+        "property.county": "county",
+        "property.asking_price_eur": "asking price",
+        "property.bedrooms": "number of bedrooms",
+        "property.floor_area_sqm": "floor area",
+        "property.ber_rating": "BER rating",
+    ]
+
     /// The one field of the saved application the form needs.
     private struct SavedApplication: Decodable {
         let id: String
+    }
+}
+
+/// The error body every al-core response uses: `{"error": {"code", "message", "field", "request_id"}}`.
+struct ErrorEnvelope: Decodable {
+    struct Detail: Decodable {
+        let message: String?
+        let field: String?
+    }
+
+    let error: Detail
+
+    static func decode(_ data: Data) -> Detail? {
+        try? JSONDecoder().decode(ErrorEnvelope.self, from: data).error
+    }
+
+    static func message(in data: Data) -> String? {
+        decode(data)?.message.flatMap { $0.isBlank ? nil : $0 }
     }
 }

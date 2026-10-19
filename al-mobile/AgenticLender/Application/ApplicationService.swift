@@ -18,6 +18,14 @@ enum ApplicationSaveError: Error, Equatable {
     case signedOut
     /// A submitted application is still in progress (409): one active application per borrower.
     case inProgress
+    /// The borrower has no profile yet (409).
+    case noProfile
+    /// The borrower hasn't chosen a broker yet (409).
+    case noBroker
+    /// al-core didn't accept one field (422), named the way the form names it.
+    case invalidField(String)
+    /// Any other refusal (409 or 422), with al-core's own message.
+    case rejected(String)
     case unavailable
 
     var message: String {
@@ -28,6 +36,14 @@ enum ApplicationSaveError: Error, Equatable {
             "You've been signed out. Sign in again to save your application."
         case .inProgress:
             "You already have an application in progress, so you can't start another."
+        case .noProfile:
+            "Finish your details before you start an application."
+        case .noBroker:
+            "Choose a broker before you start an application."
+        case .invalidField(let name):
+            "The \(name) wasn't accepted. Check it and save again."
+        case .rejected(let message):
+            message
         case .unavailable:
             "We couldn't save your application right now. Try again in a moment."
         }
