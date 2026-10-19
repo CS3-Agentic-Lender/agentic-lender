@@ -10,6 +10,8 @@ final class HomeGateViewModel {
         case loading
         case chooseBroker
         case home(CoreProfile)
+        /// Signed in with no profile yet (an interrupted sign-up): fill in "Your details" first.
+        case needsDetails(GoogleUser)
         /// The profile couldn't load, so it isn't known whether a broker is chosen; Retry tries again.
         case failed(String)
     }
@@ -31,6 +33,10 @@ final class HomeGateViewModel {
             let profile = try await service.loadProfile()
             state = profile.needsBroker ? .chooseBroker : .home(profile)
         } catch {
+            if error as? AccountError == .noProfile, let user = service.signedInUser {
+                state = .needsDetails(user)
+                return
+            }
             logger.error("Loading the profile failed: \(error.localizedDescription, privacy: .public)")
             state = .failed(error as? AccountError == .network ? CommonMessage.cantReachServer : Self.loadFailedMessage)
         }

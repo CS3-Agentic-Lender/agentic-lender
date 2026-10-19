@@ -6,6 +6,8 @@ import os
 @MainActor
 protocol ProfileService {
     func loadProfile() async throws -> CoreProfile
+    /// Who is signed in, for the "Your details" form when they have no profile yet.
+    var signedInUser: GoogleUser? { get }
     func loadBrokers() async throws -> [Broker]
     func chooseBroker(id: String) async throws -> CoreProfile
 }
@@ -24,6 +26,10 @@ struct FirebaseProfileService: ProfileService {
 
     func loadProfile() async throws -> CoreProfile {
         try await api.profile(idToken: idToken())
+    }
+
+    var signedInUser: GoogleUser? {
+        Auth.auth().currentUser.map { GoogleUser(email: $0.email ?? "", name: $0.displayName ?? "") }
     }
 
     func loadBrokers() async throws -> [Broker] {

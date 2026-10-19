@@ -43,6 +43,7 @@ struct CoreProfileAPI: Sendable {
     /// The signed-in borrower's profile: their name for the greeting and their broker, if chosen.
     func profile(idToken: String) async throws -> CoreProfile {
         let (data, status) = try await perform(request(Self.path, idToken: idToken))
+        if status == 404 { throw AccountError.noProfile }
         return try decode(CoreProfile.self, from: data, status: status, call: "GET /core/me")
     }
 

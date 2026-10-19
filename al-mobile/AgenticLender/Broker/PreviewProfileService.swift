@@ -1,6 +1,8 @@
 #if DEBUG
 /// Fixed answers for SwiftUI previews.
 struct PreviewProfileService: ProfileService {
+    var signedInUser: GoogleUser? { GoogleUser(email: "alice@gmail.com", name: "Alice Byrne") }
+
     func loadProfile() async throws -> CoreProfile {
         CoreProfile(fullName: "Alice Byrne", brokerID: nil, brokerName: nil, brokerFirm: nil)
     }

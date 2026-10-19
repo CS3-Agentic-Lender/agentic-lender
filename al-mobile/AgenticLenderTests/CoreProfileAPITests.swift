@@ -164,8 +164,21 @@ final class CoreProfileAPITests: XCTestCase {
         XCTAssertEqual(profile, .alice)
     }
 
-    func testProfileFailsWithoutAProfileOrOnABadAnswer() async throws {
-        for (status, body) in [(404, "{}"), (500, "{}"), (200, "not json"), (200, #"{"uid": "u1"}"#)] {
+    func testProfileNotFoundMeansNoProfileYet() async throws {
+        let network = FakeNetwork()
+        network.status = 404
+        network.body = #"{"error": {"code": "NOT_FOUND", "message": "No profile yet"}}"#
+
+        do {
+            _ = try await api(network).profile(idToken: "test-token")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? AccountError, .noProfile)
+        }
+    }
+
+    func testProfileFailsOnABadAnswer() async throws {
+        for (status, body) in [(500, "{}"), (200, "not json"), (200, #"{"uid": "u1"}"#)] {
             let network = FakeNetwork()
             network.status = status
             network.body = body

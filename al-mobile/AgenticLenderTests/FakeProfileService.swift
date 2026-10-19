@@ -6,6 +6,7 @@ final class FakeProfileService: ProfileService {
     var profileResult: Result<CoreProfile, AccountError> = .success(.alice)
     var brokersResult: Result<[Broker], AccountError> = .success([.bob, .ciara])
     var chooseResult: Result<CoreProfile, AccountError>?
+    var signedInUser: GoogleUser? = GoogleUser(email: "alice@example.com", name: "Alice Byrne")
     private(set) var chosenBrokerIDs: [String] = []
     private(set) var profileLoads = 0
     private(set) var brokerLoads = 0
