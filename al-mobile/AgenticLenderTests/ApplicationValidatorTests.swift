@@ -3,11 +3,7 @@ import XCTest
 
 final class ApplicationValidatorTests: XCTestCase {
     private func validForm() -> ApplicationForm {
-        var form = TestFixtures.applicationForm()
-        form.loanAmount = "210,000"
-        form.monthlyTakeHome = "3,650"
-        form.monthlyLivingCosts = "1,400"
-        return form
+        TestFixtures.filledApplicationForm()
     }
 
     func testValidFormHasNoErrors() {
@@ -47,6 +43,59 @@ final class ApplicationValidatorTests: XCTestCase {
         let errors = ApplicationValidator.errors(for: form)
         XCTAssertEqual(errors[.monthlyTakeHome], "Enter an amount of €0 or more, in whole euro")
         XCTAssertEqual(errors[.monthlyLivingCosts], "Enter an amount of €0 or more, in whole euro")
+    }
+
+    // MARK: - Property
+
+    func testEveryPropertyFieldIsRequiredExceptAddressLine2() {
+        let errors = ApplicationValidator.errors(for: TestFixtures.applicationForm())
+
+        XCTAssertEqual(errors[.addressLine1], "Enter the first line of the address")
+        XCTAssertEqual(errors[.eircode], "Enter the Eircode")
+        XCTAssertEqual(errors[.county], "Choose the county")
+        XCTAssertEqual(errors[.askingPrice], "Enter the asking price")
+        XCTAssertEqual(errors[.floorArea], "Enter the floor area in m²")
+        XCTAssertEqual(errors[.berRating], "Choose the BER rating")
+    }
+
+    func testEircodeMustBeAValidEircode() {
+        var form = validForm()
+        form.property.eircode = "T12 X8Y"
+
+        XCTAssertEqual(ApplicationValidator.errors(for: form)[.eircode], "Enter an Eircode like A65 F4E2")
+    }
+
+    func testAskingPriceMustBeWholeEuroAboveZero() {
+        for price in ["0", "-5", "380,000.50", "abc"] {
+            var form = validForm()
+            form.property.askingPrice = price
+
+            XCTAssertEqual(
+                ApplicationValidator.errors(for: form)[.askingPrice],
+                "Enter an asking price above €0, in whole euro",
+                "for \(price)"
+            )
+        }
+    }
+
+    func testFloorAreaMustBeWholeSquareMetresAboveZeroUpToTenThousand() {
+        for area in ["0", "-1", "98.5", "10,001"] {
+            var form = validForm()
+            form.property.floorArea = area
+
+            XCTAssertEqual(
+                ApplicationValidator.errors(for: form)[.floorArea],
+                "Enter the floor area in whole m², from 1 to 10,000",
+                "for \(area)"
+            )
+        }
+    }
+
+    func testFloorAreaOfTenThousandIsAllowed() {
+        var form = validForm()
+        form.property.floorArea = "10,000"
+
+        XCTAssertNil(ApplicationValidator.errors(for: form)[.floorArea])
     }
 
     // MARK: - Loan amount
@@ -117,6 +166,7 @@ final class ApplicationValidatorTests: XCTestCase {
         form.loanAmount = "270,000"
         form.monthlyTakeHome = "5,200"
         form.monthlyLivingCosts = "2,000"
+        form.property = TestFixtures.exampleProperty()
 
         let draft = try XCTUnwrap(ApplicationDraft(form: form))
 
@@ -145,7 +195,35 @@ final class ApplicationValidatorTests: XCTestCase {
         XCTAssertEqual(body["years_in_current_job"] as? Int, 0)
         XCTAssertEqual(body["monthly_take_home_eur"] as? Int, 3_650)
         XCTAssertEqual(body["monthly_living_costs_eur"] as? Int, 1_400)
-        XCTAssertNil(body["property"], "the property waits on the team's Sprint 1 decision")
-        XCTAssertEqual(body.count, 12)
+        XCTAssertNotNil(body["property"])
+        XCTAssertEqual(body.count, 13)
+    }
+
+    func testDraftBodyCarriesThePropertyWithTheEircodeInCapitalsWithASpace() throws {
+        let draft = try XCTUnwrap(ApplicationDraft(form: TestFixtures.filledApplicationForm()))
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: draft.body()) as? [String: Any])
+        let property = try XCTUnwrap(body["property"] as? [String: Any])
+
+        XCTAssertEqual(property["address_line_1"] as? String, "12 Model Farm Road")
+        XCTAssertEqual(property["eircode"] as? String, "T12 X8Y2")
+        XCTAssertEqual(property["county"] as? String, "Cork")
+        XCTAssertEqual(property["asking_price_eur"] as? Int, 380_000)
+        XCTAssertEqual(property["bedrooms"] as? Int, 3)
+        XCTAssertEqual(property["floor_area_sqm"] as? Int, 98)
+        XCTAssertEqual(property["ber_rating"] as? String, "C2")
+        XCTAssertNil(property["address_line_2"], "an empty second line is left out")
+        XCTAssertEqual(property.count, 7)
+    }
+
+    func testDraftBodySendsASecondAddressLineWhenThereIsOne() throws {
+        var form = TestFixtures.filledApplicationForm()
+        form.property.addressLine2 = "  Bishopstown  "
+        let draft = try XCTUnwrap(ApplicationDraft(form: form))
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: draft.body()) as? [String: Any])
+        let property = try XCTUnwrap(body["property"] as? [String: Any])
+
+        XCTAssertEqual(property["address_line_2"] as? String, "Bishopstown")
     }
 }

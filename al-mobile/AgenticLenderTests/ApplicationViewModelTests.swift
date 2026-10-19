@@ -75,6 +75,19 @@ final class ApplicationViewModelTests: XCTestCase {
         XCTAssertEqual(model.form.yearsInCurrentJob, 1)
     }
 
+    func testBedroomsStartAtThreeAndStepWithinZeroToTwenty() {
+        let model = model(form: TestFixtures.applicationForm())
+        XCTAssertEqual(model.form.property.bedrooms, 3)
+
+        for _ in 0..<5 { model.decreaseBedrooms() }
+        XCTAssertEqual(model.form.property.bedrooms, 0)
+        XCTAssertFalse(model.canDecreaseBedrooms)
+
+        for _ in 0..<25 { model.increaseBedrooms() }
+        XCTAssertEqual(model.form.property.bedrooms, 20)
+        XCTAssertFalse(model.canIncreaseBedrooms)
+    }
+
     // MARK: - Saving the draft
 
     func testSavingSendsTheDraftAndSaysItIsSaved() async {
@@ -100,6 +113,9 @@ final class ApplicationViewModelTests: XCTestCase {
         XCTAssertNotNil(model.visibleError(for: .loanAmount))
         XCTAssertNotNil(model.visibleError(for: .monthlyTakeHome))
         XCTAssertNotNil(model.visibleError(for: .monthlyLivingCosts))
+        XCTAssertNotNil(model.visibleError(for: .addressLine1))
+        XCTAssertNotNil(model.visibleError(for: .county))
+        XCTAssertNotNil(model.visibleError(for: .berRating))
         XCTAssertFalse(model.isSaved)
     }
 

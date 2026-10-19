@@ -1,0 +1,61 @@
+/// The home the borrower wants to buy, as typed into the application form's property step.
+///
+/// The property type joins once Nic sends the values the valuation model accepts (asked on AL-99).
+struct ApplicationProperty: Equatable {
+    static let defaultBedrooms = 3
+    /// The bedroom counts al-core accepts.
+    static let bedroomsRange = 0...20
+
+    var addressLine1 = ""
+    var addressLine2 = ""
+    var eircode = ""
+    var county: County?
+    var askingPrice = ""
+    var bedrooms = defaultBedrooms
+    var floorArea = ""
+    var berRating: BERRating?
+}
+
+/// A checked property in the API field names of `POST /core/applications`: whole euro and m²,
+/// the Eircode in capitals with a space, and no second address line when it was left empty.
+struct PropertyDraft: Encodable, Equatable {
+    let addressLine1: String
+    let addressLine2: String?
+    let eircode: String
+    let county: String
+    let askingPriceEur: Int
+    let bedrooms: Int
+    let floorAreaSqm: Int
+    let berRating: String
+
+    /// Nil when any property field is missing or wrong; the validator says which.
+    init?(property: ApplicationProperty) {
+        guard let eircode = SignUpValidator.normalizedEircode(property.eircode),
+              let county = property.county,
+              let berRating = property.berRating,
+              let askingPrice = EuroAmount.parse(property.askingPrice),
+              let floorArea = EuroAmount.parse(property.floorArea),
+              !property.addressLine1.isBlank
+        else { return nil }
+
+        addressLine1 = property.addressLine1.trimmed
+        addressLine2 = property.addressLine2.isBlank ? nil : property.addressLine2.trimmed
+        self.eircode = eircode
+        self.county = county.rawValue
+        askingPriceEur = askingPrice
+        bedrooms = property.bedrooms
+        floorAreaSqm = floorArea
+        self.berRating = berRating.rawValue
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case addressLine1 = "address_line_1"
+        case addressLine2 = "address_line_2"
+        case eircode
+        case county
+        case askingPriceEur = "asking_price_eur"
+        case bedrooms
+        case floorAreaSqm = "floor_area_sqm"
+        case berRating = "ber_rating"
+    }
+}

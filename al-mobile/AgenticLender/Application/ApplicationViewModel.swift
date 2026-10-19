@@ -71,6 +71,8 @@ final class ApplicationViewModel {
     var canDecreaseTerm: Bool { form.termYears > AffordabilityValidator.termRange.lowerBound }
     var canIncreaseYearsInJob: Bool { form.yearsInCurrentJob < ApplicationForm.yearsInJobRange.upperBound }
     var canDecreaseYearsInJob: Bool { form.yearsInCurrentJob > ApplicationForm.yearsInJobRange.lowerBound }
+    var canIncreaseBedrooms: Bool { form.property.bedrooms < ApplicationProperty.bedroomsRange.upperBound }
+    var canDecreaseBedrooms: Bool { form.property.bedrooms > ApplicationProperty.bedroomsRange.lowerBound }
 
     func visibleError(for field: ApplicationField) -> String? {
         guard touched.contains(field) else { return nil }
@@ -88,6 +90,9 @@ final class ApplicationViewModel {
         case .monthlyTakeHome: form.monthlyTakeHome = regrouped
         case .monthlyLivingCosts: form.monthlyLivingCosts = regrouped
         case .loanAmount: form.loanAmount = regrouped
+        case .askingPrice: form.property.askingPrice = regrouped
+        case .floorArea: form.property.floorArea = regrouped
+        case .addressLine1, .eircode, .county, .berRating: break
         }
     }
 
@@ -109,5 +114,15 @@ final class ApplicationViewModel {
     func decreaseYearsInJob() {
         guard canDecreaseYearsInJob else { return }
         form.yearsInCurrentJob -= 1
+    }
+
+    func increaseBedrooms() {
+        guard canIncreaseBedrooms else { return }
+        form.property.bedrooms += 1
+    }
+
+    func decreaseBedrooms() {
+        guard canDecreaseBedrooms else { return }
+        form.property.bedrooms -= 1
     }
 }

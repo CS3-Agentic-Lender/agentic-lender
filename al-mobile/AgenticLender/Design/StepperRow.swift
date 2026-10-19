@@ -37,8 +37,8 @@ struct StepperRow: View {
     }
 }
 
-/// A square − / + button at the minimum tap target size.
-private struct StepButton: View {
+/// A square − / + button at the minimum tap target size. Also used on its own beside a value (bedrooms).
+struct StepButton: View {
     let systemImage: String
     let label: String
     let isEnabled: Bool

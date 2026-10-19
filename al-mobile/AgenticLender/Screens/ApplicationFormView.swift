@@ -2,10 +2,12 @@ import SwiftUI
 
 /// "Your application" (Figma frames "12 Application form" and 12a Above your maximum).
 ///
-/// "Save draft" saves it through `POST /core/applications`. The property row waits on the team's
-/// decision about the property in Sprint 1, and reviewing and submitting is the next step.
+/// "Save draft" saves it through `POST /core/applications`; reviewing and submitting is the next step.
+/// The home's details use the same controls as the HELOC check (Figma 07i). Property type joins
+/// once Nic sends the values the valuation model accepts (asked on AL-99).
 struct ApplicationFormView: View {
     @State private var model: ApplicationViewModel
+    @State private var isCountySheetShown = false
     @FocusState private var focused: ApplicationField?
 
     init(form: ApplicationForm, service: ApplicationService = APIApplicationService.live()) {
@@ -59,6 +61,8 @@ struct ApplicationFormView: View {
                     decrease: model.decreaseYearsInJob,
                     increase: model.increaseYearsInJob
                 )
+
+                propertySection
             }
             .padding(Theme.screenPadding)
         }
@@ -66,6 +70,9 @@ struct ApplicationFormView: View {
         .safeAreaInset(edge: .bottom) { footer }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $isCountySheetShown, onDismiss: { model.markTouched(.county) }) {
+            CountySheet(selection: $model.form.property.county)
+        }
         .onChange(of: focused) { previous, _ in
             if let previous { model.markTouched(previous) }
         }
@@ -117,18 +124,98 @@ struct ApplicationFormView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func amountField(_ label: String, field: ApplicationField, placeholder: String) -> some View {
+    /// The home being bought: address, Eircode, county, asking price, size, bedrooms and BER.
+    private var propertySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("The home you're buying")
+                .font(.title3.bold())
+                .foregroundStyle(Theme.text)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, 8)
+
+            textField("Address line 1", field: .addressLine1, text: $model.form.property.addressLine1,
+                      placeholder: "12 Model Farm Road", contentType: .streetAddressLine1)
+            FormField("Address line 2 (optional)", error: nil) {
+                TextField("Area or estate", text: $model.form.property.addressLine2)
+                    .textContentType(.streetAddressLine2)
+                    .accessibilityIdentifier("application.addressLine2")
+            }
+            HStack(alignment: .top, spacing: 12) {
+                textField("Eircode", field: .eircode, text: $model.form.property.eircode,
+                          placeholder: "T12 X8Y2", contentType: .postalCode)
+                    .textInputAutocapitalization(.characters)
+                FormField("County", error: model.visibleError(for: .county)) { countyButton }
+            }
+            amountField("Asking price", field: .askingPrice, placeholder: "380,000")
+            HStack(alignment: .top, spacing: 12) {
+                amountField("Size", field: .floorArea, placeholder: "98", currency: false, unit: "m²")
+                BedroomsStepper(
+                    count: model.form.property.bedrooms,
+                    canDecrease: model.canDecreaseBedrooms,
+                    canIncrease: model.canIncreaseBedrooms,
+                    decrease: model.decreaseBedrooms,
+                    increase: model.increaseBedrooms
+                )
+                .accessibilityIdentifier("application.bedrooms")
+            }
+            FormField("BER rating", error: model.visibleError(for: .berRating)) {
+                BERMenu(selection: $model.form.property.berRating) { model.markTouched(.berRating) }
+                    .accessibilityIdentifier("application.berRating")
+            }
+        }
+    }
+
+    private var countyButton: some View {
+        Button {
+            focused = nil
+            isCountySheetShown = true
+        } label: {
+            PickerFieldLabel(value: model.form.property.county?.name, placeholder: "Choose county")
+        }
+        .accessibilityLabel("County, \(model.form.property.county?.name ?? "not chosen")")
+        .accessibilityIdentifier("application.county")
+    }
+
+    private func textField(
+        _ label: String,
+        field: ApplicationField,
+        text: Binding<String>,
+        placeholder: String,
+        contentType: UITextContentType
+    ) -> some View {
+        FormField(label, error: model.visibleError(for: field)) {
+            TextField(placeholder, text: text)
+                .textContentType(contentType)
+                .autocorrectionDisabled()
+                .focused($focused, equals: field)
+                .accessibilityIdentifier("application.\(field)")
+        }
+    }
+
+    /// A whole-number field: euro by default, or with a unit after it such as m².
+    private func amountField(
+        _ label: String,
+        field: ApplicationField,
+        placeholder: String,
+        currency: Bool = true,
+        unit: String? = nil
+    ) -> some View {
         FormField(label, error: model.visibleError(for: field)) {
             HStack(spacing: 8) {
-                Text("€").foregroundStyle(Theme.mutedText)
+                if currency {
+                    Text("€").foregroundStyle(Theme.mutedText)
+                }
                 TextField(placeholder, text: Binding(
                     get: { text(for: field) },
                     set: { model.updateAmount(field, to: $0) }
                 ))
                 .keyboardType(.numberPad)
                 .focused($focused, equals: field)
-                .accessibilityLabel("\(label), in euro")
+                .accessibilityLabel("\(label), \(currency ? "in euro" : "in square metres")")
                 .accessibilityIdentifier("application.\(field)")
+                if let unit {
+                    Text(unit).foregroundStyle(Theme.mutedText).accessibilityHidden(true)
+                }
             }
         }
     }
@@ -138,6 +225,9 @@ struct ApplicationFormView: View {
         case .monthlyTakeHome: model.form.monthlyTakeHome
         case .monthlyLivingCosts: model.form.monthlyLivingCosts
         case .loanAmount: model.form.loanAmount
+        case .askingPrice: model.form.property.askingPrice
+        case .floorArea: model.form.property.floorArea
+        case .addressLine1, .eircode, .county, .berRating: ""
         }
     }
 }

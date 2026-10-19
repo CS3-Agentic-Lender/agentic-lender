@@ -16,6 +16,7 @@ struct ApplicationForm: Equatable {
     var yearsInCurrentJob = 0
     var monthlyTakeHome = ""
     var monthlyLivingCosts = ""
+    var property = ApplicationProperty()
 
     init(affordability: AffordabilityRequest, maxLoanEur: Double) {
         self.affordability = affordability
@@ -44,6 +45,12 @@ enum ApplicationField: CaseIterable, Hashable {
     case monthlyTakeHome
     case monthlyLivingCosts
     case loanAmount
+    case addressLine1
+    case eircode
+    case county
+    case askingPrice
+    case floorArea
+    case berRating
 }
 
 /// A checked application, in whole euro, with the field values of the agreed applications schema.
@@ -60,12 +67,14 @@ struct ApplicationDraft: Encodable, Equatable {
     let yearsInCurrentJob: Int
     let monthlyTakeHomeEur: Int
     let monthlyLivingCostsEur: Int
+    let property: PropertyDraft
 
     init?(form: ApplicationForm) {
         guard ApplicationValidator.errors(for: form).isEmpty,
               let loan = EuroAmount.parse(form.loanAmount),
               let takeHome = EuroAmount.parse(form.monthlyTakeHome),
-              let livingCosts = EuroAmount.parse(form.monthlyLivingCosts)
+              let livingCosts = EuroAmount.parse(form.monthlyLivingCosts),
+              let property = PropertyDraft(property: form.property)
         else { return nil }
 
         let affordability = form.affordability
@@ -80,10 +89,11 @@ struct ApplicationDraft: Encodable, Equatable {
         yearsInCurrentJob = form.yearsInCurrentJob
         monthlyTakeHomeEur = takeHome
         monthlyLivingCostsEur = livingCosts
+        self.property = property
     }
 
-    /// The JSON body for `POST /core/applications`. No property yet: that step follows the
-    /// team's decision on the property in Sprint 1, and a Draft can be saved without one.
+    /// The JSON body for `POST /core/applications`. The property type joins the property
+    /// once Nic sends the values the valuation model accepts (asked on AL-99).
     func body() throws -> Data {
         try JSONEncoder().encode(self)
     }
@@ -101,6 +111,7 @@ struct ApplicationDraft: Encodable, Equatable {
         case yearsInCurrentJob = "years_in_current_job"
         case monthlyTakeHomeEur = "monthly_take_home_eur"
         case monthlyLivingCostsEur = "monthly_living_costs_eur"
+        case property
     }
 
     func encode(to encoder: Encoder) throws {
@@ -117,5 +128,6 @@ struct ApplicationDraft: Encodable, Equatable {
         try container.encode(yearsInCurrentJob, forKey: .yearsInCurrentJob)
         try container.encode(monthlyTakeHomeEur, forKey: .monthlyTakeHomeEur)
         try container.encode(monthlyLivingCostsEur, forKey: .monthlyLivingCostsEur)
+        try container.encode(property, forKey: .property)
     }
 }

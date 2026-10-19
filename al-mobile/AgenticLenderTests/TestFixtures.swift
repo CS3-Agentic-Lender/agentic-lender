@@ -24,13 +24,27 @@ enum TestFixtures {
         )
     }
 
-    /// The same form filled in and valid: €210,000 loan, €3,650 take-home pay, €1,400 living costs.
+    /// The same form filled in and valid: €210,000 loan, €3,650 take-home pay, €1,400 living costs,
+    /// for the api-design example home (Cork, 3 bedrooms, 98 m², BER C2, asking €380,000).
     static func filledApplicationForm() -> ApplicationForm {
         var form = applicationForm()
         form.loanAmount = "210,000"
         form.monthlyTakeHome = "3,650"
         form.monthlyLivingCosts = "1,400"
+        form.property = exampleProperty()
         return form
+    }
+
+    /// The api-design example home, filled in and valid. The Eircode is typed in lower case without its space.
+    static func exampleProperty() -> ApplicationProperty {
+        ApplicationProperty(
+            addressLine1: "12 Model Farm Road",
+            eircode: "t12x8y2",
+            county: .cork,
+            askingPrice: "380,000",
+            floorArea: "98",
+            berRating: .c2
+        )
     }
 
     /// Reference case 2: joint, not first-time buyers, €50,000 + €40,000 income, €30,000 deposit, 25 years.
