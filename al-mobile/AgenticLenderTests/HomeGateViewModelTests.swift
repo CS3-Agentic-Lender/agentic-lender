@@ -65,4 +65,15 @@ final class HomeGateViewModelTests: XCTestCase {
         XCTAssertEqual(gate.state, .home(.aliceWithBob))
         XCTAssertEqual(service.profileLoads, 3)
     }
+
+    func testASignedInUserWithNoProfileIsSentToYourDetailsNotADeadRetry() async {
+        let service = FakeProfileService()
+        service.profileResult = .failure(.noProfile)
+        service.signedInUser = GoogleUser(email: "gina@gmail.com", name: "Gina Walsh")
+        let gate = HomeGateViewModel(service: service)
+
+        await gate.load()
+
+        XCTAssertEqual(gate.state, .needsDetails(GoogleUser(email: "gina@gmail.com", name: "Gina Walsh")))
+    }
 }

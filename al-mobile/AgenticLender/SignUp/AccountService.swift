@@ -24,6 +24,8 @@ enum AccountError: Error, Equatable {
     case weakPassword
     case network
     case profileNotSaved
+    /// Signed in, but al-core has no profile for this user yet (`GET /core/me` 404).
+    case noProfile
     case unknown
 
     var message: String {
@@ -38,6 +40,8 @@ enum AccountError: Error, Equatable {
             CommonMessage.cantReachServer
         case .profileNotSaved:
             "Your details couldn't be saved. Try again."
+        case .noProfile:
+            "Finish your details to continue."
         case .unknown:
             "Something went wrong creating your account. Try again."
         }
@@ -48,7 +52,7 @@ enum AccountError: Error, Equatable {
         switch self {
         case .emailAlreadyInUse, .invalidEmail: .email
         case .weakPassword: .password
-        case .network, .profileNotSaved, .unknown: nil
+        case .network, .profileNotSaved, .noProfile, .unknown: nil
         }
     }
 }

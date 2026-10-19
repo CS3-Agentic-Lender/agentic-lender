@@ -29,6 +29,8 @@ struct HomeGateView: View {
                 BrokerPickerView(mode: .choose, service: service, onSaved: model.brokerChosen)
             case .home(let profile):
                 HomeView(profile: profile, service: service)
+            case .needsDetails(let user):
+                GoogleProfileView(user: user, service: FirebaseGoogleSignInService())
             case .failed(let message):
                 failed(message)
             }
