@@ -8,7 +8,7 @@ import { auth } from './firebase';
 
 export type PortalRole = 'broker' | 'underwriter';
 export type TrustedRole = PortalRole | 'borrower';
-export type DenialReason = 'missing-role' | 'unknown-role' | 'malformed-role' | 'claim-error';
+export type DenialReason = 'missing-role' | 'unknown-role' | 'malformed-role';
 
 export type RoleResolution =
   | { role: TrustedRole; denialReason: null }

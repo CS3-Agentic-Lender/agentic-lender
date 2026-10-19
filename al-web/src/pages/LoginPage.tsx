@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Mark } from '../components/Mark';
 import { AuthLoadingPage } from '../components/auth/AuthLoadingPage';
+import { SessionRetryPage } from '../components/auth/SessionRetryPage';
+import { portalHomeFor } from '../utils/portalHomeFor';
 import { useAuth } from '../context/AuthContext';
 import { getSignInErrorMessage } from '../services/authService';
 
@@ -17,13 +19,7 @@ export function LoginPage() {
       return;
     }
 
-    if (auth.role === 'broker') {
-      navigate('/broker', { replace: true });
-    } else if (auth.role === 'underwriter') {
-      navigate('/underwriter', { replace: true });
-    } else {
-      navigate('/forbidden', { replace: true });
-    }
+    navigate(portalHomeFor(auth.role), { replace: true });
   }, [auth.status, auth.role, navigate]);
 
   if (auth.status === 'loading') {
@@ -35,25 +31,7 @@ export function LoginPage() {
   }
 
   if (auth.status === 'error') {
-    return (
-      <main className="grid min-h-screen place-items-center bg-oat px-6 py-16 text-ink">
-        <section className="w-full max-w-xl rounded-2xl border border-line bg-surface p-8 shadow-sm sm:p-12">
-          <div className="text-pine">
-            <Mark />
-          </div>
-          <p className="mt-12 font-mono text-xs font-medium uppercase tracking-widest text-error">
-            Authentication error
-          </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-            Authentication unavailable
-          </h1>
-          <p aria-live="assertive" className="mt-5 leading-7 text-muted">
-            {auth.authError ?? 'Firebase authentication could not be restored.'}
-          </p>
-          <p className="mt-3 text-sm text-muted">Reload the page to try again.</p>
-        </section>
-      </main>
-    );
+    return <SessionRetryPage />;
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -81,8 +59,7 @@ export function LoginPage() {
           Portal access
         </h1>
         <p className="mt-5 max-w-prose text-base leading-7 text-muted">
-          Sign in with your Firebase broker or underwriter account. Access is determined from the
-          trusted role claim in your ID token.
+          Sign in with your broker or underwriter account.
         </p>
 
         <form className="mt-10 grid gap-5" onSubmit={(event) => void handleSubmit(event)}>

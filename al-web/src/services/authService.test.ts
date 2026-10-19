@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { firebaseAuthService, getSignInErrorMessage, resolveRoleClaim } from './authService';
+import { firebaseAuthService, getSignInErrorMessage, resolveRoleClaim, type AuthUser } from './authService';
 import { onAuthStateChanged, onIdTokenChanged } from 'firebase/auth';
 import { auth } from './firebase';
 
@@ -19,6 +19,35 @@ it('subscribes to ID token changes instead of only auth state changes', () => {
 });
 
 describe('trusted Firebase role claims', () => {
+  it('reads the trusted role from the user ID token result', async () => {
+    const getIdTokenResult = vi.fn(async () => ({ claims: { role: 'underwriter' } }) as never);
+    const user: AuthUser = {
+      uid: 'underwriter-1',
+      email: 'underwriter@example.test',
+      getIdToken: vi.fn(),
+      getIdTokenResult,
+    };
+
+    await expect(firebaseAuthService.resolveTrustedRole(user)).resolves.toEqual({
+      role: 'underwriter',
+      denialReason: null,
+    });
+    expect(getIdTokenResult).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  it('propagates a failed ID token lookup rather than returning a role refusal', async () => {
+    const failure = new Error('token unavailable');
+    const user: AuthUser = {
+      uid: 'broker-1',
+      email: 'broker@example.test',
+      getIdToken: vi.fn(),
+      getIdTokenResult: vi.fn().mockRejectedValue(failure),
+    };
+
+    await expect(firebaseAuthService.resolveTrustedRole(user)).rejects.toBe(failure);
+    expect(user.getIdTokenResult).toHaveBeenCalledExactlyOnceWith();
+  });
+
   it.each(['broker', 'underwriter', 'borrower'] as const)('recognizes the %s custom claim', (role) => {
     expect(resolveRoleClaim({ role })).toEqual({ role, denialReason: null });
   });
