@@ -19,6 +19,7 @@ import pandas as pd
 
 from ml import benchmark as b
 from ml import data_readiness as dr
+from ml import figures as fig
 
 HERE = Path(__file__).resolve().parent
 CONFIG = json.loads((HERE / "experiments_config.json").read_text())
@@ -133,12 +134,13 @@ def model_settings():
     return {"hist_gradient_boosting": fix(frozen["params"]), "catboost": fix(tuned["catboost"]["best_params"])}
 
 
-def run_experiment(df, y, model, params, extras, seed):
+def run_experiment(df, y, model, params, extras, seed, keep_oof=False):
     X, fold_ids = df[b.FEATURE_COLUMNS + EXTRA_COLUMNS], df["fold"].to_numpy()
     bands = [float(np.percentile(y, q)) for q in (25, 50, 75)]
     make = lambda: b.make_model(model, seed, params, features=FeatureBuilderV2(extras))
-    res, _ = b.cross_validate(make, X, y, fold_ids, bands)
-    return {"cv_mape": res["cv_mape"], "fold_mape": res["fold_mape"], "fold_std": res["fold_std"], **{k: res["pooled"][k] for k in ("mdape", "ppe10", "mae", "r2")}}
+    res, _, oof = b.cross_validate(make, X, y, fold_ids, bands, return_oof=True)
+    summary = {"cv_mape": res["cv_mape"], "fold_mape": res["fold_mape"], "fold_std": res["fold_std"], **{k: res["pooled"][k] for k in ("mdape", "ppe10", "mae", "r2")}}
+    return (summary, oof) if keep_oof else summary
 
 
 def main():
@@ -155,13 +157,22 @@ def main():
     combos = CONFIG["combinations"]
     if args.only:
         combos = [combos[int(i)] for i in args.only.split(",")]
-    results = {"five_inputs": {m: run_experiment(df, y, m, p, [], seed) for m, p in settings.items()}}
+    results = {"five_inputs": {}}
+    oofs = {}  # out-of-fold predictions of the frozen model (HistGradientBoosting), for the figures
+    for m, p in settings.items():
+        results["five_inputs"][m], o = run_experiment(df, y, m, p, [], seed, keep_oof=True)
+        if m == "hist_gradient_boosting":
+            oofs["five_inputs"] = o
     for m, r in results["five_inputs"].items():
         print(f"five inputs / {m}: CV MAPE {r['cv_mape']:.2f}%", flush=True)
     rows = []
     for combo in combos:
         name = " + ".join(combo)
-        res = {m: run_experiment(df, y, m, p, combo, seed) for m, p in settings.items()}
+        res = {}
+        for m, p in settings.items():
+            res[m], o = run_experiment(df, y, m, p, combo, seed, keep_oof=True)
+            if m == "hist_gradient_boosting":
+                oofs[name] = o
         gains = {m: results["five_inputs"][m]["cv_mape"] - r["cv_mape"] for m, r in res.items()}
         folds = {m: sum(e < f for e, f in zip(r["fold_mape"], results["five_inputs"][m]["fold_mape"])) for m, r in res.items()}
         v = verdict(gains, folds, combo)
@@ -171,11 +182,41 @@ def main():
     meta = {"rows": int(len(y)), "eircode_found": float(df["rkey"].notna().mean()), "bathrooms_found": float(df["bathrooms"].notna().mean()),
             "construction_year_found": float(df["built_year"].notna().mean())}
     (out / "extra-inputs-results.json").write_text(json.dumps({"results": results, "meta": meta}, indent=1, sort_keys=True, default=float))
-    (out / "extra-inputs-report.md").write_text(build_report(results["five_inputs"], rows, meta))
+    figures = make_figures(out / "figures", df, y, results, rows, oofs)
+    (out / "extra-inputs-report.md").write_text(build_report(results["five_inputs"], rows, meta, figures))
     print((out / "extra-inputs-report.md").read_text()[:3000])
 
 
-def build_report(base, rows, meta) -> str:
+LABELS = {"eircode_routing_key": "Eircode\nrouting key", "bathrooms": "bathrooms", "construction_year": "build\nyear",
+          "town": "town", "coordinates": "coordinates"}
+
+
+def make_figures(out: Path, df, y, results, rows, oofs) -> list:
+    """Saves the PNGs and returns (file, title, takeaway) for each. Uses the recommended set, or the Eircode key if none passes."""
+    h = "hist_gradient_boosting"
+    pick = recommend(rows)
+    name = pick[1] if pick else "eircode_routing_key"
+    p5, pe = oofs["five_inputs"], oofs[name]
+    X, bands = df[b.FEATURE_COLUMNS], [float(np.percentile(y, q)) for q in (25, 50, 75)]
+    seg5, sege = b.segments(X, y, p5, bands), b.segments(X, y, pe, bands)
+    base = (results["five_inputs"][h]["cv_mape"], results["five_inputs"]["catboost"]["cv_mape"])
+    bar_rows = [(" + ".join(LABELS[c] for c in combo) if len(combo) < 3 else f"{len(combo)} inputs\ncombined", res[h]["cv_mape"], res["catboost"]["cv_mape"],
+                 any(CONFIG["additions"][c].get("reference_only") for c in combo), nm == name)
+                for combo, nm, res, *_ in rows]
+    return [
+        ("1-error-by-input-set.png", "Error for each set of inputs", fig.bars(out, bar_rows, base)),
+        ("2-every-fold-improves.png", "Each of the five folds",
+         fig.folds(out, {m: results["five_inputs"][m]["fold_mape"] for m in results["five_inputs"]}, {m: results[name]["models"][m]["fold_mape"] for m in results["five_inputs"]})),
+        ("3-share-of-estimates-within-x-percent.png", "How close the estimates get", fig.within(out, y, p5, pe)),
+        ("4-estimate-versus-asking-price.png", "Estimate versus asking price", fig.density(out, y, p5, pe)),
+        ("5-price-band-confusion-matrix.png", "Price-band confusion matrix", fig.confusion_pair(out, y, p5, pe, bands)),
+        ("6-error-by-price-band-and-county.png", "Error by price band and county",
+         fig.segments(out, seg5["price_band"], sege["price_band"], seg5["county"], sege["county"])),
+        ("7-error-distribution.png", "Distribution of the error", fig.bias(out, y, p5, pe)),
+    ]
+
+
+def build_report(base, rows, meta, figures=()) -> str:
     h, c = "hist_gradient_boosting", "catboost"
     f = lambda v, nd=2: f"{v:.{nd}f}"
     adds = CONFIG["additions"]
@@ -207,6 +248,10 @@ def build_report(base, rows, meta) -> str:
         "**Rule for proposing (fixed beforehand):** an input the app already collects needs a gain of at least "
         f"{CONFIG['worth_proposing']['threshold_if_the_app_already_collects_it_mape_pp']} point in both models and in all five folds. "
         f"A new form field needs {CONFIG['worth_proposing']['threshold_if_it_needs_a_new_field_mape_pp']} points. Town and coordinates are upper-bound references only.", "",
+        "## Pictures", "",
+        "All figures use out-of-fold predictions on the development split: every point is a prediction for a house the model was not trained on. "
+        "Blue is the five inputs the model uses today, orange the proposed extra input.", "",
+        *[line for i, (file, title, caption) in enumerate(figures, 1) for line in (f"### {i}. {title}", "", f"![{title}](figures/{file})", "", caption, "")],
         "## What the Eircode key does and what the rest adds", "", *on_top, "",
         "**A note on the rule.** The proposal rule was committed before these results, and it compares each combination with the five inputs. "
         "That let combinations containing bathrooms pass only because the Eircode key does the work, which is not what the rule was for. After seeing this, "
