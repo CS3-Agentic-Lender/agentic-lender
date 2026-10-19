@@ -1,13 +1,14 @@
 import Observation
 import os
 
-/// Drives the profile screen a first-time Google user fills in before reaching home.
+/// Drives "Your details", which a signed-in borrower with no profile fills in before reaching home:
+/// a first-time Google user, or an email sign-up that stopped before the profile was saved.
 ///
-/// The fields and rules are sign-up's, without a password. The email is the Google one and
+/// The fields and rules are sign-up's, without a password. The email is the signed-in account's and
 /// can't be changed: al-core rejects a profile whose email differs from the token's.
 @MainActor
 @Observable
-final class GoogleProfileViewModel {
+final class ProfileDetailsViewModel {
     var form: SignUpForm
     let email: String
     private(set) var isSubmitting = false
@@ -48,7 +49,7 @@ final class GoogleProfileViewModel {
         } catch let error as AccountError {
             submitError = error.message
         } catch {
-            logger.error("Unexpected error saving the Google profile: \(error.localizedDescription, privacy: .public)")
+            logger.error("Unexpected error saving the profile: \(error.localizedDescription, privacy: .public)")
             submitError = AccountError.unknown.message
         }
     }

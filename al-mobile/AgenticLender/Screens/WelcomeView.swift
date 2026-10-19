@@ -55,7 +55,7 @@ struct WelcomeView: View {
             case .home:
                 HomeGateView()
             case .profile(let user):
-                GoogleProfileView(user: user, service: googleService)
+                ProfileDetailsView(user: user, service: googleService)
             }
         }
     }
