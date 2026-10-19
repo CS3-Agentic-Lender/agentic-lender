@@ -127,7 +127,7 @@ const users = [
 
 // One property per application; each gets an indicative valuation.
 const baseProperty = {
-  county: 'Cork', propertyType: 'semi_detached', bedrooms: 3, floorAreaSqm: 98, berRating: 'C2',
+  county: 'Cork', propertyType: 'Semi-D', bedrooms: 3, floorAreaSqm: 98, berRating: 'C2',
 };
 
 function valuation(estimatedValueEur) {
@@ -144,8 +144,12 @@ function application(spec) {
     aprPct = 4.0, createdAt, submittedAt, updatedAt,
   } = spec;
 
+  // The API copies the borrower's name onto the application when it is created; the seed does the same.
+  const borrower = users.find((u) => u.uid === borrowerId);
+  if (!borrower) throw new Error(`Application ${id}: no seeded user with uid ${borrowerId}`);
+
   const doc = {
-    borrowerId, brokerId, status, loanType, grossIncomeEur, monthlyDebtsEur, loanAmountEur, termYears,
+    borrowerId, borrowerName: borrower.fullName, brokerId, status, loanType, grossIncomeEur, monthlyDebtsEur, loanAmountEur, termYears,
     property: { ...baseProperty, askingPriceEur },
     createdAt: at(createdAt), updatedAt: at(updatedAt),
   };
@@ -249,11 +253,14 @@ const applications = [
 
 // ---------- AI runs and calls ----------
 
+// Only qwen3.5:9b is a real model string today. The other three are the planned models
+// (docs/infrastructure.md) and are placeholders until Nic confirms the exact strings once those
+// agents are built.
 const AGENTS = [
   { agent: 'affordability', provider: 'ollama', model: 'qwen3.5:9b' },
-  { agent: 'valuation', provider: 'gemini', model: 'gemini-flash' },
-  { agent: 'market', provider: 'groq', model: 'llama-3.3-70b' },
-  { agent: 'strategist', provider: 'mistral', model: 'mistral-small' },
+  { agent: 'valuation', provider: 'mistral', model: 'mistral-small-4' },
+  { agent: 'market', provider: 'gemini', model: 'gemini' },
+  { agent: 'strategist', provider: 'gemini', model: 'gemini' },
 ];
 
 function aiRun(app) {
