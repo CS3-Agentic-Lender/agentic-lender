@@ -145,7 +145,7 @@ After `POST /core/me` the app must refresh its ID token (`getIdToken(true)`) so 
 
 ## Example requests
 
-One walkthrough that calls every endpoint in the order the apps use them: sign up, profile, broker, draft, edit, submit, read. Run it in a bash shell (Git Bash or WSL on Windows) with the emulators and the API running as above. Use port 8000 instead of 5002 to go through the gateway. Each step prints the response.
+One walkthrough that calls every endpoint in the order the apps use them: sign up, profile, broker, draft, edit, submit, read. Run it from `al-core/` in a bash shell (Git Bash or WSL on Windows) with the emulators and the API running as above. It reads the JSON replies with `uv run python`, since Windows has no `python3` in Git Bash. Use port 8000 instead of 5002 to go through the gateway. Each step prints the response.
 
 ```bash
 CORE=http://127.0.0.1:5002   # or http://127.0.0.1:8000 through the gateway
@@ -155,7 +155,7 @@ AUTH_EMU=http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts
 token() {
   curl -s -X POST "$AUTH_EMU:$1?key=fake-api-key" -H "Content-Type: application/json" \
     -d "{\"email\":\"$2\",\"password\":\"$3\",\"returnSecureToken\":true}" \
-    | python3 -c "import sys, json; print(json.load(sys.stdin)['idToken'])"
+    | uv run python -c "import sys, json; print(json.load(sys.stdin)['idToken'])"
 }
 call() {  # call METHOD PATH [JSON body]
   curl -s -X "$1" "$CORE$2" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" ${3:+-d "$3"}
@@ -186,7 +186,7 @@ call PUT /core/me/broker '{"broker_id":"broker1"}'
 
 # 7. POST /core/applications: start a Draft. Only loan_type is required. 201 with the new id
 APP=$(call POST /core/applications '{"loan_type":"mortgage","loan_amount_eur":270000,"term_years":30}' \
-  | tee /dev/stderr | python3 -c "import sys, json; print(json.load(sys.stdin)['id'])")
+  | tee /dev/stderr | uv run python -c "import sys, json; print(json.load(sys.stdin)['id'])")
 
 # 8. PATCH /core/applications/{id}: fill in the rest. Only the fields sent change; property merges field by field
 call PATCH "/core/applications/$APP" '{"applicants":"single","gross_income_eur":75000,"monthly_debts_eur":300,"monthly_take_home_eur":4200,"monthly_living_costs_eur":1800,"employment_type":"employed","years_in_current_job":4,"deposit_eur":35000,"first_time_buyer":true,"property":{"address_line_1":"12 Main Street","county":"Cork","eircode":"P31 X2Y3","property_type":"semi_detached","bedrooms":3,"floor_area_sqm":110,"ber_rating":"B2","asking_price_eur":315000}}'
