@@ -245,3 +245,26 @@ def bias(out: Path, y, p5, pe) -> str:
     m5, me = 100 * float(np.median((np.asarray(p5) - y) / y)), 100 * float(np.median((np.asarray(pe) - y) / y))
     return (f"The median error is {m5:+.1f}% with {A_SHORT} and {me:+.1f}% with {B_NAME} (0% means no systematic over- or under-estimate). "
             f"The spread of errors (standard deviation) goes from {100 * s5:.0f} to {100 * se:.0f} percentage points. Some very large misses remain.")
+
+
+def variant_bars(out: Path, items: list, refs: dict) -> str:
+    """items: (name, CV MAPE, on_shortlist), shown best first with the single-model references as lines."""
+    fig_, ax = plt.subplots(figsize=(11, 0.55 * len(items) + 2.2))
+    names = [i[0] for i in items][::-1]
+    vals = [i[1] for i in items][::-1]
+    colors = [ORANGE if i[2] else BLUE for i in items][::-1]
+    ax.barh(range(len(items)), vals, color=colors, height=0.65)
+    for y_, v in enumerate(vals):
+        ax.text(v + 0.1, y_, f"{v:.2f}", va="center", fontsize=9)
+    for (label, v), style in zip(refs.items(), ("--", ":")):
+        ax.axvline(v, color="#444", ls=style, lw=1.4, label=f"{label}: {v:.2f}")
+    ax.set_yticks(range(len(items)), names, fontsize=9)
+    ax.set_xlabel("typical error, CV MAPE % (lower is better)")
+    ax.set_xlim(min(vals + list(refs.values())) - 2.5, max(vals + list(refs.values())) + 1.5)
+    ax.set_title("Error for every variant", loc="left", fontweight="bold")
+    ax.legend(frameon=False, fontsize=9, loc="lower right")
+    ax.grid(axis="y", alpha=0)
+    _save(fig_, out, "1-all-variants.png")
+    best = min(items, key=lambda t: t[1])
+    return (f"{best[0]} has the lowest CV MAPE at {best[1]:.2f}%. Orange bars would be variants that pass the shortlist rule; blue ones do not. "
+            "The dotted and dashed lines are the single-model references.")

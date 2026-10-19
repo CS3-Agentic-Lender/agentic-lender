@@ -1,2 +1,3 @@
 xgboost==3.4.1
 catboost==1.2.10
+gpboost==1.7.4
