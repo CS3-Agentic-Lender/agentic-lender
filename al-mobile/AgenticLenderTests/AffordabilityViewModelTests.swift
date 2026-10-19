@@ -18,6 +18,22 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertTrue(model.canCalculate)
     }
 
+    func testADisabledCalculateSaysWhatIsMissingFirst() {
+        let model = AffordabilityViewModel()
+        fill(model)
+        model.form.applicants = .joint
+
+        XCTAssertFalse(model.canCalculate)
+        XCTAssertEqual(model.calculateHint, "Enter the second applicant's gross yearly income")
+    }
+
+    func testNoHintOnceCalculateIsAllowed() {
+        let model = AffordabilityViewModel()
+        fill(model)
+
+        XCTAssertNil(model.calculateHint)
+    }
+
     func testNoErrorsShowBeforeAFieldIsLeft() {
         let model = AffordabilityViewModel()
 

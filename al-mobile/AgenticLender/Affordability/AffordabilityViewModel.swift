@@ -13,6 +13,12 @@ final class AffordabilityViewModel {
         AffordabilityValidator.errors(for: form).isEmpty
     }
 
+    /// Why Calculate is disabled: the first problem in screen order, even for a field not yet left,
+    /// so a grey button always comes with a reason. Nil once the form is valid.
+    var calculateHint: String? {
+        AffordabilityField.allCases.lazy.compactMap { AffordabilityValidator.error(for: $0, in: self.form) }.first
+    }
+
     var canIncreaseTerm: Bool { form.termYears < AffordabilityValidator.termRange.upperBound }
     var canDecreaseTerm: Bool { form.termYears > AffordabilityValidator.termRange.lowerBound }
 

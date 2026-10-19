@@ -40,11 +40,21 @@ struct AffordabilityFormView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: "Calculate", isEnabled: model.canCalculate) {
-                focused = nil
-                if let request = model.calculate() { onCalculate(request) }
+            VStack(spacing: 8) {
+                if let hint = model.calculateHint {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.mutedText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("affordability.calculateHint")
+                }
+                PrimaryButton(title: "Calculate", isEnabled: model.canCalculate) {
+                    focused = nil
+                    if let request = model.calculate() { onCalculate(request) }
+                }
+                .accessibilityHint(model.calculateHint ?? "")
+                .accessibilityIdentifier("affordability.calculate")
             }
-            .accessibilityIdentifier("affordability.calculate")
             .padding(Theme.screenPadding)
             .background(Theme.oat)
         }
@@ -110,7 +120,8 @@ struct AffordabilityFormView: View {
 private struct ApplicantsPicker: View {
     /// The selected segment sits inset by this much inside the track (Figma frame "Affordability form").
     private static let inset: CGFloat = 3
-    private static let segmentHeight: CGFloat = 34
+    /// Each segment is a full tap target on its own, not counting the inset.
+    private static let segmentHeight = Theme.minTapTarget
 
     @Binding var selection: AffordabilityForm.Applicants
 
