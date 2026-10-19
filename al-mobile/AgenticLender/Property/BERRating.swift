@@ -1,5 +1,5 @@
 /// A home's Building Energy Rating: the SEAI grades A1 to G, or Unknown.
-/// Raw values are what the valuation model accepts (Nic on AL-60).
+/// Raw values are what the valuation model accepts (Nic, on the valuation endpoint ticket).
 enum BERRating: String, CaseIterable, Identifiable, Hashable {
     case a1 = "A1", a2 = "A2", a3 = "A3"
     case b1 = "B1", b2 = "B2", b3 = "B3"

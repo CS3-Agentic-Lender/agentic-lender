@@ -1,6 +1,6 @@
 /// The home the borrower wants to buy, as typed into the application form's property step.
 ///
-/// The property type joins once Nic sends the values the valuation model accepts (asked on AL-99).
+/// The property type joins once Nic sends the values the valuation model accepts.
 struct ApplicationProperty: Equatable {
     static let defaultBedrooms = 3
     /// The bedroom counts al-core accepts.

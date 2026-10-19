@@ -24,7 +24,7 @@ struct ApplicationForm: Equatable {
         termYears = affordability.termYears
     }
 
-    /// Employment type, with the values agreed for the applications schema (AL-209).
+    /// Employment type, with the values agreed for the applications schema.
     enum Employment: String, CaseIterable {
         case employed
         case selfEmployed = "self_employed"
@@ -93,7 +93,7 @@ struct ApplicationDraft: Encodable, Equatable {
     }
 
     /// The JSON body for `POST /core/applications`. The property type joins the property
-    /// once Nic sends the values the valuation model accepts (asked on AL-99).
+    /// once Nic sends the values the valuation model accepts.
     func body() throws -> Data {
         try JSONEncoder().encode(self)
     }

@@ -9,7 +9,7 @@ import os
 @Observable
 final class ApplicationViewModel {
     static let savedMessage = "Draft saved. You can review and submit it next."
-    /// Changing the existing Draft is AL-101 (PATCH), so this promises nothing more.
+    /// Changing an existing Draft is the edit-a-draft work (PATCH), so this promises nothing more.
     static let existingDraftMessage = "You already have a draft application, so this one wasn't saved."
 
     var form: ApplicationForm

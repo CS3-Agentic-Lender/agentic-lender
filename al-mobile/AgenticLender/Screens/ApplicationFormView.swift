@@ -4,7 +4,7 @@ import SwiftUI
 ///
 /// "Save draft" saves it through `POST /core/applications`; reviewing and submitting is the next step.
 /// The home's details use the same controls as the HELOC check (Figma 07i). Property type joins
-/// once Nic sends the values the valuation model accepts (asked on AL-99).
+/// once Nic sends the values the valuation model accepts.
 struct ApplicationFormView: View {
     @State private var model: ApplicationViewModel
     @State private var isCountySheetShown = false

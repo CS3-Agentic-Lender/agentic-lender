@@ -2,7 +2,7 @@ import XCTest
 @testable import AgenticLender
 
 /// The BER grades the app offers for a home: the SEAI A1 to G grades, plus Unknown,
-/// which the valuation model accepts (Nic on AL-60).
+/// which the valuation model accepts (Nic, on the valuation endpoint ticket).
 final class BERRatingTests: XCTestCase {
     func testOffersTheFifteenSEAIGradesInOrderThenUnknown() {
         XCTAssertEqual(
