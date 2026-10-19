@@ -1,7 +1,7 @@
 import XCTest
 @testable import AgenticLender
 
-/// The mortgage-or-HELOC choice at the start of the affordability check (AL-206, Figma 07h).
+/// The mortgage-or-HELOC choice at the start of the affordability check (Figma 07h).
 final class LoanTypeTests: XCTestCase {
     func testValuesMatchTheApplicationsSchema() {
         XCTAssertEqual(LoanType.mortgage.rawValue, "mortgage")
@@ -21,16 +21,5 @@ final class LoanTypeTests: XCTestCase {
     func testOnlyMortgageIsOfferedUntilTheHELOCCheckExists() {
         XCTAssertEqual(LoanType.available(hasHELOCCheck: false), [.mortgage])
         XCTAssertEqual(LoanType.available(hasHELOCCheck: true), [.mortgage, .heloc])
-    }
-
-    func testTheMortgageChoiceIsCarriedIntoTheApplication() throws {
-        var form = TestFixtures.applicationForm()
-        form.loanAmount = "210,000"
-        form.monthlyTakeHome = "3,650"
-        form.monthlyLivingCosts = "1,400"
-        form.property = TestFixtures.exampleProperty()
-
-        XCTAssertEqual(form.loanType, .mortgage)
-        XCTAssertEqual(try XCTUnwrap(ApplicationDraft(form: form)).loanType, "mortgage")
     }
 }

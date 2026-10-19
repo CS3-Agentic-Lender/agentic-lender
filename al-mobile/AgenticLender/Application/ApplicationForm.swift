@@ -9,7 +9,7 @@ struct ApplicationForm: Equatable {
     let affordability: AffordabilityRequest
     /// The maximum loan from the affordability check, for the above-maximum warning.
     let maxLoanEur: Double
-    /// Chosen at the start of the affordability check (AL-206).
+    /// Chosen at the start of the affordability check.
     let loanType: LoanType
 
     var loanAmount = ""
@@ -20,7 +20,7 @@ struct ApplicationForm: Equatable {
     var monthlyLivingCosts = ""
     var property = ApplicationProperty()
 
-    init(affordability: AffordabilityRequest, maxLoanEur: Double, loanType: LoanType = .mortgage) {
+    init(affordability: AffordabilityRequest, maxLoanEur: Double, loanType: LoanType) {
         self.affordability = affordability
         self.maxLoanEur = maxLoanEur
         self.loanType = loanType
@@ -127,8 +127,11 @@ struct ApplicationDraft: Encodable, Equatable {
         try container.encode(applicants, forKey: .applicants)
         try container.encode(grossIncomeEur, forKey: .grossIncomeEur)
         try container.encode(monthlyDebtsEur, forKey: .monthlyDebtsEur)
-        try container.encode(depositEur, forKey: .depositEur)
-        try container.encode(firstTimeBuyer, forKey: .firstTimeBuyer)
+        // Deposit and first-time buyer only apply to a mortgage; al-core refuses them on a HELOC.
+        if loanType == LoanType.mortgage.rawValue {
+            try container.encode(depositEur, forKey: .depositEur)
+            try container.encode(firstTimeBuyer, forKey: .firstTimeBuyer)
+        }
         try container.encode(termYears, forKey: .termYears)
         try container.encode(loanAmountEur, forKey: .loanAmountEur)
         try container.encode(employmentType, forKey: .employmentType)

@@ -164,7 +164,7 @@ final class ApplicationValidatorTests: XCTestCase {
     }
 
     func testJointDraftCarriesTheHouseholdIncome() throws {
-        var form = ApplicationForm(affordability: TestFixtures.jointAffordabilityRequest(), maxLoanEur: 270_000)
+        var form = ApplicationForm(affordability: TestFixtures.jointAffordabilityRequest(), maxLoanEur: 270_000, loanType: .mortgage)
         form.loanAmount = "270,000"
         form.monthlyTakeHome = "5,200"
         form.monthlyLivingCosts = "2,000"
@@ -242,5 +242,7 @@ final class ApplicationValidatorTests: XCTestCase {
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: draft.body()) as? [String: Any])
 
         XCTAssertEqual(body["loan_type"] as? String, "heloc")
+        XCTAssertNil(body["deposit_eur"], "al-core refuses a deposit on a HELOC")
+        XCTAssertNil(body["first_time_buyer"], "al-core refuses first-time buyer on a HELOC")
     }
 }

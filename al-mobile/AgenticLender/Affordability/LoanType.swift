@@ -1,5 +1,5 @@
 /// What the borrower wants to borrow, chosen once at the start of the affordability check
-/// and carried into the application (AL-195). Raw values match the applications schema.
+/// and carried into the application. Raw values match the applications schema.
 enum LoanType: String, CaseIterable, Hashable {
     case mortgage
     case heloc

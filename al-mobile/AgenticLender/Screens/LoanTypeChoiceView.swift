@@ -12,7 +12,7 @@ struct LoanTypeChoiceView: View {
                     .font(.largeTitle.bold())
                     .foregroundStyle(Theme.text)
                     .accessibilityAddTraits(.isHeader)
-                Text("Choose what you want to borrow. You can change this later.")
+                Text("Choose what you want to borrow.")
                     .foregroundStyle(Theme.mutedText)
                     .padding(.bottom, 4)
 
@@ -34,7 +34,7 @@ struct LoanTypeChoiceView: View {
     @ViewBuilder
     private func destination(for loanType: LoanType) -> some View {
         switch loanType {
-        case .mortgage: AffordabilityFormView(service: affordabilityService)
+        case .mortgage: AffordabilityFormView(service: affordabilityService, loanType: loanType)
         case .heloc: EmptyView()
         }
     }

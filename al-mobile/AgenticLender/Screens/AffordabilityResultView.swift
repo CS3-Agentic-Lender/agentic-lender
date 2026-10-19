@@ -33,10 +33,7 @@ struct AffordabilityResultView: View {
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isApplying) {
-            ApplicationFormView(form: ApplicationForm(
-                affordability: outcome.request,
-                maxLoanEur: outcome.result.maxLoanEur
-            ))
+            ApplicationFormView(form: outcome.applicationForm())
         }
     }
 
@@ -126,7 +123,8 @@ private struct FigureRow: View {
         AffordabilityResultView(outcome: AffordabilityOutcome(
             request: AffordabilityRequest(form: form)!,
             result: result,
-            summary: AffordabilitySummary(result: result, termYears: 30, isFirstTimeBuyer: true)
+            summary: AffordabilitySummary(result: result, termYears: 30, isFirstTimeBuyer: true),
+            loanType: .mortgage
         ))
     }
 }

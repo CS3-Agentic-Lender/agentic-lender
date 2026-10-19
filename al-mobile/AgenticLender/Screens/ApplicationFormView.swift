@@ -262,6 +262,6 @@ private struct LoanWarning: View {
     affordability.monthlyDebts = "250"
     affordability.deposit = "30,000"
     return NavigationStack {
-        ApplicationFormView(form: ApplicationForm(affordability: AffordabilityRequest(form: affordability)!, maxLoanEur: 240_000))
+        ApplicationFormView(form: ApplicationForm(affordability: AffordabilityRequest(form: affordability)!, maxLoanEur: 240_000, loanType: .mortgage))
     }
 }
