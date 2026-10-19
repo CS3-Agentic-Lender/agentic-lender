@@ -75,7 +75,7 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 | Blockchain / ledger | Solidity, Hardhat, Ethers.js / Web3.py | `npx hardhat node` (optionally in Docker Compose) |
 | Agentic framework | LangGraph (see decision below) | Runs inside the al-ai FastAPI service |
 | Predictive ML | scikit-learn (or TensorFlow / Keras) | Trained locally, model file loaded by al-ai |
-| LLM inference | Ollama (local) + Groq / Gemini (cloud) | Ollama on laptops that can run it, see below |
+| LLM inference | Ollama (local, `qwen3.5:9b`) + Gemini and Mistral (cloud), Groq as the valuation agent's backup | Ollama on laptops that can run it, see below |
 | Payments + tooling | Stripe / PayPal sandbox, GitHub, Jira | Sandbox keys in `.env` |
 
 **Decision (Sep 2026): the Python API uses FastAPI.** The brief allows Flask or FastAPI; the team picked FastAPI.
@@ -85,6 +85,8 @@ The core stack comes from the brief's Technology Stack Summary and is fixed, exc
 **Decision (Sep 2026): the live site uses Amazon Bedrock for the local-model role.** The brief asks for a locally hosted model through Ollama. Exposing Ollama on a team laptop to a public site is a security risk, so the app deployed on AWS calls a model on Amazon Bedrock instead. Ollama stays in local development, and at the demo a local run of the app shows Ollama working. The two cloud LLM APIs are unchanged. Agreed with the supervisor. Budget alerts go on the AWS account before anything is deployed.
 
 **Decision (8 Oct 2026): the Bedrock model is Qwen3 32B.** On AWS, the affordability agent uses Qwen3 32B on Bedrock. Locally, it stays on `qwen3.5:9b` through Ollama. Both are Qwen models, so local runs and the live site behave alike.
+
+**Decision (Oct 2026): the valuation agent runs on Mistral Small 4, with Groq gpt-oss-120b as the backup.** The valuation agent was first planned on Groq's Llama 3.3 70B, but Groq's availability and rate limits made it a poor main model for the committee. Mistral Small 4 is the main model and Groq `gpt-oss-120b` is the backup, switched by hand: if Mistral is down, a person changes the agent's model setting. The code never falls back on its own, so the log of every call always shows the model that really answered. The other agents are unchanged: Gemini for Market & Macro and the strategist, and Ollama for the affordability agent. Two cloud APIs (Gemini, Mistral) plus Ollama still meet the brief, and Groq stays available as the third cloud API.
 
 **Decision (Oct 2026): the live site runs on AWS ECS Fargate behind one load balancer.** al-ai and al-core each run as one Fargate task (ARM64) in eu-west-1. One Application Load Balancer sends `/ai/*` to al-ai and `/core/*` to al-core on one host (`api.<domain>`), with HTTPS from a free AWS certificate. HTTPS needs a domain we own, so the team buys one. A WAF rate limit sits on the load balancer. Keys live in AWS Secrets Manager. The setup is written in Terraform and run with a few simple commands, so it can be built before the demo and destroyed after it. GitHub Actions builds the ARM64 images when code merges to `main` (laptops only build images for local testing) and a person starts each deploy.
 
