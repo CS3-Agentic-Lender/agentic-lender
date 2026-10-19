@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ApplicationSummary } from './clientsService';
+import { toApplicationSummary, type ApplicationSummary } from './clientsService';
 import { db } from './firebase';
 import {
   firestorePipelineService,
@@ -115,6 +115,8 @@ function application(id: string, updatedAt: Date | null = null): ApplicationSumm
     loanType: null,
     loanAmountEur: null,
     ltvPct: null,
+    ltvBand: null,
+    riskTier: null,
     updatedAt,
   };
 }
@@ -133,6 +135,13 @@ describe('reading a risk tier', () => {
 });
 
 describe('attaching risk tiers to applications', () => {
+  it('keeps the stored tier ahead of a different review tier', () => {
+    const stored = toApplicationSummary('stored', { ltvBand: 'over_90', riskTier: 'D', ltvPct: 85 });
+    expect(withRiskTiers([stored], new Map([['stored', 'A']]))[0]).toMatchObject({
+      ltvBand: 'over_90', ltvPct: 85, riskTier: 'D', storedRiskTier: 'D',
+    });
+  });
+
   it('gives each application its own tier and leaves the rest without one', () => {
     const tiers = new Map<string, RiskTier>([
       ['LN-1001', 'B'],
@@ -254,6 +263,47 @@ describe('an empty snapshot from the cache', () => {
 });
 
 describe('live pipeline subscription', () => {
+  it('uses stored fields independently and falls back for absent or invalid fields', () => {
+    const { listener, applications, tiers, stop } = subscribe();
+    applications.next({ docs: [
+      document('applications/both', { ltvBand: 'over_90', riskTier: 'D', ltvPct: 85 }),
+      document('applications/band-only', { ltvBand: '80_or_less', ltvPct: 95 }),
+      document('applications/tier-only', { riskTier: 'C', ltvPct: 85 }),
+      document('applications/invalid', { ltvBand: '>90%', riskTier: 'a', ltvPct: 75 }),
+      document('applications/neither', {}),
+    ] });
+    tiers.next({ docs: ['both', 'band-only', 'tier-only', 'invalid'].map((id) =>
+      document(`applications/${id}/review/underwriting`, { riskTier: 'B' }),
+    ) });
+
+    expect(listener.mock.lastCall?.[0].applications).toEqual([
+      expect.objectContaining({ id: 'band-only', ltvBand: '80_or_less', riskTier: 'B', storedRiskTier: null }),
+      expect.objectContaining({ id: 'both', ltvBand: 'over_90', riskTier: 'D', storedRiskTier: 'D' }),
+      expect.objectContaining({ id: 'invalid', ltvBand: null, riskTier: 'B', storedRiskTier: null }),
+      expect.objectContaining({ id: 'neither', ltvBand: null, riskTier: null, storedRiskTier: null }),
+      expect.objectContaining({ id: 'tier-only', ltvBand: null, riskTier: 'C', storedRiskTier: 'C' }),
+    ]);
+    stop();
+  });
+
+  it('keeps stored tiers when the fallback fails and updates them live', () => {
+    const { listener, applications, tiers, stop } = subscribe();
+    applications.next({ docs: [storedApplication] });
+    tiers.next({ docs: [storedTier] });
+    applications.next({ docs: [document('applications/LN-1001', {
+      ltvPct: 83, ltvBand: 'over_90', riskTier: 'D',
+    })] });
+    expect(listener.mock.lastCall?.[0].applications[0]).toMatchObject({
+      ltvBand: 'over_90', riskTier: 'D', storedRiskTier: 'D',
+    });
+    tiers.fail({ code: 'permission-denied' });
+    expect(listener.mock.lastCall?.[0]).toMatchObject({
+      applications: [{ ltvBand: 'over_90', riskTier: 'D', storedRiskTier: 'D' }],
+      riskTierState: 'unavailable',
+    });
+    stop();
+  });
+
   it('publishes applications first and merges tiers when they answer later', () => {
     const { listener, applications, tiers, onError, stop } = subscribe();
     expect(listener).not.toHaveBeenCalled();
@@ -262,7 +312,7 @@ describe('live pipeline subscription', () => {
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenLastCalledWith({
-      applications: [{ ...application('LN-1001'), ltvPct: 83, riskTier: null }],
+      applications: [{ ...application('LN-1001'), ltvPct: 83, riskTier: null, storedRiskTier: null }],
       riskTierState: 'pending', riskTierError: null,
     });
 
@@ -361,7 +411,7 @@ describe('live pipeline subscription', () => {
     applications.next({ docs: [document('applications/LN-1002', { status: 'Draft', ltvPct: 72 })] });
 
     expect(listener.mock.lastCall?.[0].applications).toEqual([
-      { id: 'LN-1002', status: 'Draft', loanType: null, loanAmountEur: null, ltvPct: 72, updatedAt: null, riskTier: null },
+      { ...application('LN-1002'), status: 'Draft', ltvPct: 72, storedRiskTier: null },
     ]);
     stop();
   });

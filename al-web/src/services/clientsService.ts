@@ -19,6 +19,15 @@ export const APPLICATION_STATUSES = [
   'Closed',
 ] as const;
 
+export const STORED_LTV_BANDS = ['80_or_less', '80_to_90', 'over_90'] as const;
+export const RISK_TIERS = ['A', 'B', 'C', 'D'] as const;
+export type StoredLtvBand = (typeof STORED_LTV_BANDS)[number];
+export type RiskTier = (typeof RISK_TIERS)[number];
+
+export function readRiskTier(value: unknown): RiskTier | null {
+  return RISK_TIERS.find((tier) => tier === value) ?? null;
+}
+
 // What every portal screen reads from an application document, whoever is looking at it.
 export interface ApplicationSummary {
   id: string;
@@ -26,6 +35,8 @@ export interface ApplicationSummary {
   loanType: string | null;
   loanAmountEur: number | null;
   ltvPct: number | null;
+  ltvBand?: StoredLtvBand | null;
+  riskTier?: RiskTier | null;
   updatedAt: Date | null;
 }
 
@@ -82,6 +93,8 @@ export function toApplicationSummary(id: string, data: DocumentData): Applicatio
     loanType: readString(data.loanType),
     loanAmountEur: readNumber(data.loanAmountEur),
     ltvPct: readNumber(data.ltvPct),
+    ltvBand: STORED_LTV_BANDS.find((band) => band === data.ltvBand) ?? null,
+    riskTier: readRiskTier(data.riskTier),
     updatedAt: readDate(data.updatedAt) ?? readDate(data.createdAt),
   };
 }

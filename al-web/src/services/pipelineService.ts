@@ -5,18 +5,24 @@ import {
   type DocumentData,
   type FirestoreError,
 } from 'firebase/firestore';
-import { newestFirst, toApplicationSummary, type ApplicationSummary } from './clientsService';
+import {
+  newestFirst,
+  readRiskTier,
+  toApplicationSummary,
+  type ApplicationSummary,
+  type RiskTier,
+} from './clientsService';
 import { db } from './firebase';
 
-export const RISK_TIERS = ['A', 'B', 'C', 'D'] as const;
-
-export type RiskTier = (typeof RISK_TIERS)[number];
+export { RISK_TIERS, readRiskTier, type RiskTier } from './clientsService';
 
 // Pending means the tier query has not answered; unavailable carries a separate failure reason.
 export type RiskTierState = 'pending' | 'available' | 'unavailable';
 
 export interface PipelineApplication extends ApplicationSummary {
   riskTier: RiskTier | null;
+  // Preserve the source so a pending or failed fallback cannot hide a stored tier.
+  storedRiskTier?: RiskTier | null;
 }
 
 export interface PipelineSnapshot {
@@ -31,11 +37,6 @@ export type PipelineErrorListener = (error: PipelineError) => void;
 
 export interface PipelineService {
   subscribeToPipeline(listener: PipelineListener, onError: PipelineErrorListener): () => void;
-}
-
-// Only a stored A, B, C or D is a tier. Nothing else is mapped to one.
-export function readRiskTier(value: unknown): RiskTier | null {
-  return RISK_TIERS.find((tier) => tier === value) ?? null;
 }
 
 // The application a review document belongs to, or null when the document is anything other
@@ -77,7 +78,11 @@ export function withRiskTiers(
   riskTiers: ReadonlyMap<string, RiskTier>,
 ): PipelineApplication[] {
   return applications
-    .map((application) => ({ ...application, riskTier: riskTiers.get(application.id) ?? null }))
+    .map((application) => ({
+      ...application,
+      storedRiskTier: application.riskTier ?? null,
+      riskTier: application.riskTier ?? riskTiers.get(application.id) ?? null,
+    }))
     .sort(newestFirst);
 }
 
@@ -120,8 +125,8 @@ export const firestorePipelineService: PipelineService = {
       listener({ applications: withRiskTiers(applications, riskTiers), riskTierState, riskTierError });
     };
 
-    // The rules let an underwriter read every application, so the whole collection is one
-    // query. Every document is kept, including one with no borrower.
+    // Keep one unfiltered applications listener and filter statuses client-side: the summary
+    // counts all applications, and orderBy('submittedAt') would silently drop Drafts without it.
     unsubscribers.push(
       onSnapshot(
         collection(db, 'applications'),
@@ -145,9 +150,8 @@ export const firestorePipelineService: PipelineService = {
       ),
     );
 
-    // The tier is read from applications/{id}/review/underwriting with one collection-group
-    // query. The rules on main allow an underwriter to read every review document. If the read
-    // fails anyway, the queue still lists applications and says tiers are unavailable.
+    // Keep review/underwriting as a tier fallback until al-ai writes the application fields.
+    // A valid stored tier always takes precedence over this collection-group listener.
     unsubscribers.push(
       onSnapshot(
         collectionGroup(db, 'review'),

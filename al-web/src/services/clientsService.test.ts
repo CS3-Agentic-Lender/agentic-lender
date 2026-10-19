@@ -87,6 +87,8 @@ describe('reading an application document', () => {
       loanType: null,
       loanAmountEur: 230000,
       ltvPct: 82.5,
+      ltvBand: null,
+      riskTier: null,
       updatedAt: createdAt.toDate(),
     });
   });

@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { PipelineServiceContext } from './context/PipelineContext';
 import { AppRoutes } from './routes';
+import { toApplicationSummary } from './services/clientsService';
+import { withRiskTiers } from './services/pipelineService';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
 import type {
   PipelineApplication,
@@ -150,6 +152,116 @@ function group(name: string) {
 afterEach(cleanup);
 
 describe('underwriter pipeline queue', () => {
+  it('uses the stored asking-price band while labelling the 85% figure as valuation LTV', async () => {
+    const rows = withRiskTiers([
+      toApplicationSummary('stored', { status: 'Applied', ltvBand: 'over_90', riskTier: 'D', ltvPct: 85 }),
+    ], new Map([['stored', 'A']]));
+    renderQueue(new FakePipelineService(queue(rows)));
+    await screen.findByRole('table');
+    expect(screen.getByRole('columnheader', { name: 'Valuation LTV' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('radio', { name: 'LTV band' }));
+    expect(within(group('>90%')).getByRole('rowheader', { name: 'stored' })).toBeInTheDocument();
+    expect(within(group('>90%')).getByText('85%')).toBeInTheDocument();
+    expect(screen.queryByRole('rowgroup', { name: '>80% to 90%' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Risk tier' }));
+    expect(within(group('Tier D')).getByText('D')).toBeInTheDocument();
+    expect(screen.queryByRole('rowgroup', { name: 'Tier A' })).not.toBeInTheDocument();
+  });
+
+  it('groups all stored bands and tiers and falls back for each missing field independently', async () => {
+    const rows = withRiskTiers([
+      toApplicationSummary('both', { status: 'Applied', ltvBand: '80_or_less', riskTier: 'A', ltvPct: 95 }),
+      toApplicationSummary('band-only', { status: 'Applied', ltvBand: '80_to_90', ltvPct: 75 }),
+      toApplicationSummary('tier-only', { status: 'Declined', riskTier: 'C', ltvPct: 95 }),
+      toApplicationSummary('high', { status: 'Declined', ltvBand: 'over_90', riskTier: 'D', ltvPct: 75 }),
+      toApplicationSummary('invalid', { status: 'Applied', ltvBand: 'OVER_90', riskTier: 'a', ltvPct: 75 }),
+      toApplicationSummary('neither', { status: 'Draft' }),
+    ], new Map([['both', 'D'], ['band-only', 'B'], ['tier-only', 'A'], ['invalid', 'B']]));
+    renderQueue(new FakePipelineService(queue(rows)));
+    await screen.findByRole('table');
+    const user = userEvent.setup();
+    expect(within(group('Applied')).getByText('3 applications')).toBeInTheDocument();
+    expect(within(group('Declined')).getByText('2 applications')).toBeInTheDocument();
+    expect(within(group('Draft')).getByText('1 application')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'LTV band' }));
+    for (const [label, ids] of [
+      ['<=80%', ['both', 'invalid']],
+      ['>80% to 90%', ['band-only']],
+      ['>90%', ['tier-only', 'high']],
+      ['No LTV yet', ['neither']],
+    ] as const) {
+      expect(within(group(label)).getAllByRole('rowheader')
+        .filter((row) => row.getAttribute('scope') === 'row')
+        .map((row) => row.textContent).sort()).toEqual([...ids].sort());
+      expect(within(group(label)).getByText(ids.length === 1 ? '1 application' : '2 applications')).toBeInTheDocument();
+    }
+    await user.click(screen.getByRole('radio', { name: 'Risk tier' }));
+    for (const [label, ids] of [
+      ['Tier A', ['both']], ['Tier B', ['band-only', 'invalid']],
+      ['Tier C', ['tier-only']], ['Tier D', ['high']], ['No risk tier yet', ['neither']],
+    ] as const) {
+      expect(within(group(label)).getAllByRole('rowheader')
+        .filter((row) => row.getAttribute('scope') === 'row')
+        .map((row) => row.textContent).sort()).toEqual([...ids].sort());
+    }
+    expect(within(group('No risk tier yet')).getByText('No tier yet')).toBeInTheDocument();
+  });
+
+  it('moves rows and group counts when stored fields arrive without reloading', async () => {
+    const raw = [
+      toApplicationSummary('moving', { status: 'Applied', ltvPct: 75 }),
+      toApplicationSummary('staying', { status: 'Applied', ltvPct: 75 }),
+    ];
+    const reviews = new Map<string, RiskTier>([['moving', 'A'], ['staying', 'A']]);
+    const pipeline = new FakePipelineService(queue(withRiskTiers(raw, reviews)));
+    renderQueue(pipeline);
+    await screen.findByRole('table');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('radio', { name: 'Risk tier' }));
+    expect(within(group('Tier A')).getByText('2 applications')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'LTV band' }));
+    expect(within(group('<=80%')).getByText('2 applications')).toBeInTheDocument();
+    act(() => pipeline.push(queue(withRiskTiers([
+      { ...raw[0], ltvBand: 'over_90', riskTier: 'D' }, raw[1],
+    ], reviews))));
+    expect(within(group('<=80%')).getByText('1 application')).toBeInTheDocument();
+    expect(within(group('>90%')).getByText('1 application')).toBeInTheDocument();
+    expect(within(group('>90%')).getByRole('rowheader', { name: 'moving' })).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Risk tier' }));
+    expect(within(group('Tier D')).getByRole('rowheader', { name: 'moving' })).toBeInTheDocument();
+    expect(within(group('Tier A')).getByText('1 application')).toBeInTheDocument();
+    expect(within(group('Tier D')).getByText('1 application')).toBeInTheDocument();
+    expect(pipeline.subscriptions).toHaveLength(1);
+  });
+
+  it.each(['pending', 'unavailable'] as const)(
+    'only shows fallback %s states for listed applications without a stored tier', async (state) => {
+      const stored = withRiskTiers([
+        toApplicationSummary('stored', { status: 'Applied', riskTier: 'C' }),
+      ], new Map());
+      const pipeline = new FakePipelineService(queue([
+        ...stored, application('fallback', 'Draft', null, null),
+      ], state, state === 'unavailable' ? 'permission-denied' : null));
+      renderQueue(pipeline);
+      await screen.findByRole('table');
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('radio', { name: 'Risk tier' }));
+      expect(within(group('Tier C')).getByText('C')).toBeInTheDocument();
+      const fallbackLabel = state === 'pending' ? 'Checking risk tiers' : 'Risk tier unavailable';
+      expect(within(group(fallbackLabel)).getByRole('rowheader', { name: 'fallback' })).toBeInTheDocument();
+      if (state === 'unavailable') {
+        expect(screen.getByText(/Risk tiers could not be read for this account/)).toBeInTheDocument();
+      }
+      await user.selectOptions(screen.getByLabelText('Status filter'), 'Applied');
+      expect(screen.queryByRole('rowgroup', { name: fallbackLabel })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Risk tiers could not be|Checking/)).not.toBeInTheDocument();
+      act(() => pipeline.push(queue(stored, state, state === 'unavailable' ? 'permission-denied' : null)));
+      await user.selectOptions(screen.getByLabelText('Status filter'), 'All statuses');
+      expect(screen.queryByText(/Risk tiers could not be|Checking/)).not.toBeInTheDocument();
+      expect(within(group('Tier C')).getByText('1 application')).toBeInTheDocument();
+    },
+  );
 
   it('shows applications while tiers are pending in one checking group without an unavailable notice', async () => {
     const withoutTiers = [applied, deliberated].map((item) => ({ ...item, riskTier: null }));
