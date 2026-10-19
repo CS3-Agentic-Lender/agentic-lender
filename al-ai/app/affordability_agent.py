@@ -6,6 +6,7 @@ gave it. A bad reply gets one retry with the error shown, then the step fails: t
 other provider to fall back to. Every attempt is logged and returned.
 """
 
+import http.client
 import json
 import logging
 import re
@@ -32,6 +33,11 @@ POLICY_NUMBERS = {0.0, 2.0, 3.5, 4.0, 40.0, 50.0, 500.0}
 
 OLLAMA_URL = "http://localhost:11434"
 TIMEOUT_S = 120
+
+
+# What a failed Ollama call raises: no connection or a timeout (OSError, which covers URLError), a cut-off
+# response, a body that isn't JSON, or JSON without "response". Anything else is a bug in our code and must show.
+PROVIDER_ERRORS = (OSError, http.client.HTTPException, json.JSONDecodeError, KeyError)
 
 
 class InvalidReply(ValueError):
@@ -87,7 +93,8 @@ def _allowed_numbers(facts: dict) -> set[float]:
     allowed = set(POLICY_NUMBERS)
     for v in facts.values():
         if isinstance(v, (int, float)) and not isinstance(v, bool):
-            allowed |= {float(v), round(v, 0), round(v, 1)}
+            # _numbers() drops the sign ("-1439.61" and "short by 1,439.61" both read as 1439.61), so compare sizes
+            allowed |= {abs(float(v)), round(abs(v), 0), round(abs(v), 1)}
     return allowed
 
 
@@ -102,9 +109,9 @@ def validate(raw: str, facts: dict) -> dict:
         raise InvalidReply("the reply must be one JSON object")
     if set(reply) != {"rating", "recommendation", "concerns", "conditions"}:
         raise InvalidReply('the fields must be exactly "rating", "recommendation", "concerns" and "conditions"')
-    if reply["rating"] not in RATINGS:
+    if not isinstance(reply["rating"], str) or reply["rating"] not in RATINGS:
         raise InvalidReply(f'"rating" must be one of {sorted(RATINGS)}')
-    if reply["recommendation"] not in RECOMMENDATIONS:
+    if not isinstance(reply["recommendation"], str) or reply["recommendation"] not in RECOMMENDATIONS:
         raise InvalidReply(f'"recommendation" must be one of {sorted(RECOMMENDATIONS)}')
     allowed = _allowed_numbers(facts)
     for name in ("concerns", "conditions"):
@@ -168,7 +175,7 @@ def run(facts: dict, call: Callable[[str], str], *, model: str, run_id: str) -> 
             attempt["outcome"] = "ok"
         except InvalidReply as e:
             attempt["outcome"], attempt["error"] = "invalid_reply", str(e)
-        except Exception as e:  # provider down, timeout, bad HTTP: retrying the same call won't repair it
+        except PROVIDER_ERRORS as e:  # provider down, timeout, bad HTTP: retrying the same call won't repair it
             attempt["outcome"], attempt["error"] = "provider_error", f"{type(e).__name__}: {e}"
         attempt["duration_s"] = round(time.monotonic() - t0, 3)
         attempts.append(attempt)

@@ -87,6 +87,9 @@ def test_two_bad_replies_fail_the_step_with_the_reason():
 
 @pytest.mark.parametrize("bad, text", [
     (json.dumps({"rating": "adequate"}), "exactly"),
+    (reply(rating=["strong"]), "rating"),
+    (reply(recommendation={"x": 1}), "recommendation"),
+    (reply(rating=None), "rating"),
     (reply(rating="great"), "rating"),
     (reply(recommendation="Maybe"), "recommendation"),
     (reply(concerns="one long string"), "concerns"),
@@ -108,6 +111,14 @@ def test_invented_figure_is_rejected():
 
 def test_supplied_figures_with_commas_and_rounding_are_accepted():
     ag.validate(reply(concerns=["Loan of 270,000 over 25 years, repayment 1425.16, stressed about 1740."]), FACTS)
+
+
+def test_negative_figures_can_be_quoted():
+    # net income 3,000 leaves a stressed surplus of -1439.61 (Adverse): the Adverse cases are the point.
+    short = ag.build_facts(**{**GOOD, "net_monthly_income": 3_000})
+    assert short["stressed_surplus_eur"] == -1439.61
+    ag.validate(reply(rating="unaffordable", recommendation="Decline", concerns=["Stressed surplus is -1439.61 a month."]), short)
+    ag.validate(reply(rating="unaffordable", recommendation="Decline", concerns=["The household is short by 1,439.61 a month."]), short)
 
 
 # ---- the reply cannot clear a band or a cap breach ----------------------------------------
@@ -139,6 +150,16 @@ def test_a_reply_that_tries_to_approve_a_breach_is_retried_then_fails():
 
 
 # ---- provider trouble ---------------------------------------------------------------------
+
+def test_wrongly_typed_field_is_an_invalid_reply_and_gets_the_repair_attempt():
+    r = run(Fake(reply(rating=["strong"]), reply()))
+    assert r.ok and [a["outcome"] for a in r.attempts] == ["invalid_reply", "ok"]
+
+
+def test_a_bug_in_our_own_code_is_not_hidden_as_a_provider_error():
+    with pytest.raises(RuntimeError):
+        run(Fake(RuntimeError("our bug")))
+
 
 def test_provider_error_fails_without_a_second_call():
     fake = Fake(ConnectionError("refused"))
