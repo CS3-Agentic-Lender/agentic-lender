@@ -60,7 +60,8 @@ def _save(fig, out: Path, name: str) -> None:
     plt.close(fig)
 
 
-def bars(out: Path, rows: list, five: tuple, base_label: str = "5 inputs\n(today)") -> str:
+def bars(out: Path, rows: list, five: tuple, base_label: str = "5 inputs\n(today)", blue_text: str = "5 inputs today, or another input the app could collect",
+         orange_text: str = "the proposed input") -> str:
     """rows: (label, HGB CV MAPE, CatBoost CV MAPE, reference_only, highlight). One bar pair per set of inputs. five is the (HGB, CatBoost) baseline."""
     fig, ax = plt.subplots(figsize=(11.5, 6.2))
     labels = [base_label] + [r[0] for r in rows]
@@ -78,7 +79,7 @@ def bars(out: Path, rows: list, five: tuple, base_label: str = "5 inputs\n(today
     ax.set_ylabel("typical error, CV MAPE % (lower is better)")
     ax.set_ylim(0, max(h + c) + 3)
     ax.set_title("Error for each set of inputs", loc="left", fontweight="bold")
-    ax.legend(handles=[Patch(color=BLUE, label="5 inputs today, or another input the app could collect"), Patch(color=ORANGE, label="the proposed input"),
+    ax.legend(handles=[Patch(color=BLUE, label=blue_text), Patch(color=ORANGE, label=orange_text),
                        Patch(facecolor=GREY, hatch="//", edgecolor="white", label="reference only: not collectable in the app"),
                        Patch(facecolor="#333", label="darker bar = HistGradientBoosting (the frozen model)"),
                        Patch(facecolor="#333", alpha=0.45, label="lighter bar = CatBoost (second check)")],

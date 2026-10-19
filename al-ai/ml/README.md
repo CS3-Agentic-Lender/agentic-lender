@@ -94,7 +94,25 @@ The Eircode key was found for 94.8% of rows (read from the end of the listing ti
 - The Daft CSV is not in git. Download it from Kaggle into `al-ai/data/raw/` and check the SHA-256 in `reports/data-readiness.md`.
 - The Eircode routing key is read from listing titles for training; at inference it comes from the application form's Eircode field, which is required on submit.
 
-## 9. Ideas to refine (the agenda)
+## 9. What the refinement agents found (19 Oct)
+
+Four agents explored refinements on the development folds only (the untouched 40% stayed untouched). Their reports are summarised here; the experiments that matter are in `reports/`.
+
+| Avenue | Finding |
+|---|---|
+| **More data** | No other dataset is likely to help much: the Eircode key already captures "where", and even exact coordinates only reach about 20%. Best candidate is the Property Price Register as an area price level (probably under 1 point, and its addresses are personal data: never commit them). Traps: scraping Daft or MyHome, Eircode's paid address database, using the sale price of the same house. |
+| **Other models** | LightGBM equals HistGradientBoosting. Random Forest, ExtraTrees and the MLP are worse. Blends of five models add 0.3 to 0.5 points, not worth shipping five models. |
+| **Tuning and features** | Tuning alone gives 0.4 to 0.7 points. Other encodings of the Eircode key, log area, ratios, winsorising and imputing missing area give nothing reliable. |
+| **Weighting by 1/price** | Lowers MAPE by 1.3 to 2 points, but only by making the model estimate about 4% low: typical miss and within-10% barely move, average miss in euro gets worse (€115,807 to €121,623) and R² falls from 0.68 to 0.56. A plain 0.95 shrink of the predictions gets most of the same MAPE gain. Not adopted: it optimises the metric, not the information. |
+| **Expected price** (`reports/expected-price-followup.md`) | Log area plus the routing key's smoothed price per m2, learned from training data. Checked for leakage (tests, two planted leaks caught, a shuffled-price canary with no gain). Real but small: 22.23 to 21.60 (HGB) and 21.78 to 21.40 (CatBoost), better in all five folds, below the 1-point rule, so not adopted. |
+| **Noise ceiling** | About 11% error looks unavoidable with these inputs (near-identical homes differ by about 14% in asking price). The gap from 11% to 22% is condition, exact location and seller whim. |
+| **Where the errors are** | The worst 5% of homes carry 24% of the error (cheap rural, derelict, pubs, big areas at tiny prices). A cleaning rule does not really improve the model: dropping those homes from scoring "gains" 1.5 points, but retraining without them and scoring everything gains 0.1. |
+| **Uncertainty** | Band-conformal prediction intervals reach 81% coverage for an 80% target at about plus or minus 31%. Show the app an estimate with a range, and a low-confidence warning for unusual homes (area over 300 m2, 8 or more bedrooms, cheapest range, missing Eircode). |
+| **Review threshold** | A v2 model needs its own calibration: the development proxy is about 38% against v1's 43.3%. |
+
+**Plan if the Eircode key is adopted:** v2 is five inputs plus the routing key, unweighted (about 22% CV MAPE), shown as an estimate with an 80% range. Tune it on log loss, calibrate its own review threshold, and score its own final test once. Everything beyond that is small or comes from estimating low.
+
+## 10. Ideas still open
 
 - **More data**: area-level context joined by routing key (Census, CSO price indices, rent data), the Property Price Register for sold prices, the SEAI BER database. Needs a feasibility and licence check.
 - **More models and tricks**: LightGBM, ExtraTrees, stacking, a loss closer to MAPE, other target transforms, monotonic constraints.

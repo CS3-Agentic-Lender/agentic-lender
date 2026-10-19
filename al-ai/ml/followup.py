@@ -81,7 +81,8 @@ def main():
     captions = [
         ("1-error-by-input-set.png", "Error: current v2 against the candidate",
          fig.bars(figs, [("Eircode key\n+ expected price", cand[h]["cv_mape"], cand["catboost"]["cv_mape"], False, True)],
-                  (cur[h]["cv_mape"], cur["catboost"]["cv_mape"]), base_label="Eircode key\n(current v2)")),
+                  (cur[h]["cv_mape"], cur["catboost"]["cv_mape"]), base_label="Eircode key\n(current v2)",
+                  blue_text="current v2: five inputs plus the Eircode key", orange_text="the candidate: expected price added")),
         ("2-every-fold-improves.png", "Error in each of the five folds",
          fig.folds(figs, {m: cur[m]["fold_mape"] for m in cur}, {m: cand[m]["fold_mape"] for m in cand})),
         ("3-share-of-estimates-within-x-percent.png", "How close do the estimates get?", fig.within(figs, y, p_cur, p_cand)),
