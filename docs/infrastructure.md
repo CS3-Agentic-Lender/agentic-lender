@@ -116,13 +116,13 @@ Status badges (the Badge component in the Figma file), background / text:
 
 | Tone | Colours | Used for |
 |---|---|---|
-| Neutral | `#EEEBE3` / `#3F4A44` | Applied, offline |
-| Tint | `#E8EFE7` / `#1E342E` | Current step, test mode |
-| Success | `#DCFCE7` / `#166534` | Good results (fair price, high score) |
+| Neutral | `#EEEBE3` / `#3F4A44` | Draft, Applied, Closed, offline |
+| Tint | `#E8EFE7` / `#1E342E` | AI Deliberated, current step, test mode |
+| Success | `#DCFCE7` / `#166534` | Underwriter Approved, Funded, good results (fair price, high score) |
 | Danger | `#FEE2E2` / `#991B1B` | Declined, over-priced, low score |
 | Pine | `#1E342E` / `#FFFCF4` | Emphasis (the borrower's limit) |
 
-Loan statuses pick from these tones, and the borrower app and the portal use the same mapping:
+Loan statuses pick from these tones, and the borrower app and the portal will use the same mapping:
 
 | Lifecycle status | Tone |
 |---|---|
