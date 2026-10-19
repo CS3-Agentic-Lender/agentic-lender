@@ -127,9 +127,9 @@ class FeatureBuilderV2(b.FeatureBuilder):
         return np.hstack(parts)
 
 
-def load_with_extras(seed: int):
+def load_with_extras(seed: int, also: tuple = ()):
     """The same development rows and folds as the frozen model, plus the extra columns read from the raw file by source row."""
-    df, y, _, _, _ = b.load_development(seed)
+    df, y, _, _, _ = b.load_development(seed, also)
     with dr.CSV_PATH.open(newline="", encoding="utf-8") as f:
         raw = list(csv.DictReader(f))
     rows = [raw[i - 1] for i in df["source_row"]]  # source_row is the 1-based data row number
