@@ -187,8 +187,12 @@ def main():
     print((out / "extra-inputs-report.md").read_text()[:3000])
 
 
-LABELS = {"eircode_routing_key": "Eircode\nrouting key", "bathrooms": "bathrooms", "construction_year": "build\nyear",
-          "town": "town", "coordinates": "coordinates"}
+LABELS = {"eircode_routing_key": "Eircode key", "bathrooms": "bathrooms", "construction_year": "build year", "town": "town", "coordinates": "coordinates"}
+
+
+def short_label(combo) -> str:
+    """A short x-axis label for a set of added inputs, stacked on separate lines so neighbours never overlap."""
+    return "all 5 extras" if len(combo) == len(LABELS) else "\n+ ".join(LABELS[c] for c in combo)
 
 
 def make_figures(out: Path, df, y, results, rows, oofs) -> list:
@@ -200,18 +204,18 @@ def make_figures(out: Path, df, y, results, rows, oofs) -> list:
     X, bands = df[b.FEATURE_COLUMNS], [float(np.percentile(y, q)) for q in (25, 50, 75)]
     seg5, sege = b.segments(X, y, p5, bands), b.segments(X, y, pe, bands)
     base = (results["five_inputs"][h]["cv_mape"], results["five_inputs"]["catboost"]["cv_mape"])
-    bar_rows = [(" + ".join(LABELS[c] for c in combo) if len(combo) < 3 else f"{len(combo)} inputs\ncombined", res[h]["cv_mape"], res["catboost"]["cv_mape"],
+    bar_rows = [(short_label(combo), res[h]["cv_mape"], res["catboost"]["cv_mape"],
                  any(CONFIG["additions"][c].get("reference_only") for c in combo), nm == name)
                 for combo, nm, res, *_ in rows]
     return [
         ("1-error-by-input-set.png", "Error for each set of inputs", fig.bars(out, bar_rows, base)),
-        ("2-every-fold-improves.png", "Each of the five folds",
+        ("2-every-fold-improves.png", "Error in each of the five folds",
          fig.folds(out, {m: results["five_inputs"][m]["fold_mape"] for m in results["five_inputs"]}, {m: results[name]["models"][m]["fold_mape"] for m in results["five_inputs"]})),
-        ("3-share-of-estimates-within-x-percent.png", "How close the estimates get", fig.within(out, y, p5, pe)),
+        ("3-share-of-estimates-within-x-percent.png", "How close do the estimates get?", fig.within(out, y, p5, pe)),
         ("4-estimate-versus-asking-price.png", "Estimate versus asking price", fig.density(out, y, p5, pe)),
-        ("5-price-band-confusion-matrix.png", "Price-band confusion matrix", fig.confusion_pair(out, y, p5, pe, bands)),
-        ("6-error-by-price-band-and-county.png", "Error by price band and county",
-         fig.segments(out, seg5["price_band"], sege["price_band"], seg5["county"], sege["county"])),
+        ("5-price-band-confusion-matrix.png", "Did the model pick the right price range? (confusion matrix)", fig.confusion_pair(out, y, p5, pe, bands)),
+        ("6-error-by-price-band-and-county.png", "Typical error by price range and county",
+         fig.segments(out, seg5["price_band"], sege["price_band"], seg5["county"], sege["county"], bands)),
         ("7-error-distribution.png", "Distribution of the error", fig.bias(out, y, p5, pe)),
     ]
 
