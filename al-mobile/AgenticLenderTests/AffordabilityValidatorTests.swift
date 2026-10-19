@@ -119,6 +119,35 @@ final class AffordabilityValidatorTests: XCTestCase {
         XCTAssertEqual(AffordabilityValidator.errors(for: form)[.secondIncome], "Enter an amount up to €10,000,000")
     }
 
+    func testAHugeSecondIncomeIsRejectedWithoutCrashing() {
+        var form = validForm()
+        form.applicants = .joint
+        form.secondIncome = "9223372036854775807"
+
+        XCTAssertEqual(AffordabilityValidator.errors(for: form)[.secondIncome], "Enter an amount up to €10,000,000")
+    }
+
+    func testJointIncomesAboveTenMillionTogetherAreRejectedOnTheSecondIncome() {
+        var form = validForm()
+        form.applicants = .joint
+        form.income = "6,000,000"
+        form.secondIncome = "6,000,000"
+
+        let errors = AffordabilityValidator.errors(for: form)
+        XCTAssertNil(errors[.income])
+        XCTAssertEqual(errors[.secondIncome], "Your two incomes together must be up to €10,000,000")
+        XCTAssertNil(AffordabilityRequest(form: form), "the API caps the household income at €10m")
+    }
+
+    func testJointIncomesOfExactlyTenMillionTogetherAreAllowed() {
+        var form = validForm()
+        form.applicants = .joint
+        form.income = "6,000,000"
+        form.secondIncome = "4,000,000"
+
+        XCTAssertEqual(AffordabilityValidator.errors(for: form), [:])
+    }
+
     func testSingleIgnoresAnySecondIncome() {
         var form = validForm()
         form.secondIncome = "nonsense"
