@@ -69,13 +69,32 @@ def test_the_main_eight_are_kept(ptype):
     assert why(Property_Type=ptype) is None
 
 
-def test_zero_floor_area_is_dropped_but_missing_area_is_kept():
+@pytest.mark.parametrize("area, kept", [("0", False), ("0.3", False), ("14.9", False), ("15", True), ("929", True),
+                                        ("1000", True), ("1000.5", False), ("1821087", False)])
+def test_floor_area_window_is_15_to_1000(area, kept):
     r = row()
-    r["Floor Area (m2)"] = "0"
-    assert dr.classify([r])[1]["Floor area is zero or negative"] == 1
+    r["Floor Area (m2)"] = area
+    assert (dr.classify([r])[0] != []) is kept
+
+
+def test_a_quarantined_area_is_counted_under_its_own_reason():
+    r = row()
+    r["Floor Area (m2)"] = "0.3"
+    assert dr.classify([r])[1]["Floor area outside 15 to 1,000 m2 (quarantined)"] == 1
+
+
+def test_expensive_homes_are_kept_the_rule_never_looks_at_price():
+    r = row(Price="10750000")
+    r["Floor Area (m2)"] = "929"
+    kept, _, _ = dr.classify([r])
+    assert kept[0]["price_eur"] == 10_750_000
+
+
+def test_missing_area_is_kept_for_the_benchmark_to_handle():
+    r = row()
     r["Floor Area (m2)"] = "N/A"
     kept, _, _ = dr.classify([r])
-    assert kept[0]["floor_area_m2"] is None  # kept: missing area is handled by the benchmark, not dropped
+    assert kept[0]["floor_area_m2"] is None
 
 
 def test_bedrooms_trailing_comma_is_cleaned_and_counted():

@@ -18,14 +18,15 @@ A row is counted under the first rule it breaks, in this order, so the table add
 | Dropped: Northern Ireland county | 53 |
 | Dropped: Missing or unknown county | 248 |
 | Dropped: Property type not supported | 25 |
-| **Kept for the model** | **10,308** |
+| Dropped: Floor area outside 15 to 1,000 m2 (quarantined) | 227 |
+| **Kept for the model** | **10,081** |
 | **Total** | **14,289** |
 
-Kept is 72.1% of the file. Supported property types: Detached, Semi-D, Terrace, End of Terrace, Bungalow, Apartment, Duplex, Townhouse. Republic of Ireland only.
+Kept is 70.6% of the file. Supported property types: Detached, Semi-D, Terrace, End of Terrace, Bungalow, Apartment, Duplex, Townhouse. Republic of Ireland only.
 
 ## Missing floor area
 
-1,932 of 10,308 kept rows (18.7%) have no floor area. Per the plan the main benchmark uses complete rows only: 8,376 complete rows. Any imputation is fitted inside each training fold.
+1,932 of 10,081 kept rows (19.2%) have no floor area. Per the plan the main benchmark uses complete rows only: 8,149 complete rows. Any imputation is fitted inside each training fold.
 
 ## BER
 
@@ -34,24 +35,24 @@ Legacy subgrades are coarsened to A to G bands. Range labels and sentinels (N/A,
 | Raw value | Band | Kept rows |
 | --- | --- | --- |
 | A1 | A | 26 |
-| A2 | A | 289 |
-| A3 | A | 235 |
+| A2 | A | 286 |
+| A3 | A | 231 |
 | B1 | B | 132 |
-| B2 | B | 396 |
-| B3 | B | 958 |
+| B2 | B | 393 |
+| B3 | B | 952 |
 | BER_PENDING | Unknown | 13 |
-| C1 | C | 1,093 |
-| C2 | C | 1,158 |
-| C3 | C | 1,047 |
-| D1 | D | 925 |
-| D2 | D | 830 |
-| E1 | E | 559 |
-| E2 | E | 428 |
-| F | F | 474 |
+| C1 | C | 1,084 |
+| C2 | C | 1,151 |
+| C3 | C | 1,028 |
+| D1 | D | 913 |
+| D2 | D | 820 |
+| E1 | E | 549 |
+| E2 | E | 423 |
+| F | F | 465 |
 | FG | Unknown | 1 |
-| G | G | 736 |
-| N/A | Unknown | 298 |
-| SI_666 | Unknown | 710 |
+| G | G | 724 |
+| N/A | Unknown | 202 |
+| SI_666 | Unknown | 688 |
 
 ## Property types and counties (kept rows)
 
@@ -59,46 +60,46 @@ A support warning means fewer than 50 examples are expected in the development s
 
 | Property type | Rows |  |
 | --- | --- | --- |
-| Detached | 4,195 |  |
-| Semi-D | 1,927 |  |
-| Terrace | 1,320 |  |
-| End of Terrace | 539 |  |
-| Bungalow | 770 |  |
-| Apartment | 1,302 |  |
-| Duplex | 124 |  |
-| Townhouse | 131 |  |
+| Detached | 4,019 |  |
+| Semi-D | 1,918 |  |
+| Terrace | 1,316 |  |
+| End of Terrace | 535 |  |
+| Bungalow | 741 |  |
+| Apartment | 1,299 |  |
+| Duplex | 123 |  |
+| Townhouse | 130 |  |
 
 | County | Rows |  |
 | --- | --- | --- |
-| Carlow | 95 |  |
-| Cavan | 138 |  |
-| Clare | 222 |  |
-| Cork | 1,385 |  |
-| Donegal | 434 |  |
-| Dublin | 2,880 |  |
-| Galway | 597 |  |
-| Kerry | 400 |  |
-| Kildare | 318 |  |
-| Kilkenny | 194 |  |
-| Laois | 172 |  |
-| Leitrim | 111 |  |
-| Limerick | 305 |  |
-| Longford | 86 |  |
-| Louth | 232 |  |
-| Mayo | 451 |  |
+| Carlow | 91 |  |
+| Cavan | 136 |  |
+| Clare | 216 |  |
+| Cork | 1,369 |  |
+| Donegal | 412 |  |
+| Dublin | 2,872 |  |
+| Galway | 534 |  |
+| Kerry | 395 |  |
+| Kildare | 311 |  |
+| Kilkenny | 186 |  |
+| Laois | 170 |  |
+| Leitrim | 107 |  |
+| Limerick | 298 |  |
+| Longford | 85 |  |
+| Louth | 229 |  |
+| Mayo | 432 |  |
 | Meath | 239 |  |
-| Monaghan | 60 | support warning |
-| Offaly | 136 |  |
-| Roscommon | 237 |  |
-| Sligo | 145 |  |
-| Tipperary | 284 |  |
-| Waterford | 187 |  |
-| Westmeath | 165 |  |
-| Wexford | 479 |  |
-| Wicklow | 356 |  |
+| Monaghan | 59 | support warning |
+| Offaly | 129 |  |
+| Roscommon | 232 |  |
+| Sligo | 139 |  |
+| Tipperary | 275 |  |
+| Waterford | 185 |  |
+| Westmeath | 160 |  |
+| Wexford | 465 |  |
+| Wicklow | 355 |  |
 
 ## Repeat adverts
 
-Kept rows fall into 10,200 property groups (same title and coordinates). 108 rows are repeat adverts of a property already in the data, and the largest group has 3 rows. A group is never split across the development, calibration and test partitions or across folds.
+Kept rows fall into 9,978 property groups (same title and coordinates). 103 rows are repeat adverts of a property already in the data, and the largest group has 3 rows. A group is never split across the development, calibration and test partitions or across folds.
 
-Residual uncertainty: 214 coordinate points carry more than one title (for example units in one building). These are treated as different properties, so some leakage between related units is possible.
+Residual uncertainty: 203 coordinate points carry more than one title (for example units in one building). These are treated as different properties, so some leakage between related units is possible.

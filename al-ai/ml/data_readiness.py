@@ -28,7 +28,11 @@ REPUBLIC_COUNTIES = {
     "Tipperary", "Waterford", "Westmeath", "Wexford", "Wicklow",
 }
 NORTHERN_IRELAND = {"Antrim", "Armagh", "Down", "Fermanagh", "Derry", "Tyrone"}
-SPARSE_BELOW = 50  # fewer development examples than this is a support warning, not a confidence bound
+# Plausible floor area for a home, decided before any model comparison. Areas under 15 are land in acres or hectares typed
+# as houses (0.05, 0.3), and areas over 1,000 are typos or square feet (up to 1,821,087). Genuine big homes (929 m2, EUR 10.75m)
+# stay in: the rule looks at area only, never at price. Quarantined rows are counted in the report, not deleted from the file.
+MIN_AREA_M2, MAX_AREA_M2 = 15, 1000
+SPARSE_BELOW = 50 # fewer development examples than this is a support warning, not a confidence bound
 DEVELOPMENT_SHARE = 0.6  # the 60/20/20 split keeps 60% of the kept rows for development
 
 # Legacy BER subgrades are coarsened to the ordered A to G bands. Ranges and sentinels are Unknown, never a guessed grade.
@@ -48,7 +52,7 @@ REASONS = [
     "Northern Ireland county",
     "Missing or unknown county",
     "Property type not supported",
-    "Floor area is zero or negative",
+    "Floor area outside 15 to 1,000 m2 (quarantined)",
     "Bedrooms not a valid number",
 ]
 
@@ -106,8 +110,8 @@ def classify(rows: list[dict]) -> tuple[list[dict], Counter, Counter]:
             why = "Property type not supported"
         area_raw = row["Floor Area (m2)"].strip()
         area = float(area_raw) if re.fullmatch(r"\d+(\.\d+)?", area_raw) else None
-        if why is None and area is not None and area <= 0:
-            why = "Floor area is zero or negative"
+        if why is None and area is not None and not MIN_AREA_M2 <= area <= MAX_AREA_M2:
+            why = "Floor area outside 15 to 1,000 m2 (quarantined)"
         beds_raw = row["Number of Bedrooms"].strip().rstrip(",")
         if why is None and not re.fullmatch(r"\d+", beds_raw):
             why = "Bedrooms not a valid number"
