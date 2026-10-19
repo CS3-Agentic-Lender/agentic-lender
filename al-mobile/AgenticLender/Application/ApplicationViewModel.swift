@@ -41,7 +41,8 @@ final class ApplicationViewModel {
 
     var isSaved: Bool { saveMessage != nil }
 
-    var canSave: Bool { !isSaving && !isLoading && !isReadOnly }
+    /// Off while the kept Draft failed to load, so the empty form can't be saved over it (Nic on #79).
+    var canSave: Bool { !isSaving && !isLoading && loadError == nil && !isReadOnly }
 
     /// Fills the form from the kept Draft, if there is one. A submitted application opens read-only;
     /// a finished one, or an id al-core no longer has, is forgotten so a new application can start.

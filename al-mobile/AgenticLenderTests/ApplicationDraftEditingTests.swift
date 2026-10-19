@@ -62,6 +62,25 @@ final class ApplicationDraftEditingTests: XCTestCase {
         XCTAssertEqual(model.form.loanAmount, "210,000")
     }
 
+    func testAFailedLoadCannotSaveTheEmptyFormOverTheDraft() async throws {
+        let service = FakeApplicationService()
+        service.loadOutcome = .failure(.network)
+        let model = model(service: service, draftIDs: FakeDraftIDStore(storedID: "app42"))
+        await model.loadSavedDraft()
+
+        model.form = TestFixtures.filledApplicationForm()
+        await model.save()
+
+        XCTAssertFalse(model.canSave)
+        XCTAssertTrue(service.edited.isEmpty)
+        XCTAssertTrue(service.saved.isEmpty)
+
+        service.loadOutcome = .success(try TestFixtures.storedApplication(status: "Draft"))
+        await model.loadSavedDraft()
+
+        XCTAssertTrue(model.canSave)
+    }
+
     // MARK: - Editable while Draft, read-only once submitted
 
     func testADraftCanBeChangedAndSavesToTheSameDraft() async throws {
