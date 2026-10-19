@@ -50,6 +50,7 @@ enum ApplicationField: CaseIterable, Hashable {
     case county
     case askingPrice
     case propertyType
+    case bedrooms
     case floorArea
     case berRating
 }

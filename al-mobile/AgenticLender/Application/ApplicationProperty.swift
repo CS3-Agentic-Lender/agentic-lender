@@ -1,6 +1,5 @@
 /// The home the borrower wants to buy, as typed into the application form's property step.
 struct ApplicationProperty: Equatable {
-    static let defaultBedrooms = 3
     /// The bedroom counts al-core accepts.
     static let bedroomsRange = 0...20
 
@@ -10,7 +9,8 @@ struct ApplicationProperty: Equatable {
     var county: County?
     var askingPrice = ""
     var propertyType: PropertyType?
-    var bedrooms = defaultBedrooms
+    /// Empty until the borrower picks a count, so nobody submits a number they never chose (Nic on #61).
+    var bedrooms: Int?
     var floorArea = ""
     var berRating: BERRating?
 }
@@ -33,6 +33,7 @@ struct PropertyDraft: Encodable, Equatable {
         guard let eircode = SignUpValidator.normalizedEircode(property.eircode),
               let county = property.county,
               let propertyType = property.propertyType,
+              let bedrooms = property.bedrooms,
               let berRating = property.berRating,
               let askingPrice = EuroAmount.parse(property.askingPrice),
               let floorArea = EuroAmount.parse(property.floorArea),
@@ -45,7 +46,7 @@ struct PropertyDraft: Encodable, Equatable {
         self.county = county.rawValue
         askingPriceEur = askingPrice
         self.propertyType = propertyType.rawValue
-        bedrooms = property.bedrooms
+        self.bedrooms = bedrooms
         floorAreaSqm = floorArea
         self.berRating = berRating.rawValue
     }

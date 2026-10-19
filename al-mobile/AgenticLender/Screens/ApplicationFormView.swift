@@ -154,6 +154,7 @@ struct ApplicationFormView: View {
                 amountField("Size", field: .floorArea, placeholder: "98", currency: false, unit: "m²")
                 BedroomsStepper(
                     count: model.form.property.bedrooms,
+                    error: model.visibleError(for: .bedrooms),
                     canDecrease: model.canDecreaseBedrooms,
                     canIncrease: model.canIncreaseBedrooms,
                     decrease: model.decreaseBedrooms,
@@ -230,7 +231,7 @@ struct ApplicationFormView: View {
         case .loanAmount: model.form.loanAmount
         case .askingPrice: model.form.property.askingPrice
         case .floorArea: model.form.property.floorArea
-        case .addressLine1, .eircode, .county, .propertyType, .berRating: ""
+        case .addressLine1, .eircode, .county, .propertyType, .bedrooms, .berRating: ""
         }
     }
 }

@@ -64,9 +64,11 @@ struct PropertyTypeMenu: View {
     }
 }
 
-/// Bedrooms with − / + either side of the count (Figma 07i). VoiceOver reads it as one adjustable element.
+/// Bedrooms with − / + either side of the count (Figma 07i), "–" until one is chosen.
+/// VoiceOver reads it as one adjustable element.
 struct BedroomsStepper: View {
-    let count: Int
+    let count: Int?
+    let error: String?
     let canDecrease: Bool
     let canIncrease: Bool
     let decrease: () -> Void
@@ -79,17 +81,22 @@ struct BedroomsStepper: View {
                 .foregroundStyle(Theme.text)
             HStack {
                 StepButton(systemImage: "minus", label: "Fewer bedrooms", isEnabled: canDecrease, action: decrease)
-                Text("\(count)")
+                Text(count.map(String.init) ?? "–")
                     .font(.body.monospacedDigit())
                     .foregroundStyle(Theme.text)
                     .frame(maxWidth: .infinity)
                 StepButton(systemImage: "plus", label: "More bedrooms", isEnabled: canIncrease, action: increase)
             }
             .frame(minHeight: Theme.fieldHeight)
+            if let error {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.error)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Bedrooms")
-        .accessibilityValue("\(count)")
+        .accessibilityValue(accessibilityValue)
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment: increase()
@@ -97,5 +104,10 @@ struct BedroomsStepper: View {
             @unknown default: break
             }
         }
+    }
+
+    private var accessibilityValue: String {
+        let value = count.map(String.init) ?? "not chosen"
+        return error.map { "\(value). Error: \($0)" } ?? value
     }
 }

@@ -55,6 +55,7 @@ final class ApplicationValidatorTests: XCTestCase {
         XCTAssertEqual(errors[.county], "Choose the county")
         XCTAssertEqual(errors[.askingPrice], "Enter the asking price")
         XCTAssertEqual(errors[.propertyType], "Choose the property type")
+        XCTAssertEqual(errors[.bedrooms], "Choose the number of bedrooms")
         XCTAssertEqual(errors[.floorArea], "Enter the floor area in m²")
         XCTAssertEqual(errors[.berRating], "Choose the BER rating")
     }

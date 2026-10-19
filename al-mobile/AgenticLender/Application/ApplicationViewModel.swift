@@ -71,8 +71,12 @@ final class ApplicationViewModel {
     var canDecreaseTerm: Bool { form.termYears > AffordabilityValidator.termRange.lowerBound }
     var canIncreaseYearsInJob: Bool { form.yearsInCurrentJob < ApplicationForm.yearsInJobRange.upperBound }
     var canDecreaseYearsInJob: Bool { form.yearsInCurrentJob > ApplicationForm.yearsInJobRange.lowerBound }
-    var canIncreaseBedrooms: Bool { form.property.bedrooms < ApplicationProperty.bedroomsRange.upperBound }
-    var canDecreaseBedrooms: Bool { form.property.bedrooms > ApplicationProperty.bedroomsRange.lowerBound }
+    var canIncreaseBedrooms: Bool {
+        form.property.bedrooms.map { $0 < ApplicationProperty.bedroomsRange.upperBound } ?? true
+    }
+    var canDecreaseBedrooms: Bool {
+        form.property.bedrooms.map { $0 > ApplicationProperty.bedroomsRange.lowerBound } ?? false
+    }
 
     func visibleError(for field: ApplicationField) -> String? {
         guard touched.contains(field) else { return nil }
@@ -92,7 +96,7 @@ final class ApplicationViewModel {
         case .loanAmount: form.loanAmount = regrouped
         case .askingPrice: form.property.askingPrice = regrouped
         case .floorArea: form.property.floorArea = regrouped
-        case .addressLine1, .eircode, .county, .propertyType, .berRating: break
+        case .addressLine1, .eircode, .county, .propertyType, .bedrooms, .berRating: break
         }
     }
 
@@ -116,13 +120,16 @@ final class ApplicationViewModel {
         form.yearsInCurrentJob -= 1
     }
 
+    /// The first + on an empty count gives one bedroom.
     func increaseBedrooms() {
         guard canIncreaseBedrooms else { return }
-        form.property.bedrooms += 1
+        form.property.bedrooms = form.property.bedrooms.map { $0 + 1 } ?? 1
+        markTouched(.bedrooms)
     }
 
     func decreaseBedrooms() {
-        guard canDecreaseBedrooms else { return }
-        form.property.bedrooms -= 1
+        guard canDecreaseBedrooms, let bedrooms = form.property.bedrooms else { return }
+        form.property.bedrooms = bedrooms - 1
+        markTouched(.bedrooms)
     }
 }

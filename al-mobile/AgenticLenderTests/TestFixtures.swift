@@ -43,6 +43,7 @@ enum TestFixtures {
             county: .cork,
             askingPrice: "380,000",
             propertyType: .semiDetached,
+            bedrooms: 3,
             floorArea: "98",
             berRating: .c2
         )
