@@ -103,6 +103,8 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `dtiPct` | number | no | Debt to income |
 | `aprPct` | number | no | Rate offered |
 | `approvalLikelihoodPct` | number | no | From the AI committee |
+| `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the purchase-price LTV: `loanAmountEur / property.askingPriceEur` for a mortgage, `(existingMortgageBalanceEur + loanAmountEur) / property.askingPriceEur` for a HELOC. Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
+| `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai after each run, with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
 | `decision` | map | no | Set by the underwriter. See below |
 | `loanNote` | map | no | Set at mint. See below |
 | `feeStatus` | string | no | `unpaid` or `paid` (EUR 150 appraisal fee) |
@@ -217,5 +219,45 @@ A borrower's saved property checks. Who reads it: that user. Written by al-core 
 2. **Loan terms for HELOC:** resolved. A HELOC uses `loanAmountEur` for the credit limit plus `existingMortgageBalanceEur`, and its LTV is the combined LTV.
 3. **Stress-test results:** stored, or calculated on demand by `/ai/portfolio/*`?
 4. **Custom feature:** extra fields once the team chooses it.
-5. **Risk tier rule:** what decides A to D? Proposal: A LTV ≤ 80% and DTI ≤ 30%; B ≤ 85% and ≤ 35%; C ≤ 90% and ≤ 40%; D otherwise. Nic to confirm.
-6. **LTV basis:** model valuation, or the lower of valuation and asking price? Nic to confirm.
+5. **Risk tier rule:** resolved on AL-64, see below.
+6. **LTV basis:** resolved on AL-64 for the band and tier: the purchase-price LTV (asking price). `ltvPct` stays the valuation-based figure.
+
+## Risk tier rule
+
+Worked out by al-ai from the stressed values after each committee run (and again on a re-run). The bands are al-ai's affordability labels: `Comfortable`, `Caution` or `Adverse`. The committee's vote is never an input. Count one concern for each of:
+
+1. the stressed DTI is in the Caution band
+2. the surplus is in the Caution band
+3. the purchase-price LTV is over 80%
+4. the price is flagged "price needs review", or the model support is low
+
+Then, checking D first:
+
+| Tier | When |
+|---|---|
+| D | Any Adverse band, or a Central Bank cap breach: the loan over 4x gross income for a first-time buyer, 3.5x otherwise, or the LTV over 90%. A HELOC always uses 3.5x and counts the existing mortgage plus the new loan, the same total its combined LTV uses |
+| C | 2 or more concerns |
+| B | Exactly 1 concern |
+| A | No concerns |
+
+`scripts/seed.js` has the same rule (`riskTier`) and `test/risk-tier.test.js` tests it.
+
+**Worked examples.** The same cases are in `test/risk-tier-examples.json`, which `test/risk-tier.test.js` checks; al-ai can load the file to test its version against the same answers.
+
+| Case | Application | Findings | Tier | Why |
+|---|---|---|---|---|
+| No concerns | FTB mortgage €270,000, income €75,000, price €337,500 | DTI Comfortable, surplus Comfortable | **A** | 80% LTV, 3.6x income, both bands Comfortable |
+| Stressed DTI in Caution | FTB mortgage €270,000, income €75,000, price €337,500 | DTI Caution, surplus Comfortable | **B** | 1 concern |
+| LTV over 80% | FTB mortgage €270,000, income €75,000, price €320,000 | DTI Comfortable, surplus Comfortable | **B** | 84.4% LTV: 1 concern |
+| Price needs review | FTB mortgage €270,000, income €75,000, price €337,500 | DTI Comfortable, surplus Comfortable, price needs review | **B** | 1 concern |
+| Price needs review and low model support | FTB mortgage €270,000, income €75,000, price €337,500 | DTI Comfortable, surplus Comfortable, price needs review, low model support | **B** | the same concern, counted once |
+| DTI and surplus both in Caution | FTB mortgage €270,000, income €75,000, price €337,500 | DTI Caution, surplus Caution | **C** | 2 concerns |
+| Four concerns | FTB mortgage €270,000, income €75,000, price €320,000 | DTI Caution, surplus Caution, price needs review | **C** | 4 concerns is still C, never D |
+| Surplus Adverse | FTB mortgage €270,000, income €75,000, price €337,500 | DTI Comfortable, surplus Adverse | **D** | any Adverse band |
+| LTV over 90% | FTB mortgage €270,000, income €75,000, price €295,000 | DTI Comfortable, surplus Comfortable | **D** | 91.5% LTV: Central Bank cap |
+| LTV exactly 90% | FTB mortgage €270,000, income €75,000, price €300,000 | DTI Comfortable, surplus Comfortable | **B** | 90% is not over the cap, but it is over 80% |
+| First-time buyer over 4x income | FTB mortgage €300,001, income €75,000, price €400,000 | DTI Comfortable, surplus Comfortable | **D** | 300,001 > 4 x 75,000 |
+| Second-time buyer exactly 3.5x income | non-FTB mortgage €262,500, income €75,000, price €400,000 | DTI Comfortable, surplus Comfortable | **A** | 262,500 = 3.5 x 75,000: not over |
+| HELOC over 3.5x counting the existing mortgage | HELOC €40,000 + €250,000 existing, income €80,000, price €500,000 | DTI Comfortable, surplus Comfortable | **D** | 40,000 + 250,000 = 290,000 > 280,000 |
+| HELOC exactly 3.5x counting the existing mortgage | HELOC €40,000 + €240,000 existing, income €80,000, price €500,000 | DTI Comfortable, surplus Comfortable | **A** | 40,000 + 240,000 = 280,000; 56% combined LTV |
+

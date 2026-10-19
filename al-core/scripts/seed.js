@@ -54,6 +54,45 @@ function canonicalJson(value) {
 
 const sha256 = (text) => crypto.createHash('sha256').update(text, 'utf8').digest('hex');
 
+// ---------- LTV band and risk tier (AL-64) ----------
+
+// Purchase-price LTV: the loan over the asking price, plus the existing mortgage for a HELOC (combined LTV).
+function purchasePriceLtvPct({ loanType, loanAmountEur, existingMortgageBalanceEur = 0, askingPriceEur }) {
+  const borrowed = loanType === 'heloc' ? loanAmountEur + existingMortgageBalanceEur : loanAmountEur;
+  return (borrowed / askingPriceEur) * 100;
+}
+
+// The three bands the underwriter's queue groups by.
+const LTV_BANDS = ['80_or_less', '80_to_90', 'over_90'];
+function ltvBand(ltvPct) {
+  if (ltvPct <= 80) return '80_or_less';
+  if (ltvPct <= 90) return '80_to_90';
+  return 'over_90';
+}
+
+// The risk tier rule agreed on AL-64. `findings` is what al-ai's run reports: the stressed DTI and
+// surplus bands ('Comfortable', 'Caution' or 'Adverse', the labels al-ai's affordability module returns), whether the price needs review and whether the
+// model support is low. The committee's vote is never an input.
+const RISK_TIERS = ['A', 'B', 'C', 'D'];
+function riskTier(app, findings) {
+  const ltvPct = purchasePriceLtvPct(app);
+  // A HELOC is borrowed on top of the existing mortgage, so its income cap counts both (like its LTV).
+  const totalMortgageEur = app.loanType === 'heloc' ? app.loanAmountEur + (app.existingMortgageBalanceEur || 0) : app.loanAmountEur;
+  const incomeMultiple = app.loanType === 'mortgage' && app.firstTimeBuyer ? 4 : 3.5;
+  const capBreach = totalMortgageEur > incomeMultiple * app.grossIncomeEur || ltvPct > 90;
+  const adverse = findings.stressedDti === 'Adverse' || findings.surplus === 'Adverse';
+  if (adverse || capBreach) return 'D';
+
+  const concerns = [
+    findings.stressedDti === 'Caution',
+    findings.surplus === 'Caution',
+    ltvPct > 80,
+    findings.priceNeedsReview || findings.lowModelSupport,
+  ].filter(Boolean).length;
+  if (concerns >= 2) return 'C';
+  return concerns === 1 ? 'B' : 'A';
+}
+
 // ---------- users ----------
 
 const users = [
@@ -101,7 +140,7 @@ function valuation(estimatedValueEur) {
 function application(spec) {
   const {
     id, borrowerId, brokerId, status, loanType = 'mortgage', grossIncomeEur, monthlyDebtsEur,
-    depositEur, firstTimeBuyer, loanAmountEur, termYears, askingPriceEur, estimatedValueEur,
+    depositEur, firstTimeBuyer, existingMortgageBalanceEur, loanAmountEur, termYears, askingPriceEur, estimatedValueEur,
     aprPct = 4.0, createdAt, submittedAt, updatedAt,
   } = spec;
 
@@ -111,21 +150,27 @@ function application(spec) {
     createdAt: at(createdAt), updatedAt: at(updatedAt),
   };
   if (loanType === 'mortgage') Object.assign(doc, { depositEur, firstTimeBuyer });
+  if (loanType === 'heloc') doc.existingMortgageBalanceEur = existingMortgageBalanceEur;
   if (submittedAt) doc.submittedAt = at(submittedAt);
 
   // Results exist once the AI review has run.
   const reviewed = ![STATUS.DRAFT, STATUS.APPLIED].includes(status);
   let review = null;
   if (reviewed) {
+    // al-ai sets both after its run; the queue filters on them next to status.
+    spec.riskTier = riskTier({ ...spec, loanType }, spec.findings);
     const repayment = monthlyRepaymentEur(loanAmountEur, aprPct, termYears);
     const incomeMonthly = Math.round(grossIncomeEur / 12);
     Object.assign(doc, {
       aiRunStatus: 'complete',
       estimatedValueEur,
-      ltvPct: round1((loanAmountEur / estimatedValueEur) * 100),
+      // On the valuation, as SCHEMA.md says; combined (with the existing mortgage) for a HELOC.
+      ltvPct: round1(((loanAmountEur + (loanType === 'heloc' ? existingMortgageBalanceEur : 0)) / estimatedValueEur) * 100),
       dtiPct: round1(((monthlyDebtsEur + repayment) / incomeMonthly) * 100),
       aprPct,
       approvalLikelihoodPct: spec.approvalLikelihoodPct,
+      ltvBand: ltvBand(purchasePriceLtvPct({ ...spec, loanType })),
+      riskTier: spec.riskTier,
     });
     review = {
       applicationId: id,
@@ -160,14 +205,16 @@ const applications = [
     id: 'app-deliberated', borrowerId: 'borrower1', brokerId: 'broker1', status: STATUS.AI_DELIBERATED,
     grossIncomeEur: 75000, monthlyDebtsEur: 300, depositEur: 40000, firstTimeBuyer: true,
     loanAmountEur: 265000, termYears: 30, askingPriceEur: 310000, estimatedValueEur: 306000,
-    approvalLikelihoodPct: 78, riskTier: 'B',
+    approvalLikelihoodPct: 78,
+    findings: { stressedDti: 'Caution', surplus: 'Comfortable' },
     createdAt: '2026-09-28T10:00:00Z', submittedAt: '2026-09-29T09:00:00Z', updatedAt: '2026-09-29T09:06:00Z',
   }),
   application({
     id: 'app-approved', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.UNDERWRITER_APPROVED,
-    loanType: 'heloc', grossIncomeEur: 92000, monthlyDebtsEur: 1100,
+    loanType: 'heloc', grossIncomeEur: 92000, monthlyDebtsEur: 1100, existingMortgageBalanceEur: 180000,
     loanAmountEur: 60000, termYears: 15, askingPriceEur: 420000, estimatedValueEur: 415000,
-    approvalLikelihoodPct: 84, riskTier: 'A',
+    approvalLikelihoodPct: 84,
+    findings: { stressedDti: 'Comfortable', surplus: 'Comfortable' },
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-30T14:00:00Z', reason: 'Low LTV and DTI within limits' },
     createdAt: '2026-09-25T10:00:00Z', submittedAt: '2026-09-26T09:00:00Z', updatedAt: '2026-09-30T14:00:00Z',
   }),
@@ -175,15 +222,17 @@ const applications = [
     id: 'app-declined', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.DECLINED,
     grossIncomeEur: 41000, monthlyDebtsEur: 650, depositEur: 15000, firstTimeBuyer: true,
     loanAmountEur: 245000, termYears: 35, askingPriceEur: 270000, estimatedValueEur: 258000,
-    approvalLikelihoodPct: 22, riskTier: 'D',
+    approvalLikelihoodPct: 22,
+    findings: { stressedDti: 'Adverse', surplus: 'Caution' },
     decision: { outcome: 'declined', underwriterId: 'underwriter1', decidedAt: '2026-09-24T15:00:00Z', reason: 'Loan above income limit and LTV over 90%' },
     createdAt: '2026-09-20T10:00:00Z', submittedAt: '2026-09-21T09:00:00Z', updatedAt: '2026-09-24T15:00:00Z',
   }),
   application({
     id: 'app-funded', borrowerId: 'borrower1', brokerId: 'broker1', status: STATUS.FUNDED,
     grossIncomeEur: 88000, monthlyDebtsEur: 200, depositEur: 60000, firstTimeBuyer: false,
-    loanAmountEur: 300000, termYears: 30, askingPriceEur: 365000, estimatedValueEur: 366000,
-    approvalLikelihoodPct: 91, riskTier: 'A', funded: true,
+    loanAmountEur: 290000, termYears: 30, askingPriceEur: 365000, estimatedValueEur: 366000,
+    approvalLikelihoodPct: 91,
+    findings: { stressedDti: 'Comfortable', surplus: 'Comfortable' }, funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-18T11:00:00Z', reason: 'Strong affordability' },
     createdAt: '2026-09-10T10:00:00Z', submittedAt: '2026-09-11T09:00:00Z', updatedAt: '2026-09-18T11:30:00Z',
   }),
@@ -191,7 +240,8 @@ const applications = [
     id: 'app-closed', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.CLOSED,
     grossIncomeEur: 70000, monthlyDebtsEur: 150, depositEur: 50000, firstTimeBuyer: false,
     loanAmountEur: 240000, termYears: 25, askingPriceEur: 300000, estimatedValueEur: 302000,
-    approvalLikelihoodPct: 88, riskTier: 'B', funded: true,
+    approvalLikelihoodPct: 88,
+    findings: { stressedDti: 'Comfortable', surplus: 'Caution' }, funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-08T11:00:00Z', reason: 'Within lending rules' },
     createdAt: '2026-09-01T10:00:00Z', submittedAt: '2026-09-02T09:00:00Z', updatedAt: '2026-09-15T10:00:00Z',
   }),
@@ -306,10 +356,22 @@ function build() {
   return writes;
 }
 
+// The queue needs something in every group to demo against (AL-64, criterion 4).
+function checkCoverage(writes) {
+  const apps = writes.filter((w) => /^applications\/[^/]+$/.test(w.path)).map((w) => w.data);
+  const missing = [
+    ...Object.values(STATUS).filter((v) => !apps.some((a) => a.status === v)).map((v) => `status ${v}`),
+    ...LTV_BANDS.filter((v) => !apps.some((a) => a.ltvBand === v)).map((v) => `LTV band ${v}`),
+    ...RISK_TIERS.filter((v) => !apps.some((a) => a.riskTier === v)).map((v) => `risk tier ${v}`),
+  ];
+  if (missing.length) throw new Error(`Seed data has no application with: ${missing.join(', ')}`);
+}
+
 // ---------- write to the emulators ----------
 
 async function seed() {
   const writes = build();
+  checkCoverage(writes);
 
   if (DRY_RUN) {
     const counts = {};
@@ -320,6 +382,11 @@ async function seed() {
     }
     console.log(`Dry run: ${users.length} Auth users and ${writes.length} Firestore documents`);
     console.table(counts);
+    console.table(
+      writes
+        .filter((w) => /^applications\/[^/]+$/.test(w.path))
+        .map((w) => ({ id: w.path.split('/')[1], status: w.data.status, ltvBand: w.data.ltvBand || '-', riskTier: w.data.riskTier || '-' })),
+    );
     return;
   }
 
@@ -349,7 +416,12 @@ async function seed() {
   console.log(`Seed complete: ${users.length} users, ${applications.length} applications, ${writes.length} documents`);
 }
 
-seed().then(() => process.exit(0)).catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// The rules are exported for the tests (test/risk-tier.test.js); running the file seeds.
+module.exports = { purchasePriceLtvPct, ltvBand, riskTier, build, checkCoverage };
+
+if (require.main === module) {
+  seed().then(() => process.exit(0)).catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
