@@ -21,6 +21,52 @@ Gain is the drop in CV MAPE in points (positive is better) compared with the fiv
 
 **Rule for proposing (fixed beforehand):** an input the app already collects needs a gain of at least 1.0 point in both models and in all five folds. A new form field needs 2.0 points. Town and coordinates are upper-bound references only.
 
+## Pictures
+
+All figures use out-of-fold predictions on the development split: every point is a prediction for a house the model was not trained on. Blue is the five inputs the model uses today, orange the proposed extra input.
+
+### 1. Error for each set of inputs
+
+![Error for each set of inputs](figures/1-error-by-input-set.png)
+
+5 inputs combined moves CV MAPE from 26.72% to 19.85% (HistGradientBoosting) and from 26.14% to 19.53% (CatBoost). Orange is the proposed input, blue the other app-collectable inputs, and hatched grey the reference-only ones (town and coordinates), which show how much more there is to gain.
+
+### 2. Each of the five folds
+
+![Each of the five folds](figures/2-every-fold-improves.png)
+
+The Eircode key lowers the error in all five folds for both models. The smallest single-fold gain is 3.82 points, so this is not one lucky fold.
+
+### 3. How close the estimates get
+
+![How close the estimates get](figures/3-share-of-estimates-within-x-percent.png)
+
+Within 10% of the asking price: 27.6% to 34.5%. Within 20%: 52.0% to 60.7%. Within 30%: 69.0% to 77.7%.
+
+### 4. Estimate versus asking price
+
+![Estimate versus asking price](figures/4-estimate-versus-asking-price.png)
+
+Each patch counts houses (darker is more). The closer the cloud hugs the solid line, the better the estimate. The share within the dotted ±10% lines is in each panel title.
+
+### 5. Price-band confusion matrix
+
+![Price-band confusion matrix](figures/5-price-band-confusion-matrix.png)
+
+This is the regression version of a confusion matrix: homes are split into four price bands (cut at the development quartiles €270,000, €385,000, €550,000) and each row shows where the model placed them. Right band: 60.6% to 67.4%. Right band or the one next to it: 95.8% to 97.0%.
+
+### 6. Error by price band and county
+
+![Error by price band and county](figures/6-error-by-price-band-and-county.png)
+
+The error is lower in 4 of 4 price bands and in 8 of the 8 biggest counties. The biggest county gain is Wicklow (32.7% to 22.0%).
+
+### 7. Distribution of the error
+
+![Distribution of the error](figures/7-error-distribution.png)
+
+The median error is +0.9% with 5 inputs and +0.6% with the Eircode key (0% means no systematic over- or under-estimate). The spread of errors (standard deviation) goes from 34 to 30 percentage points. Some very large misses remain.
+
 ## What the Eircode key does and what the rest adds
 
 - Adding bathrooms on top of the Eircode key changes CV MAPE by -0.31 points (HistGradientBoosting) and -0.11 (CatBoost). Negative means more accurate.
