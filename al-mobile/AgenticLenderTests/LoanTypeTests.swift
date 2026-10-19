@@ -28,6 +28,7 @@ final class LoanTypeTests: XCTestCase {
         form.loanAmount = "210,000"
         form.monthlyTakeHome = "3,650"
         form.monthlyLivingCosts = "1,400"
+        form.property = TestFixtures.exampleProperty()
 
         XCTAssertEqual(form.loanType, .mortgage)
         XCTAssertEqual(try XCTUnwrap(ApplicationDraft(form: form)).loanType, "mortgage")

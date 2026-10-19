@@ -236,6 +236,7 @@ final class ApplicationValidatorTests: XCTestCase {
         form.loanAmount = filled.loanAmount
         form.monthlyTakeHome = filled.monthlyTakeHome
         form.monthlyLivingCosts = filled.monthlyLivingCosts
+        form.property = filled.property
         let draft = try XCTUnwrap(ApplicationDraft(form: form))
 
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: draft.body()) as? [String: Any])
