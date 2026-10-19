@@ -124,3 +124,10 @@ def test_with_equal_new_fields_the_more_accurate_one_wins():
 
 def test_nothing_is_recommended_when_nothing_passes():
     assert ex.recommend([row(["bathrooms"], 25.0, ok=False)]) is None
+
+
+def test_chart_labels_are_short_and_stacked_so_they_cannot_overlap():
+    assert ex.short_label(["eircode_routing_key"]) == "Eircode key"
+    assert ex.short_label(["eircode_routing_key", "bathrooms"]) == "Eircode key\n+ bathrooms"
+    assert ex.short_label(list(ex.LABELS)) == "all 5 extras"
+    assert all(len(line) <= 14 for c in ex.CONFIG["combinations"] for line in ex.short_label(c).split("\n"))

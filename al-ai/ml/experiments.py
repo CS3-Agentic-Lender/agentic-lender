@@ -20,10 +20,11 @@ import pandas as pd
 from ml import benchmark as b
 from ml import data_readiness as dr
 from ml import figures as fig
+from ml import split
 
 HERE = Path(__file__).resolve().parent
 CONFIG = json.loads((HERE / "experiments_config.json").read_text())
-EXTRA_COLUMNS = ["rkey", "bathrooms", "built_year", "town", "lat", "lon"]
+EXTRA_COLUMNS = ["rkey", "bathrooms", "built_year", "town", "lat", "lon", "group"]
 
 # Eircode routing keys: a letter and two digits (D14, V92) or D6W, from the allowed letters.
 EIRCODE = re.compile(r"\b([ACDEFHKNPRTVWXY]\d{2}|D6W)\s?[0-9ACDEFHKNPRTVWXY]{4}\b", re.I)
@@ -36,11 +37,36 @@ def routing_key(title: str) -> str | None:
 
 
 class FeatureBuilderV2(b.FeatureBuilder):
-    """The five inputs plus any of the extras. Frequent categories and fill values are learned from training rows only."""
+    """The five inputs plus any of the extras. Frequent categories and fill values are learned from training rows only.
 
-    def __init__(self, extras=(), min_count=10):
+    "expected_price" is log(area) plus the routing key's smoothed mean log(price per m2), a lookup table learned from the
+    training rows. For the training rows themselves it is computed out-of-fold over whole property groups (see fit_transform),
+    so a row's own price, and its repeat adverts' prices, can never feed its own feature."""
+
+    def __init__(self, extras=(), min_count=10, smoothing=10.0, inner_folds=5, seed=42):
         self.extras = tuple(extras)
         self.min_count = min_count
+        self.smoothing = smoothing
+        self.inner_folds = inner_folds
+        self.seed = seed
+
+    @staticmethod
+    def _keys(X) -> np.ndarray:
+        return X["rkey"].fillna("Unknown").to_numpy(dtype=object)
+
+    def _table(self, X, y, rows):
+        """Smoothed mean of log(price per m2) per routing key, from the given rows only: (table, overall mean)."""
+        t = np.asarray(y, float)[rows] - np.log(X["floor_area_m2"].to_numpy(float)[rows])
+        overall = float(t.mean())
+        s = {}
+        for k, v in zip(self._keys(X)[rows], t):
+            tot, n = s.get(k, (0.0, 0))
+            s[k] = (tot + v, n + 1)
+        return {k: (tot + self.smoothing * overall) / (n + self.smoothing) for k, (tot, n) in s.items()}, overall
+
+    def _expected(self, X, table, overall) -> np.ndarray:
+        ppm = np.array([table.get(k, overall) for k in self._keys(X)])
+        return ppm + np.log(X["floor_area_m2"].to_numpy(float))
 
     def fit(self, X, y=None):
         super().fit(X, y)
@@ -49,7 +75,26 @@ class FeatureBuilderV2(b.FeatureBuilder):
         self.towns_ = frequent("town") if "town" in self.extras else []
         med = lambda col: float(np.nanmedian(X[col])) if X[col].notna().any() else 0.0
         self.built_fill_, self.lat_fill_, self.lon_fill_ = med("built_year"), med("lat"), med("lon")
+        if "expected_price" in self.extras:
+            self.table_, self.overall_ = self._table(X, y, np.arange(len(X)))  # learned from every training row, used for rows scored later
         return self
+
+    def fit_transform(self, X, y=None, **fit_params):
+        """Training rows get an out-of-fold expected price, never the full-table one that includes their own price."""
+        self.fit(X, y)
+        expected = None
+        if "expected_price" in self.extras:
+            if "group" not in X:
+                raise ValueError("expected_price needs the property group of each training row, so a row's own price cannot leak into its feature")
+            groups = [{"source_row": i, "group": g} for i, g in enumerate(X["group"])]
+            fold_of = split.folds(groups, self.inner_folds, self.seed)
+            inner = np.array([fold_of[i] for i in range(len(X))])
+            expected = np.empty(len(X))
+            for k in range(self.inner_folds):
+                hold = inner == k
+                table, overall = self._table(X, y, np.where(~hold)[0])
+                expected[hold] = self._expected(X[hold], table, overall)
+        return self._build(X, expected)
 
     @staticmethod
     def _category(values: pd.Series, keep: list) -> np.ndarray:
@@ -61,6 +106,10 @@ class FeatureBuilderV2(b.FeatureBuilder):
         return np.column_stack(cols).astype(float)
 
     def transform(self, X):
+        expected = self._expected(X, self.table_, self.overall_) if "expected_price" in self.extras else None
+        return self._build(X, expected)
+
+    def _build(self, X, expected):
         parts = [super().transform(X)]
         if "eircode_routing_key" in self.extras:
             parts.append(self._category(X["rkey"], self.keys_))
@@ -73,6 +122,8 @@ class FeatureBuilderV2(b.FeatureBuilder):
             parts.append(self._category(X["town"], self.towns_))
         if "coordinates" in self.extras:
             parts.append(np.column_stack([X["lat"].fillna(self.lat_fill_), X["lon"].fillna(self.lon_fill_)]))
+        if expected is not None:
+            parts.append(expected[:, None])
         return np.hstack(parts)
 
 
@@ -90,6 +141,10 @@ def load_with_extras(seed: int):
     df["bathrooms"] = [num(r["Number of Bathrooms"]) for r in rows]
     df["built_year"] = [year(r["Date of Construction"]) for r in rows]
     df["town"] = [r["Area"].strip() or None for r in rows]
+    with dr.CSV_PATH.open(newline="", encoding="utf-8") as f:
+        kept, _, _ = dr.classify(list(csv.DictReader(f)))
+    group_of = {r["source_row"]: r["group"] for r in kept}
+    df["group"] = [group_of[i] for i in df["source_row"]]  # repeat adverts of one property share a group
     df["lat"] = [signed(r["Latitude"]) for r in rows]
     df["lon"] = [signed(r["Longitude"]) for r in rows]
     return df, y

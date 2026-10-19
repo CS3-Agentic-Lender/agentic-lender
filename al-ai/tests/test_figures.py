@@ -43,9 +43,13 @@ def test_every_figure_is_written_with_a_takeaway(tmp_path):
     texts = [
         fg.bars(tmp_path, [("a", 22.0, 21.0, False, True), ("b", 26.0, 25.0, False, False), ("c", 20.0, 19.0, True, False)], (26.7, 26.1)),
         fg.folds(tmp_path, folds, better), fg.within(tmp_path, y, p5, pe), fg.density(tmp_path, y, p5, pe),
-        fg.confusion_pair(tmp_path, y, p5, pe, edges), fg.segments(tmp_path, seg(p5), seg(pe), cty(0), cty(3)), fg.bias(tmp_path, y, p5, pe),
+        fg.confusion_pair(tmp_path, y, p5, pe, edges), fg.segments(tmp_path, seg(p5), seg(pe), cty(0), cty(3), edges), fg.bias(tmp_path, y, p5, pe),
     ]
     assert len(list(tmp_path.glob("*.png"))) == 7 and all(isinstance(t, str) and len(t) > 30 for t in texts)
+
+
+def test_price_ranges_are_labelled_in_euro_not_cheapest_and_dearest():
+    assert fg.band_labels([270_000.0, 385_000.0, 550_000.0]) == ["under €270k", "€270k to €385k", "€385k to €550k", "over €550k"]
 
 
 def test_the_folds_title_does_not_claim_every_fold_when_one_got_worse(tmp_path):

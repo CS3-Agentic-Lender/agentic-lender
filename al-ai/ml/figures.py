@@ -16,6 +16,13 @@ import numpy as np  # noqa: E402
 from matplotlib.patches import Patch, Rectangle  # noqa: E402
 
 BLUE, ORANGE, GREY, RED = "#4C78A8", "#F58518", "#9AA0A6", "#D62728"
+# What the blue and the orange series are called. set_labels() changes them for a different comparison.
+A_LONG, B_LONG, A_SHORT, B_SHORT, B_NAME = "5 inputs (today)", "+ Eircode routing key", "5 inputs", "+ Eircode key", "the Eircode key"
+
+
+def set_labels(a_long: str, b_long: str, a_short: str, b_short: str, b_name: str) -> None:
+    global A_LONG, B_LONG, A_SHORT, B_SHORT, B_NAME
+    A_LONG, B_LONG, A_SHORT, B_SHORT, B_NAME = a_long, b_long, a_short, b_short, b_name
 plt.rcParams.update({"font.size": 11, "axes.titlesize": 12, "axes.labelsize": 11, "axes.spines.top": False, "axes.spines.right": False,
                      "axes.grid": True, "grid.alpha": 0.25, "figure.dpi": 100})
 
@@ -53,10 +60,10 @@ def _save(fig, out: Path, name: str) -> None:
     plt.close(fig)
 
 
-def bars(out: Path, rows: list, five: tuple) -> str:
+def bars(out: Path, rows: list, five: tuple, base_label: str = "5 inputs\n(today)") -> str:
     """rows: (label, HGB CV MAPE, CatBoost CV MAPE, reference_only, highlight). One bar pair per set of inputs. five is the (HGB, CatBoost) baseline."""
     fig, ax = plt.subplots(figsize=(11.5, 6.2))
-    labels = ["5 inputs\n(today)"] + [r[0] for r in rows]
+    labels = [base_label] + [r[0] for r in rows]
     h, c = [five[0]] + [r[1] for r in rows], [five[1]] + [r[2] for r in rows]
     ref, hot = [False] + [r[3] for r in rows], [False] + [r[4] for r in rows]
     for i, (hv, cv, is_ref, is_hot) in enumerate(zip(h, c, ref, hot)):
@@ -88,35 +95,35 @@ def folds(out: Path, five: dict, eircode: dict) -> str:
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.4), sharey=True)
     k = np.arange(5)
     for ax, model, title in ((axes[0], "hist_gradient_boosting", "HistGradientBoosting (the frozen model)"), (axes[1], "catboost", "CatBoost (second check)")):
-        ax.bar(k - 0.2, five[model], 0.38, color=BLUE, label="5 inputs")
-        ax.bar(k + 0.2, eircode[model], 0.38, color=ORANGE, label="+ Eircode key")
+        ax.bar(k - 0.2, five[model], 0.38, color=BLUE, label=A_SHORT)
+        ax.bar(k + 0.2, eircode[model], 0.38, color=ORANGE, label=B_SHORT)
         for i in k:
             ax.text(i - 0.2, five[model][i] + 0.3, f"{five[model][i]:.1f}", ha="center", fontsize=8)
             ax.text(i + 0.2, eircode[model][i] + 0.3, f"{eircode[model][i]:.1f}", ha="center", fontsize=8)
         ax.set_xticks(k, [f"fold {i + 1}" for i in k])
         ax.set_title(title, loc="left", fontsize=11)
     axes[0].set_ylabel("typical error, MAPE % (lower is better)")
-    fig.legend(handles=[Patch(color=BLUE, label="5 inputs (today)"), Patch(color=ORANGE, label="+ Eircode routing key")], loc="upper right", ncol=2, frameon=False, fontsize=10)
+    fig.legend(handles=[Patch(color=BLUE, label=A_LONG), Patch(color=ORANGE, label=B_LONG)], loc="upper right", ncol=2, frameon=False, fontsize=10)
     fig.subplots_adjust(top=0.82)
     worst = min(f - e for m in five for f, e in zip(five[m], eircode[m]))
     every = worst > 0
-    fig.suptitle("Error in each of the five folds" + (": the Eircode key is better in every fold" if every else ": mixed"), x=0.01, ha="left", fontweight="bold")
+    fig.suptitle("Error in each of the five folds" + (f": {B_NAME} is better in every fold" if every else ": mixed"), x=0.01, ha="left", fontweight="bold")
     fig.text(0.01, -0.02, "Each fold is a random fifth of the houses that was held out while the model trained on the other four fifths. "
              "The folds have no order, so a fold being higher or lower than its neighbour means nothing.", fontsize=9, color="#444", ha="left")
     _save(fig, out, "2-every-fold-improves.png")
-    return (f"The Eircode key lowers the error in all five folds for both models. The smallest single-fold gain is {worst:.2f} points, so this is not one lucky fold." if every else
-            f"The Eircode key does not lower the error in every fold: the worst fold changes by {worst:+.2f} points.")
+    return (f"{B_NAME.capitalize()} lowers the error in all five folds for both models. The smallest single-fold gain is {worst:.2f} points, so this is not one lucky fold." if every else
+            f"{B_NAME.capitalize()} does not lower the error in every fold: the worst fold changes by {worst:+.2f} points.")
 
 
 def within(out: Path, y, p5, pe) -> str:
     fig, ax = plt.subplots(figsize=(8, 5))
     xs = np.linspace(0, 0.6, 121)
-    for p, color, label in ((p5, BLUE, "5 inputs (today)"), (pe, ORANGE, "+ Eircode routing key")):
+    for p, color, label in ((p5, BLUE, A_LONG), (pe, ORANGE, B_LONG)):
         ax.plot(100 * xs, [100 * share_within(y, p, x) for x in xs], color=color, lw=2.5, label=label)
     a, b = 100 * share_within(y, p5, 0.10), 100 * share_within(y, pe, 0.10)
     ax.axvline(10, color="#444", ls="--", lw=1.2)
     ax.plot([10, 10], [a, b], "o", color="#444")
-    ax.annotate(f"within 10% of the asking price:\n{a:.1f}% of estimates today\n{b:.1f}% with the Eircode key", (10, b), (24, 18), arrowprops={"arrowstyle": "->", "color": "#444"}, fontsize=10)
+    ax.annotate(f"within 10% of the asking price:\n{a:.1f}% for {A_SHORT}\n{b:.1f}% for {B_SHORT}", (10, b), (24, 18), arrowprops={"arrowstyle": "->", "color": "#444"}, fontsize=10)
     ax.set_xlabel("how far the estimate is from the asking price (%)")
     ax.set_ylabel("share of houses estimated this close or closer (%)")
     ax.set_title("How close do the estimates get to the asking price?", loc="left", fontweight="bold")
@@ -131,7 +138,7 @@ def density(out: Path, y, p5, pe) -> str:
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 5.4), sharex=True, sharey=True)
     lo, hi = 5e4, 4e6
     xs = np.array([lo, hi])
-    for ax, p, title in ((axes[0], p5, "5 inputs (today)"), (axes[1], pe, "+ Eircode routing key")):
+    for ax, p, title in ((axes[0], p5, A_LONG), (axes[1], pe, B_LONG)):
         ax.hexbin(y, np.clip(p, lo, hi), gridsize=38, xscale="log", yscale="log", bins="log", cmap="Greys", mincnt=1,
                   extent=(np.log10(lo), np.log10(hi), np.log10(lo), np.log10(hi)))
         ax.fill_between(xs, xs * 0.9, xs * 1.1, color=RED, alpha=0.16, lw=0, zorder=3)
@@ -158,7 +165,7 @@ def confusion_pair(out: Path, y, p5, pe, edges) -> str:
     fig, axes = plt.subplots(1, 2, figsize=(13, 6.6))
     fig.subplots_adjust(wspace=0.55, bottom=0.26, top=0.86)
     stats = []
-    for ax, p, title in ((axes[0], p5, "5 inputs (today)"), (axes[1], pe, "+ Eircode routing key")):
+    for ax, p, title in ((axes[0], p5, A_LONG), (axes[1], pe, B_LONG)):
         m = confusion(y, p, edges)
         pct = m / m.sum(axis=1, keepdims=True)
         ax.imshow(pct, cmap="Blues", vmin=0, vmax=0.85)
@@ -191,7 +198,7 @@ def segments(out: Path, band5: dict, bande: dict, county5: dict, countye: dict, 
     fig, axes = plt.subplots(1, 2, figsize=(13, 5), gridspec_kw={"width_ratios": [1, 1.6]})
     names = list(band5)[:4]
     x = np.arange(len(names))
-    for dx, d, color, label in ((-0.2, band5, BLUE, "5 inputs"), (0.2, bande, ORANGE, "+ Eircode key")):
+    for dx, d, color, label in ((-0.2, band5, BLUE, A_SHORT), (0.2, bande, ORANGE, B_SHORT)):
         vals = [d[n]["mape"] for n in names]
         axes[0].bar(x + dx, vals, 0.38, color=color, label=label)
         for xi, v in zip(x, vals):
@@ -223,7 +230,7 @@ def segments(out: Path, band5: dict, bande: dict, county5: dict, countye: dict, 
 def bias(out: Path, y, p5, pe) -> str:
     fig, ax = plt.subplots(figsize=(8.5, 4.8))
     bins = np.linspace(-0.8, 1.2, 41)
-    for p, color, label in ((p5, BLUE, "5 inputs"), (pe, ORANGE, "+ Eircode key")):
+    for p, color, label in ((p5, BLUE, A_SHORT), (pe, ORANGE, B_SHORT)):
         err = np.clip((np.asarray(p) - y) / y, -0.8, 1.2)
         ax.hist(err, bins=bins, histtype="step", lw=2.5, color=color, label=f"{label} (median {100 * np.median((np.asarray(p) - y) / y):+.1f}%)")
     ax.axvline(0, color="#222", lw=1.2)
@@ -235,5 +242,5 @@ def bias(out: Path, y, p5, pe) -> str:
     _save(fig, out, "7-error-distribution.png")
     s5, se = float(np.std(np.clip((np.asarray(p5) - y) / y, -0.8, 1.2))), float(np.std(np.clip((np.asarray(pe) - y) / y, -0.8, 1.2)))
     m5, me = 100 * float(np.median((np.asarray(p5) - y) / y)), 100 * float(np.median((np.asarray(pe) - y) / y))
-    return (f"The median error is {m5:+.1f}% with 5 inputs and {me:+.1f}% with the Eircode key (0% means no systematic over- or under-estimate). "
+    return (f"The median error is {m5:+.1f}% with {A_SHORT} and {me:+.1f}% with {B_NAME} (0% means no systematic over- or under-estimate). "
             f"The spread of errors (standard deviation) goes from {100 * s5:.0f} to {100 * se:.0f} percentage points. Some very large misses remain.")
