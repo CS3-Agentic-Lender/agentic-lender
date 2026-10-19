@@ -1,6 +1,4 @@
 /// The home the borrower wants to buy, as typed into the application form's property step.
-///
-/// The property type joins once Nic sends the values the valuation model accepts.
 struct ApplicationProperty: Equatable {
     static let defaultBedrooms = 3
     /// The bedroom counts al-core accepts.
@@ -11,6 +9,7 @@ struct ApplicationProperty: Equatable {
     var eircode = ""
     var county: County?
     var askingPrice = ""
+    var propertyType: PropertyType?
     var bedrooms = defaultBedrooms
     var floorArea = ""
     var berRating: BERRating?
@@ -24,6 +23,7 @@ struct PropertyDraft: Encodable, Equatable {
     let eircode: String
     let county: String
     let askingPriceEur: Int
+    let propertyType: String
     let bedrooms: Int
     let floorAreaSqm: Int
     let berRating: String
@@ -32,6 +32,7 @@ struct PropertyDraft: Encodable, Equatable {
     init?(property: ApplicationProperty) {
         guard let eircode = SignUpValidator.normalizedEircode(property.eircode),
               let county = property.county,
+              let propertyType = property.propertyType,
               let berRating = property.berRating,
               let askingPrice = EuroAmount.parse(property.askingPrice),
               let floorArea = EuroAmount.parse(property.floorArea),
@@ -43,6 +44,7 @@ struct PropertyDraft: Encodable, Equatable {
         self.eircode = eircode
         self.county = county.rawValue
         askingPriceEur = askingPrice
+        self.propertyType = propertyType.rawValue
         bedrooms = property.bedrooms
         floorAreaSqm = floorArea
         self.berRating = berRating.rawValue
@@ -54,6 +56,7 @@ struct PropertyDraft: Encodable, Equatable {
         case eircode
         case county
         case askingPriceEur = "asking_price_eur"
+        case propertyType = "property_type"
         case bedrooms
         case floorAreaSqm = "floor_area_sqm"
         case berRating = "ber_rating"

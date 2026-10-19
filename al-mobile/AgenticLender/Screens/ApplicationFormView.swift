@@ -3,8 +3,7 @@ import SwiftUI
 /// "Your application" (Figma frames "12 Application form" and 12a Above your maximum).
 ///
 /// "Save draft" saves it through `POST /core/applications`; reviewing and submitting is the next step.
-/// The home's details use the same controls as the HELOC check (Figma 07i). Property type joins
-/// once Nic sends the values the valuation model accepts.
+/// The home's details use the same controls as the HELOC check (Figma 07i).
 struct ApplicationFormView: View {
     @State private var model: ApplicationViewModel
     @State private var isCountySheetShown = false
@@ -124,7 +123,7 @@ struct ApplicationFormView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// The home being bought: address, Eircode, county, asking price, size, bedrooms and BER.
+    /// The home being bought: address, Eircode, county, asking price, type, size, bedrooms and BER.
     private var propertySection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("The home you're buying")
@@ -147,6 +146,10 @@ struct ApplicationFormView: View {
                 FormField("County", error: model.visibleError(for: .county)) { countyButton }
             }
             amountField("Asking price", field: .askingPrice, placeholder: "380,000")
+            FormField("Property type", error: model.visibleError(for: .propertyType)) {
+                PropertyTypeMenu(selection: $model.form.property.propertyType) { model.markTouched(.propertyType) }
+                    .accessibilityIdentifier("application.propertyType")
+            }
             HStack(alignment: .top, spacing: 12) {
                 amountField("Size", field: .floorArea, placeholder: "98", currency: false, unit: "m²")
                 BedroomsStepper(
@@ -227,7 +230,7 @@ struct ApplicationFormView: View {
         case .loanAmount: model.form.loanAmount
         case .askingPrice: model.form.property.askingPrice
         case .floorArea: model.form.property.floorArea
-        case .addressLine1, .eircode, .county, .berRating: ""
+        case .addressLine1, .eircode, .county, .propertyType, .berRating: ""
         }
     }
 }

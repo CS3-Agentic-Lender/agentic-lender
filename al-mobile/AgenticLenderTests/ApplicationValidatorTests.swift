@@ -54,6 +54,7 @@ final class ApplicationValidatorTests: XCTestCase {
         XCTAssertEqual(errors[.eircode], "Enter the Eircode")
         XCTAssertEqual(errors[.county], "Choose the county")
         XCTAssertEqual(errors[.askingPrice], "Enter the asking price")
+        XCTAssertEqual(errors[.propertyType], "Choose the property type")
         XCTAssertEqual(errors[.floorArea], "Enter the floor area in m²")
         XCTAssertEqual(errors[.berRating], "Choose the BER rating")
     }
@@ -209,11 +210,12 @@ final class ApplicationValidatorTests: XCTestCase {
         XCTAssertEqual(property["eircode"] as? String, "T12 X8Y2")
         XCTAssertEqual(property["county"] as? String, "Cork")
         XCTAssertEqual(property["asking_price_eur"] as? Int, 380_000)
+        XCTAssertEqual(property["property_type"] as? String, "Semi-D")
         XCTAssertEqual(property["bedrooms"] as? Int, 3)
         XCTAssertEqual(property["floor_area_sqm"] as? Int, 98)
         XCTAssertEqual(property["ber_rating"] as? String, "C2")
         XCTAssertNil(property["address_line_2"], "an empty second line is left out")
-        XCTAssertEqual(property.count, 7)
+        XCTAssertEqual(property.count, 8)
     }
 
     func testDraftBodySendsASecondAddressLineWhenThereIsOne() throws {

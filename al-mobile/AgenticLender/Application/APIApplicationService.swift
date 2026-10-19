@@ -91,6 +91,7 @@ struct APIApplicationService: ApplicationService {
         "property.eircode": "Eircode",
         "property.county": "county",
         "property.asking_price_eur": "asking price",
+        "property.property_type": "property type",
         "property.bedrooms": "number of bedrooms",
         "property.floor_area_sqm": "floor area",
         "property.ber_rating": "BER rating",

@@ -94,6 +94,12 @@ final class APIApplicationServiceTests: XCTestCase {
         )
     }
 
+    func testARejectedPropertyTypeIsNamed() async throws {
+        StubURLProtocol.response = (422, invalid(field: "property.property_type", message: "not a supported type"))
+
+        await assertSaveFails(with: .invalidField("property type"))
+    }
+
     func testARejectedTopLevelFieldIsNamedToo() async throws {
         StubURLProtocol.response = (422, invalid(field: "loan_amount_eur", message: "must be greater than 0"))
 

@@ -115,6 +115,7 @@ final class ApplicationViewModelTests: XCTestCase {
         XCTAssertNotNil(model.visibleError(for: .monthlyLivingCosts))
         XCTAssertNotNil(model.visibleError(for: .addressLine1))
         XCTAssertNotNil(model.visibleError(for: .county))
+        XCTAssertNotNil(model.visibleError(for: .propertyType))
         XCTAssertNotNil(model.visibleError(for: .berRating))
         XCTAssertFalse(model.isSaved)
     }

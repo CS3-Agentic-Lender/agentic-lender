@@ -42,6 +42,28 @@ struct BERMenu: View {
     }
 }
 
+/// A menu of the home types. `onPick` runs after each choice, so the form can mark the field as left.
+struct PropertyTypeMenu: View {
+    @Binding var selection: PropertyType?
+    var onPick: () -> Void = {}
+
+    var body: some View {
+        Menu {
+            Picker("Property type", selection: Binding(
+                get: { selection },
+                set: { selection = $0; onPick() }
+            )) {
+                ForEach(PropertyType.allCases) { type in
+                    Text(type.title).tag(Optional(type))
+                }
+            }
+        } label: {
+            PickerFieldLabel(value: selection?.title, placeholder: "Choose type")
+        }
+        .accessibilityLabel("Property type, \(selection?.title ?? "not chosen")")
+    }
+}
+
 /// Bedrooms with − / + either side of the count (Figma 07i). VoiceOver reads it as one adjustable element.
 struct BedroomsStepper: View {
     let count: Int

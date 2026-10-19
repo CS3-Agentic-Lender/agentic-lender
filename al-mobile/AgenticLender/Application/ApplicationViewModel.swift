@@ -92,7 +92,7 @@ final class ApplicationViewModel {
         case .loanAmount: form.loanAmount = regrouped
         case .askingPrice: form.property.askingPrice = regrouped
         case .floorArea: form.property.floorArea = regrouped
-        case .addressLine1, .eircode, .county, .berRating: break
+        case .addressLine1, .eircode, .county, .propertyType, .berRating: break
         }
     }
 

@@ -42,6 +42,7 @@ enum TestFixtures {
             eircode: "t12x8y2",
             county: .cork,
             askingPrice: "380,000",
+            propertyType: .semiDetached,
             floorArea: "98",
             berRating: .c2
         )

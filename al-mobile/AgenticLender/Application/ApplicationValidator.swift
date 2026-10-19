@@ -1,7 +1,7 @@
 /// Checks the application form: take-home pay and living costs are whole euro from €0,
 /// the loan amount is whole euro above €0, and the term follows the affordability rules.
 /// The home needs its first address line, a valid Eircode, a county, an asking price above €0,
-/// a floor area al-core accepts and a BER rating (Nic on #64: the valuation needs them).
+/// a property type, a floor area al-core accepts and a BER rating (Nic on #64: the valuation needs them).
 /// A loan above the maximum is a warning, not an error, so the borrower can still go on.
 enum ApplicationValidator {
     private static let notAnAmount = "Enter an amount of €0 or more, in whole euro"
@@ -31,6 +31,8 @@ enum ApplicationValidator {
             form.property.county == nil ? "Choose the county" : nil
         case .askingPrice:
             askingPriceError(form.property.askingPrice)
+        case .propertyType:
+            form.property.propertyType == nil ? "Choose the property type" : nil
         case .floorArea:
             floorAreaError(form.property.floorArea)
         case .berRating:
