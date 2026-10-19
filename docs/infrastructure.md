@@ -116,13 +116,22 @@ Status badges (the Badge component in the Figma file), background / text:
 
 | Tone | Colours | Used for |
 |---|---|---|
-| Neutral | `#EEEBE3` / `#3F4A44` | Applied, offline |
-| Tint | `#E8EFE7` / `#1E342E` | Current step, test mode |
-| Success | `#DCFCE7` / `#166534` | Good results (fair price, high score) |
+| Neutral | `#EEEBE3` / `#3F4A44` | Draft, Applied, Closed, offline |
+| Tint | `#E8EFE7` / `#1E342E` | AI Deliberated, current step, test mode |
+| Success | `#DCFCE7` / `#166534` | Underwriter Approved, Funded, good results (fair price, high score) |
 | Danger | `#FEE2E2` / `#991B1B` | Declined, over-priced, low score |
 | Pine | `#1E342E` / `#FFFCF4` | Emphasis (the borrower's limit) |
 
-Loan statuses and risk tiers pick from these five tones; the portal's mapping is set when the portal adopts the palette. Every status and tier also shows its name as text, never colour alone.
+Loan statuses pick from these tones, and the borrower app and the portal will use the same mapping:
+
+| Lifecycle status | Tone |
+|---|---|
+| Draft, Applied, Closed | Neutral |
+| AI Deliberated | Tint |
+| Underwriter Approved, Funded | Success |
+| Declined | Danger |
+
+Risk tiers (A to D) are shown as plain text for now. The palette has no amber or warning tone, so one is added only when Ibrahima and Nikoloz agree a shared token and record it here. Neither app offers a theme choice: both use Pine & Oat in light mode only. Every status and tier also shows its name as text, never colour alone.
 
 Type: IBM Plex Sans for the interface, IBM Plex Mono for loan references and figures. Every text colour pair above is at least 6.2:1 contrast, which passes WCAG AA (4.5:1).
 
