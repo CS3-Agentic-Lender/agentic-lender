@@ -13,7 +13,9 @@
   --color-ink: #16241d;
   --color-muted: #4c5851;
   --color-success: #166534;
+  --color-success-soft: #dcfce7;
   --color-error: #991b1b;
+  --color-danger-soft: #fee2e2;
   --font-sans: 'IBM Plex Sans', 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 }
