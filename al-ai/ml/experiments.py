@@ -190,8 +190,9 @@ def build_report(base, rows, meta) -> str:
     for combo, name, res, gains, folds, v in rows:  # what each extra adds on top of the Eircode key, which does most of the work
         if combo[0] == "eircode_routing_key" and len(combo) > 1:
             solo = by_name["eircode_routing_key"][2]
-            on_top.append(f"- Adding {' + '.join(combo[1:])} on top of the Eircode key: {res[h]['cv_mape'] - solo[h]['cv_mape']:+.2f} points (HistGradientBoosting), "
-                          f"{res[c]['cv_mape'] - solo[c]['cv_mape']:+.2f} (CatBoost) of CV MAPE.")
+            d_h, d_c = res[h]["cv_mape"] - solo[h]["cv_mape"], res[c]["cv_mape"] - solo[c]["cv_mape"]
+            on_top.append(f"- Adding {' + '.join(combo[1:])} on top of the Eircode key changes CV MAPE by {d_h:+.2f} points "
+                          f"(HistGradientBoosting) and {d_c:+.2f} (CatBoost). Negative means more accurate.")
     lines = [
         "# Would extra inputs make the valuation clearly more accurate?", "",
         f"Development split only ({meta['rows']:,} rows, the same five group folds as the frozen model). Calibration and the final test were not read, "
