@@ -63,7 +63,7 @@ class FeatureBuilder(BaseEstimator, TransformerMixin):
         return np.hstack([num, one_hot("county", COUNTIES), one_hot("property_type", TYPES)])
 
 
-def make_model(name: str, seed: int, params: dict | None = None):
+def make_model(name: str, seed: int, params: dict | None = None, features=None):
     """Default settings (or the given overrides), a fixed seed, and the target modelled as log(price) then back to euro."""
     scale = ColumnTransformer([("num", StandardScaler(), [0, 1, 2])], remainder="passthrough")  # area, bedrooms, BER
     if name == "ridge":
@@ -86,7 +86,7 @@ def make_model(name: str, seed: int, params: dict | None = None):
         raise ValueError(f"unknown model {name}")
     if params:
         est.set_params(**params)
-    steps = [("features", FeatureBuilder())] + ([("scale", scale)] if scaled else []) + [("model", est)]
+    steps = [("features", features if features is not None else FeatureBuilder())] + ([("scale", scale)] if scaled else []) + [("model", est)]
     return TransformedTargetRegressor(Pipeline(steps), func=np.log, inverse_func=np.exp, check_inverse=False)
 
 

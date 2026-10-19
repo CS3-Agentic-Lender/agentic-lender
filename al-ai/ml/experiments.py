@@ -1,0 +1,209 @@
+"""Would extra inputs make the valuation clearly more accurate? Measured on the development folds only.
+
+Every rule (which inputs, which models, what counts as worth proposing) is read from experiments_config.json, which was
+committed before this code was written. Calibration and the final test are not read, and the frozen model is untouched.
+
+    prun --pull ml/reports ml/experiments.py
+"""
+
+import csv
+import json
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import numpy as np
+import pandas as pd
+
+from ml import benchmark as b
+from ml import data_readiness as dr
+
+HERE = Path(__file__).resolve().parent
+CONFIG = json.loads((HERE / "experiments_config.json").read_text())
+EXTRA_COLUMNS = ["rkey", "bathrooms", "built_year", "town", "lat", "lon"]
+
+# Eircode routing keys: a letter and two digits (D14, V92) or D6W, from the allowed letters.
+EIRCODE = re.compile(r"\b([ACDEFHKNPRTVWXY]\d{2}|D6W)\s?[0-9ACDEFHKNPRTVWXY]{4}\b", re.I)
+
+
+def routing_key(title: str) -> str | None:
+    """The first three characters of the Eircode at the end of a listing title, or None if there isn't one."""
+    m = EIRCODE.search(title[-14:]) or EIRCODE.search(title)
+    return m.group(1).upper() if m else None
+
+
+class FeatureBuilderV2(b.FeatureBuilder):
+    """The five inputs plus any of the extras. Frequent categories and fill values are learned from training rows only."""
+
+    def __init__(self, extras=(), min_count=10):
+        self.extras = tuple(extras)
+        self.min_count = min_count
+
+    def fit(self, X, y=None):
+        super().fit(X, y)
+        frequent = lambda col: sorted(k for k, n in X[col].value_counts().items() if n >= self.min_count)
+        self.keys_ = frequent("rkey") if "eircode_routing_key" in self.extras else []
+        self.towns_ = frequent("town") if "town" in self.extras else []
+        med = lambda col: float(np.nanmedian(X[col])) if X[col].notna().any() else 0.0
+        self.built_fill_, self.lat_fill_, self.lon_fill_ = med("built_year"), med("lat"), med("lon")
+        return self
+
+    @staticmethod
+    def _category(values: pd.Series, keep: list) -> np.ndarray:
+        """One column per kept category, then Other (seen but rare or new) and Unknown (missing)."""
+        v = values.to_numpy(dtype=object)
+        cols = [(v == k) for k in keep]
+        missing = pd.isna(values).to_numpy()
+        cols += [~missing & ~np.isin(v, keep), missing]
+        return np.column_stack(cols).astype(float)
+
+    def transform(self, X):
+        parts = [super().transform(X)]
+        if "eircode_routing_key" in self.extras:
+            parts.append(self._category(X["rkey"], self.keys_))
+        if "bathrooms" in self.extras:
+            parts.append(X[["bathrooms"]].to_numpy(float))
+        if "construction_year" in self.extras:
+            year = X["built_year"].to_numpy(float)
+            parts.append(np.column_stack([np.where(np.isnan(year), self.built_fill_, year), np.isnan(year).astype(float)]))
+        if "town" in self.extras:
+            parts.append(self._category(X["town"], self.towns_))
+        if "coordinates" in self.extras:
+            parts.append(np.column_stack([X["lat"].fillna(self.lat_fill_), X["lon"].fillna(self.lon_fill_)]))
+        return np.hstack(parts)
+
+
+def load_with_extras(seed: int):
+    """The same development rows and folds as the frozen model, plus the extra columns read from the raw file by source row."""
+    df, y, _, _, _ = b.load_development(seed)
+    with dr.CSV_PATH.open(newline="", encoding="utf-8") as f:
+        raw = list(csv.DictReader(f))
+    rows = [raw[i - 1] for i in df["source_row"]]  # source_row is the 1-based data row number
+    num = lambda s: float(s) if re.fullmatch(r"\d+(\.\d+)?", s.strip()) else np.nan
+    year = lambda s: float(s) if re.fullmatch(r"(18|19|20)\d{2}", s.strip()) else np.nan
+    signed = lambda s: float(s) if re.fullmatch(r"-?\d+(\.\d+)?", s.strip()) else np.nan
+    df = df.copy()
+    df["rkey"] = [routing_key(r["Title"]) for r in rows]
+    df["bathrooms"] = [num(r["Number of Bathrooms"]) for r in rows]
+    df["built_year"] = [year(r["Date of Construction"]) for r in rows]
+    df["town"] = [r["Area"].strip() or None for r in rows]
+    df["lat"] = [signed(r["Latitude"]) for r in rows]
+    df["lon"] = [signed(r["Longitude"]) for r in rows]
+    return df, y
+
+
+def verdict(gain_by_model: dict, folds_by_model: dict, combo: list) -> dict:
+    """Is this addition worth proposing? Rules from the config: both models, all five folds, and a threshold that depends on
+    whether the app already collects every input in the combination. Reference-only additions are never proposed."""
+    adds = CONFIG["additions"]
+    if any(adds[c].get("reference_only") for c in combo):
+        return {"worth_proposing": False, "reason": "reference only: shows how much more there is to gain, never proposed"}
+    wr = CONFIG["worth_proposing"]
+    free = all(adds[c]["app_collects_it_today"] for c in combo)
+    need = wr["threshold_if_the_app_already_collects_it_mape_pp"] if free else wr["threshold_if_it_needs_a_new_field_mape_pp"]
+    weak = [m for m, g in gain_by_model.items() if g < need]
+    uneven = [m for m, n in folds_by_model.items() if n < 5]
+    ok = not weak and not uneven
+    why = (f"gain of at least {need} point(s) in both models and in all five folds" if ok else
+           f"needs {need} point(s) in both models and all five folds; " +
+           (f"too small for {', '.join(weak)}" if weak else "") + ("; " if weak and uneven else "") +
+           (f"not better in every fold for {', '.join(uneven)}" if uneven else ""))
+    return {"worth_proposing": ok, "reason": why, "needs_new_field": not free, "threshold_pp": need}
+
+
+def model_settings():
+    frozen = json.loads((HERE / "reports" / "frozen-model.json").read_text())
+    tuned = json.loads((HERE / "reports" / "tuning-results.json").read_text())["tuned"]
+    fix = lambda p: {k: tuple(v) if isinstance(v, list) else v for k, v in p.items()}
+    return {"hist_gradient_boosting": fix(frozen["params"]), "catboost": fix(tuned["catboost"]["best_params"])}
+
+
+def run_experiment(df, y, model, params, extras, seed):
+    X, fold_ids = df[b.FEATURE_COLUMNS + EXTRA_COLUMNS], df["fold"].to_numpy()
+    bands = [float(np.percentile(y, q)) for q in (25, 50, 75)]
+    make = lambda: b.make_model(model, seed, params, features=FeatureBuilderV2(extras))
+    res, _ = b.cross_validate(make, X, y, fold_ids, bands)
+    return {"cv_mape": res["cv_mape"], "fold_mape": res["fold_mape"], "fold_std": res["fold_std"], **{k: res["pooled"][k] for k in ("mdape", "ppe10", "mae", "r2")}}
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default=str(HERE / "reports"))
+    ap.add_argument("--only", default="")  # a comma list of combination indexes, for a quick smoke test
+    args = ap.parse_args()
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    seed = CONFIG["seed"]
+    df, y = load_with_extras(seed)
+    settings = model_settings()
+    combos = CONFIG["combinations"]
+    if args.only:
+        combos = [combos[int(i)] for i in args.only.split(",")]
+    results = {"five_inputs": {m: run_experiment(df, y, m, p, [], seed) for m, p in settings.items()}}
+    for m, r in results["five_inputs"].items():
+        print(f"five inputs / {m}: CV MAPE {r['cv_mape']:.2f}%", flush=True)
+    rows = []
+    for combo in combos:
+        name = " + ".join(combo)
+        res = {m: run_experiment(df, y, m, p, combo, seed) for m, p in settings.items()}
+        gains = {m: results["five_inputs"][m]["cv_mape"] - r["cv_mape"] for m, r in res.items()}
+        folds = {m: sum(e < f for e, f in zip(r["fold_mape"], results["five_inputs"][m]["fold_mape"])) for m, r in res.items()}
+        v = verdict(gains, folds, combo)
+        results[name] = {"models": res, "gain_pp": gains, "folds_improved": folds, "verdict": v}
+        rows.append((combo, name, res, gains, folds, v))
+        print(f"+ {name}: " + ", ".join(f"{m} {r['cv_mape']:.2f}% (gain {gains[m]:+.2f})" for m, r in res.items()) + f" -> {v['reason']}", flush=True)
+    meta = {"rows": int(len(y)), "eircode_found": float(df["rkey"].notna().mean()), "bathrooms_found": float(df["bathrooms"].notna().mean()),
+            "construction_year_found": float(df["built_year"].notna().mean())}
+    (out / "extra-inputs-results.json").write_text(json.dumps({"results": results, "meta": meta}, indent=1, sort_keys=True, default=float))
+    (out / "extra-inputs-report.md").write_text(build_report(results["five_inputs"], rows, meta))
+    print((out / "extra-inputs-report.md").read_text()[:3000])
+
+
+def build_report(base, rows, meta) -> str:
+    h, c = "hist_gradient_boosting", "catboost"
+    f = lambda v, nd=2: f"{v:.{nd}f}"
+    adds = CONFIG["additions"]
+    table = []
+    for combo, name, res, gains, folds, v in rows:
+        free = "yes" if all(adds[x]["app_collects_it_today"] for x in combo) else "no"
+        mark = "**proposed**" if v["worth_proposing"] else ("reference" if any(adds[x].get("reference_only") for x in combo) else "no")
+        table.append(f"| {name} | {free} | {f(res[h]['cv_mape'])} | {gains[h]:+.2f} | {folds[h]}/5 | {f(res[c]['cv_mape'])} | {gains[c]:+.2f} | {folds[c]}/5 | {mark} |")
+    proposed = [r for r in rows if r[5]["worth_proposing"]]
+    best = min(proposed, key=lambda r: r[2][h]["cv_mape"]) if proposed else None
+    lines = [
+        "# Would extra inputs make the valuation clearly more accurate?", "",
+        f"Development split only ({meta['rows']:,} rows, the same five group folds as the frozen model). Calibration and the final test were not read, "
+        "and the frozen model and its final test are unchanged. The rules for what counts as worth proposing were committed before any of this ran "
+        "(`experiments_config.json`).", "",
+        f"The five-input model scores **{f(base[h]['cv_mape'])}%** CV MAPE (HistGradientBoosting, the frozen model's settings) and "
+        f"**{f(base[c]['cv_mape'])}%** (CatBoost, the second-best, as a check that a gain is not specific to one model).", "",
+        "## Results", "",
+        "Gain is the drop in CV MAPE in points (positive is better) compared with the five inputs. Folds is how many of the five folds improved.", "",
+        "| Added input(s) | App collects it today | HGB CV MAPE % | Gain | Folds | CatBoost CV MAPE % | Gain | Folds | Verdict |",
+        "|---|---|---|---|---|---|---|---|---|", *table, "",
+        "**Rule for proposing (fixed beforehand):** an input the app already collects needs a gain of at least "
+        f"{CONFIG['worth_proposing']['threshold_if_the_app_already_collects_it_mape_pp']} point in both models and in all five folds. "
+        f"A new form field needs {CONFIG['worth_proposing']['threshold_if_it_needs_a_new_field_mape_pp']} points. Town and coordinates are upper-bound references only.", "",
+        "## Coverage in the data", "",
+        f"The Eircode routing key was found for {100 * meta['eircode_found']:.1f}% of the development rows, bathrooms for {100 * meta['bathrooms_found']:.1f}% and the construction year for "
+        f"{100 * meta['construction_year_found']:.1f}%. A missing value gets its own Unknown category (or a missing flag), so the model also works when an input is absent.", "",
+        "## Recommendation", "",
+    ]
+    if best:
+        combo, name, res, gains, folds, v = best
+        lines += [f"**Propose adding: {name}.** It lowers CV MAPE from {f(base[h]['cv_mape'])}% to {f(res[h]['cv_mape'])}% for HistGradientBoosting "
+                  f"({gains[h]:+.2f} points) and from {f(base[c]['cv_mape'])}% to {f(res[c]['cv_mape'])}% for CatBoost ({gains[c]:+.2f}), better in every fold for both. "
+                  f"Within 10% of the asking price goes from {f(base[h]['ppe10'], 1)}% to {f(res[h]['ppe10'], 1)}% and the average miss from €{base[h]['mae']:,.0f} to €{res[h]['mae']:,.0f}."]
+        lines += ["", "A v2 model with the extra input would be a new version with its own tuning and its own final test, because nothing may change after the final test."]
+    else:
+        lines += ["**No change is worth proposing on these numbers.** No addition met the rule that was fixed beforehand."]
+    lines += ["", "Gains are on development folds, so they are slightly optimistic until a v2 is scored once on the untouched final test. "
+              "The data is 2024 asking prices, so these are gains in predicting asking prices.", ""]
+    return "\n".join(lines)
+
+
+if __name__ == "__main__":
+    main()
