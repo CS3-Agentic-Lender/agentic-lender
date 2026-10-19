@@ -122,7 +122,8 @@ The queue prefers the application document's stored `ltvBand` and `riskTier`, in
 The stored band uses the asking price; the displayed percentage is labelled "Valuation LTV"
 because it uses the valuation and can belong to a different band. Only the exact bands
 `80_or_less`, `80_to_90`, `over_90` and tiers `A`, `B`, `C`, `D` are accepted. Invalid values
-are treated as absent.
+show "Invalid stored band" or "Invalid stored tier" in their own groups and never use a
+fallback. Only absent values (`undefined` or `null`) use the valuation band or review tier.
 
 `src/services/pipelineService.ts` keeps one unfiltered live listener on `applications` and
 filters statuses in the browser. The summary counts all applications, and ordering the query

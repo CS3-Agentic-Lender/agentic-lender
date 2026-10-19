@@ -20,6 +20,8 @@ const storedBandLabels: Record<StoredLtvBand, string> = {
   '80_to_90': LTV_BANDS[1],
   over_90: LTV_BANDS[2],
 };
+export const INVALID_LTV_BAND = 'Invalid stored band';
+export const INVALID_RISK_TIER = 'Invalid stored tier';
 export const NO_LTV = 'No LTV yet';
 export const NO_LTV_FIGURE = '—';
 export const NO_RISK_TIER = 'No risk tier yet';
@@ -51,6 +53,10 @@ export function ltvBand(ltvPct: number | null) {
 const MAX_LTV_DECIMALS = 6;
 
 export function applicationLtvBand(application: PipelineApplication) {
+  if (application.ltvBand === 'invalid') {
+    return INVALID_LTV_BAND;
+  }
+
   return application.ltvBand ? storedBandLabels[application.ltvBand] : ltvBand(application.ltvPct);
 }
 
@@ -90,7 +96,7 @@ interface Grouping {
 function groupingFor(groupBy: GroupBy, riskTierState: RiskTierState): Grouping {
   if (groupBy === 'ltvBand') {
     return {
-      groups: [...LTV_BANDS, NO_LTV].map((band) => ({ key: band, label: band })),
+      groups: [...LTV_BANDS, NO_LTV, INVALID_LTV_BAND].map((band) => ({ key: band, label: band })),
       keyOf: applicationLtvBand,
     };
   }
@@ -107,6 +113,7 @@ function groupingFor(groupBy: GroupBy, riskTierState: RiskTierState): Grouping {
   return {
     groups: [
       ...RISK_TIERS.map((tier) => ({ key: tier, label: `Tier ${tier}` })),
+      { key: 'invalid', label: INVALID_RISK_TIER },
       { key: NO_RISK_TIER, label: NO_RISK_TIER },
       { key: fallbackGroup, label: fallbackGroup },
     ],

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { toApplicationSummary } from './clientsService';
 
 describe('stored queue fields in the shared application mapping', () => {
+  it.each([undefined, null])('keeps absent fields %j eligible for fallback', (value) => {
+    expect(toApplicationSummary('application', { ltvBand: value, riskTier: value })).toMatchObject({
+      ltvBand: null, riskTier: null,
+    });
+  });
+
   it.each(['80_or_less', '80_to_90', 'over_90'])('accepts the exact band %s', (ltvBand) => {
     expect(toApplicationSummary('application', { ltvBand }).ltvBand).toBe(ltvBand);
   });
@@ -10,15 +16,15 @@ describe('stored queue fields in the shared application mapping', () => {
     expect(toApplicationSummary('application', { riskTier }).riskTier).toBe(riskTier);
   });
 
-  it.each([undefined, null, '', 'OVER_90', '>90%', '80_or_less ', 80, {}, ['over_90']])(
-    'treats invalid or absent band %j as absent', (ltvBand) => {
-      expect(toApplicationSummary('application', { ltvBand }).ltvBand).toBeNull();
+  it.each(['', 'OVER_90', '>90%', '80_or_less ', 80, {}, ['over_90']])(
+    'keeps invalid stored band %j distinct from absent', (ltvBand) => {
+      expect(toApplicationSummary('application', { ltvBand }).ltvBand).toBe('invalid');
     },
   );
 
-  it.each([undefined, null, '', 'a', 'A ', 'Low', 'E', 1, {}, ['A']])(
-    'treats invalid or absent tier %j as absent', (riskTier) => {
-      expect(toApplicationSummary('application', { riskTier }).riskTier).toBeNull();
+  it.each(['', 'a', 'A ', 'Low', 'E', 1, {}, ['A']])(
+    'keeps invalid stored tier %j distinct from absent', (riskTier) => {
+      expect(toApplicationSummary('application', { riskTier }).riskTier).toBe('invalid');
     },
   );
 });

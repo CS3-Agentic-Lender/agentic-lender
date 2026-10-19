@@ -11,6 +11,7 @@ import {
   toApplicationSummary,
   type ApplicationSummary,
   type RiskTier,
+  type StoredField,
 } from './clientsService';
 import { db } from './firebase';
 
@@ -20,9 +21,9 @@ export { RISK_TIERS, readRiskTier, type RiskTier } from './clientsService';
 export type RiskTierState = 'pending' | 'available' | 'unavailable';
 
 export interface PipelineApplication extends ApplicationSummary {
-  riskTier: RiskTier | null;
+  riskTier: StoredField<RiskTier>;
   // Preserve the source so a pending or failed fallback cannot hide a stored tier.
-  storedRiskTier?: RiskTier | null;
+  storedRiskTier?: StoredField<RiskTier>;
 }
 
 export interface PipelineSnapshot {
@@ -151,7 +152,7 @@ export const firestorePipelineService: PipelineService = {
     );
 
     // Keep review/underwriting as a tier fallback until al-ai writes the application fields.
-    // A valid stored tier always takes precedence over this collection-group listener.
+    // A present stored tier, including invalid, always takes precedence over this collection-group listener.
     unsubscribers.push(
       onSnapshot(
         collectionGroup(db, 'review'),

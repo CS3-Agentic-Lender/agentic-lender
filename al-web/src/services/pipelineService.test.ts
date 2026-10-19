@@ -135,6 +135,27 @@ describe('reading a risk tier', () => {
 });
 
 describe('attaching risk tiers to applications', () => {
+  it.each(['', 'unknown', 1, {}])('never replaces an invalid stored tier %j with a review tier', (riskTier) => {
+    const stored = toApplicationSummary('stored', { ltvBand: 'over_90', riskTier, ltvPct: 75 });
+    expect(withRiskTiers([stored], new Map([['stored', 'A']]))[0]).toMatchObject({
+      ltvBand: 'over_90', riskTier: 'invalid', storedRiskTier: 'invalid',
+    });
+  });
+
+  it.each([undefined, null])('falls back for absent tier %j even with an invalid band', (riskTier) => {
+    const stored = toApplicationSummary('stored', { ltvBand: '', riskTier, ltvPct: 75 });
+    expect(withRiskTiers([stored], new Map([['stored', 'B']]))[0]).toMatchObject({
+      ltvBand: 'invalid', riskTier: 'B', storedRiskTier: null,
+    });
+  });
+
+  it('keeps a valid stored tier independent of an invalid band', () => {
+    const stored = toApplicationSummary('stored', { ltvBand: {}, riskTier: 'D', ltvPct: 75 });
+    expect(withRiskTiers([stored], new Map([['stored', 'A']]))[0]).toMatchObject({
+      ltvBand: 'invalid', riskTier: 'D', storedRiskTier: 'D',
+    });
+  });
+
   it('keeps the stored tier ahead of a different review tier', () => {
     const stored = toApplicationSummary('stored', { ltvBand: 'over_90', riskTier: 'D', ltvPct: 85 });
     expect(withRiskTiers([stored], new Map([['stored', 'A']]))[0]).toMatchObject({
@@ -263,7 +284,7 @@ describe('an empty snapshot from the cache', () => {
 });
 
 describe('live pipeline subscription', () => {
-  it('uses stored fields independently and falls back for absent or invalid fields', () => {
+  it('uses stored fields independently and falls back only for absent fields', () => {
     const { listener, applications, tiers, stop } = subscribe();
     applications.next({ docs: [
       document('applications/both', { ltvBand: 'over_90', riskTier: 'D', ltvPct: 85 }),
@@ -279,7 +300,7 @@ describe('live pipeline subscription', () => {
     expect(listener.mock.lastCall?.[0].applications).toEqual([
       expect.objectContaining({ id: 'band-only', ltvBand: '80_or_less', riskTier: 'B', storedRiskTier: null }),
       expect.objectContaining({ id: 'both', ltvBand: 'over_90', riskTier: 'D', storedRiskTier: 'D' }),
-      expect.objectContaining({ id: 'invalid', ltvBand: null, riskTier: 'B', storedRiskTier: null }),
+      expect.objectContaining({ id: 'invalid', ltvBand: 'invalid', riskTier: 'invalid', storedRiskTier: 'invalid' }),
       expect.objectContaining({ id: 'neither', ltvBand: null, riskTier: null, storedRiskTier: null }),
       expect.objectContaining({ id: 'tier-only', ltvBand: null, riskTier: 'C', storedRiskTier: 'C' }),
     ]);

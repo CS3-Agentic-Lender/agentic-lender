@@ -24,6 +24,13 @@ export const RISK_TIERS = ['A', 'B', 'C', 'D'] as const;
 export type StoredLtvBand = (typeof STORED_LTV_BANDS)[number];
 export type RiskTier = (typeof RISK_TIERS)[number];
 
+// Null is absent; invalid marks a present value outside the allowed stored values.
+export type StoredField<T> = T | 'invalid' | null;
+
+function readStoredField<T>(value: unknown, allowed: readonly T[]): StoredField<T> {
+  return value == null ? null : allowed.find((entry) => entry === value) ?? 'invalid';
+}
+
 export function readRiskTier(value: unknown): RiskTier | null {
   return RISK_TIERS.find((tier) => tier === value) ?? null;
 }
@@ -35,8 +42,8 @@ export interface ApplicationSummary {
   loanType: string | null;
   loanAmountEur: number | null;
   ltvPct: number | null;
-  ltvBand?: StoredLtvBand | null;
-  riskTier?: RiskTier | null;
+  ltvBand?: StoredField<StoredLtvBand>;
+  riskTier?: StoredField<RiskTier>;
   updatedAt: Date | null;
 }
 
@@ -93,8 +100,8 @@ export function toApplicationSummary(id: string, data: DocumentData): Applicatio
     loanType: readString(data.loanType),
     loanAmountEur: readNumber(data.loanAmountEur),
     ltvPct: readNumber(data.ltvPct),
-    ltvBand: STORED_LTV_BANDS.find((band) => band === data.ltvBand) ?? null,
-    riskTier: readRiskTier(data.riskTier),
+    ltvBand: readStoredField(data.ltvBand, STORED_LTV_BANDS),
+    riskTier: readStoredField(data.riskTier, RISK_TIERS),
     updatedAt: readDate(data.updatedAt) ?? readDate(data.createdAt),
   };
 }

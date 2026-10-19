@@ -9,6 +9,7 @@ import { PipelineStatus } from './PipelineStatus';
 import {
   ALL_STATUSES,
   GROUP_BY_OPTIONS,
+  INVALID_RISK_TIER,
   applicationLtvBand,
   filterByStatus,
   formatLtv,
@@ -56,7 +57,9 @@ function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps)
         </span>
       </td>
       <td className={`${cellClass} text-sm`}>
-        {application.storedRiskTier ? (
+        {application.storedRiskTier === 'invalid' ? (
+          <span className="text-muted">{INVALID_RISK_TIER}</span>
+        ) : application.storedRiskTier ? (
           <span className="font-mono">{application.storedRiskTier}</span>
         ) : riskTierState === 'pending' ? (
           <span className="text-muted">Checking</span>
@@ -84,7 +87,7 @@ export function PipelinePage() {
   const applications = state.status === 'ready' ? state.applications : null;
   const riskTierState = state.status === 'ready' ? state.riskTierState : 'pending';
   const visible = useMemo(() => filterByStatus(applications ?? [], status), [applications, status]);
-  const needsFallbackTier = visible.some((application) => !application.storedRiskTier);
+  const needsFallbackTier = visible.some((application) => application.storedRiskTier == null);
   const riskTierNotice =
     needsFallbackTier && state.status === 'ready' && riskTierState === 'unavailable'
       ? riskTierNotices[state.riskTierError ?? 'unavailable']
