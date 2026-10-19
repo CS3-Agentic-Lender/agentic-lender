@@ -28,7 +28,8 @@ cd al-core
 firebase emulators:start --project demo-al --import=./seed-data
 ```
 
-The development build connects Firebase Auth to `http://127.0.0.1:9099` by default. Copy
+The development build connects Firebase Auth to `http://127.0.0.1:9099` and Firestore to
+`http://127.0.0.1:8080` by default. Copy
 `.env.example` to `.env.local` only when a different local URL or Firebase project configuration is
 needed. Production builds never connect to the emulator.
 
@@ -52,8 +53,8 @@ npm test
 npm run build
 ```
 
-`npm test` runs the Vitest auth, trusted-claim, and route-guard tests. `npm run build` type-checks the
-project and creates a production bundle in `dist/`.
+`npm test` runs the Vitest auth, trusted-claim, route-guard, and broker client list tests.
+`npm run build` type-checks the project and creates a production bundle in `dist/`.
 
 With the seeded Auth emulator running, verify all three real custom claims without printing tokens:
 
@@ -63,11 +64,23 @@ AL_EMULATOR_TEST_PASSWORD=<local-seed-password> npm run test:auth-emulator
 
 In PowerShell, set the environment variable for the current process before running the npm command.
 
+With the seeded Auth and Firestore emulators running, check that each seeded broker reads only the
+applications assigned to them and the profiles of the borrowers who chose them, and that the rules
+refuse anything wider:
+
+```sh
+AL_EMULATOR_TEST_PASSWORD=<local-seed-password> npm run test:clients-emulator
+```
+
+A broker missing from the seed is reported as `SKIP`, not as a pass.
+
 ## Routes
 
 - `/` — redirects to sign in
 - `/login` — Firebase email/password sign in
 - `/broker` — broker-only placeholder
+- `/broker/clients` — the signed-in broker's referred clients and their applications, live
+- `/broker/clients/:clientId` — one client's file; any ID outside the broker's own list is "not found"
 - `/underwriter` — underwriter-only placeholder
 - `/forbidden` — explicit refused-access state
 - any other path — not-found page
@@ -81,5 +94,25 @@ APIs must independently verify the current Firebase ID token and return `401` fo
 authentication and `403` for insufficient permission. That backend enforcement is not implemented
 in this web ticket.
 
-The placeholders use the Pine & Oat token set from `src/styles.css` and contain no client-list,
-pipeline, risk, LTV, or lending-decision functionality.
+## Broker client list
+
+`src/services/clientsService.ts` holds two live Firestore queries, both filtered to the signed-in
+broker's uid: `applications` where `brokerId` matches, and `users` where `brokerId` matches. A client
+is a borrower in either result. The Firestore rules are the access boundary: an unfiltered query is
+refused, and the client file page only looks inside the broker's own list.
+
+Applications appear as soon as their query answers, even while profiles are pending. Pending
+names show as "Loading name" alongside the client ID, without an unavailable-names notice.
+Names update live when profiles arrive; a refused or failed profiles query keeps applications
+visible by client ID and shows the notice.
+
+The rules on `main` (`al-core/firestore.rules`) let a broker read `users` where `brokerId` is their
+own uid, so the `users` query is allowed and names load. If it is refused or fails anyway, clients
+are listed by ID with a notice, and a broker with no known application sees that names could not be
+loaded rather than "No clients yet". An empty first answer that came only from the local cache is
+not treated as a result: the page stays on loading until the server answers. `loanAmountEur`,
+`ltvPct`, `loanType` and `updatedAt` are the field names in `al-core/SCHEMA.md`; they are read in
+`toBrokerApplication` only and show as "—" when a document has none.
+
+The placeholders use the Pine & Oat token set from `src/styles.css` and contain no pipeline, risk,
+or lending-decision functionality.
