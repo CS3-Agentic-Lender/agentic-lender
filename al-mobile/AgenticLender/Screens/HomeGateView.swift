@@ -50,6 +50,13 @@ struct HomeGateView: View {
             SecondaryButton(title: "Sign out") { session.signOut() }
                 .padding(.horizontal, Theme.screenPadding)
                 .accessibilityIdentifier("homeGate.signOut")
+            if let error = session.signOutError {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.error)
+                    .padding(.horizontal, Theme.screenPadding)
+                    .accessibilityIdentifier("homeGate.signOutError")
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
