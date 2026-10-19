@@ -1,7 +1,8 @@
 import Foundation
 import os
 
-/// Calls `POST /core/applications` through the API gateway with the borrower's Firebase ID token.
+/// Calls al-core's applications endpoints through the API gateway with the borrower's Firebase ID token:
+/// `POST /core/applications`, and `PATCH` and `GET /core/applications/{id}`.
 struct APIApplicationService: ApplicationService {
     static let path = "core/applications"
 
@@ -13,56 +14,73 @@ struct APIApplicationService: ApplicationService {
     private let logger = Logger(category: "Application")
 
     func saveDraft(_ draft: ApplicationDraft) async throws -> DraftSaveOutcome {
-        let token = try await idToken()
-        var request = URLRequest(url: baseURL.appending(path: Self.path))
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try draft.body()
-
-        let (data, response) = try await send(request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, status) = try await send("POST", Self.path, body: draft.body())
         switch status {
-        case 201, 200:
-            let id = try savedID(from: data)
-            return status == 201 ? .created(id: id) : .existingDraft(id: id)
-        case 401:
-            throw ApplicationSaveError.signedOut
-        case 409:
-            throw Self.conflictError(from: data)
-        case 422:
-            throw Self.invalidFieldError(from: data)
-        default:
-            logger.error("POST /core/applications returned \(status, privacy: .public)")
-            throw ApplicationSaveError.unavailable
+        case 201: return .created(id: try decode(SavedID.self, from: data, "POST").id)
+        case 200: return .existingDraft(id: try decode(SavedID.self, from: data, "POST").id)
+        default: throw failure(status, data, "POST")
         }
     }
 
-    private func savedID(from data: Data) throws -> String {
-        do {
-            return try JSONDecoder().decode(SavedApplication.self, from: data).id
-        } catch {
-            logger.error("POST /core/applications sent an answer the app can't read: \(error.localizedDescription, privacy: .public)")
-            throw ApplicationSaveError.unavailable
-        }
+    func editDraft(id: String, _ draft: ApplicationDraft) async throws {
+        let (data, status) = try await send("PATCH", "\(Self.path)/\(id)", body: draft.body())
+        guard status == 200 else { throw failure(status, data, "PATCH") }
     }
 
-    private func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
+    func loadApplication(id: String) async throws -> StoredApplication {
+        let (data, status) = try await send("GET", "\(Self.path)/\(id)", body: nil)
+        guard status == 200 else { throw failure(status, data, "GET") }
+        return try decode(StoredApplication.self, from: data, "GET")
+    }
+
+    private func send(_ method: String, _ path: String, body: Data?) async throws -> (Data, Int) {
+        let token = try await idToken()
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.httpMethod = method
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+        }
         do {
-            return try await session.data(for: request)
+            let (data, response) = try await session.data(for: request)
+            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
         } catch let error as URLError {
-            logger.error("POST /core/applications failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("\(method, privacy: .public) /core/applications failed: \(error.localizedDescription, privacy: .public)")
             throw ApplicationSaveError.network
         }
     }
 
-    /// al-core refuses a new Draft with 409 for three reasons, told apart by its message
+    private func decode<T: Decodable>(_ type: T.Type, from data: Data, _ method: String) throws -> T {
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch {
+            logger.error("\(method, privacy: .public) /core/applications sent an answer the app can't read: \(error.localizedDescription, privacy: .public)")
+            throw ApplicationSaveError.unavailable
+        }
+    }
+
+    /// The error for a status that isn't a success.
+    private func failure(_ status: Int, _ data: Data, _ method: String) -> ApplicationSaveError {
+        switch status {
+        case 401: return .signedOut
+        case 404: return .draftNotFound
+        case 409: return Self.conflictError(from: data)
+        case 422: return Self.invalidFieldError(from: data)
+        default:
+            logger.error("\(method, privacy: .public) /core/applications returned \(status, privacy: .public)")
+            return .unavailable
+        }
+    }
+
+    /// al-core refuses with 409 for four reasons, told apart by its message
     /// (al-core `app/applications.py`). Anything else is shown as al-core wrote it.
     static func conflictError(from data: Data) -> ApplicationSaveError {
         guard let message = ErrorEnvelope.message(in: data) else { return .unavailable }
         if message.hasPrefix("Create your profile first") { return .noProfile }
         if message.hasPrefix("Choose a broker") { return .noBroker }
         if message.contains("already have an application in progress") { return .inProgress }
+        if message.hasPrefix("Only a Draft can be edited") { return .submitted }
         return .rejected(message)
     }
 
@@ -97,8 +115,8 @@ struct APIApplicationService: ApplicationService {
         "property.ber_rating": "BER rating",
     ]
 
-    /// The one field of the saved application the form needs.
-    private struct SavedApplication: Decodable {
+    /// The one field of a newly saved application the form needs.
+    private struct SavedID: Decodable {
         let id: String
     }
 }

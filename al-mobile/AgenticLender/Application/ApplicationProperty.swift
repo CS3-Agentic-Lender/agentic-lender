@@ -62,4 +62,19 @@ struct PropertyDraft: Encodable, Equatable {
         case floorAreaSqm = "floor_area_sqm"
         case berRating = "ber_rating"
     }
+
+    /// An empty second line goes as `null`, not left out: al-core ignores it on a new Draft,
+    /// and on an edit it clears a line the borrower has removed (PATCH changes only what it's sent).
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(addressLine1, forKey: .addressLine1)
+        try container.encode(addressLine2, forKey: .addressLine2)
+        try container.encode(eircode, forKey: .eircode)
+        try container.encode(county, forKey: .county)
+        try container.encode(askingPriceEur, forKey: .askingPriceEur)
+        try container.encode(propertyType, forKey: .propertyType)
+        try container.encode(bedrooms, forKey: .bedrooms)
+        try container.encode(floorAreaSqm, forKey: .floorAreaSqm)
+        try container.encode(berRating, forKey: .berRating)
+    }
 }

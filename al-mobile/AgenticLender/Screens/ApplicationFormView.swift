@@ -2,15 +2,20 @@ import SwiftUI
 
 /// "Your application" (Figma frames "12 Application form" and 12a Above your maximum).
 ///
-/// "Save draft" saves it through `POST /core/applications`; reviewing and submitting is the next step.
+/// It reopens the borrower's saved Draft, and "Save draft" creates it the first time and changes it
+/// after that. A submitted application opens read-only. Reviewing and submitting is the next step.
 /// The home's details use the same controls as the HELOC check (Figma 07i).
 struct ApplicationFormView: View {
     @State private var model: ApplicationViewModel
     @State private var isCountySheetShown = false
     @FocusState private var focused: ApplicationField?
 
-    init(form: ApplicationForm, service: ApplicationService = APIApplicationService.live()) {
-        _model = State(initialValue: ApplicationViewModel(form: form, service: service))
+    init(
+        form: ApplicationForm,
+        service: ApplicationService = APIApplicationService.live(),
+        draftIDs: DraftIDStore = liveDraftIDStore()
+    ) {
+        _model = State(initialValue: ApplicationViewModel(form: form, service: service, draftIDs: draftIDs))
     }
 
     var body: some View {
@@ -63,8 +68,10 @@ struct ApplicationFormView: View {
 
                 propertySection
             }
+            .disabled(model.isReadOnly || model.isLoading)
             .padding(Theme.screenPadding)
         }
+        .task { await model.loadSavedDraft() }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { footer }
         .background(Theme.oat.ignoresSafeArea())
@@ -77,8 +84,46 @@ struct ApplicationFormView: View {
         }
     }
 
+    @ViewBuilder
     private var footer: some View {
+        if model.isReadOnly {
+            readOnlyFooter
+        } else {
+            saveFooter
+        }
+    }
+
+    /// AC: a submitted application shows what was sent, with this note and no way to change it.
+    private var readOnlyFooter: some View {
+        Label(ApplicationViewModel.readOnlyNote, systemImage: "lock")
+            .font(.footnote)
+            .foregroundStyle(Theme.text)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Theme.screenPadding)
+            .background(Theme.oat)
+            .accessibilityIdentifier("application.readOnly")
+    }
+
+    private var saveFooter: some View {
         VStack(spacing: 8) {
+            if model.isLoading {
+                ProgressView("Loading your draft…")
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("application.loading")
+            }
+            if let error = model.loadError {
+                HStack {
+                    Label(error, systemImage: "exclamationmark.circle")
+                        .foregroundStyle(Theme.error)
+                    Button("Try again") { Task { await model.loadSavedDraft() } }
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("application.retryLoad")
+                }
+                .font(.footnote)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("application.loadError")
+            }
             if let error = model.saveError {
                 Label(error, systemImage: "exclamationmark.circle")
                     .font(.footnote)
@@ -94,7 +139,7 @@ struct ApplicationFormView: View {
                     .accessibilityIdentifier("application.saved")
             }
             PrimaryButton(
-                title: model.isSaving ? "Saving..." : (model.isSaved ? "Saved" : "Save draft"),
+                title: model.isSaving ? "Saving..." : "Save draft",
                 isLoading: model.isSaving,
                 isEnabled: model.canSave
             ) {

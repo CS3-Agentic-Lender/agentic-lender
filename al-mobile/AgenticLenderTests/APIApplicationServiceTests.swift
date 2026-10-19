@@ -143,6 +143,79 @@ final class APIApplicationServiceTests: XCTestCase {
         await assertSaveFails(with: .network)
     }
 
+    // MARK: - Editing a Draft (PATCH) and reading one back (GET)
+
+    func testPatchesTheKeptDraftWithTheFormsValues() async throws {
+        StubURLProtocol.response = (200, applicationJSON(id: "app7"))
+
+        try await service().editDraft(id: "app7", draft())
+
+        let sent = try XCTUnwrap(StubURLProtocol.lastRequest)
+        XCTAssertEqual(sent.httpMethod, "PATCH")
+        XCTAssertEqual(sent.url?.absoluteString, "http://localhost:8000/core/applications/app7")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+        let body = try JSONSerialization.jsonObject(with: XCTUnwrap(StubURLProtocol.lastBody)) as? [String: Any]
+        XCTAssertEqual(body?["loan_amount_eur"] as? Int, 210_000)
+        XCTAssertEqual(body?["loan_type"] as? String, "mortgage")
+    }
+
+    func testEditingASubmittedApplicationIsRefusedAsSubmitted() async throws {
+        StubURLProtocol.response = (409, conflict("Only a Draft can be edited; this application is Applied"))
+
+        await assertEditFails(with: .submitted)
+        XCTAssertEqual(ApplicationSaveError.submitted.message, "Submitted applications can't be changed")
+    }
+
+    func testEditingADraftThatIsGoneSaysItIsNotFound() async throws {
+        StubURLProtocol.response = (404, conflict("No application with that id"))
+
+        await assertEditFails(with: .draftNotFound)
+    }
+
+    func testARejectedFieldOnEditIsNamedToo() async throws {
+        StubURLProtocol.response = (422, invalid(field: "property.eircode", message: "must be capitals with a space"))
+
+        await assertEditFails(with: .invalidField("Eircode"))
+    }
+
+    func testReadsTheApplicationBackWithItsSavedValues() async throws {
+        StubURLProtocol.response = (200, #"{"id": "app7", "status": "Draft", "loan_type": "mortgage", "loan_amount_eur": 210000.0}"#)
+
+        let stored = try await service().loadApplication(id: "app7")
+
+        let sent = try XCTUnwrap(StubURLProtocol.lastRequest)
+        XCTAssertEqual(sent.httpMethod, "GET")
+        XCTAssertEqual(sent.url?.absoluteString, "http://localhost:8000/core/applications/app7")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+        XCTAssertNil(StubURLProtocol.lastBody)
+        XCTAssertEqual(stored.id, "app7")
+        XCTAssertEqual(stored.loanAmountEur, 210_000)
+    }
+
+    func testReadingAMissingApplicationSaysItIsNotFound() async throws {
+        StubURLProtocol.response = (404, conflict("No application with that id"))
+
+        do {
+            _ = try await service().loadApplication(id: "gone")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? ApplicationSaveError, .draftNotFound)
+        }
+    }
+
+    private func assertEditFails(
+        with expected: ApplicationSaveError,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            try await service().editDraft(id: "app7", draft())
+            XCTFail("should throw", file: file, line: line)
+        } catch {
+            XCTAssertEqual(error as? ApplicationSaveError, expected, file: file, line: line)
+        }
+    }
+
     /// al-core's error envelope for a 409 (docs/api-design.md section 8).
     private func conflict(_ message: String) -> String {
         #"{"error": {"code": "CONFLICT", "message": "\#(message)", "field": null, "request_id": "r1"}}"#

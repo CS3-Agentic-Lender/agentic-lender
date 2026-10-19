@@ -1,6 +1,11 @@
-/// Saves a borrower's application draft through al-core.
+/// Saves, changes and reads back a borrower's application draft through al-core.
 protocol ApplicationService: Sendable {
+    /// `POST /core/applications`: a new Draft, or the borrower's existing one unchanged.
     func saveDraft(_ draft: ApplicationDraft) async throws -> DraftSaveOutcome
+    /// `PATCH /core/applications/{id}`: changes a Draft to match the form.
+    func editDraft(id: String, _ draft: ApplicationDraft) async throws
+    /// `GET /core/applications/{id}`: the application as saved.
+    func loadApplication(id: String) async throws -> StoredApplication
 }
 
 /// What `POST /core/applications` did with the draft.
@@ -8,7 +13,6 @@ enum DraftSaveOutcome: Equatable, Sendable {
     /// A new Draft was saved (201).
     case created(id: String)
     /// The borrower already had a Draft; al-core returned it unchanged and didn't save this one (200).
-    /// Changing an existing Draft is `PATCH /core/applications/{id}`.
     case existingDraft(id: String)
 }
 
@@ -18,6 +22,10 @@ enum ApplicationSaveError: Error, Equatable {
     case signedOut
     /// A submitted application is still in progress (409): one active application per borrower.
     case inProgress
+    /// The application was submitted, so it can no longer be changed (409 on PATCH).
+    case submitted
+    /// al-core has no such application for this borrower (404), so the kept id is stale.
+    case draftNotFound
     /// The borrower has no profile yet (409).
     case noProfile
     /// The borrower hasn't chosen a broker yet (409).
@@ -36,6 +44,10 @@ enum ApplicationSaveError: Error, Equatable {
             "You've been signed out. Sign in again to save your application."
         case .inProgress:
             "You already have an application in progress, so you can't start another."
+        case .submitted:
+            "Submitted applications can't be changed"
+        case .draftNotFound:
+            "We couldn't find your saved draft. Save again to start a new one."
         case .noProfile:
             "Finish your details before you start an application."
         case .noBroker:
