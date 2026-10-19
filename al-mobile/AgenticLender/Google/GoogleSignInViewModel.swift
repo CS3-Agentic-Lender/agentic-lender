@@ -1,7 +1,7 @@
 import Observation
 import os
 
-/// Drives "Continue with Google" on the sign-in and sign-up screens.
+/// Drives "Continue with Google" on the Welcome screen.
 @MainActor
 @Observable
 final class GoogleSignInViewModel {

@@ -8,6 +8,8 @@ struct ProfileDetailsFields: View {
     var focus: FocusState<SignUpField?>.Binding
     let isDisabled: Bool
     let chooseCounty: () -> Void
+    /// Starts each accessibility ID, so the two screens using these fields can be told apart.
+    let idPrefix: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -16,18 +18,18 @@ struct ProfileDetailsFields: View {
                     .textContentType(.telephoneNumber)
                     .keyboardType(.phonePad)
                     .focused(focus, equals: .phone)
-                    .accessibilityIdentifier("signUp.phone")
+                    .accessibilityIdentifier("\(idPrefix).phone")
             }
             FormField("Address line 1", error: error(.addressLine1), isDisabled: isDisabled) {
                 TextField("Address line 1", text: $form.addressLine1)
                     .textContentType(.streetAddressLine1)
                     .focused(focus, equals: .addressLine1)
-                    .accessibilityIdentifier("signUp.addressLine1")
+                    .accessibilityIdentifier("\(idPrefix).addressLine1")
             }
             FormField("Address line 2 (optional)", error: nil, isDisabled: isDisabled) {
                 TextField("Apartment, estate or area", text: $form.addressLine2)
                     .textContentType(.streetAddressLine2)
-                    .accessibilityIdentifier("signUp.addressLine2")
+                    .accessibilityIdentifier("\(idPrefix).addressLine2")
             }
             FormField("County", error: error(.county), isDisabled: isDisabled) {
                 countyButton
@@ -38,7 +40,7 @@ struct ProfileDetailsFields: View {
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .focused(focus, equals: .eircode)
-                    .accessibilityIdentifier("signUp.eircode")
+                    .accessibilityIdentifier("\(idPrefix).eircode")
             }
         }
         .disabled(isDisabled)
@@ -59,6 +61,6 @@ struct ProfileDetailsFields: View {
             .contentShape(Rectangle())
         }
         .accessibilityLabel("County, \(form.county?.name ?? "not chosen")")
-        .accessibilityIdentifier("signUp.county")
+        .accessibilityIdentifier("\(idPrefix).county")
     }
 }

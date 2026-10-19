@@ -1,6 +1,8 @@
 import Foundation
 
+#if DEBUG
 /// A stand-in for a real Google sign-in while the app runs on the Auth emulator.
+/// Debug builds only: it signs anyone in as any email, so it must never ship.
 ///
 /// The emulator accepts an unsigned Google ID token, so no Google OAuth client is needed.
 /// The deployed build will get its tokens from the Google Sign-In SDK instead; nothing
@@ -31,3 +33,4 @@ enum EmulatorGoogleToken {
             .replacingOccurrences(of: "=", with: "")
     }
 }
+#endif

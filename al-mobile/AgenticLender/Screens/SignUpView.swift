@@ -110,7 +110,8 @@ struct SignUpView: View {
             error: model.visibleError(for:),
             focus: $focused,
             isDisabled: model.isSubmitting,
-            chooseCounty: { isCountySheetShown = true }
+            chooseCounty: { isCountySheetShown = true },
+            idPrefix: "signUp"
         )
     }
 

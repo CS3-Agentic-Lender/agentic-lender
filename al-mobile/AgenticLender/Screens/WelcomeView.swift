@@ -25,6 +25,8 @@ struct WelcomeView: View {
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("welcome.signIn")
             // Figma 01 Welcome: Google sits under Create account and Sign in, for new and returning borrowers.
+            // Only Debug builds have a Google sign-in (the emulator stand-in), so release builds hide it.
+            #if DEBUG
             Button(google.isWorking ? "Signing in with Google..." : "Continue with Google") {
                 isGoogleSheetShown = true
             }
@@ -36,15 +38,18 @@ struct WelcomeView: View {
                     .font(.footnote)
                     .foregroundStyle(Theme.error)
             }
+            #endif
         }
         .padding()
         .navigationTitle("Welcome")
         .navigationBarTitleDisplayMode(.inline)
+        #if DEBUG
         .sheet(isPresented: $isGoogleSheetShown) {
             TestGoogleAccountSheet { token in
                 Task { await google.continueWithGoogle(token) }
             }
         }
+        #endif
         .navigationDestination(item: destination) { destination in
             switch destination {
             case .home:

@@ -29,7 +29,8 @@ struct GoogleProfileView: View {
                             error: model.visibleError(for:),
                             focus: $focused,
                             isDisabled: model.isSubmitting,
-                            chooseCounty: { isCountySheetShown = true }
+                            chooseCounty: { isCountySheetShown = true },
+                            idPrefix: "googleProfile"
                         )
                     }
                     .padding(Theme.screenPadding)

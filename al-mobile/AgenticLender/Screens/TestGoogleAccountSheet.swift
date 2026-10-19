@@ -1,6 +1,8 @@
 import SwiftUI
 
+#if DEBUG
 /// Stands in for Google's account picker while the app runs on the Auth emulator.
+/// Debug builds only, like `EmulatorGoogleToken`.
 ///
 /// The deployed build will open the real Google sign-in here instead; whatever opens,
 /// it hands back a `GoogleToken` and the rest of the flow stays the same.
@@ -54,3 +56,4 @@ struct TestGoogleAccountSheet: View {
         onSignIn(EmulatorGoogleToken.make(email: email, name: name))
     }
 }
+#endif
