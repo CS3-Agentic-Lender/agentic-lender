@@ -159,3 +159,14 @@ shows the status as text.
 
 The `/broker` and `/underwriter` placeholders use the Pine & Oat token set from `src/styles.css` and
 contain no lending-decision functionality.
+
+## Session handling
+
+The portal re-checks the verified ID token's role whenever Firebase reports an ID token change,
+including token refreshes. Protected content is hidden while the role is checked; missing or
+unrecognised roles are refused. Older checks cannot replace a newer result.
+
+A successful sign-out reloads the page at `/login`. If a signed-in user's role changes to another
+valid role, the page reloads at its current location so access is checked again. These reloads drop
+all in-memory caches, which clearing React state alone cannot do. Initial sign-in, page restoration
+and unchanged roles do not trigger a reload. A failed sign-out keeps the session and shows an alert.

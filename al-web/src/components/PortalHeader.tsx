@@ -9,7 +9,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   ].join(' ');
 
 export function PortalHeader() {
-  const { signOut, action, role } = useAuth();
+  const { signOut, action, role, authError } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -55,6 +55,11 @@ export function PortalHeader() {
         >
           {action === 'signing-out' ? 'Signing out…' : 'Sign out'}
         </button>
+        {authError ? (
+          <p className="w-full text-right text-sm text-error" role="alert">
+            {authError}
+          </p>
+        ) : null}
       </div>
     </header>
   );
