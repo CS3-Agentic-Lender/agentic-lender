@@ -176,6 +176,7 @@ def main():
     ap.add_argument("--out", default=str(HERE / "reports"))
     ap.add_argument("--tabpfn", action="store_true")
     ap.add_argument("--only", default="")  # comma list of variant names, for a quick smoke test
+    ap.add_argument("--resume", action="store_true")  # reuse variants already saved by an earlier run (so TabPFN can be added from another machine)
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -196,13 +197,25 @@ def main():
     if args.only:
         plan = {k: v for k, v in plan.items() if any(o in k for o in args.only.split(","))}
 
+    artifacts = HERE / "artifacts"
+    artifacts.mkdir(exist_ok=True)
+    oof_file, results_file = artifacts / "v2-oof.npz", out / "v2-models-results.json"
     oofs, results, timings = {}, {}, {}
+    if args.resume and oof_file.exists() and results_file.exists():
+        saved = json.loads(results_file.read_text())
+        with np.load(oof_file, allow_pickle=False) as z:
+            oofs = {k: z[k] for k in z.files}
+        results = {k: v for k, v in saved["results"].items() if k in oofs}
+        timings = {k: v for k, v in saved["timings"].items() if k in oofs}
+        print(f"resumed {len(oofs)} variants: {', '.join(oofs)}", flush=True)
     for name, make in plan.items():
+        if name in oofs:
+            continue
         print(f"running {name} ...", flush=True)
         try:
             oofs[name], timings[name] = cross_val(make, X, y, fold_ids)
-        except (PermissionError, ImportError) as e:  # TabPFN without agreement or package: say so, keep going
-            results[name] = {"not_run": str(e)}
+        except (PermissionError, ImportError, OSError) as e:  # TabPFN without agreement, or a missing package or system library: say so, keep going
+            results[name] = {"not_run": f"{type(e).__name__}: {e}"}
             print(f"  not run: {e}", flush=True)
             continue
         results[name] = metrics(y, oofs[name], fold_ids)
@@ -219,6 +232,7 @@ def main():
             timings[label] = {"fit_s_per_fold": sum(timings[n]["fit_s_per_fold"] for n in names), "predict_ms_per_1000": sum(timings[n]["predict_ms_per_1000"] for n in names)}
             print(f"{label}: CV MAPE {results[label]['cv_mape']:.2f}%", flush=True)
 
+    np.savez_compressed(oof_file, **oofs)  # out-of-fold predictions stay in the git-ignored artifacts folder, never in the report
     ref = results["catboost (single)"] if "catboost (single)" in results else None
     verdicts = {n: shortlist_verdict(r, ref) for n, r in results.items() if ref and "cv_mape" in r and n != "catboost (single)" and not n.endswith("(single)")}
     rare = {n: rare_key_mape(X, y, o, fold_ids) for n, o in oofs.items() if n in ("hist_gradient_boosting (single)", "catboost (single)") or "gpboost" in n}
