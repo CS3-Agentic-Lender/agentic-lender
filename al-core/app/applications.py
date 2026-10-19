@@ -176,7 +176,17 @@ REQUIRED_TO_SUBMIT = (
     "loan_amount_eur",
     "term_years",
 )
-PROPERTY_REQUIRED_TO_SUBMIT = ("address_line_1", "county", "eircode", "asking_price_eur")
+# The valuation (/ai/valuation) needs property_type, bedrooms, floor_area_sqm and ber_rating (AL-251).
+PROPERTY_REQUIRED_TO_SUBMIT = (
+    "address_line_1",
+    "county",
+    "eircode",
+    "property_type",
+    "bedrooms",
+    "floor_area_sqm",
+    "ber_rating",
+    "asking_price_eur",
+)
 
 
 def _invalid(field: str, message: str) -> RequestValidationError:
