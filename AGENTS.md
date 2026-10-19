@@ -210,7 +210,22 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
+**Exception: small changes to the agent rules and docs need no ticket.** Wording fixes in `AGENTS.md`, `docs/agents/` and the READMEs skip the ticket check, the sprint check and the branch format above. Use a branch named `docs/short-description` and a commit and PR title with no `AL-` key anywhere, so Jira cannot link the change to an unrelated ticket. Anything that changes code, or a rule the team has not agreed, still needs a ticket.
+
 Creating that branch moves the ticket to In Progress, and opening a PR moves it to In Review, so both happen when the work really starts and really ends. Don't create branches for tickets you are not about to work on, and don't open a PR to park unfinished work.
+
+### Keeping Jira status true
+
+The Jira automation has a usage limit and sometimes stops moving tickets (PR opened → In Review, PR merged → Done). So an agent does not trust the board: at the start and end of a session it checks each ticket it touched against what has actually happened.
+
+| What has happened | Status it should have |
+|---|---|
+| Assigned, no branch yet | To Do |
+| Branch exists, no PR | In Progress |
+| PR open | In Review |
+| PR merged into `main` | Done |
+
+If a status is wrong, the agent moves it with the Jira tools when the user has asked for Jira updates. Otherwise, or if the connection is down, it keeps a list of the tickets that need moving (key, current status, status it should have, and why) and shows it at the end of the session so the person can move them by hand. A merged PR whose ticket is not Done is the one to catch, because the burndown chart only falls when a Story reaches Done.
 
 ### Formats
 
