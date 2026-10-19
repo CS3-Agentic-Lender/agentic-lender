@@ -1,4 +1,5 @@
-"""POST /core/applications saves a borrower's Draft, PATCH /core/applications/{id} edits it and
+"""POST /core/applications saves a borrower's Draft, PATCH /core/applications/{id} edits it,
+POST /core/applications/{id}/submit sends it to the broker and the bank, and
 GET /core/applications/{id} reads one back.
 
 A Draft only needs `loan_type`: everything else on the application form is optional until the
@@ -13,6 +14,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
+from google.api_core.exceptions import FailedPrecondition
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -162,6 +164,20 @@ FINISHED = {"Declined", "Closed"}
 MORTGAGE_ONLY = ("deposit_eur", "first_time_buyer")
 HELOC_ONLY = ("existing_mortgage_balance_eur",)
 
+# Needed to submit, checked in this order so the first missing one is named (AL-245).
+REQUIRED_TO_SUBMIT = (
+    "applicants",
+    "gross_income_eur",
+    "monthly_debts_eur",
+    "monthly_take_home_eur",
+    "monthly_living_costs_eur",
+    "employment_type",
+    "years_in_current_job",
+    "loan_amount_eur",
+    "term_years",
+)
+PROPERTY_REQUIRED_TO_SUBMIT = ("address_line_1", "county", "eircode", "asking_price_eur")
+
 
 def _invalid(field: str, message: str) -> RequestValidationError:
     return RequestValidationError([{"loc": ("body", field), "msg": message, "type": "value_error"}])
@@ -177,12 +193,25 @@ def _check_loan_type_fields(loan_type: str, sent: dict) -> None:
 
 
 def _own_application(application_id: str, uid: str):
-    """The signed-in borrower's application, or 404 (the same for someone else's, so ids can't be probed)."""
+    """The signed-in borrower's application, or 404 (the same for someone else's, so ids can't be probed).
+
+    Also returns when it was last written, so the change can be made only if nothing else wrote
+    in between (see _update_if_unchanged).
+    """
     ref = db().collection("applications").document(application_id)
     snap = ref.get()
     if not snap.exists or snap.to_dict().get("borrowerId") != uid:
         raise HTTPException(404, "No application with that id")
-    return ref, snap.to_dict()
+    return ref, snap.to_dict(), snap.update_time
+
+
+def _update_if_unchanged(ref, changes: dict, read_at) -> None:
+    """Write only if the application hasn't changed since it was read, so an edit can't land after a
+    submit (or a submit go through on fields an edit has just cleared). Firestore checks this itself."""
+    try:
+        ref.update(changes, option=db().write_option(last_update_time=read_at))
+    except FailedPrecondition:
+        raise HTTPException(409, "The application changed while this request was running; read it again and retry")
 
 
 def _iso(ts) -> str | None:
@@ -271,7 +300,7 @@ def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(requi
     Changing `loan_type` drops the other loan type's fields (a deposit when moving to a HELOC,
     the existing mortgage balance when moving to a mortgage). Once submitted, it can't be edited (409).
     """
-    ref, doc = _own_application(application_id, user["uid"])
+    ref, doc, read_at = _own_application(application_id, user["uid"])
     if doc.get("status") != "Draft":
         raise HTTPException(409, f"Only a Draft can be edited; this application is {doc.get('status')}")
 
@@ -298,7 +327,46 @@ def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(requi
                 changes[f"property.{PROPERTY[api]}"] = DELETE_FIELD if value is None else value
     changes["updatedAt"] = SERVER_TIMESTAMP
 
-    ref.update(changes)
+    _update_if_unchanged(ref, changes, read_at)
+    return _out(ref.id, ref.get().to_dict())
+
+
+def _first_missing(doc: dict) -> str | None:
+    """The first field a submit needs that the Draft hasn't filled in, as an API path, or None."""
+    loan_type = doc.get("loanType", "mortgage")
+    needed = REQUIRED_TO_SUBMIT + (MORTGAGE_ONLY if loan_type == "mortgage" else HELOC_ONLY)
+    for api in needed:
+        if doc.get(INPUTS[api]) is None:  # 0 and false are real answers, only missing counts
+            return api
+    prop = doc.get("property") or {}
+    for api in PROPERTY_REQUIRED_TO_SUBMIT:
+        if prop.get(PROPERTY[api]) is None:
+            return f"property.{api}"
+    return None
+
+
+@router.post("/applications/{application_id}/submit", response_model=ApplicationOut)
+def submit(application_id: str, user: dict = Depends(require_role("borrower"))):
+    """Submit the signed-in borrower's Draft: its status moves to Applied, which starts the AI review.
+
+    Every field the assessment needs must be filled in first, or it is 422 naming the first one
+    missing. Safe to repeat: an application that is already Applied comes back unchanged. Any later
+    status is 409. Once submitted the borrower can no longer edit it.
+    """
+    ref, doc, read_at = _own_application(application_id, user["uid"])
+    status = doc.get("status")
+    if status == "Applied":
+        return _out(ref.id, doc)
+    if status != "Draft":
+        raise HTTPException(409, f"Only a Draft can be submitted; this application is {status}")
+
+    missing = _first_missing(doc)
+    if missing:
+        raise RequestValidationError(
+            [{"loc": ("body", *missing.split(".")), "msg": "is required to submit", "type": "missing"}]
+        )
+
+    _update_if_unchanged(ref, {"status": "Applied", "submittedAt": SERVER_TIMESTAMP, "updatedAt": SERVER_TIMESTAMP}, read_at)
     return _out(ref.id, ref.get().to_dict())
 
 
