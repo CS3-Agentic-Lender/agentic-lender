@@ -113,6 +113,19 @@ def verdict(gain_by_model: dict, folds_by_model: dict, combo: list) -> dict:
     return {"worth_proposing": ok, "reason": why, "needs_new_field": not free, "threshold_pp": need}
 
 
+def new_fields(combo) -> int:
+    """How many inputs in this combination would need a new field in the app."""
+    return sum(not CONFIG["additions"][c]["app_collects_it_today"] for c in combo)
+
+
+def recommend(rows):
+    """Of the combinations that pass the rule, the one asking the app for the fewest new fields, then the most accurate.
+    (The committed rule compares each combination with the five inputs, so a combination can pass because another input in it
+    does all the work. Asking for the fewest new fields avoids recommending a field that adds almost nothing.)"""
+    passed = [r for r in rows if r[5]["worth_proposing"]]
+    return min(passed, key=lambda r: (new_fields(r[0]), r[2]["hist_gradient_boosting"]["cv_mape"])) if passed else None
+
+
 def model_settings():
     frozen = json.loads((HERE / "reports" / "frozen-model.json").read_text())
     tuned = json.loads((HERE / "reports" / "tuning-results.json").read_text())["tuned"]
@@ -171,8 +184,14 @@ def build_report(base, rows, meta) -> str:
         free = "yes" if all(adds[x]["app_collects_it_today"] for x in combo) else "no"
         mark = "**proposed**" if v["worth_proposing"] else ("reference" if any(adds[x].get("reference_only") for x in combo) else "no")
         table.append(f"| {name} | {free} | {f(res[h]['cv_mape'])} | {gains[h]:+.2f} | {folds[h]}/5 | {f(res[c]['cv_mape'])} | {gains[c]:+.2f} | {folds[c]}/5 | {mark} |")
-    proposed = [r for r in rows if r[5]["worth_proposing"]]
-    best = min(proposed, key=lambda r: r[2][h]["cv_mape"]) if proposed else None
+    best = recommend(rows)
+    by_name = {r[1]: r for r in rows}
+    on_top = []
+    for combo, name, res, gains, folds, v in rows:  # what each extra adds on top of the Eircode key, which does most of the work
+        if combo[0] == "eircode_routing_key" and len(combo) > 1:
+            solo = by_name["eircode_routing_key"][2]
+            on_top.append(f"- Adding {' + '.join(combo[1:])} on top of the Eircode key: {res[h]['cv_mape'] - solo[h]['cv_mape']:+.2f} points (HistGradientBoosting), "
+                          f"{res[c]['cv_mape'] - solo[c]['cv_mape']:+.2f} (CatBoost) of CV MAPE.")
     lines = [
         "# Would extra inputs make the valuation clearly more accurate?", "",
         f"Development split only ({meta['rows']:,} rows, the same five group folds as the frozen model). Calibration and the final test were not read, "
@@ -187,6 +206,10 @@ def build_report(base, rows, meta) -> str:
         "**Rule for proposing (fixed beforehand):** an input the app already collects needs a gain of at least "
         f"{CONFIG['worth_proposing']['threshold_if_the_app_already_collects_it_mape_pp']} point in both models and in all five folds. "
         f"A new form field needs {CONFIG['worth_proposing']['threshold_if_it_needs_a_new_field_mape_pp']} points. Town and coordinates are upper-bound references only.", "",
+        "## What the Eircode key does and what the rest adds", "", *on_top, "",
+        "**A note on the rule.** The proposal rule was committed before these results, and it compares each combination with the five inputs. "
+        "That let combinations containing bathrooms pass only because the Eircode key does the work, which is not what the rule was for. After seeing this, "
+        "the recommendation step was changed to take the smallest set that passes (fewest new fields first). The pass or fail thresholds were not changed.", "",
         "## Coverage in the data", "",
         f"The Eircode routing key was found for {100 * meta['eircode_found']:.1f}% of the development rows, bathrooms for {100 * meta['bathrooms_found']:.1f}% and the construction year for "
         f"{100 * meta['construction_year_found']:.1f}%. A missing value gets its own Unknown category (or a missing flag), so the model also works when an input is absent.", "",

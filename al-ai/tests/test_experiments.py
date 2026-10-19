@@ -103,3 +103,24 @@ def test_the_rules_are_the_ones_committed_first():
     assert wr["threshold_if_the_app_already_collects_it_mape_pp"] == 1.0 and wr["threshold_if_it_needs_a_new_field_mape_pp"] == 2.0
     assert ex.CONFIG["additions"]["eircode_routing_key"]["app_collects_it_today"] is True
     assert json.dumps(ex.CONFIG["combinations"][0]) == '["eircode_routing_key"]'
+
+
+# ---- the recommendation takes the smallest set that passes -----------------------------------------
+
+def row(combo, hgb, ok=True):
+    res = {"hist_gradient_boosting": {"cv_mape": hgb}, "catboost": {"cv_mape": hgb}}
+    return (combo, " + ".join(combo), res, {}, {}, {"worth_proposing": ok})
+
+
+def test_the_recommendation_avoids_a_new_field_that_adds_almost_nothing():
+    rows = [row(["eircode_routing_key"], 22.2), row(["eircode_routing_key", "bathrooms"], 21.9)]
+    assert ex.recommend(rows)[1] == "eircode_routing_key"  # the second is more accurate but asks for a new field
+
+
+def test_with_equal_new_fields_the_more_accurate_one_wins():
+    rows = [row(["bathrooms"], 25.0), row(["construction_year"], 24.0)]
+    assert ex.recommend(rows)[1] == "construction_year"
+
+
+def test_nothing_is_recommended_when_nothing_passes():
+    assert ex.recommend([row(["bathrooms"], 25.0, ok=False)]) is None
