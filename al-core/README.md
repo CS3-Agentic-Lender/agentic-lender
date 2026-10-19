@@ -189,7 +189,7 @@ APP=$(call POST /core/applications '{"loan_type":"mortgage","loan_amount_eur":27
   | tee /dev/stderr | uv run python -c "import sys, json; print(json.load(sys.stdin)['id'])")
 
 # 8. PATCH /core/applications/{id}: fill in the rest. Only the fields sent change; property merges field by field
-call PATCH "/core/applications/$APP" '{"applicants":"single","gross_income_eur":75000,"monthly_debts_eur":300,"monthly_take_home_eur":4200,"monthly_living_costs_eur":1800,"employment_type":"employed","years_in_current_job":4,"deposit_eur":35000,"first_time_buyer":true,"property":{"address_line_1":"12 Main Street","county":"Cork","eircode":"P31 X2Y3","property_type":"semi_detached","bedrooms":3,"floor_area_sqm":110,"ber_rating":"B2","asking_price_eur":315000}}'
+call PATCH "/core/applications/$APP" '{"applicants":"single","gross_income_eur":75000,"monthly_debts_eur":300,"monthly_take_home_eur":4200,"monthly_living_costs_eur":1800,"employment_type":"employed","years_in_current_job":4,"deposit_eur":35000,"first_time_buyer":true,"property":{"address_line_1":"12 Main Street","county":"Cork","eircode":"P31 X2Y3","property_type":"Semi-D","bedrooms":3,"floor_area_sqm":110,"ber_rating":"B2","asking_price_eur":315000}}'
 
 # 9. POST /core/applications/{id}/submit: Draft to Applied (422 names the first missing field)
 call POST "/core/applications/$APP/submit"
