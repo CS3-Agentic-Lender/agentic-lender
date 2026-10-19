@@ -59,6 +59,28 @@ Development data only: 6,047 rows split off (60%), 4,882 of them with a floor ar
 - **The re-run test failed at first.** Multi-threaded models differ in the 13th decimal place between runs, so the fingerprint now rounds to 6 decimals. That is stated in the report rather than hidden.
 - **The PC server lost its internet** while it needed to install xgboost and catboost (the home network was down), so the first full run used the Mac with identical library versions. When the network came back the PC run worked first time.
 
+## Tuning and the frozen winner
+
+Before any tuning ran, the rules were committed in `tuning_config.json`: a model must beat the baseline by 2 points of CV MAPE, the shortlist is the top three (CatBoost, HistGradientBoosting, MLP), each gets 50 seeded random trials on the same five folds, and anything within 1 point of the best is tied and goes to the simplest (HistGradientBoosting, then CatBoost, then MLP, then the ensemble). You also suggested averaging the best models instead of picking one, so an equal-weight average of the three tuned models was added as a fourth contender. That is a change to the written plan, and it has to beat the best single model by more than a point to win.
+
+| Model | Defaults | Tuned | Gain |
+|---|---|---|---|
+| CatBoost | 26.31% | 26.14% | 0.17 |
+| HistGradientBoosting | 26.78% | 26.72% | 0.06 |
+| MLP | 27.18% | 26.76% | 0.43 |
+| Ensemble of the three tuned | - | **25.92%** | - |
+| Baseline | 31.90% | - | - |
+
+150 trials (750 model fits) took 15 minutes on the PC.
+
+**Result: HistGradientBoosting is frozen as the winner.** Tuning barely moved anything (0.06 to 0.43 points), and the ensemble, the best score at 25.92%, is only 0.2 to 0.8 points ahead of the three single models. That is inside the 1-point tie band, so by the rule we fixed beforehand the simplest tied model wins: HistGradientBoosting is built into scikit-learn (no extra library in the app), predicts one model's worth rather than three, and its fold spread (1.18) is among the lowest of the four (the MLP's is 1.14). It beats the baseline by 5.2 points, well over the 2-point margin.
+
+**What this means**
+- The ensemble would have won with a clear gap of over a point, but it didn't, and I did not move the line afterwards. That is the point of writing the rules first.
+- The ensemble's 0.2 to 0.8 point gain is real but small, and it would cost three models in the app and CatBoost as a dependency.
+- Tuning showed we are near the limit of what these five inputs can predict: noise in asking prices, not the choice of model, is what is left.
+- The tuned scores are slightly optimistic, because each is the best of 50 trials chosen on the same folds. The final test is the honest figure.
+
 ## Limits
 
 - Target is the 2024 asking price, not a sale price.
@@ -68,6 +90,5 @@ Development data only: 6,047 rows split off (60%), 4,882 of them with a floor ar
 
 ## Next
 
-1. Tune the three best models on a fixed budget, with the improvement margin written down before any tuning, and freeze the winner (AL-119).
-2. Use the calibration data for the price-review threshold and score the final test once (AL-120).
-3. Save the pipeline and write the model card (AL-121).
+1. Use the calibration data for the price-review threshold and score the final test once (AL-120).
+2. Save the pipeline and write the model card (AL-121).
