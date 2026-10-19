@@ -162,7 +162,7 @@ The blockchain half of al-core is a Hardhat project in `al-core/chain/`, separat
 
 **Who can do what:** only accounts with `MINTER_ROLE` (al-core's wallet) can mint or close a note. The admin (the deployer) can hand the role to a new wallet. A closed note can't be reopened, and an application can only be minted once.
 
-**Who holds the notes:** every note is minted to one `holder` address (the bank), fixed when the contract is deployed. It is kept separate from the minter, so if al-core's wallet is replaced, the notes already minted stay with the bank instead of being stranded in the old wallet. The constructor refuses a zero address for the admin, minter or holder.
+**Who holds the notes:** every note is minted to one `holder` address (the bank), fixed when the contract is deployed. It is kept separate from the minter, so if al-core's wallet is replaced, the notes already minted stay with the bank instead of being stranded in the old wallet. The constructor refuses a zero address for the admin, minter or holder. The holder is fixed for the life of the contract, so moving the notes to a new bank wallet means deploying a new contract. That's a known limit, fine for this project.
 
 **Notes can't be transferred.** A note is the bank's record of a loan, not something traded in this app, so the contract only allows minting: any transfer, of an active or a closed note, reverts with `NotTransferable`. A real lender sometimes sells loans on, so a production version might allow active notes to move between approved holders. That is left as future work because nothing in the app needs it.
 
@@ -173,3 +173,31 @@ cd chain
 npm install
 npx hardhat test
 ```
+
+### Running a local chain
+
+Two terminals, from `al-core/chain/`:
+
+```
+npx hardhat node
+```
+
+starts a local chain on `http://127.0.0.1:8545` with 20 funded test accounts (test keys only, printed by Hardhat, never used anywhere real). Then:
+
+```
+npm run deploy:local
+npm run demo:local
+```
+
+(the same as `npx hardhat run scripts/deploy.js --network localhost` and `scripts/demo-mint.js`.)
+
+`deploy.js` deploys the loan note and saves its address to `deployments/localhost.json`, which al-core will read to find the contract once minting is wired in. `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node: `demo-mint.js` says so if the saved address has no contract behind it.
+
+### Choices for the chain
+
+- **Who signs transactions:** al-core, with a server-held testnet wallet (web3.py). The underwriter clicks sign-off in the portal and the API mints, so nobody needs a browser wallet. The wallet's address gets `MINTER_ROLE` at deploy (`MINTER_ADDRESS`, defaulting to the deployer for local work). The notes themselves go to a separate bank address (`HOLDER_ADDRESS`, also defaulting to the deployer), so replacing al-core's wallet never moves them.
+- **Libraries:** Hardhat and ethers.js for the contracts, tests and scripts; web3.py in al-core for minting.
+- **Where the chain runs:** a local Hardhat node for development. The live site can't reach a node on a laptop, so it will use a public testnet, most likely Polygon Amoy, set up in Sprint 3 (`--network amoy` once `.env` is filled in).
+- **Docker Compose:** not for now (team decision, 13 Oct). `npx hardhat node` runs fine on its own and al-core only needs its URL, so Compose would add a container without changing anything. Revisit when the chain is deployed.
+- **Audit registry:** the second contract (the write-once SHA-256 audit hash) comes with the audit hash story in Sprint 2, agreed with Nic on 18 Oct, since the Sprint 1 goal covers the loan note only.
+- **Keys:** testnet wallets only. Private keys live in `chain/.env`, which git ignores; `chain/.env.example` lists the names with empty values.
