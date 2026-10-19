@@ -88,10 +88,10 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `addressLine2` | string | Optional |
 | `eircode` | string | Capitals with a space (`A65 F4E2`), the same rule as the profile. Needed to submit |
 | `county` | string | From `GET /ai/valuation/options`. Needed to submit |
-| `propertyType` | string | From `GET /ai/valuation/options` |
-| `bedrooms` | number | |
-| `floorAreaSqm` | number | |
-| `berRating` | string | From `GET /ai/valuation/options` |
+| `propertyType` | string | From `GET /ai/valuation/options`. Needed to submit (the valuation uses it) |
+| `bedrooms` | number | Needed to submit (the valuation uses it); `0` counts |
+| `floorAreaSqm` | number | Needed to submit (the valuation uses it) |
+| `berRating` | string | From `GET /ai/valuation/options`. Needed to submit (the valuation uses it) |
 | `askingPriceEur` | number | Needed to submit (the LTV is worked out from it) |
 
 ### Results and decision

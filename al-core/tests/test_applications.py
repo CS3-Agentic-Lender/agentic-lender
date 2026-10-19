@@ -629,6 +629,21 @@ def test_zero_and_false_count_as_answers(fake):
     assert submit(app_id).json()["status"] == "Applied"
 
 
+def test_zero_bedrooms_counts_as_an_answer(fake):
+    body = {**FULL_MORTGAGE, "property": {**FULL_MORTGAGE["property"], "bedrooms": 0}}
+    app_id = create(body).json()["id"]
+    r = submit(app_id)
+    assert r.status_code == 200 and r.json()["status"] == "Applied"
+
+
+def test_the_valuation_fields_come_after_the_address_and_before_the_price(fake):
+    body = {**FULL_MORTGAGE, "property": {"address_line_1": "12 Main Street", "county": "Cork", "eircode": "P31 X2Y3"}}
+    app_id = create(body).json()["id"]
+    assert submit(app_id).json()["error"]["field"] == "property.property_type"
+    edit(app_id, {"property": {"property_type": "Semi-detached house", "bedrooms": 3, "floor_area_sqm": 110, "ber_rating": "B2"}})
+    assert submit(app_id).json()["error"]["field"] == "property.asking_price_eur"
+
+
 def test_address_line_2_is_not_needed(fake):
     body = {**FULL_MORTGAGE, "property": {k: v for k, v in FULL_MORTGAGE["property"].items() if k != "address_line_2"}}
     app_id = create(body).json()["id"]
@@ -642,7 +657,11 @@ MORTGAGE_NEEDS = [
     "monthly_living_costs_eur", "employment_type", "years_in_current_job", "loan_amount_eur",
     "term_years", "deposit_eur", "first_time_buyer",
 ]
-PROPERTY_NEEDS = ["address_line_1", "county", "eircode", "asking_price_eur"]
+PROPERTY_NEEDS = [
+    "address_line_1", "county", "eircode",
+    "property_type", "bedrooms", "floor_area_sqm", "ber_rating",  # what the valuation needs (AL-251)
+    "asking_price_eur",
+]
 
 
 @pytest.mark.parametrize("field", MORTGAGE_NEEDS + [f"property.{f}" for f in PROPERTY_NEEDS])
