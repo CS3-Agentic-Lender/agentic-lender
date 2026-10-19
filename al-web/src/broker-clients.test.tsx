@@ -275,14 +275,21 @@ describe('broker client list', () => {
 
   it('shows no clients yet only once profiles have answered with nothing', async () => {
     const clients = new FakeClientsService({ 'broker-1': files([], [], 'pending') });
-    renderAs('broker-1', 'broker', '/broker/clients', clients);
-    await screen.findByRole('heading', { name: 'Loading your clients' });
+    await act(async () => {
+      renderAs('broker-1', 'broker', '/broker/clients', clients);
+    });
 
-    act(() => {
+    expect(clients.subscriptions.map(({ brokerUid, active }) => ({ brokerUid, active }))).toEqual([
+      { brokerUid: 'broker-1', active: true },
+    ]);
+    expect(screen.getByRole('heading', { name: 'Loading your clients' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'No clients yet' })).not.toBeInTheDocument();
+
+    await act(async () => {
       clients.push('broker-1', files([], [], 'available'));
     });
 
-    expect(await screen.findByRole('heading', { name: 'No clients yet' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No clients yet' })).toBeInTheDocument();
   });
 
   it('tells apart several clients whose names are unavailable by their client ID', async () => {
