@@ -18,7 +18,7 @@ struct AgenticLenderApp: App {
                     case .welcome:
                         WelcomeView(googleService: FirebaseGoogleSignInService())
                     case .home:
-                        HomeView()
+                        HomeGateView()
                     }
                 }
                 .navigationDestination(for: Route.self) { route in

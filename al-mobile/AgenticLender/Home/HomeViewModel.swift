@@ -1,35 +1,26 @@
 import Observation
-import os
 
-/// Drives the home screen's greeting with the borrower's first name.
+/// Drives the home screen: the greeting with the borrower's first name, and their broker.
 @MainActor
 @Observable
 final class HomeViewModel {
-    private(set) var firstName: String?
-    private(set) var isLoading = true
+    private(set) var profile: CoreProfile
 
-    private let loadFullName: () async throws -> String
-    private let logger = Logger(category: "Home")
-
-    /// `loadFullName` reads the profile from al-core.
-    init(loadFullName: @escaping () async throws -> String) {
-        self.loadFullName = loadFullName
+    /// `profile` comes from the gate, which has already loaded it from al-core.
+    init(profile: CoreProfile) {
+        self.profile = profile
     }
 
-    /// "Hello, Aoife", or just "Hello" while the name loads or if it can't be read.
+    /// "Hello, Aoife", or just "Hello" if the name is blank.
     var greeting: String {
-        firstName.map { "Hello, \($0)" } ?? "Hello"
+        Self.firstName(from: profile.fullName).map { "Hello, \($0)" } ?? "Hello"
     }
 
-    func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            firstName = Self.firstName(from: try await loadFullName())
-        } catch {
-            // The name is a courtesy: everything else on home still works without it.
-            logger.error("Loading the borrower's name failed: \(error.localizedDescription, privacy: .public)")
-        }
+    var brokerName: String? { profile.brokerName }
+    var brokerFirm: String? { profile.brokerFirm }
+
+    func brokerChanged(_ profile: CoreProfile) {
+        self.profile = profile
     }
 
     static func firstName(from fullName: String) -> String? {

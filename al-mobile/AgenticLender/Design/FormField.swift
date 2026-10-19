@@ -83,3 +83,22 @@ private struct PineButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
     }
 }
+
+/// The full-width outlined button for a second action, such as Sign out or Retry.
+struct SecondaryButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Theme.pine)
+                .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.line))
+        }
+        .buttonStyle(.plain)
+    }
+}
