@@ -161,6 +161,11 @@ final class SignInErrorTests: XCTestCase {
         XCTAssertEqual(SignInError(authError: authError(.tooManyRequests)), .tooManyAttempts)
     }
 
+    /// Shown on the reset screen too, so it doesn't point the borrower to reset their password.
+    func testTooManyAttemptsReadsRightOnSignInAndOnReset() {
+        XCTAssertEqual(SignInError.tooManyAttempts.message, "Too many attempts. Try again in a few minutes.")
+    }
+
     func testErrorsFromOtherDomainsAreUnknown() {
         XCTAssertEqual(SignInError(authError: NSError(domain: "Other", code: 17009)), .unknown)
     }
