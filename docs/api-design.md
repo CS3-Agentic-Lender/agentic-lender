@@ -172,8 +172,8 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
     { "feature": "floor_area", "value": 98, "eur": 31200 },
     { "feature": "county", "value": "Cork", "eur": 18500 },
     { "feature": "bedrooms", "value": 3, "eur": 9800 },
-    { "feature": "property_type", "value": "semi_detached", "eur": -4600 },
-    { "feature": "ber", "value": "C2", "eur": -1300 }
+    { "feature": "property_type", "value": "Semi-D", "eur": -4600 },
+    { "feature": "ber", "value": "C", "eur": -1300 }
   ]
 }
 ```
