@@ -227,7 +227,9 @@ A commit that fixes a review comment keeps the same key; never renumber mid-bran
 
 Before opening, the agent shows the developer the whole PR: the branch, the commits (subject lines), the title, the full body, the files changed, and the reviewers it will request. It opens the PR only after the developer says yes to that PR, in the current conversation. "Finish the ticket" is not that yes. A yes to one PR does not cover the next one.
 
-An agent still **never** merges, approves, or resolves someone's review comment on the developer's behalf, and it never marks a draft ready for review without showing the developer first. Any change to the PR the developer approved (a new title or body, extra commits) goes back to the developer before it is pushed or posted.
+An agent approves or merges a PR only when the developer explicitly asks for that PR in the current conversation, and only after a pre-check it states in one line each: the head commit is unchanged since the review, there are no bot or Copilot commits on the branch, CI is green, and the branch will be deleted after the merge. A failed check is fixed or reported, not skipped. This catches an approval that GitHub dismisses seconds later because the branch is behind `main`, and a bot commit nobody reviewed.
+
+An agent never resolves someone's review comment on the developer's behalf, and it never marks a draft ready for review without showing the developer first. Any change to the PR the developer approved (a new title or body, extra commits) goes back to the developer before it is pushed or posted.
 
 Before showing the PR, the agent checks its own work against the rules above and says so in one line each:
 
