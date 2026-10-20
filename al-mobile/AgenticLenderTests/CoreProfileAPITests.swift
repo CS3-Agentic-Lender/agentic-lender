@@ -85,4 +85,54 @@ final class CoreProfileAPITests: XCTestCase {
             XCTAssertEqual(error as? AccountError, .network)
         }
     }
+
+    // MARK: - GET /core/me
+
+    func testHasProfileAsksCoreMeWithTheIDToken() async throws {
+        let network = FakeNetwork()
+        network.status = 200
+
+        let hasProfile = try await api(network).hasProfile(idToken: "test-token")
+
+        XCTAssertTrue(hasProfile)
+        let sent = try XCTUnwrap(network.sent)
+        XCTAssertEqual(sent.httpMethod, "GET")
+        XCTAssertEqual(sent.url?.absoluteString, "http://localhost:8000/core/me")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+    }
+
+    func testNotFoundMeansNoProfileYet() async throws {
+        let network = FakeNetwork()
+        network.status = 404
+
+        let hasProfile = try await api(network).hasProfile(idToken: "test-token")
+
+        XCTAssertFalse(hasProfile)
+    }
+
+    func testOtherStatusesWhenCheckingAreAnError() async throws {
+        for status in [401, 500, 502] {
+            let network = FakeNetwork()
+            network.status = status
+
+            do {
+                _ = try await api(network).hasProfile(idToken: "test-token")
+                XCTFail("status \(status) should throw")
+            } catch {
+                XCTAssertEqual(error as? AccountError, .unknown, "status \(status)")
+            }
+        }
+    }
+
+    func testNoConnectionWhenCheckingIsANetworkError() async throws {
+        let network = FakeNetwork()
+        network.failure = URLError(.cannotConnectToHost)
+
+        do {
+            _ = try await api(network).hasProfile(idToken: "test-token")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? AccountError, .network)
+        }
+    }
 }

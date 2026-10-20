@@ -9,11 +9,13 @@ struct AgenticLenderApp: App {
     var body: some Scene {
         WindowGroup {
             NavigationStack {
-                WelcomeView()
+                WelcomeView(googleService: FirebaseGoogleSignInService())
                     .navigationDestination(for: Route.self) { route in
                         switch route {
                         case .signIn:
-                            SignInView()
+                            SignInView(service: FirebaseSignInService())
+                        case .resetPassword(let email):
+                            ResetPasswordView(service: FirebaseSignInService(), email: email)
                         case .signUp:
                             SignUpView(service: FirebaseAccountService())
                         case .affordability:

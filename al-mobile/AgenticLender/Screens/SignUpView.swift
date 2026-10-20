@@ -4,7 +4,6 @@ import SwiftUI
 struct SignUpView: View {
     @State private var model: SignUpViewModel
     @FocusState private var focused: SignUpField?
-    @State private var isPasswordVisible = false
     @State private var isCountySheetShown = false
 
     init(service: AccountService) {
@@ -91,91 +90,29 @@ struct SignUpView: View {
             }
             // The checklist explains a weak password, so only a missing one gets an error line.
             FormField("Password", error: model.form.password.isEmpty ? model.visibleError(for: .password) : nil) {
-                passwordField
+                PasswordField(
+                    text: $model.form.password,
+                    contentType: .newPassword,
+                    focus: $focused,
+                    field: .password,
+                    identifier: "signUp.password"
+                )
+                .submitLabel(.continue)
+                .onSubmit { model.continueFromAccount() }
             }
             PasswordChecklist(rulesMet: model.passwordRulesMet)
         }
     }
 
-    private var passwordField: some View {
-        HStack {
-            Group {
-                if isPasswordVisible {
-                    TextField("Password", text: $model.form.password)
-                } else {
-                    SecureField("Password", text: $model.form.password)
-                }
-            }
-            .textContentType(.newPassword)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .focused($focused, equals: .password)
-            .submitLabel(.continue)
-            .onSubmit { model.continueFromAccount() }
-            .accessibilityIdentifier("signUp.password")
-
-            Button {
-                isPasswordVisible.toggle()
-            } label: {
-                Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
-                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
-            }
-            .foregroundStyle(Theme.mutedText)
-            .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password") // betterleaks:allow — button label, not a secret
-        }
-    }
-
     private var detailsFields: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            FormField("Phone", error: model.visibleError(for: .phone), isDisabled: model.isSubmitting) {
-                TextField("087 123 4567", text: $model.form.phone)
-                    .textContentType(.telephoneNumber)
-                    .keyboardType(.phonePad)
-                    .focused($focused, equals: .phone)
-                    .accessibilityIdentifier("signUp.phone")
-            }
-            FormField("Address line 1", error: model.visibleError(for: .addressLine1), isDisabled: model.isSubmitting) {
-                TextField("Address line 1", text: $model.form.addressLine1)
-                    .textContentType(.streetAddressLine1)
-                    .focused($focused, equals: .addressLine1)
-                    .accessibilityIdentifier("signUp.addressLine1")
-            }
-            FormField("Address line 2 (optional)", error: nil, isDisabled: model.isSubmitting) {
-                TextField("Apartment, estate or area", text: $model.form.addressLine2)
-                    .textContentType(.streetAddressLine2)
-                    .accessibilityIdentifier("signUp.addressLine2")
-            }
-            FormField("County", error: model.visibleError(for: .county), isDisabled: model.isSubmitting) {
-                countyButton
-            }
-            FormField("Eircode", error: model.visibleError(for: .eircode), isDisabled: model.isSubmitting) {
-                TextField("A65 F4E2", text: $model.form.eircode)
-                    .textContentType(.postalCode)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .focused($focused, equals: .eircode)
-                    .accessibilityIdentifier("signUp.eircode")
-            }
-        }
-        .disabled(model.isSubmitting)
-    }
-
-    private var countyButton: some View {
-        Button {
-            focused = nil
-            isCountySheetShown = true
-        } label: {
-            HStack {
-                Text(model.form.county?.name ?? "Choose county")
-                    .foregroundStyle(model.form.county == nil ? Theme.mutedText : Theme.text)
-                Spacer()
-                Image(systemName: "chevron.down").foregroundStyle(Theme.mutedText)
-            }
-            .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
-            .contentShape(Rectangle())
-        }
-        .accessibilityLabel("County, \(model.form.county?.name ?? "not chosen")")
-        .accessibilityIdentifier("signUp.county")
+        ProfileDetailsFields(
+            form: $model.form,
+            error: model.visibleError(for:),
+            focus: $focused,
+            isDisabled: model.isSubmitting,
+            chooseCounty: { isCountySheetShown = true },
+            idPrefix: "signUp"
+        )
     }
 
     private var footer: some View {
@@ -205,17 +142,7 @@ struct SignUpView: View {
 
     /// Shown until choosing a broker is built as the next step after sign-up.
     private var accountCreated: some View {
-        ContentUnavailableView {
-            Label("Account created", systemImage: "checkmark.circle")
-        } description: {
-            Text("Next you'll choose your broker.")
-        } actions: {
-            NavigationLink("What can I borrow?", value: Route.affordability)
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.pine)
-                .accessibilityIdentifier("signUp.affordability")
-        }
-        .foregroundStyle(Theme.text)
+        SignedInPlaceholderView(title: "Account created", message: "Next you'll choose your broker.")
     }
 }
 
