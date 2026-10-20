@@ -63,8 +63,8 @@ class FeatureBuilder(BaseEstimator, TransformerMixin):
         return np.hstack([num, one_hot("county", COUNTIES), one_hot("property_type", TYPES)])
 
 
-def make_model(name: str, seed: int):
-    """Default settings, a fixed seed, and the target modelled as log(price) then converted back to euro."""
+def make_model(name: str, seed: int, params: dict | None = None):
+    """Default settings (or the given overrides), a fixed seed, and the target modelled as log(price) then back to euro."""
     scale = ColumnTransformer([("num", StandardScaler(), [0, 1, 2])], remainder="passthrough")  # area, bedrooms, BER
     if name == "ridge":
         est, scaled = Ridge(), True
@@ -84,6 +84,8 @@ def make_model(name: str, seed: int):
         est, scaled = CatBoostRegressor(random_seed=seed, verbose=0, allow_writing_files=False), False
     else:
         raise ValueError(f"unknown model {name}")
+    if params:
+        est.set_params(**params)
     steps = [("features", FeatureBuilder())] + ([("scale", scale)] if scaled else []) + [("model", est)]
     return TransformedTargetRegressor(Pipeline(steps), func=np.log, inverse_func=np.exp, check_inverse=False)
 
@@ -141,7 +143,7 @@ def segments(df: pd.DataFrame, y, p, bands: list[float]) -> dict:
     return out
 
 
-def cross_validate(make, X: pd.DataFrame, y: np.ndarray, fold_ids: np.ndarray, bands: list[float]) -> tuple[dict, dict]:
+def cross_validate(make, X: pd.DataFrame, y: np.ndarray, fold_ids: np.ndarray, bands: list[float], return_oof=False):
     oof, fold_mape, fit_s, pred_s = np.empty(len(y)), [], [], []
     for k in sorted(set(fold_ids)):
         train, test = fold_ids != k, fold_ids == k
@@ -159,7 +161,7 @@ def cross_validate(make, X: pd.DataFrame, y: np.ndarray, fold_ids: np.ndarray, b
         "segments": segments(X, y, oof, bands),
     }
     timing = {"fit_s_per_fold": float(np.mean(fit_s)), "predict_ms_per_1000": float(np.mean(pred_s))}
-    return result, timing
+    return (result, timing, oof) if return_oof else (result, timing)
 
 
 def load_development(seed: int):
