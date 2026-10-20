@@ -33,9 +33,16 @@ struct CoreProfileAPI: Sendable {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 201 || status == 200 else {
             logger.error("POST /core/me returned \(status, privacy: .public)")
-            throw AccountError.profileNotSaved
+            throw Self.serverErrors.contains(status) ? ServerError(status: status) : AccountError.profileNotSaved
         }
     }
+
+    /// A 5xx from `POST /core/me`: the server failed rather than refused, so sign-up tries again (AL-239).
+    struct ServerError: Error, Equatable {
+        let status: Int
+    }
+
+    private static let serverErrors = 500...599
 
     /// Whether the signed-in user already has a profile: 200 yes, 404 not yet.
     func hasProfile(idToken: String) async throws -> Bool {

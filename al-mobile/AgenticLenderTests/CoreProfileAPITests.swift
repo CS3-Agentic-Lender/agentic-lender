@@ -60,8 +60,8 @@ final class CoreProfileAPITests: XCTestCase {
         }
     }
 
-    func testRefusedOrFailedRequestsMeanTheProfileWasNotSaved() async throws {
-        for status in [401, 422, 500, 502] {
+    func testARefusedRequestMeansTheProfileWasNotSaved() async throws {
+        for status in [401, 409, 422] {
             let network = FakeNetwork()
             network.status = status
 
@@ -70,6 +70,21 @@ final class CoreProfileAPITests: XCTestCase {
                 XCTFail("status \(status) should throw")
             } catch {
                 XCTAssertEqual(error as? AccountError, .profileNotSaved, "status \(status)")
+            }
+        }
+    }
+
+    /// AL-239: a server error is told apart from a refusal, because only a server error is worth retrying.
+    func testAServerErrorIsToldApartFromARefusal() async throws {
+        for status in [500, 502, 503] {
+            let network = FakeNetwork()
+            network.status = status
+
+            do {
+                try await api(network).createProfile(profile(), idToken: "test-token")
+                XCTFail("status \(status) should throw")
+            } catch {
+                XCTAssertEqual(error as? CoreProfileAPI.ServerError, CoreProfileAPI.ServerError(status: status))
             }
         }
     }
