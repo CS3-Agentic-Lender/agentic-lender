@@ -150,8 +150,8 @@ final class SignInErrorTests: XCTestCase {
     }
 
     // A wrong password and an unknown email must look the same to the borrower.
-    func testWrongPasswordUnknownUserAndInvalidCredentialAllReadAsIncorrect() {
-        for code in [AuthErrorCode.wrongPassword, .userNotFound, .invalidCredential] {
+    func testEveryCredentialErrorReadsAsIncorrect() {
+        for code in [AuthErrorCode.wrongPassword, .userNotFound, .invalidCredential, .invalidEmail, .userDisabled] {
             XCTAssertEqual(SignInError(authError: authError(code)), .incorrectCredentials, "\(code)")
         }
     }
