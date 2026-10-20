@@ -223,11 +223,13 @@ A commit that fixes a review comment keeps the same key; never renumber mid-bran
 
 ### Opening the PR
 
-**The person opens the PR, not the agent.** Committing and pushing a feature branch is normal agent work. Opening the pull request is not: a PR asks a named teammate to spend their time reviewing, and puts that person's name on the work.
+**An agent may commit, push and open the PR, but the developer sees the PR first and says yes.** Committing and pushing a feature branch is normal agent work, and so is opening the pull request once the developer has approved it: a PR asks a named teammate to spend their time reviewing and puts the developer's name on the work, so the developer must see exactly what will be opened before it is.
 
-An agent therefore **never** runs `gh pr create`, opens a PR through the API, marks a draft ready for review, merges, approves, or resolves someone's review comment, unless the user has asked for that in the current conversation. "Finish the ticket" is not that request.
+Before opening, the agent shows the developer the whole PR: the branch, the commits (subject lines), the title, the full body, the files changed, and the reviewers it will request. It opens the PR only after the developer says yes to that PR, in the current conversation. "Finish the ticket" is not that yes. A yes to one PR does not cover the next one.
 
-Before asking, the agent checks its own work against the rules above and says so in one line each:
+An agent still **never** merges, approves, or resolves someone's review comment on the developer's behalf, and it never marks a draft ready for review without showing the developer first. Any change to the PR the developer approved (a new title or body, extra commits) goes back to the developer before it is pushed or posted.
+
+Before showing the PR, the agent checks its own work against the rules above and says so in one line each:
 
 - [ ] Branch, every commit message, and the PR title it is proposing carry **one** key, the ticket's own, and nothing else carries a key.
 - [ ] Commit subjects match the format table, and each commit is one person's work on this ticket.
@@ -241,9 +243,10 @@ When the branch looks finished, the agent stops and reports:
 - what is on the branch, file by file;
 - the evidence it works: the commands run and their output;
 - anything left undone or uncertain;
-- then asks whether to open the PR.
+- the PR as it would be opened, written with the `pr` skill (what changed, evidence, merge risk, no other ticket's key in it);
+- then asks whether to open it.
 
-If the answer is yes, the agent writes the body with the `pr` skill (what changed, evidence, merge risk, no other ticket's key in it) and opens it against `main`.
+If the answer is yes, the agent opens it against `main` exactly as shown and requests the reviewers it listed.
 
 Other rules:
 
