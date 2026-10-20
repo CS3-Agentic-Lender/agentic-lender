@@ -218,6 +218,16 @@ final class FakeApplicationService: ApplicationService, @unchecked Sendable {
         loaded.append(id)
         return try loadOutcome.get()
     }
+
+    /// Nil submits successfully: the application comes back Applied.
+    var submitOutcome: Result<StoredApplication, ApplicationSaveError>?
+    private(set) var submitted: [String] = []
+
+    func submit(id: String) async throws -> StoredApplication {
+        submitted.append(id)
+        if let submitOutcome { return try submitOutcome.get() }
+        return try TestFixtures.storedApplication(status: "Applied")
+    }
 }
 
 /// Keeps the draft id in memory instead of on the phone.

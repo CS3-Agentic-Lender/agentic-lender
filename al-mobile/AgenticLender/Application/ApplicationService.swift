@@ -6,6 +6,8 @@ protocol ApplicationService: Sendable {
     func editDraft(id: String, _ draft: ApplicationDraft) async throws
     /// `GET /core/applications/{id}`: the application as saved.
     func loadApplication(id: String) async throws -> StoredApplication
+    /// `POST /core/applications/{id}/submit`: the Draft becomes Applied, which starts the AI review.
+    func submit(id: String) async throws -> StoredApplication
 }
 
 /// What `POST /core/applications` did with the draft.
@@ -32,6 +34,8 @@ enum ApplicationSaveError: Error, Equatable {
     case noBroker
     /// al-core didn't accept one field (422), named the way the form names it.
     case invalidField(String)
+    /// A submit needs a field the Draft hasn't filled in (422), named the way the form names it.
+    case missingToSubmit(String)
     /// Any other refusal (409 or 422), with al-core's own message.
     case rejected(String)
     case unavailable
@@ -54,6 +58,8 @@ enum ApplicationSaveError: Error, Equatable {
             "Choose a broker before you start an application."
         case .invalidField(let name):
             "The \(name) wasn't accepted. Check it and save again."
+        case .missingToSubmit(let name):
+            "Add the \(name) before you submit."
         case .rejected(let message):
             message
         case .unavailable:

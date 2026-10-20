@@ -41,6 +41,16 @@ final class ApplicationViewModel {
 
     var isSaved: Bool { saveMessage != nil }
 
+    /// What "Review and submit" opens: the saved Draft, only while the form still matches it
+    /// (any change clears `isSaved`). A HELOC is submitted from its own form (AL-208).
+    var reviewTarget: (review: ApplicationReview, applicationID: String)? {
+        guard isSaved, !isReadOnly, form.loanType == .mortgage,
+              let id = draftIDs.draftID(),
+              let review = ApplicationReview(form: form)
+        else { return nil }
+        return (review, id)
+    }
+
     /// Off while the kept Draft failed to load, so the empty form can't be saved over it (Nic on #79).
     var canSave: Bool { !isSaving && !isLoading && loadError == nil && !isReadOnly }
 
