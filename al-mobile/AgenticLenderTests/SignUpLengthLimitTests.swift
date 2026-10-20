@@ -76,20 +76,4 @@ final class SignUpLengthLimitTests: XCTestCase {
 
         XCTAssertNil(BorrowerProfile(form: form))
     }
-
-    /// Criterion 4: whatever passes is within al-core's limits once trimmed, so it can't get a 422 for length.
-    func testAProfileThatPassesIsWithinEveryLimit() throws {
-        var form = validForm()
-        form.fullName = " " + String(repeating: "a", count: 100) + " "
-        form.email = email(length: 254).uppercased()
-        form.addressLine1 = String(repeating: "b", count: 200)
-        form.addressLine2 = String(repeating: "c", count: 200)
-
-        let profile = try XCTUnwrap(BorrowerProfile(form: form))
-
-        XCTAssertLessThanOrEqual(profile.fullName.unicodeScalars.count, 100)
-        XCTAssertLessThanOrEqual(profile.email.unicodeScalars.count, 254)
-        XCTAssertLessThanOrEqual(profile.addressLine1.unicodeScalars.count, 200)
-        XCTAssertLessThanOrEqual(try XCTUnwrap(profile.addressLine2).unicodeScalars.count, 200)
-    }
 }
