@@ -1,0 +1,27 @@
+{
+ "calibration_flag_rate": 0.1001832620647526,
+ "calibration_gap_distribution": {
+  "p10": -0.3163488069680995,
+  "p25": -0.1818779075157556,
+  "p5": -0.4220543838373696,
+  "p50": -0.009942458587823944,
+  "p75": 0.19158424845421806,
+  "p90": 0.4330484094031478,
+  "p95": 0.705317990548384
+ },
+ "calibration_rows": 1637,
+ "gap": "g = asking_price / estimate - 1, from the unrounded estimate",
+ "model": "hist_gradient_boosting",
+ "model_params": {
+  "l2_regularization": 1.9977634480318898,
+  "learning_rate": 0.039774374789764005,
+  "max_iter": 448,
+  "max_leaf_nodes": 23,
+  "min_samples_leaf": 22
+ },
+ "quantile": 0.9,
+ "quantile_method": "linear",
+ "rule": "asking_price / estimate - 1 > threshold means price needs review",
+ "seed": 42,
+ "threshold": 0.4330484094031478
+}

@@ -81,6 +81,23 @@ Before any tuning ran, the rules were committed in `tuning_config.json`: a model
 - Tuning showed we are near the limit of what these five inputs can predict: noise in asking prices, not the choice of model, is what is left.
 - The tuned scores are slightly optimistic, because each is the best of 50 trials chosen on the same folds. The final test is the honest figure.
 
+## The final test
+
+The frozen model was fitted once on the development split, the "price needs review" threshold was set on the calibration split, and the final test split (1,630 rows with a floor area) was scored once. The script refuses to run a second time. The fitted pipeline from that run (SHA-256 `f5d938ca541c6aa6562fc07ce98dbc3e0b5f05ef8784d9d554d743dff56a1f39`) is the model that was evaluated, and the next ticket saves and documents exactly that file.
+
+| | Frozen model | Baseline |
+|---|---|---|
+| MAPE | **26.97%** | 31.93% |
+| Typical miss (MdAPE) | 19.19% | 21.01% |
+| Within 10% of the asking price | 27.9% | 25.6% |
+| Average miss (MAE) | €139,327 | €153,713 |
+| R² | 0.624 | 0.542 |
+
+- **It held up.** The development folds said 26.72% and the untouched test says 26.97%, so there is no sign the tuning overfitted. It is still about 5 points better than the baseline.
+- **It is not highly accurate.** A typical prediction is about 19% off the asking price and only about 28% land within 10%. That is the honest number for a model that sees only county, type, bedrooms, area and BER.
+- **The review threshold is 43.3%.** A property is flagged "price needs review" only if its asking price is more than 43.3% above the estimate. The flag fired on 10.6% of the test properties (10.0% on calibration by construction). The threshold is that wide because asking prices are noisy, so a narrow one would flag a lot of ordinary listings.
+- **Weakest spots:** the cheapest quarter of homes (37% MAPE), the top 10% of prices (30%), detached homes (33%), and counties such as Tipperary, Cavan, Kerry and Galway (35 to 40%, on small samples).
+
 ## Limits
 
 - Target is the 2024 asking price, not a sale price.
@@ -90,5 +107,6 @@ Before any tuning ran, the rules were committed in `tuning_config.json`: a model
 
 ## Next
 
-1. Use the calibration data for the price-review threshold and score the final test once (AL-120).
-2. Save the pipeline and write the model card (AL-121).
+1. Reload the saved pipeline, check it reproduces reference predictions, and write the model card (AL-121). The fitted model is already saved from the final-test run.
+2. Serve it from the API as `/ai/valuation`, with the five inputs, the support warnings and the price-needs-review flag.
+3. If we want a more accurate v2, the evidence to gather is the optional experiments (town within county, bathrooms, construction year, imputing missing floor area). A new input needs a form change agreed with Ibrahima and its own evaluation, because nothing may change after the final test.
