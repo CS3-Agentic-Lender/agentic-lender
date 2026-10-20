@@ -9,9 +9,14 @@
     "what": "The v1 tuned settings with the Eircode key on the 80%, from the more-rows test.",
     "hist_gradient_boosting": 21.35,
     "catboost": 21.38,
-    "rule": "A tuned model only replaces the v1 settings if it is at least 0.3 points lower in CV MAPE than that model's reference. Otherwise the v1 settings are kept for it and the report says so."
+    "rule": "Use the best tuned settings if they are lower in CV MAPE than the v1 settings (min_gain_pp 0), otherwise keep the v1 settings.",
+    "min_gain_pp": 0.0
   },
-  "models": ["hist_gradient_boosting", "catboost", "mlp"],
+  "models": [
+    "hist_gradient_boosting",
+    "catboost",
+    "mlp"
+  ],
   "trials_per_model": 50,
   "search": "Random search, one seeded draw per trial, every trial scored on the same five folds. The same search spaces as the v1 tuning.",
   "ensemble_mean": {
@@ -19,31 +24,103 @@
     "not_included": "Seed bagging is not used: it added under 0.2 points for roughly ten times the fitting time (v2_models_config.json results)."
   },
   "winner_rule": {
-    "tie_band_mape_pp": 1.0,
-    "simplicity_order": ["hist_gradient_boosting", "catboost", "mlp", "ensemble_mean"],
-    "rule": "Every contender within tie_band_mape_pp of the best CV MAPE is tied. The tie goes to the simplest, in simplicity_order. So the ensemble only wins by beating the best single model by more than the tie band.",
+    "tie_band_mape_pp": 0.0,
+    "simplicity_order": [
+      "hist_gradient_boosting",
+      "catboost",
+      "mlp",
+      "ensemble_mean"
+    ],
+    "rule": "The contender with the lowest CV MAPE wins (an exact tie goes to the simplest, in simplicity_order), provided it passes the bias check.",
     "bias_check": "A contender is excluded if its median over or under estimate is outside plus or minus 2%, so it cannot win by estimating low.",
     "also_report": "MdAPE, within 10%, MAE, R2, the fold spread, and fit and predict time."
   },
   "spaces": {
     "catboost": {
-      "depth": {"type": "int", "low": 4, "high": 8},
-      "learning_rate": {"type": "loguniform", "low": 0.02, "high": 0.3},
-      "iterations": {"type": "int", "low": 300, "high": 1000},
-      "l2_leaf_reg": {"type": "loguniform", "low": 1.0, "high": 10.0}
+      "depth": {
+        "type": "int",
+        "low": 4,
+        "high": 8
+      },
+      "learning_rate": {
+        "type": "loguniform",
+        "low": 0.02,
+        "high": 0.3
+      },
+      "iterations": {
+        "type": "int",
+        "low": 300,
+        "high": 1000
+      },
+      "l2_leaf_reg": {
+        "type": "loguniform",
+        "low": 1.0,
+        "high": 10.0
+      }
     },
     "hist_gradient_boosting": {
-      "learning_rate": {"type": "loguniform", "low": 0.02, "high": 0.3},
-      "max_iter": {"type": "int", "low": 100, "high": 600},
-      "max_leaf_nodes": {"type": "int", "low": 15, "high": 63},
-      "min_samples_leaf": {"type": "int", "low": 10, "high": 60},
-      "l2_regularization": {"type": "loguniform", "low": 0.001, "high": 10.0}
+      "learning_rate": {
+        "type": "loguniform",
+        "low": 0.02,
+        "high": 0.3
+      },
+      "max_iter": {
+        "type": "int",
+        "low": 100,
+        "high": 600
+      },
+      "max_leaf_nodes": {
+        "type": "int",
+        "low": 15,
+        "high": 63
+      },
+      "min_samples_leaf": {
+        "type": "int",
+        "low": 10,
+        "high": 60
+      },
+      "l2_regularization": {
+        "type": "loguniform",
+        "low": 0.001,
+        "high": 10.0
+      }
     },
     "mlp": {
-      "hidden_layer_sizes": {"type": "choice", "values": [[64], [128], [64, 32], [128, 64], [100, 100]]},
-      "alpha": {"type": "loguniform", "low": 0.00001, "high": 0.1},
-      "learning_rate_init": {"type": "loguniform", "low": 0.0001, "high": 0.01}
+      "hidden_layer_sizes": {
+        "type": "choice",
+        "values": [
+          [
+            64
+          ],
+          [
+            128
+          ],
+          [
+            64,
+            32
+          ],
+          [
+            128,
+            64
+          ],
+          [
+            100,
+            100
+          ]
+        ]
+      },
+      "alpha": {
+        "type": "loguniform",
+        "low": 1e-05,
+        "high": 0.1
+      },
+      "learning_rate_init": {
+        "type": "loguniform",
+        "low": 0.0001,
+        "high": 0.01
+      }
     }
   },
-  "after_tuning": "The chosen model is frozen as v2 in ml/reports/v2-frozen-model.json. v2 then gets its own accuracy threshold and price range from out-of-fold predictions and one final test, under rules committed first."
+  "after_tuning": "The chosen model is frozen as v2 in ml/reports/v2-frozen-model.json. v2 then gets its own accuracy threshold and price range from out-of-fold predictions and one final test, under rules committed first.",
+  "changed_before_the_real_run": "On 20 Oct 2026, after a 2-trial smoke test (not the real run), the owner dropped the 1-point tie band and the 0.3-point reference rule: the aim is the lowest error. Now the lowest CV MAPE wins, using the best settings found, as long as the bias check passes."
 }
