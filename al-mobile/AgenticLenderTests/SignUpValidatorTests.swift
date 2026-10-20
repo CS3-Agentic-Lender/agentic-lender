@@ -24,8 +24,8 @@ final class SignUpValidatorTests: XCTestCase {
     func testEveryFieldExceptAddressLine2IsRequired() {
         let errors = SignUpValidator.errors(for: SignUpForm())
 
-        // SignUpField has no case for address line 2, so it can never show an error.
-        XCTAssertEqual(Set(errors.keys), Set(SignUpField.allCases))
+        // Address line 2 only has a length limit (AL-240), so leaving it empty is fine.
+        XCTAssertEqual(Set(errors.keys), Set(SignUpField.allCases).subtracting([.addressLine2]))
     }
 
     func testBlankSpacesCountAsEmpty() {
