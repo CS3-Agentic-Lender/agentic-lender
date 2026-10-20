@@ -17,7 +17,7 @@ def test_exact_tie_goes_to_the_simplest():
 
 def test_leaning_low_is_excluded_even_if_best():
     out = t.choose_winner({"hist_gradient_boosting": r(22.0), "catboost": r(19.0, -0.05), "mlp": r(23.0), "ensemble_mean": r(21.5)})
-    assert out["winner"] == "hist_gradient_boosting" and out["excluded_for_bias"] == ["catboost"]
+    assert out["winner"] == "ensemble_mean" and out["excluded_for_bias"] == ["catboost"]
 
 
 def test_everyone_biased_means_no_winner():

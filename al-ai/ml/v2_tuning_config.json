@@ -20,7 +20,7 @@
   "trials_per_model": 50,
   "search": "Random search, one seeded draw per trial, every trial scored on the same five folds. The same search spaces as the v1 tuning.",
   "ensemble_mean": {
-    "what": "Equal-weight average of the three models' predictions in log-price, from their out-of-fold predictions. No weights are learned. Uses each model's chosen settings (tuned, or the v1 settings if the 0.3 rule kept them).",
+    "what": "Equal-weight average of the three models' predictions in log-price, from their out-of-fold predictions. No weights are learned. Uses each model's chosen settings (tuned, or the v1 settings if tuning did not beat them).",
     "not_included": "Seed bagging is not used: it added under 0.2 points for roughly ten times the fitting time (v2_models_config.json results)."
   },
   "winner_rule": {
