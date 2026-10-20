@@ -125,7 +125,7 @@ These need no emulator.
 | `GET /core/me` | Any signed-in user | The caller's profile, or `404` if there is none yet |
 | `POST /core/applications` | Borrower | Saves a new Draft. Only `loan_type` is required; the rest of the form is optional until submit. The broker and the borrower's name are copied from their profile. One active application per borrower: if a Draft exists it comes back unchanged with `200`, and an application still in progress gives `409`. `409` too if there is no profile yet or no broker chosen. `422` names the field, with a path for nested ones (`property.county`) |
 | `PATCH /core/applications/{id}` | Borrower (their own) | Edits a Draft. Send any of the Draft fields: only those change, `null` clears one, and `property` is merged field by field (`"property": null` clears it all). Changing `loan_type` drops the other type's fields (the deposit and first-time buyer for a HELOC, the existing mortgage balance for a mortgage). `status`, the borrower, broker, name and timestamps are ignored if sent; `updated_at` is set. `409` once it isn't a Draft, `404` for someone else's, `403` for staff. `422` names the field with the same rules as creating, for example `property.eircode` |
-| `POST /core/applications/{id}/submit` | Borrower (their own) | No body. Moves a complete Draft to `Applied`, sets `submitted_at` and returns it, which starts the AI review. Needs `applicants`, `gross_income_eur`, `monthly_debts_eur`, `monthly_take_home_eur`, `monthly_living_costs_eur`, `employment_type`, `years_in_current_job`, `loan_amount_eur`, `term_years`, then `deposit_eur` and `first_time_buyer` for a mortgage or `existing_mortgage_balance_eur` for a HELOC, then `property.address_line_1`, `county`, `eircode` and `asking_price_eur`; `0` and `false` count as answers. A missing one is `422` naming the first (`property.eircode`) and it stays a Draft. Repeating it on an `Applied` application returns it unchanged; any later status is `409`. `404` for someone else's, `403` for staff. After this the borrower can't edit it |
+| `POST /core/applications/{id}/submit` | Borrower (their own) | No body. Moves a complete Draft to `Applied`, sets `submitted_at` and returns it, which starts the AI review. Needs `applicants`, `gross_income_eur`, `monthly_debts_eur`, `monthly_take_home_eur`, `monthly_living_costs_eur`, `employment_type`, `years_in_current_job`, `loan_amount_eur`, `term_years`, then `deposit_eur` and `first_time_buyer` for a mortgage or `existing_mortgage_balance_eur` for a HELOC, then `property.address_line_1`, `county`, `eircode`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` (the four the valuation needs) and `asking_price_eur`; `0` and `false` count as answers. A missing one is `422` naming the first (`property.eircode`) and it stays a Draft. Repeating it on an `Applied` application returns it unchanged; any later status is `409`. `404` for someone else's, `403` for staff. After this the borrower can't edit it |
 | `GET /core/applications/{id}` | Borrower, broker, underwriter | One application: the borrower's own, a broker's assigned client's, or any for an underwriter. Anything else is `404` |
 
 The `property` object takes `address_line_1`, `address_line_2` (optional, an empty string counts as none), `eircode` (capitals with a space, as on the profile), `county`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and `asking_price_eur`, both when creating and when editing a Draft.
@@ -142,6 +142,65 @@ Choosing a broker:
 `GET /core/me` also returns `broker_name` and `broker_firm` for the chosen broker (`null` when none), so the app never reads a broker's profile.
 
 After `POST /core/me` the app must refresh its ID token (`getIdToken(true)`) so the token carries the new `role` claim.
+
+## Example requests
+
+One walkthrough that calls every endpoint in the order the apps use them: sign up, profile, broker, draft, edit, submit, read. Run it from `al-core/` in a bash shell (Git Bash or WSL on Windows) with the emulators and the API running as above. It reads the JSON replies with `uv run python`, since Windows has no `python3` in Git Bash. Use port 8000 instead of 5002 to go through the gateway. Each step prints the response.
+
+```bash
+CORE=http://127.0.0.1:5002   # or http://127.0.0.1:8000 through the gateway
+AUTH_EMU=http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts
+
+# Sign up / sign in on the Auth emulator and print the ID token (the apps get this from the Firebase SDK)
+token() {
+  curl -s -X POST "$AUTH_EMU:$1?key=fake-api-key" -H "Content-Type: application/json" \
+    -d "{\"email\":\"$2\",\"password\":\"$3\",\"returnSecureToken\":true}" \
+    | uv run python -c "import sys, json; print(json.load(sys.stdin)['idToken'])"
+}
+call() {  # call METHOD PATH [JSON body]
+  curl -s -X "$1" "$CORE$2" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" ${3:+-d "$3"}
+  echo
+}
+
+# 0. Health (no token): {"status": "ok"}
+curl -s "$CORE/core/health"; echo
+
+# 1. A new borrower signs up (use a new email each run, or swap signUp for signInWithPassword)
+EMAIL="dara-$RANDOM@example.ie"
+TOKEN=$(token signUp "$EMAIL" "local-only-pass")
+
+# 2. POST /core/me: create the profile. 201 the first time, 200 after. The email must match the token's
+call POST /core/me "{\"full_name\":\"Dara Byrne\",\"email\":\"$EMAIL\",\"phone\":\"+353 87 123 4567\",\"address_line_1\":\"4 Quay Street\",\"county\":\"Cork\",\"eircode\":\"T12 X5R2\"}"
+
+# 3. Sign in again so the token carries the new role claim (the apps call getIdToken(true))
+TOKEN=$(token signInWithPassword "$EMAIL" "local-only-pass")
+
+# 4. GET /core/me: the profile, with broker_name and broker_firm (null until a broker is chosen)
+call GET /core/me
+
+# 5. GET /core/brokers: uid, name and firm for every broker
+call GET /core/brokers
+
+# 6. PUT /core/me/broker: choose Bob (Murphy Mortgages)
+call PUT /core/me/broker '{"broker_id":"broker1"}'
+
+# 7. POST /core/applications: start a Draft. Only loan_type is required. 201 with the new id
+APP=$(call POST /core/applications '{"loan_type":"mortgage","loan_amount_eur":270000,"term_years":30}' \
+  | tee /dev/stderr | uv run python -c "import sys, json; print(json.load(sys.stdin)['id'])")
+
+# 8. PATCH /core/applications/{id}: fill in the rest. Only the fields sent change; property merges field by field
+call PATCH "/core/applications/$APP" '{"applicants":"single","gross_income_eur":75000,"monthly_debts_eur":300,"monthly_take_home_eur":4200,"monthly_living_costs_eur":1800,"employment_type":"employed","years_in_current_job":4,"deposit_eur":35000,"first_time_buyer":true,"property":{"address_line_1":"12 Main Street","county":"Cork","eircode":"P31 X2Y3","property_type":"Semi-D","bedrooms":3,"floor_area_sqm":110,"ber_rating":"B2","asking_price_eur":315000}}'
+
+# 9. POST /core/applications/{id}/submit: Draft to Applied (422 names the first missing field)
+call POST "/core/applications/$APP/submit"
+
+# 10. GET /core/applications/{id}: as the borrower, then as their broker
+call GET "/core/applications/$APP"
+TOKEN=$(token signInWithPassword bob@test.com password123)
+call GET "/core/applications/$APP"
+```
+
+Errors come back as `{"error": {"code", "message", "field", "request_id"}}`, for example a `PATCH` with `"term_years": 41` returns `422` with `"field": "term_years"`. The same calls can be tried from the browser at http://127.0.0.1:5002/core/docs (**Authorize** with the token, then **Try it out**).
 
 End-to-end check against the emulators (API running as above, from `al-core/`):
 

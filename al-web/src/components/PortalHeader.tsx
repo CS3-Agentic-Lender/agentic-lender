@@ -9,7 +9,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   ].join(' ');
 
 export function PortalHeader() {
-  const { signOut, action, role } = useAuth();
+  const { signOut, action, role, authError } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -37,6 +37,16 @@ export function PortalHeader() {
             </NavLink>
           </nav>
         ) : null}
+        {role === 'underwriter' ? (
+          <nav aria-label="Underwriter portal" className="flex flex-wrap gap-1">
+            <NavLink className={navLinkClass} end to="/underwriter">
+              Overview
+            </NavLink>
+            <NavLink className={navLinkClass} to="/underwriter/pipeline">
+              Pipeline
+            </NavLink>
+          </nav>
+        ) : null}
         <button
           className="ml-auto min-h-11 cursor-pointer rounded-lg border border-pine px-4 py-2 font-semibold text-pine transition-colors hover:bg-tint disabled:cursor-not-allowed disabled:opacity-60"
           disabled={action === 'signing-out'}
@@ -45,6 +55,11 @@ export function PortalHeader() {
         >
           {action === 'signing-out' ? 'Signing out…' : 'Sign out'}
         </button>
+        {authError ? (
+          <p className="w-full text-right text-sm text-error" role="alert">
+            {authError}
+          </p>
+        ) : null}
       </div>
     </header>
   );

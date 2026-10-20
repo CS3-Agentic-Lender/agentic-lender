@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -34,9 +35,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 interface AuthProviderProps {
   children: ReactNode;
   service?: AuthService;
+  resetSession?: (destination?: string) => void;
 }
 
-export function AuthProvider({ children, service = firebaseAuthService }: AuthProviderProps) {
+function reloadSession(destination = window.location.href) {
+  window.location.replace(destination);
+}
+
+export function AuthProvider({
+  children,
+  service = firebaseAuthService,
+  resetSession = reloadSession,
+}: AuthProviderProps) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [action, setAction] = useState<AuthAction>('idle');
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -44,18 +54,25 @@ export function AuthProvider({ children, service = firebaseAuthService }: AuthPr
   const [denialReason, setDenialReason] = useState<DenialReason | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  const authChange = useRef(0);
+
   useEffect(() => {
     let active = true;
-    let authChange = 0;
+    let resolvedSession: { uid: string; role: TrustedRole | null } | null = null;
 
     const unsubscribe = service.subscribe(
       (nextUser) => {
-        const change = ++authChange;
+        if (!active) {
+          return;
+        }
+
+        const change = ++authChange.current;
         setAuthError(null);
         setRole(null);
         setDenialReason(null);
 
         if (!nextUser) {
+          resolvedSession = null;
           setUser(null);
           setStatus('anonymous');
           setAction('idle');
@@ -68,20 +85,32 @@ export function AuthProvider({ children, service = firebaseAuthService }: AuthPr
         void service
           .resolveTrustedRole(nextUser)
           .then((resolution) => {
-            if (!active || change !== authChange) {
+            if (!active || change !== authChange.current) {
               return;
             }
+
+            const roleChanged =
+              resolvedSession?.uid === nextUser.uid &&
+              resolvedSession.role !== null &&
+              resolution.role !== null &&
+              resolvedSession.role !== resolution.role;
+            resolvedSession = { uid: nextUser.uid, role: resolution.role };
 
             setRole(resolution.role);
             setDenialReason(resolution.denialReason);
             setStatus('authenticated');
             setAction('idle');
+
+            if (roleChanged) {
+              resetSession();
+            }
           })
           .catch(() => {
-            if (!active || change !== authChange) {
+            if (!active || change !== authChange.current) {
               return;
             }
 
+            resolvedSession = null;
             setRole(null);
             setDenialReason('claim-error');
             setAuthError('Your access role could not be verified.');
@@ -94,7 +123,8 @@ export function AuthProvider({ children, service = firebaseAuthService }: AuthPr
           return;
         }
 
-        ++authChange;
+        ++authChange.current;
+        resolvedSession = null;
         setUser(null);
         setRole(null);
         setDenialReason('claim-error');
@@ -106,10 +136,10 @@ export function AuthProvider({ children, service = firebaseAuthService }: AuthPr
 
     return () => {
       active = false;
-      ++authChange;
+      ++authChange.current;
       unsubscribe();
     };
-  }, [service]);
+  }, [service, resetSession]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
@@ -131,17 +161,19 @@ export function AuthProvider({ children, service = firebaseAuthService }: AuthPr
 
     try {
       await service.signOut();
+      ++authChange.current;
       setUser(null);
       setRole(null);
       setDenialReason(null);
       setStatus('anonymous');
+      resetSession('/login');
     } catch (error) {
       setAuthError('Firebase sign-out failed. Try again.');
       throw error;
     } finally {
       setAction('idle');
     }
-  }, [service]);
+  }, [service, resetSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({ status, action, user, role, denialReason, authError, signIn, signOut }),

@@ -1,5 +1,5 @@
 import {
-  onAuthStateChanged,
+  onIdTokenChanged,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   type User,
@@ -77,7 +77,7 @@ export async function getCurrentFirebaseIdToken(forceRefresh = false) {
 
 export const firebaseAuthService: AuthService = {
   subscribe(listener, onError) {
-    return onAuthStateChanged(auth, listener, onError);
+    return onIdTokenChanged(auth, listener, onError);
   },
 
   async signIn(email, password) {

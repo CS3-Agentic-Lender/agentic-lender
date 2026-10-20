@@ -7,7 +7,7 @@ interface PortalPageProps {
 }
 
 export function PortalPage({ role }: PortalPageProps) {
-  const { user, authError } = useAuth();
+  const { user } = useAuth();
   const heading = role === 'broker' ? 'Broker portal' : 'Underwriter portal';
 
   return (
@@ -25,15 +25,6 @@ export function PortalPage({ role }: PortalPageProps) {
           You are signed in as {user?.email ?? 'an authenticated user'}. Your trusted Firebase role
           claim permits this placeholder route.
         </p>
-
-        {authError ? (
-          <p
-            aria-live="polite"
-            className="mt-6 max-w-2xl rounded-lg border border-error/30 bg-error/5 p-3 text-sm text-error"
-          >
-            {authError}
-          </p>
-        ) : null}
 
         <section className="mt-12 rounded-2xl border border-line bg-tint p-8">
           <h2 className="text-xl font-semibold">Feature placeholder</h2>
