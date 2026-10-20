@@ -61,7 +61,7 @@ final class CoreProfileAPITests: XCTestCase {
     }
 
     func testARefusedRequestMeansTheProfileWasNotSaved() async throws {
-        for status in [401, 409, 422] {
+        for status in [401, 403, 422] {
             let network = FakeNetwork()
             network.status = status
 
