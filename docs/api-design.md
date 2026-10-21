@@ -124,7 +124,7 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 |---|---|---|
 | `GET /ai/valuation/options` | Any signed-in role | List supported counties, property types and BER values |
 | `POST /ai/valuation` | Any signed-in role | Estimate a house value, compare an optional asking price and show each feature's effect |
-| `POST /ai/affordability` | Any signed-in role | Calculate the maximum loan and price plus repayments from income, debts and deposit |
+| `POST /ai/affordability` | Any signed-in role | Calculate the maximum mortgage and price plus repayments from income, debts and deposit. With `loan_type: "heloc"`, the largest credit line against a home the borrower owns (80% of the model's value of the home, minus what is still owed), with the line fully drawn repaid at the benchmark rate and at +2 points. The home value comes from the model, never from the request |
 | `POST /ai/committee/runs` | Underwriter | Start another AI review |
 | `POST /ai/portfolio/rate-shock` | Underwriter | Measure an interest rate shock across the active portfolio |
 | `POST /ai/portfolio/downturn` | Underwriter | Measure a house price drop across the active portfolio |
@@ -136,6 +136,7 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 |---|---|---|
 | `POST /core/me` | New user | Create a profile and assign its role |
 | `GET /core/me`, `PUT /core/me/broker` | Any role, borrower | View the profile and let a borrower select a broker |
+| `GET /core/brokers` | Any role | List the brokers a borrower can choose: uid, name and firm only |
 | `POST /core/applications` | Borrower | Start an application draft |
 | `PATCH /core/applications/{id}` | The owner | Change a draft |
 | `POST /core/applications/{id}/submit` | The owner | Validate the draft and change its status to `Applied` |
@@ -171,8 +172,8 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
     { "feature": "floor_area", "value": 98, "eur": 31200 },
     { "feature": "county", "value": "Cork", "eur": 18500 },
     { "feature": "bedrooms", "value": 3, "eur": 9800 },
-    { "feature": "property_type", "value": "semi_detached", "eur": -4600 },
-    { "feature": "ber", "value": "C2", "eur": -1300 }
+    { "feature": "property_type", "value": "Semi-D", "eur": -4600 },
+    { "feature": "ber", "value": "C", "eur": -1300 }
   ]
 }
 ```

@@ -1,0 +1,7 @@
+{
+  "seed": 42,
+  "folds": 5,
+  "shares": [0.6, 0.2, 0.2],
+  "models": ["ridge", "knn", "random_forest", "hist_gradient_boosting", "xgboost", "catboost", "mlp"],
+  "notes": "Defaults for every model except the MLP, which gets max_iter 500 so it converges. Tuning is a separate step."
+}

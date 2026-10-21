@@ -1,36 +1,35 @@
-import { Link } from 'react-router';
-import { Mark } from '../components/Mark';
+import { PortalHeader } from '../components/PortalHeader';
+import { useAuth } from '../context/AuthContext';
+import type { PortalRole } from '../services/authService';
 
-export function PortalPage() {
+interface PortalPageProps {
+  role: PortalRole;
+}
+
+export function PortalPage({ role }: PortalPageProps) {
+  const { user } = useAuth();
+  const heading = role === 'broker' ? 'Broker portal' : 'Underwriter portal';
+
   return (
     <div className="min-h-screen bg-oat text-ink">
-      <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex min-h-20 w-full max-w-5xl items-center justify-between gap-6 px-6">
-          <div className="text-pine">
-            <Mark />
-          </div>
-          <Link className="font-semibold text-pine underline-offset-4 hover:underline" to="/login">
-            Portal access
-          </Link>
-        </div>
-      </header>
+      <PortalHeader />
 
-      <main className="mx-auto w-full max-w-5xl px-6 py-16 sm:py-24">
+      <main className="mx-auto w-full max-w-6xl px-6 py-16 sm:py-24">
         <p className="font-mono text-xs font-medium uppercase tracking-widest text-muted">
-          React portal scaffold
+          {role} workspace
         </p>
         <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight sm:text-6xl">
-          Portal foundation
+          {heading}
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-          Routing and shared visual tokens are ready for later broker and underwriter features. No
-          client records, pipeline counts, or lending decisions are represented in this scaffold.
+          You are signed in as {user?.email ?? 'an authenticated user'}. Your trusted Firebase role
+          claim permits this placeholder route.
         </p>
 
         <section className="mt-12 rounded-2xl border border-line bg-tint p-8">
           <h2 className="text-xl font-semibold">Feature placeholder</h2>
           <p className="mt-3 leading-7 text-muted">
-            Portal functionality will be added through its own reviewed work.
+            Role-specific functionality will be added through its own reviewed work.
           </p>
         </section>
       </main>

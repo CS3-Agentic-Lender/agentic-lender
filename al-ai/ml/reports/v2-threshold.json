@@ -1,0 +1,68 @@
+{
+ "gap": "g = asking price / estimate - 1, from the unrounded estimate. A price below the estimate gives a negative gap.",
+ "model": "v2 ensemble_mean",
+ "oof_cv_mape": 20.330427382025043,
+ "oof_flag_rate": 0.09995903318312167,
+ "oof_gap_distribution": {
+  "p10": -0.255355820876235,
+  "p25": -0.12924714746746946,
+  "p5": -0.3478626133838699,
+  "p50": -0.006107090282417849,
+  "p75": 0.14308974278661707,
+  "p90": 0.3567057512460361,
+  "p95": 0.5677403101173973
+ },
+ "price_range": {
+  "bands": [
+   {
+    "high_gap": 0.39064741959777094,
+    "low_gap": -0.29386135132638114,
+    "rows": 1221
+   },
+   {
+    "high_gap": 0.2930974147024228,
+    "low_gap": -0.2237479204848814,
+    "rows": 1220
+   },
+   {
+    "high_gap": 0.3212706168491761,
+    "low_gap": -0.22198223880810242,
+    "rows": 1220
+   },
+   {
+    "high_gap": 0.4377113097270142,
+    "low_gap": -0.29155930794129603,
+    "rows": 1221
+   }
+  ],
+  "edges": [
+   273155.07991842023,
+   378163.2850902714,
+   538901.9719712241
+  ],
+  "target_coverage": 0.8
+ },
+ "quantile": 0.9,
+ "quantile_method": "linear",
+ "range_coverage_oof": {
+  "by_band": [
+   0.7993447993447993,
+   0.8,
+   0.8008196721311476,
+   0.8001638001638002
+  ],
+  "median_width_share": 0.6845087709241519,
+  "overall": 0.8000819336337567,
+  "rows_by_band": [
+   1221,
+   1220,
+   1220,
+   1221
+  ]
+ },
+ "rows": 4882,
+ "rule": "asking_price / estimate - 1 > threshold means price needs review",
+ "seed": 42,
+ "set_on": "out-of-fold predictions on the development rows",
+ "threshold": 0.3567057512460361
+}

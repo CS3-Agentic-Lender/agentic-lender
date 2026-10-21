@@ -1,0 +1,274 @@
+{
+ "rare_keys": {
+  "catboost (single)": {
+   "mape": 24.473344565795944,
+   "rows": 313
+  },
+  "gpboost (county + routing-key random effects)": {
+   "mape": 24.613388307244577,
+   "rows": 313
+  },
+  "hist_gradient_boosting (single)": {
+   "mape": 23.971047591295303,
+   "rows": 313
+  }
+ },
+ "results": {
+  "catboost (bagged x10)": {
+   "cv_mape": 21.69108003873824,
+   "fold_mape": [
+    19.868774556148946,
+    21.85686778514624,
+    21.77270956453006,
+    22.831463058366996,
+    22.12558522949896
+   ],
+   "mae": 112272.36228346104,
+   "mdape": 14.860020778350203,
+   "mean_estimate_over_mean_asking": 0.937427214328751,
+   "median_signed_error": 0.0032714413382517937,
+   "ppe10": 36.13273248668579,
+   "r2": 0.6909382152456711
+  },
+  "catboost (single)": {
+   "cv_mape": 21.77940033015182,
+   "fold_mape": [
+    19.951027501746836,
+    21.971706515419022,
+    21.862916903393096,
+    22.953700838901252,
+    22.157649891298885
+   ],
+   "mae": 112539.8281327447,
+   "mdape": 14.912377854263575,
+   "mean_estimate_over_mean_asking": 0.9382476492941006,
+   "median_signed_error": 0.004224741629830147,
+   "ppe10": 35.866448176976654,
+   "r2": 0.694018249621192
+  },
+  "equal average of the three (each bagged)": {
+   "cv_mape": 20.960546984334748,
+   "fold_mape": [
+    19.2638014067831,
+    21.258016497587302,
+    20.80830394326588,
+    22.058215943313932,
+    21.414397130723543
+   ],
+   "mae": 108904.06386765199,
+   "mdape": 14.055542835012853,
+   "mean_estimate_over_mean_asking": 0.9452882500462819,
+   "median_signed_error": 0.004898787383087634,
+   "ppe10": 37.58705448586645,
+   "r2": 0.7240051256770599
+  },
+  "equal average of the three (single seeds)": {
+   "cv_mape": 21.241247581468556,
+   "fold_mape": [
+    19.503506682421488,
+    21.76967234628241,
+    20.95562379039003,
+    22.591153839664617,
+    21.386281248584236
+   ],
+   "mae": 110143.0346413409,
+   "mdape": 14.583576623924497,
+   "mean_estimate_over_mean_asking": 0.9492886129831333,
+   "median_signed_error": 0.008233839322791432,
+   "ppe10": 37.99672265464974,
+   "r2": 0.7220153208401419
+  },
+  "gpboost (county + routing-key random effects)": {
+   "cv_mape": 22.58578505233886,
+   "fold_mape": [
+    20.92580862492993,
+    22.76049169021835,
+    22.891371386299888,
+    23.58222527341747,
+    22.76902828682868
+   ],
+   "mae": 117754.76129276612,
+   "mdape": 15.448832107994537,
+   "mean_estimate_over_mean_asking": 0.9442608733501705,
+   "median_signed_error": 0.011360851827932422,
+   "ppe10": 34.18680868496518,
+   "r2": 0.6540620780639863
+  },
+  "hist_gradient_boosting (bagged x10)": {
+   "cv_mape": 22.047006292811,
+   "fold_mape": [
+    20.48121292028989,
+    22.317143707993367,
+    21.80295581955857,
+    23.512517053633783,
+    22.121201962579402
+   ],
+   "mae": 114684.92489393587,
+   "mdape": 15.092419359619342,
+   "mean_estimate_over_mean_asking": 0.9435624859339613,
+   "median_signed_error": 0.00607534960988594,
+   "ppe10": 35.845964768537485,
+   "r2": 0.6794080802501831
+  },
+  "hist_gradient_boosting (single)": {
+   "cv_mape": 22.22904962017435,
+   "fold_mape": [
+    20.617087162317947,
+    22.986935898057332,
+    21.932072615401005,
+    23.33314109511902,
+    22.27601132997644
+   ],
+   "mae": 115806.97976421658,
+   "mdape": 15.362154736082484,
+   "mean_estimate_over_mean_asking": 0.9492598731813112,
+   "median_signed_error": 0.006134536971835906,
+   "ppe10": 34.453092994674314,
+   "r2": 0.6829464149682158
+  },
+  "mlp (bagged x5)": {
+   "cv_mape": 21.810026483008155,
+   "fold_mape": [
+    19.99339751178121,
+    22.58069567042746,
+    21.764711839016314,
+    22.54074559253201,
+    22.170581801283788
+   ],
+   "mae": 110907.88829553845,
+   "mdape": 14.52037567847208,
+   "mean_estimate_over_mean_asking": 0.966466158459693,
+   "median_signed_error": 0.0078097790386150705,
+   "ppe10": 37.03400245800901,
+   "r2": 0.7372201572356709
+  },
+  "mlp (single)": {
+   "cv_mape": 23.561708489264,
+   "fold_mape": [
+    21.234292018961547,
+    25.336203427735406,
+    23.12385536020317,
+    25.05609426605176,
+    23.05809737336811
+   ],
+   "mae": 119422.14293345786,
+   "mdape": 15.467431216354907,
+   "mean_estimate_over_mean_asking": 0.9782150027472982,
+   "median_signed_error": 0.015719382374394814,
+   "ppe10": 34.657927079065956,
+   "r2": 0.6267093162387015
+  }
+ },
+ "timings": {
+  "catboost (bagged x10)": {
+   "fit_s_per_fold": 3.929859908227809,
+   "predict_ms_per_1000": 49.22109607150235
+  },
+  "catboost (single)": {
+   "fit_s_per_fold": 0.4108452749904245,
+   "predict_ms_per_1000": 5.235325842863679
+  },
+  "equal average of the three (each bagged)": {
+   "fit_s_per_fold": 42.16704137520865,
+   "predict_ms_per_1000": 400.12645005709084
+  },
+  "equal average of the three (single seeds)": {
+   "fit_s_per_fold": 4.7201477834023535,
+   "predict_ms_per_1000": 41.78044196562641
+  },
+  "gpboost (county + routing-key random effects)": {
+   "fit_s_per_fold": 9.093635016609914,
+   "predict_ms_per_1000": 4.505498169989417
+  },
+  "hist_gradient_boosting (bagged x10)": {
+   "fit_s_per_fold": 30.48572787537705,
+   "predict_ms_per_1000": 329.08102323137274
+  },
+  "hist_gradient_boosting (single)": {
+   "fit_s_per_fold": 2.711665541608818,
+   "predict_ms_per_1000": 31.69242499193988
+  },
+  "mlp (bagged x5)": {
+   "fit_s_per_fold": 7.751453591603786,
+   "predict_ms_per_1000": 21.824330754215744
+  },
+  "mlp (single)": {
+   "fit_s_per_fold": 1.5976369668031112,
+   "predict_ms_per_1000": 4.852691130822846
+  }
+ },
+ "verdicts": {
+  "catboost (bagged x10)": {
+   "checks": {
+    "gain_at_least_0_5": false,
+    "lower_in_all_five_folds": true,
+    "no_low_estimating": true,
+    "within10_not_worse": true
+   },
+   "folds_better": 5,
+   "gain_pp": 0.08832029141358078,
+   "rule": "A variant enters the v2 shortlist only if ALL hold: (1) its CV MAPE is at least 0.5 points below the best single reference (CatBoost, 21.78); (2) it is lower than that reference in all five folds; (3) its median over or under estimate is within plus or minus 2%, so it does not win by estimating low; (4) its within-10% share is not worse than the reference's.",
+   "shortlist": false
+  },
+  "equal average of the three (each bagged)": {
+   "checks": {
+    "gain_at_least_0_5": true,
+    "lower_in_all_five_folds": true,
+    "no_low_estimating": true,
+    "within10_not_worse": true
+   },
+   "folds_better": 5,
+   "gain_pp": 0.8188533458170717,
+   "rule": "A variant enters the v2 shortlist only if ALL hold: (1) its CV MAPE is at least 0.5 points below the best single reference (CatBoost, 21.78); (2) it is lower than that reference in all five folds; (3) its median over or under estimate is within plus or minus 2%, so it does not win by estimating low; (4) its within-10% share is not worse than the reference's.",
+   "shortlist": true
+  },
+  "equal average of the three (single seeds)": {
+   "checks": {
+    "gain_at_least_0_5": true,
+    "lower_in_all_five_folds": true,
+    "no_low_estimating": true,
+    "within10_not_worse": true
+   },
+   "folds_better": 5,
+   "gain_pp": 0.5381527486832631,
+   "rule": "A variant enters the v2 shortlist only if ALL hold: (1) its CV MAPE is at least 0.5 points below the best single reference (CatBoost, 21.78); (2) it is lower than that reference in all five folds; (3) its median over or under estimate is within plus or minus 2%, so it does not win by estimating low; (4) its within-10% share is not worse than the reference's.",
+   "shortlist": true
+  },
+  "gpboost (county + routing-key random effects)": {
+   "checks": {
+    "gain_at_least_0_5": false,
+    "lower_in_all_five_folds": false,
+    "no_low_estimating": true,
+    "within10_not_worse": false
+   },
+   "folds_better": 0,
+   "gain_pp": -0.8063847221870404,
+   "rule": "A variant enters the v2 shortlist only if ALL hold: (1) its CV MAPE is at least 0.5 points below the best single reference (CatBoost, 21.78); (2) it is lower than that reference in all five folds; (3) its median over or under estimate is within plus or minus 2%, so it does not win by estimating low; (4) its within-10% share is not worse than the reference's.",
+   "shortlist": false
+  },
+  "hist_gradient_boosting (bagged x10)": {
+   "checks": {
+    "gain_at_least_0_5": false,
+    "lower_in_all_five_folds": false,
+    "no_low_estimating": true,
+    "within10_not_worse": false
+   },
+   "folds_better": 2,
+   "gain_pp": -0.26760596265918224,
+   "rule": "A variant enters the v2 shortlist only if ALL hold: (1) its CV MAPE is at least 0.5 points below the best single reference (CatBoost, 21.78); (2) it is lower than that reference in all five folds; (3) its median over or under estimate is within plus or minus 2%, so it does not win by estimating low; (4) its within-10% share is not worse than the reference's.",
+   "shortlist": false
+  },
+  "mlp (bagged x5)": {
+   "checks": {
+    "gain_at_least_0_5": false,
+    "lower_in_all_five_folds": false,
+    "no_low_estimating": true,
+    "within10_not_worse": true
+   },
+   "folds_better": 2,
+   "gain_pp": -0.03062615285633541,
+   "rule": "A variant enters the v2 shortlist only if ALL hold: (1) its CV MAPE is at least 0.5 points below the best single reference (CatBoost, 21.78); (2) it is lower than that reference in all five folds; (3) its median over or under estimate is within plus or minus 2%, so it does not win by estimating low; (4) its within-10% share is not worse than the reference's.",
+   "shortlist": false
+  }
+ }
+}

@@ -7,6 +7,12 @@ dependencies = [
     "fastapi>=0.115",
     "firebase-admin>=6.5",
     "uvicorn>=0.32",
+    # The saved valuation model (models/valuation/MODEL_CARD.md) only loads with the versions it was saved with.
+    "scikit-learn==1.9.1",
+    "numpy==2.5.4",
+    "pandas==3.0.6",
+    "catboost==1.2.10",
+    "joblib==1.6.0",
 ]
 
 [dependency-groups]

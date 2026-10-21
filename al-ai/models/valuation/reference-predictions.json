@@ -1,0 +1,476 @@
+{
+ "what": "Made-up homes, not listings. Predictions of the saved model; a reload must reproduce them within the tolerance.",
+ "relative_tolerance": 1e-06,
+ "inputs": [
+  {
+   "county": "Carlow",
+   "property_type": "Detached",
+   "bedrooms": 4,
+   "floor_area_m2": 232.0,
+   "ber": "D",
+   "rkey": null
+  },
+  {
+   "county": "Carlow",
+   "property_type": "Detached",
+   "bedrooms": 2,
+   "floor_area_m2": 216.0,
+   "ber": "A",
+   "rkey": null
+  },
+  {
+   "county": "Cavan",
+   "property_type": "Apartment",
+   "bedrooms": 3,
+   "floor_area_m2": 93.0,
+   "ber": "G",
+   "rkey": "V14"
+  },
+  {
+   "county": "Cavan",
+   "property_type": "End of Terrace",
+   "bedrooms": 3,
+   "floor_area_m2": 175.0,
+   "ber": "B",
+   "rkey": "W23"
+  },
+  {
+   "county": "Clare",
+   "property_type": "End of Terrace",
+   "bedrooms": 4,
+   "floor_area_m2": 242.0,
+   "ber": "D",
+   "rkey": "A98"
+  },
+  {
+   "county": "Clare",
+   "property_type": "Bungalow",
+   "bedrooms": 2,
+   "floor_area_m2": 256.0,
+   "ber": "G",
+   "rkey": "T23"
+  },
+  {
+   "county": "Cork",
+   "property_type": "Semi-D",
+   "bedrooms": 4,
+   "floor_area_m2": 229.0,
+   "ber": "C",
+   "rkey": null
+  },
+  {
+   "county": "Cork",
+   "property_type": "End of Terrace",
+   "bedrooms": 4,
+   "floor_area_m2": 257.0,
+   "ber": "G",
+   "rkey": "F23"
+  },
+  {
+   "county": "Donegal",
+   "property_type": "End of Terrace",
+   "bedrooms": 2,
+   "floor_area_m2": 174.0,
+   "ber": "E",
+   "rkey": "D07"
+  },
+  {
+   "county": "Donegal",
+   "property_type": "Townhouse",
+   "bedrooms": 2,
+   "floor_area_m2": 92.0,
+   "ber": "Unknown",
+   "rkey": "V94"
+  },
+  {
+   "county": "Dublin",
+   "property_type": "Terrace",
+   "bedrooms": 3,
+   "floor_area_m2": 86.0,
+   "ber": "G",
+   "rkey": "D11"
+  },
+  {
+   "county": "Dublin",
+   "property_type": "Apartment",
+   "bedrooms": 1,
+   "floor_area_m2": 73.0,
+   "ber": "B",
+   "rkey": "X35"
+  },
+  {
+   "county": "Galway",
+   "property_type": "End of Terrace",
+   "bedrooms": 5,
+   "floor_area_m2": 103.0,
+   "ber": "F",
+   "rkey": "P51"
+  },
+  {
+   "county": "Galway",
+   "property_type": "Duplex",
+   "bedrooms": 2,
+   "floor_area_m2": 98.0,
+   "ber": "G",
+   "rkey": "V94"
+  },
+  {
+   "county": "Kerry",
+   "property_type": "Terrace",
+   "bedrooms": 4,
+   "floor_area_m2": 120.0,
+   "ber": "F",
+   "rkey": "D05"
+  },
+  {
+   "county": "Kerry",
+   "property_type": "Duplex",
+   "bedrooms": 3,
+   "floor_area_m2": 40.0,
+   "ber": "G",
+   "rkey": "H14"
+  },
+  {
+   "county": "Kildare",
+   "property_type": "Apartment",
+   "bedrooms": 3,
+   "floor_area_m2": 59.0,
+   "ber": "E",
+   "rkey": "F94"
+  },
+  {
+   "county": "Kildare",
+   "property_type": "Detached",
+   "bedrooms": 2,
+   "floor_area_m2": 99.0,
+   "ber": "A",
+   "rkey": "P25"
+  },
+  {
+   "county": "Kilkenny",
+   "property_type": "End of Terrace",
+   "bedrooms": 4,
+   "floor_area_m2": 249.0,
+   "ber": "A",
+   "rkey": "R32"
+  },
+  {
+   "county": "Kilkenny",
+   "property_type": "Bungalow",
+   "bedrooms": 2,
+   "floor_area_m2": 186.0,
+   "ber": "E",
+   "rkey": "N39"
+  },
+  {
+   "county": "Laois",
+   "property_type": "Detached",
+   "bedrooms": 3,
+   "floor_area_m2": 142.0,
+   "ber": "Unknown",
+   "rkey": "D14"
+  },
+  {
+   "county": "Laois",
+   "property_type": "Townhouse",
+   "bedrooms": 1,
+   "floor_area_m2": 99.0,
+   "ber": "B",
+   "rkey": "V31"
+  },
+  {
+   "county": "Leitrim",
+   "property_type": "Terrace",
+   "bedrooms": 3,
+   "floor_area_m2": 262.0,
+   "ber": "D",
+   "rkey": "P31"
+  },
+  {
+   "county": "Leitrim",
+   "property_type": "Bungalow",
+   "bedrooms": 5,
+   "floor_area_m2": 234.0,
+   "ber": "F",
+   "rkey": "F45"
+  },
+  {
+   "county": "Limerick",
+   "property_type": "Duplex",
+   "bedrooms": 1,
+   "floor_area_m2": 62.0,
+   "ber": "C",
+   "rkey": "A81"
+  },
+  {
+   "county": "Limerick",
+   "property_type": "Duplex",
+   "bedrooms": 3,
+   "floor_area_m2": 90.0,
+   "ber": "D",
+   "rkey": "V94"
+  },
+  {
+   "county": "Longford",
+   "property_type": "Bungalow",
+   "bedrooms": 2,
+   "floor_area_m2": 266.0,
+   "ber": "D",
+   "rkey": "P51"
+  },
+  {
+   "county": "Longford",
+   "property_type": "Semi-D",
+   "bedrooms": 2,
+   "floor_area_m2": 150.0,
+   "ber": "C",
+   "rkey": "N41"
+  },
+  {
+   "county": "Louth",
+   "property_type": "Terrace",
+   "bedrooms": 2,
+   "floor_area_m2": 271.0,
+   "ber": "C",
+   "rkey": null
+  },
+  {
+   "county": "Louth",
+   "property_type": "Detached",
+   "bedrooms": 5,
+   "floor_area_m2": 146.0,
+   "ber": "D",
+   "rkey": "P51"
+  },
+  {
+   "county": "Mayo",
+   "property_type": "Duplex",
+   "bedrooms": 1,
+   "floor_area_m2": 107.0,
+   "ber": "G",
+   "rkey": "R45"
+  },
+  {
+   "county": "Mayo",
+   "property_type": "End of Terrace",
+   "bedrooms": 3,
+   "floor_area_m2": 224.0,
+   "ber": "A",
+   "rkey": null
+  },
+  {
+   "county": "Meath",
+   "property_type": "Detached",
+   "bedrooms": 3,
+   "floor_area_m2": 96.0,
+   "ber": "F",
+   "rkey": "D12"
+  },
+  {
+   "county": "Meath",
+   "property_type": "Duplex",
+   "bedrooms": 2,
+   "floor_area_m2": 80.0,
+   "ber": "B",
+   "rkey": null
+  },
+  {
+   "county": "Monaghan",
+   "property_type": "Detached",
+   "bedrooms": 3,
+   "floor_area_m2": 229.0,
+   "ber": "F",
+   "rkey": "E34"
+  },
+  {
+   "county": "Monaghan",
+   "property_type": "Apartment",
+   "bedrooms": 2,
+   "floor_area_m2": 49.0,
+   "ber": "A",
+   "rkey": "P25"
+  },
+  {
+   "county": "Offaly",
+   "property_type": "Duplex",
+   "bedrooms": 3,
+   "floor_area_m2": 69.0,
+   "ber": "A",
+   "rkey": "D11"
+  },
+  {
+   "county": "Offaly",
+   "property_type": "Terrace",
+   "bedrooms": 2,
+   "floor_area_m2": 208.0,
+   "ber": "F",
+   "rkey": "D01"
+  },
+  {
+   "county": "Roscommon",
+   "property_type": "Duplex",
+   "bedrooms": 1,
+   "floor_area_m2": 51.0,
+   "ber": "Unknown",
+   "rkey": "F93"
+  },
+  {
+   "county": "Roscommon",
+   "property_type": "Terrace",
+   "bedrooms": 4,
+   "floor_area_m2": 198.0,
+   "ber": "C",
+   "rkey": null
+  },
+  {
+   "county": "Sligo",
+   "property_type": "Detached",
+   "bedrooms": 3,
+   "floor_area_m2": 157.0,
+   "ber": "D",
+   "rkey": "R42"
+  },
+  {
+   "county": "Sligo",
+   "property_type": "Terrace",
+   "bedrooms": 4,
+   "floor_area_m2": 172.0,
+   "ber": "D",
+   "rkey": null
+  },
+  {
+   "county": "Tipperary",
+   "property_type": "Semi-D",
+   "bedrooms": 4,
+   "floor_area_m2": 190.0,
+   "ber": "D",
+   "rkey": "X91"
+  },
+  {
+   "county": "Tipperary",
+   "property_type": "Terrace",
+   "bedrooms": 4,
+   "floor_area_m2": 184.0,
+   "ber": "G",
+   "rkey": "F92"
+  },
+  {
+   "county": "Waterford",
+   "property_type": "Terrace",
+   "bedrooms": 2,
+   "floor_area_m2": 243.0,
+   "ber": "Unknown",
+   "rkey": "E32"
+  },
+  {
+   "county": "Waterford",
+   "property_type": "Bungalow",
+   "bedrooms": 2,
+   "floor_area_m2": 136.0,
+   "ber": "F",
+   "rkey": "P36"
+  },
+  {
+   "county": "Westmeath",
+   "property_type": "Semi-D",
+   "bedrooms": 4,
+   "floor_area_m2": 208.0,
+   "ber": "F",
+   "rkey": "E41"
+  },
+  {
+   "county": "Westmeath",
+   "property_type": "Detached",
+   "bedrooms": 5,
+   "floor_area_m2": 199.0,
+   "ber": "Unknown",
+   "rkey": "D15"
+  },
+  {
+   "county": "Wexford",
+   "property_type": "Semi-D",
+   "bedrooms": 4,
+   "floor_area_m2": 186.0,
+   "ber": "C",
+   "rkey": null
+  },
+  {
+   "county": "Wexford",
+   "property_type": "End of Terrace",
+   "bedrooms": 5,
+   "floor_area_m2": 239.0,
+   "ber": "C",
+   "rkey": null
+  },
+  {
+   "county": "Wicklow",
+   "property_type": "Apartment",
+   "bedrooms": 2,
+   "floor_area_m2": 60.0,
+   "ber": "E",
+   "rkey": "Y34"
+  },
+  {
+   "county": "Wicklow",
+   "property_type": "Townhouse",
+   "bedrooms": 1,
+   "floor_area_m2": 52.0,
+   "ber": "E",
+   "rkey": "A85"
+  }
+ ],
+ "predictions_eur": [
+  422125.91348815465,
+  441844.92077499244,
+  154537.62363682242,
+  387967.55374135356,
+  481195.997350682,
+  339825.8006422537,
+  501787.24169535347,
+  389096.186769187,
+  316248.16819685604,
+  174057.61315361905,
+  331496.781055905,
+  380624.4390608315,
+  149364.45409316017,
+  175773.24300331352,
+  212930.05218828598,
+  125778.68062808992,
+  218519.99488545884,
+  445430.4657298819,
+  541871.0496600731,
+  467601.11706310004,
+  359746.79063482926,
+  246515.51986143854,
+  318967.61157604,
+  226206.15411073095,
+  140108.70839008928,
+  212828.422374758,
+  369557.5240009752,
+  226591.1418823985,
+  398204.0450231048,
+  327532.950938217,
+  132541.00455617622,
+  401687.9300813912,
+  333063.24153944966,
+  199274.56150500797,
+  328087.2438476471,
+  179945.28595653444,
+  210387.16067679334,
+  257320.63305783,
+  65197.72431011271,
+  289394.92930375476,
+  304473.6466618871,
+  282824.2958824486,
+  311561.16423556797,
+  170099.48522812573,
+  425641.94194488134,
+  349153.04390124173,
+  291600.38606887707,
+  420917.7555417447,
+  385341.70688164735,
+  454006.41635023576,
+  193957.24953922274,
+  197828.1875854493
+ ]
+}

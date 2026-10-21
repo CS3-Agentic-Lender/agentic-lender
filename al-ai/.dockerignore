@@ -2,3 +2,7 @@
 .pytest_cache
 __pycache__
 tests
+data
+ml/reports
+ml/artifacts
+models/valuation/background-sample.csv

@@ -150,8 +150,8 @@ final class SignInErrorTests: XCTestCase {
     }
 
     // A wrong password and an unknown email must look the same to the borrower.
-    func testWrongPasswordUnknownUserAndInvalidCredentialAllReadAsIncorrect() {
-        for code in [AuthErrorCode.wrongPassword, .userNotFound, .invalidCredential] {
+    func testEveryCredentialErrorReadsAsIncorrect() {
+        for code in [AuthErrorCode.wrongPassword, .userNotFound, .invalidCredential, .invalidEmail, .userDisabled] {
             XCTAssertEqual(SignInError(authError: authError(code)), .incorrectCredentials, "\(code)")
         }
     }
@@ -159,6 +159,11 @@ final class SignInErrorTests: XCTestCase {
     func testNetworkAndTooManyRequestsAreTheirOwnErrors() {
         XCTAssertEqual(SignInError(authError: authError(.networkError)), .network)
         XCTAssertEqual(SignInError(authError: authError(.tooManyRequests)), .tooManyAttempts)
+    }
+
+    /// Shown on the reset screen too, so it doesn't point the borrower to reset their password.
+    func testTooManyAttemptsReadsRightOnSignInAndOnReset() {
+        XCTAssertEqual(SignInError.tooManyAttempts.message, "Too many attempts. Try again in a few minutes.")
     }
 
     func testErrorsFromOtherDomainsAreUnknown() {
