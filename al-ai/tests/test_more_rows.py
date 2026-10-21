@@ -1,4 +1,10 @@
-from ml.more_rows import decide
+import pytest
+
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
+pytest.importorskip("sklearn")
+
+from ml.more_rows import decide  # noqa: E402
 
 
 def arm(mape, folds, bias=0.0):
