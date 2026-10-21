@@ -161,3 +161,9 @@ def test_the_threshold_is_written_from_development_rows_and_the_lock_stops_a_sec
     assert res["test_rows"] == 120 and res["saved_model"]["passed"]
     with pytest.raises(SystemExit):
         vf.main()  # same argv: the lock is there
+
+
+def test_the_eircode_features_need_only_the_app_inputs_and_the_routing_key():
+    X, y = synth(200, 1)
+    model = b.make_model("ridge", 42, features=v2.ex.FeatureBuilderV2(v2.KEY)).fit(X[v2.INPUT_COLUMNS], y)  # no town, year, coordinates or group
+    assert np.isfinite(model.predict(X[v2.INPUT_COLUMNS])).all()
