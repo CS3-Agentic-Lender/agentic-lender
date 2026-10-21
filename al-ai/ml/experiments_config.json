@@ -1,0 +1,39 @@
+{
+  "written_before_any_comparison": "This file, with the rules for what counts as worth proposing, was committed before any experiment code or run existed.",
+  "seed": 42,
+  "question": "Would extra valuation inputs make the model clearly more accurate, enough to ask Ibrahima for a form change?",
+  "data": "Development split only, the same 4,882 rows with a floor area and the same five group folds as the frozen model. Calibration and the final test are not read.",
+  "models": {
+    "hist_gradient_boosting": "the frozen model, with its tuned settings from frozen-model.json",
+    "catboost": "the second-best tuned model, as a check that a gain is not specific to one model; settings from tuning-results.json"
+  },
+  "baseline_inputs": ["county", "property_type", "bedrooms", "floor_area_m2", "ber"],
+  "additions": {
+    "eircode_routing_key": {
+      "what": "First three characters of the Eircode (for example D14, V92), read from the end of the listing title. Training rows with none get Unknown. Keys with fewer than 10 training rows are grouped as Other, decided inside each training fold.",
+      "app_collects_it_today": true,
+      "note": "The application form already asks for the Eircode (required on submit), so no new field is needed."
+    },
+    "bathrooms": {"what": "Number of bathrooms.", "app_collects_it_today": false},
+    "construction_year": {"what": "Year built when stated (about two thirds of listings), with a missing indicator and a training-median fill.", "app_collects_it_today": false},
+    "town": {"what": "The listing's town slug within the county. Upper-bound reference only.", "app_collects_it_today": false, "reference_only": true},
+    "coordinates": {"what": "Latitude and longitude of the listing. Upper-bound reference only (the app could only get these by looking up the Eircode).", "app_collects_it_today": false, "reference_only": true}
+  },
+  "combinations": [
+    ["eircode_routing_key"],
+    ["bathrooms"],
+    ["construction_year"],
+    ["eircode_routing_key", "bathrooms"],
+    ["eircode_routing_key", "bathrooms", "construction_year"],
+    ["town"],
+    ["coordinates"],
+    ["eircode_routing_key", "bathrooms", "construction_year", "town", "coordinates"]
+  ],
+  "worth_proposing": {
+    "rule": "An addition is worth proposing to Ibrahima only if, for BOTH models, it lowers CV MAPE by at least the threshold below compared with the five-input model, and it lowers the MAPE in all five folds. Reference-only additions are never proposed: they only show how much more there is to gain.",
+    "threshold_if_the_app_already_collects_it_mape_pp": 1.0,
+    "threshold_if_it_needs_a_new_field_mape_pp": 2.0,
+    "why_two_thresholds": "A new form field costs the borrower effort and Ibrahima work, so it must earn the same 2-point margin used for choosing the model. An input already on the form costs nothing extra, so the 1-point tie band is enough."
+  },
+  "nothing_else_changes": "The frozen model and its final test are not touched. A model with extra inputs would be a new version with its own tuning and its own final test."
+}
