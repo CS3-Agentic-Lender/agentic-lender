@@ -1,4 +1,10 @@
-from ml import v2_tune as t
+import pytest
+
+pytest.importorskip("numpy")
+pytest.importorskip("pandas")
+pytest.importorskip("sklearn")
+
+from ml import v2_tune as t  # noqa: E402
 
 
 def r(mape, bias=0.0):
