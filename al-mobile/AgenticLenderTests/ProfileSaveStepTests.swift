@@ -7,9 +7,9 @@ final class ProfileSaveStepTests: XCTestCase {
     /// Answers each save with the next result in `results`, and counts saves, pauses and removals.
     private final class Recorder: @unchecked Sendable {
         var results: [Error?]
-        private(set) var saves = 0
+        var saves = 0
         private(set) var pauses = 0
-        private(set) var removals = 0
+        var removals = 0
 
         init(_ results: [Error?]) {
             self.results = results
@@ -99,6 +99,31 @@ final class ProfileSaveStepTests: XCTestCase {
 
         await assertFails(recorder, with: .profileNotSaved)
 
+        XCTAssertEqual(recorder.removals, 1)
+    }
+
+    func testACancelledSignUpDoesNotSaveAgainAndRemovesTheLoginWithTheFirstError() async throws {
+        let recorder = Recorder([AccountError.network, nil])
+        let step = ProfileSaveStep(
+            save: {
+                recorder.saves += 1
+                if let error = recorder.results.removeFirst() { throw error }
+            },
+            removeLogin: { recorder.removals += 1 },
+            pause: { withUnsafeCurrentTask { $0?.cancel() } }
+        )
+
+        let task = Task {
+            do {
+                try await step.run()
+                XCTFail("should throw")
+            } catch {
+                XCTAssertEqual(error as? AccountError, .network)
+            }
+        }
+        await task.value
+
+        XCTAssertEqual(recorder.saves, 1, "a cancelled pause ends early, so the retry is skipped")
         XCTAssertEqual(recorder.removals, 1)
     }
 

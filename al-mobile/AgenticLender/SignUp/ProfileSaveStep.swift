@@ -25,6 +25,8 @@ struct ProfileSaveStep {
             try await save()
         } catch where Self.isWorthRetrying(error) {
             await pause()
+            // A cancelled sleep ends early; don't retry for a sign-up that was abandoned.
+            guard !Task.isCancelled else { throw error }
             try await save()
         }
     }
