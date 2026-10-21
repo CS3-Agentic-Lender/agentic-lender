@@ -125,6 +125,9 @@ because it uses the valuation and can belong to a different band. Only the exact
 show "Invalid stored band" or "Invalid stored tier" in their own groups and never use a
 fallback. Only absent values (`undefined` or `null`) use the valuation band or review tier.
 
+Each row shows the application's `borrowerName` in a Borrower column. A missing or blank name
+shows a dash, and the portal never makes a name up.
+
 `src/services/pipelineService.ts` keeps one unfiltered live listener on `applications` and
 filters statuses in the browser. The summary counts all applications, and ordering the query
 by `submittedAt` would silently drop Draft documents that lack that field. A second listener
