@@ -13,6 +13,7 @@ DTI_CAP = 0.40  # prototype policy, used for the largest-loan calculation
 LTI_CAP_FIRST_TIME = 4.0  # Central Bank limits for owner-occupiers
 LTI_CAP_OTHER = 3.5
 LTV_CAP = 0.90  # Central Bank limit, the same for every buyer since 1 Jan 2023
+HELOC_LTV_CAP = 0.80  # prototype policy: what is owed plus the credit line may reach 80% of the home's value
 
 # Prototype bands on stressed values (docs: agent committee plan, "Rule flags and bands").
 DTI_COMFORTABLE_MAX = 0.40
@@ -199,4 +200,35 @@ def borrowing_capacity(
         repayment=monthly_repayment(loan, benchmark_rate, years),
         stressed_repayment=stressed_repayment(loan, benchmark_rate, years),
         limited_by=limited_by,
+    )
+
+
+def combined_ltv(existing_balance: float, line: float, home_value: float) -> float:
+    """Mortgage balance plus credit line, over the value of the home."""
+    _at_least_zero("existing_balance", existing_balance)
+    _at_least_zero("line", line)
+    _above_zero("home_value", home_value)
+    return (existing_balance + line) / home_value
+
+
+@dataclass(frozen=True)
+class HelocCapacity:
+    max_line: float
+    combined_ltv: float  # at the maximum line; if there is no room it is just what is already owed
+    repayment: float  # the line fully drawn, at the benchmark rate
+    stressed_repayment: float  # the same, at the benchmark rate plus the stress margin
+    limited_by: str  # only "equity" for now: debts are judged by the credit committee, not here
+
+
+def heloc_capacity(home_value: float, existing_balance: float, benchmark_rate: float, years: float) -> HelocCapacity:
+    """The largest credit line: room left once what is owed and the line reach 80% of the home's value. Never below zero."""
+    _above_zero("home_value", home_value)
+    _at_least_zero("existing_balance", existing_balance)
+    line = max(0.0, home_value * HELOC_LTV_CAP - existing_balance)
+    return HelocCapacity(
+        max_line=line,
+        combined_ltv=combined_ltv(existing_balance, line, home_value),
+        repayment=monthly_repayment(line, benchmark_rate, years),
+        stressed_repayment=stressed_repayment(line, benchmark_rate, years),
+        limited_by="equity",
     )

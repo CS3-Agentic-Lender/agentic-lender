@@ -213,3 +213,54 @@ def test_the_error_for_a_non_finite_input_names_the_field(fn):
 def test_the_good_inputs_used_above_really_are_good():
     for fn, good in GOOD.items():
         fn(**good)
+
+
+# ---- HELOC: a credit line against the equity in a home ------------------------------------------
+
+def test_heloc_reference_case():
+    # EUR 300,000 home, EUR 150,000 left on the mortgage: 80% of the value is 240,000, so 90,000 of room
+    c = a.heloc_capacity(300_000, 150_000, RATE, 20)
+    assert eur(c.max_line) == 90_000
+    assert eur(c.repayment) == 545.38  # fully drawn, at the benchmark rate
+    assert eur(c.stressed_repayment) == 644.79  # fully drawn, at benchmark + 2 points
+    assert c.combined_ltv == pytest.approx(0.80)
+    assert c.limited_by == "equity"
+
+
+def test_heloc_with_no_existing_balance_lends_80_percent_of_the_value():
+    c = a.heloc_capacity(300_000, 0, RATE, 20)
+    assert c.max_line == pytest.approx(240_000)
+    assert c.combined_ltv == pytest.approx(0.80)
+
+
+def test_heloc_line_is_zero_at_or_above_80_percent_of_the_value():
+    for balance in (240_000, 240_000.01, 300_000, 500_000):  # at the cap, just over it, fully paid off, under water
+        c = a.heloc_capacity(300_000, balance, RATE, 20)
+        assert c.max_line == 0
+        assert c.repayment == 0 and c.stressed_repayment == 0
+        assert c.limited_by == "equity"
+        assert c.combined_ltv == pytest.approx(balance / 300_000)  # nothing is added to what is already owed
+
+
+def test_heloc_both_sides_of_the_cap():
+    just_under = a.heloc_capacity(300_000, 239_999, RATE, 20)
+    assert eur(just_under.max_line) == 1
+    assert just_under.combined_ltv == pytest.approx(0.80)
+    assert a.heloc_capacity(300_000, 240_000, RATE, 20).max_line == 0
+
+
+def test_combined_ltv_adds_the_line_to_what_is_owed():
+    assert a.combined_ltv(150_000, 50_000, 400_000) == pytest.approx(0.50)
+    assert a.combined_ltv(0, 0, 400_000) == 0
+
+
+def test_heloc_repayment_is_linear_in_the_line_and_rises_with_the_stress_margin():
+    small, big = a.heloc_capacity(300_000, 200_000, RATE, 20), a.heloc_capacity(300_000, 100_000, RATE, 20)
+    assert big.repayment == pytest.approx(small.repayment * (140_000 / 40_000))
+    assert big.stressed_repayment > big.repayment
+
+
+def test_heloc_rejects_bad_input():
+    for value, balance, years in ((0, 0, 20), (-1, 0, 20), (300_000, -1, 20), (300_000, 0, 0), (float("nan"), 0, 20), (300_000, float("inf"), 20)):
+        with pytest.raises(ValueError):
+            a.heloc_capacity(value, balance, RATE, years)
