@@ -164,17 +164,19 @@ def cross_validate(make, X: pd.DataFrame, y: np.ndarray, fold_ids: np.ndarray, b
     return (result, timing, oof) if return_oof else (result, timing)
 
 
-def load_development(seed: int):
-    """Development rows only, with a complete floor area, plus their fold numbers. Also returns the full split summary."""
+def load_development(seed: int, also: tuple = ()):
+    """Development rows only, with a complete floor area, plus their fold numbers. Also returns the full split summary.
+
+    also names extra partitions to include as training-only rows (fold -1). Used only by the v2 more-rows test."""
     with dr.CSV_PATH.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     kept, _, _ = dr.classify(rows)
     where = split.partition(kept, seed, tuple(CONFIG["shares"]))
     assert split.leaked_groups(kept, where) == [], "a property group crosses partitions"
-    dev = [r for r in kept if where[r["source_row"]] == "development" and r["floor_area_m2"] is not None]
-    folds = split.folds(dev, CONFIG["folds"], seed)
+    dev = [r for r in kept if where[r["source_row"]] in ("development", *also) and r["floor_area_m2"] is not None]
+    folds = split.folds([r for r in dev if where[r["source_row"]] == "development"], CONFIG["folds"], seed)
     df = pd.DataFrame(dev)[["source_row", *FEATURE_COLUMNS]]
-    df["fold"] = df["source_row"].map(folds)
+    df["fold"] = df["source_row"].map(folds).fillna(-1).astype(int)
     y = np.array([r["price_eur"] for r in dev], float)
     manifest = {
         "seed": seed, "shares": CONFIG["shares"], "source_sha256": dr.sha256(dr.CSV_PATH),

@@ -73,8 +73,9 @@ class FeatureBuilderV2(b.FeatureBuilder):
         frequent = lambda col: sorted(k for k, n in X[col].value_counts().items() if n >= self.min_count)
         self.keys_ = frequent("rkey") if "eircode_routing_key" in self.extras else []
         self.towns_ = frequent("town") if "town" in self.extras else []
-        med = lambda col: float(np.nanmedian(X[col])) if X[col].notna().any() else 0.0
-        self.built_fill_, self.lat_fill_, self.lon_fill_ = med("built_year"), med("lat"), med("lon")
+        # fill values only for the extras asked for, so a model that uses just the Eircode key needs no other column at inference
+        med = lambda col, extra: float(np.nanmedian(X[col])) if extra in self.extras and X[col].notna().any() else 0.0
+        self.built_fill_, self.lat_fill_, self.lon_fill_ = med("built_year", "construction_year"), med("lat", "coordinates"), med("lon", "coordinates")
         if "expected_price" in self.extras:
             self.table_, self.overall_ = self._table(X, y, np.arange(len(X)))  # learned from every training row, used for rows scored later
         return self
@@ -127,9 +128,9 @@ class FeatureBuilderV2(b.FeatureBuilder):
         return np.hstack(parts)
 
 
-def load_with_extras(seed: int):
+def load_with_extras(seed: int, also: tuple = ()):
     """The same development rows and folds as the frozen model, plus the extra columns read from the raw file by source row."""
-    df, y, _, _, _ = b.load_development(seed)
+    df, y, _, _, _ = b.load_development(seed, also)
     with dr.CSV_PATH.open(newline="", encoding="utf-8") as f:
         raw = list(csv.DictReader(f))
     rows = [raw[i - 1] for i in df["source_row"]]  # source_row is the 1-based data row number

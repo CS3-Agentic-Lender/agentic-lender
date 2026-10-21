@@ -1,0 +1,56 @@
+{
+  "written_before_the_final_test": "This file, with every rule below, was committed before the v2 final-exam code existed and before the v2 model was fitted for the exam. The final test split has not been read by any v2 code.",
+  "ticket_scope": "Part of the v2 refinement work under AL-257. Nothing here changes the frozen v1 model or its final test (frozen-model.json, final-test-report.md).",
+  "seed": 42,
+  "model": {
+    "file": "reports/v2-frozen-model.json",
+    "what": "The frozen v2 winner: equal-weight average, in log-price, of HistGradientBoosting, CatBoost and the MLP with the settings in that file, on the five inputs plus the Eircode routing key.",
+    "unchanged": "Model, settings, features and seed are not touched after this file is committed."
+  },
+  "training_rows": "Development rows plus the calibration rows that have a floor area (the 80%). The final exam fits the model once on these rows. The same fitted model is the one saved for the endpoint, so the shipped file is exactly the model that was evaluated.",
+  "calibration_point": {
+    "problem": "v1 set its review threshold on the calibration rows because the v1 model never trained on them. The v2 model does train on them, so gaps measured there are too small and a threshold set there would flag too few overpriced homes.",
+    "rule": "The threshold and the price range are set from out-of-fold predictions on the 4,882 development rows: the same five group folds as tuning, where each fold's model trains on the other four development folds plus all calibration rows, so every development house is predicted by a model that never saw it. The calibration rows are never used to set either.",
+    "stated_limit": "Each fold model trains on about 20% fewer development rows than the shipped model, so out-of-fold gaps are slightly larger than the shipped model will produce. That errs towards a wider range and a higher threshold, and the final exam reports how far off that is."
+  },
+  "gap": "g = asking price / estimate - 1, from the unrounded estimate. A price below the estimate gives a negative gap.",
+  "threshold": {
+    "rule": "t = max(0, 90th percentile of g) on the out-of-fold development gaps, numpy linear quantile method. Price needs review when g is strictly above t. Equality does not trigger it.",
+    "written_to": "reports/v2-threshold.json before the final test split is predicted"
+  },
+  "price_range": {
+    "what": "An 80% range shown next to the estimate.",
+    "rule": "Split the out-of-fold development estimates into four bands at their 25th, 50th and 75th percentiles. In each band take the 10th and 90th percentile of g (linear method). The range for a new estimate e in a band is [e * (1 + g10), e * (1 + g90)] for that band.",
+    "target_coverage": 0.8,
+    "written_to": "reports/v2-threshold.json with the threshold"
+  },
+  "final_exam": {
+    "when": "Once. After the threshold and range are written, the fitted model predicts the final test rows that have a floor area. A lock file stops a second run: nothing (model, features, threshold, range) may change after it.",
+    "lock_file": "reports/v2-final-test-report.md",
+    "reported_even_if_bad": "The result is reported whatever it is: worse than the development CV, worse than v1, or poor. It is not rerun, retuned or re-framed.",
+    "metrics": "MAPE (the ranking number), MdAPE, within 10%, MAE, RMSE, R2, median over or under estimate, and the share of estimates in the right price band (quartile confusion matrix).",
+    "review_and_range": "Flag rate on the test rows (expected near 10% by construction), 80% range coverage overall and per band, median range width.",
+    "classification_view": {
+      "why": "ROC curves need a yes/no question. The estimate is used as the score for: is the asking price above the development 50th, 75th and 90th percentile price? Reported as ROC curves with AUC, so a reader sees how well the estimate ranks homes by price at each cut.",
+      "cutoffs_from": "development prices only",
+      "metrics": "AUC at each cutoff, and Spearman rank correlation between estimate and asking price."
+    },
+    "segments": "MAPE, MdAPE and within 10% by property type, by price band (development quartiles) and by county with at least 20 test rows.",
+    "references": "The median price per m2 baseline fitted on development rows, and the v1 final test result on the same test split, shown beside v2. Reference only: nothing is chosen from them.",
+    "development_vs_test": "Compare the test MAPE with the 20.33% development CV figure. If the test MAPE is more than 2 points above it, the report says the selection on the development folds was optimistic."
+  },
+  "saved_model": {
+    "what": "The pipeline fitted for the exam is saved as the v2 model file and reloaded.",
+    "reload_check": "Reloaded predictions must equal the in-memory predictions on a fixed reference set (200 development rows chosen with the seed, inputs only), with maximum relative difference at most 1e-9."
+  },
+  "figures": [
+    "estimate versus asking price with the within-10% band",
+    "error distribution",
+    "calibration by estimate band (median over or under)",
+    "error by price band and by property type",
+    "price-band confusion matrix",
+    "ROC curves at the three price cutoffs",
+    "gap distribution with the review threshold marked and the range coverage by band",
+    "all versions compared: baseline, v1, v2 development, v2 final test"
+  ]
+}

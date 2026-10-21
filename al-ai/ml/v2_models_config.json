@@ -1,0 +1,34 @@
+{
+  "written_before_any_run": "Committed before the code or any run. These experiments choose the v2 shortlist. They do not freeze the v2 winner: that happens later, by a rule committed before the v2 tuning.",
+  "seed": 42,
+  "data": "Development split only: the same 4,882 rows with a floor area and the same five group folds. Calibration and the final test are not read.",
+  "inputs": "The five inputs plus the Eircode routing key, as in the current v2 candidate.",
+  "references": {
+    "hist_gradient_boosting": 22.23,
+    "catboost": 21.78,
+    "equal_average_of_the_three_single_seed": 21.24,
+    "note": "CV MAPE with the Eircode key and the v1 tuned settings, from the earlier experiments. Re-measured in the run so every number is on the same rows."
+  },
+  "variants": {
+    "bagging": {
+      "what": "Average several seeds of one model in log-price: HistGradientBoosting x10, CatBoost x10, MLP x5, using the v1 tuned settings with different random seeds.",
+      "also": "Equal average of the three models, each bagged, against the same average with one seed each."
+    },
+    "gpboost": {
+      "what": "Boosting on the five inputs plus grouped random effects for county and routing key (crossed), Gaussian likelihood on log price. The routing key is NOT a fixed input here: its effect comes from the random effect.",
+      "settings": {"learning_rate": 0.05, "num_leaves": 15, "min_data_in_leaf": 20, "max_depth": 6, "max_rounds": 800, "early_stopping_rounds": 30},
+      "rounds": "chosen by cross-validation inside each outer training set only (never on the scored fold)",
+      "rare_keys": "also report MAPE on scored homes whose routing key has fewer than 10 training rows, where pooling is claimed to help"
+    },
+    "tabpfn": {
+      "what": "TabPFNRegressor on log price with the five inputs and the routing key as a categorical code, default settings, no tuning.",
+      "weights": "The model weights are downloaded only after the owner agrees. The report records the licence and where they came from."
+    }
+  },
+  "shortlist_rule": {
+    "rule": "A variant enters the v2 shortlist only if ALL hold: (1) its CV MAPE is at least 0.5 points below the best single reference (CatBoost, 21.78); (2) it is lower than that reference in all five folds; (3) its median over or under estimate is within plus or minus 2%, so it does not win by estimating low; (4) its within-10% share is not worse than the reference's.",
+    "why_0_5": "These experiments only choose the shortlist, so the bar is half the 1-point bar used for freezing a winner. The 1-point rule and the tie band are applied later, after tuning, with rules committed first."
+  },
+  "also_report": "MdAPE, within 10%, MAE, R2, fit and predict time, number of models and new dependencies, and for TabPFN the licence.",
+  "nothing_else_changes": "The frozen v1 model and its final test are untouched."
+}
