@@ -9,10 +9,11 @@ import { PipelineStatus } from './PipelineStatus';
 import {
   ALL_STATUSES,
   GROUP_BY_OPTIONS,
+  INVALID_RISK_TIER,
+  applicationLtvBand,
   filterByStatus,
   formatLtv,
   groupApplications,
-  ltvBand,
   type GroupBy,
 } from './pipelineGroups';
 
@@ -28,9 +29,9 @@ const groupOptionClass = [
 // Shown only once the tier query has failed, never while it is pending. The cause is stated generically.
 const riskTierNotices: Record<PipelineError, string> = {
   'permission-denied':
-    'Risk tiers could not be read for this account, so every application shows its tier as unavailable and the queue cannot be split by tier.',
+    'Risk tiers could not be read for this account. Applications without a stored tier show Unavailable.',
   unavailable:
-    'Risk tiers could not be loaded, so every application shows its tier as unavailable and the queue cannot be split by tier. Reload the page to try again.',
+    'Risk tiers could not be loaded. Applications without a stored tier show Unavailable. Reload the page to try again.',
 };
 
 function countLabel(count: number) {
@@ -52,11 +53,15 @@ function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps)
       <td className={`${cellClass} text-sm`}>
         <span className="font-mono">{formatLtv(application.ltvPct)}</span>
         <span className="ml-2 text-xs whitespace-nowrap text-muted">
-          {ltvBand(application.ltvPct)}
+          {applicationLtvBand(application)}
         </span>
       </td>
       <td className={`${cellClass} text-sm`}>
-        {riskTierState === 'pending' ? (
+        {application.storedRiskTier === 'invalid' ? (
+          <span className="text-muted">{INVALID_RISK_TIER}</span>
+        ) : application.storedRiskTier ? (
+          <span className="font-mono">{application.storedRiskTier}</span>
+        ) : riskTierState === 'pending' ? (
           <span className="text-muted">Checking</span>
         ) : riskTierState !== 'available' ? (
           <span className="text-muted">Unavailable</span>
@@ -81,11 +86,12 @@ export function PipelinePage() {
 
   const applications = state.status === 'ready' ? state.applications : null;
   const riskTierState = state.status === 'ready' ? state.riskTierState : 'pending';
+  const visible = useMemo(() => filterByStatus(applications ?? [], status), [applications, status]);
+  const needsFallbackTier = visible.some((application) => application.storedRiskTier == null);
   const riskTierNotice =
-    state.status === 'ready' && state.riskTierState === 'unavailable'
+    needsFallbackTier && state.status === 'ready' && riskTierState === 'unavailable'
       ? riskTierNotices[state.riskTierError ?? 'unavailable']
       : null;
-  const visible = useMemo(() => filterByStatus(applications ?? [], status), [applications, status]);
   const groups = useMemo(
     () => groupApplications(visible, groupBy, riskTierState),
     [visible, groupBy, riskTierState],
@@ -185,7 +191,7 @@ export function PipelinePage() {
                         Requested
                       </th>
                       <th className={headerCellClass} scope="col">
-                        LTV
+                        Valuation LTV
                       </th>
                       <th className={headerCellClass} scope="col">
                         Risk tier

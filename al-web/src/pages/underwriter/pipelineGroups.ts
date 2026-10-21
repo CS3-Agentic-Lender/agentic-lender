@@ -1,4 +1,4 @@
-import { APPLICATION_STATUSES } from '../../services/clientsService';
+import { APPLICATION_STATUSES, type StoredLtvBand } from '../../services/clientsService';
 import {
   RISK_TIERS,
   type PipelineApplication,
@@ -15,6 +15,13 @@ export const GROUP_BY_OPTIONS: ReadonlyArray<{ value: GroupBy; label: string }> 
 ];
 
 export const LTV_BANDS = ['<=80%', '>80% to 90%', '>90%'] as const;
+const storedBandLabels: Record<StoredLtvBand, string> = {
+  '80_or_less': LTV_BANDS[0],
+  '80_to_90': LTV_BANDS[1],
+  over_90: LTV_BANDS[2],
+};
+export const INVALID_LTV_BAND = 'Invalid stored band';
+export const INVALID_RISK_TIER = 'Invalid stored tier';
 export const NO_LTV = 'No LTV yet';
 export const NO_LTV_FIGURE = '—';
 export const NO_RISK_TIER = 'No risk tier yet';
@@ -45,8 +52,16 @@ export function ltvBand(ltvPct: number | null) {
 
 const MAX_LTV_DECIMALS = 6;
 
+export function applicationLtvBand(application: PipelineApplication) {
+  if (application.ltvBand === 'invalid') {
+    return INVALID_LTV_BAND;
+  }
+
+  return application.ltvBand ? storedBandLabels[application.ltvBand] : ltvBand(application.ltvPct);
+}
+
 // The figure shown beside the band. It is rounded to one decimal, but never to a value that
-// belongs to a different band than the stored one: 80.04 shows as "80.04%" beside ">80% to 90%",
+// belongs to a different valuation band: 80.04 shows as "80.04%" beside ">80% to 90%",
 // not as "80%". A value with no band shows a dash, never a negative or zero percentage.
 export function formatLtv(ltvPct: number | null) {
   if (ltvPct === null || ltvBand(ltvPct) === NO_LTV) {
@@ -81,8 +96,8 @@ interface Grouping {
 function groupingFor(groupBy: GroupBy, riskTierState: RiskTierState): Grouping {
   if (groupBy === 'ltvBand') {
     return {
-      groups: [...LTV_BANDS, NO_LTV].map((band) => ({ key: band, label: band })),
-      keyOf: (application) => ltvBand(application.ltvPct),
+      groups: [...LTV_BANDS, NO_LTV, INVALID_LTV_BAND].map((band) => ({ key: band, label: band })),
+      keyOf: applicationLtvBand,
     };
   }
 
@@ -94,19 +109,17 @@ function groupingFor(groupBy: GroupBy, riskTierState: RiskTierState): Grouping {
     };
   }
 
-  // Until tier data has been read there is nothing to split on, and no tier is guessed.
-  if (riskTierState !== 'available') {
-    const label = riskTierState === 'pending' ? RISK_TIER_PENDING : RISK_TIER_UNAVAILABLE;
-
-    return { groups: [{ key: label, label }], keyOf: () => label };
-  }
-
+  const fallbackGroup = riskTierState === 'pending' ? RISK_TIER_PENDING : RISK_TIER_UNAVAILABLE;
   return {
     groups: [
       ...RISK_TIERS.map((tier) => ({ key: tier, label: `Tier ${tier}` })),
+      { key: 'invalid', label: INVALID_RISK_TIER },
       { key: NO_RISK_TIER, label: NO_RISK_TIER },
+      { key: fallbackGroup, label: fallbackGroup },
     ],
-    keyOf: (application) => application.riskTier ?? NO_RISK_TIER,
+    keyOf: (application) =>
+      application.storedRiskTier ??
+      (riskTierState === 'available' ? application.riskTier ?? NO_RISK_TIER : fallbackGroup),
   };
 }
 

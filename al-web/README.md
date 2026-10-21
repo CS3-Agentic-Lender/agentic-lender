@@ -118,10 +118,19 @@ through the shared `toApplicationSummary` mapping and show as "—" when a docum
 
 ## Underwriter pipeline queue
 
-`src/services/pipelineService.ts` holds two live Firestore listeners: one on the whole `applications`
-collection, which the rules on `main` allow for the underwriter role only, and one collection-group
-query on `review`. Applications appear as soon as their listener answers; the tier listener never
-holds back the queue. The queue groups those applications by LTV band (`<=80%`, `>80% to 90%`, `>90%`, and "No LTV yet"), by risk tier (A to D)
+The queue prefers the application document's stored `ltvBand` and `riskTier`, independently.
+The stored band uses the asking price; the displayed percentage is labelled "Valuation LTV"
+because it uses the valuation and can belong to a different band. Only the exact bands
+`80_or_less`, `80_to_90`, `over_90` and tiers `A`, `B`, `C`, `D` are accepted. Invalid values
+show "Invalid stored band" or "Invalid stored tier" in their own groups and never use a
+fallback. Only absent values (`undefined` or `null`) use the valuation band or review tier.
+
+`src/services/pipelineService.ts` keeps one unfiltered live listener on `applications` and
+filters statuses in the browser. The summary counts all applications, and ordering the query
+by `submittedAt` would silently drop Draft documents that lack that field. A second listener
+on the `review` collection group stays as a fallback because the al-ai work that writes the
+application fields is not built yet. Applications appear as soon as their listener answers.
+The queue groups them by LTV band (`<=80%`, `>80% to 90%`, `>90%`, and "No LTV yet"), by risk tier (A to D)
 or by lifecycle status, and can be filtered by status. The grouping is in
 `src/pages/underwriter/pipelineGroups.ts`. The summary line says whether the group counts are of
 all applications or of the filtered ones. The listeners stop when the page is left or the
@@ -129,27 +138,28 @@ underwriter signs out.
 
 Field names follow `al-core/SCHEMA.md`, merged on `main`:
 
-- `loanAmountEur`, `ltvPct` and `updatedAt` are read through the same `toApplicationSummary`
+- `loanAmountEur`, `ltvPct`, `ltvBand`, `riskTier` and `updatedAt` are read through the same `toApplicationSummary`
   mapping as the client list. The pipeline keeps documents without a `borrowerId`; the broker
   client list still skips them. A document without figures shows "—"; a missing, non-finite or
-  negative LTV lands in "No LTV yet".
-- The risk tier is read from `applications/{id}/review/underwriting` (field `riskTier`) with a single
-  collection-group query on `review`. The rules merged in PR 41 (`match /{path=**}/review/{docId}`)
-  let an underwriter read those documents, so the read is allowed for the underwriter role. While
-  pending, rows show "Checking" and tier grouping uses "Checking risk tiers", with no notice. If the
-  read fails, the cause is shown generically: a permission failure says tiers could not be read for
-  this account, any other failure says tiers could not be loaded. Either way every tier shows as
-  "Unavailable", the queue still lists applications, and it does not split by tier. Later tier
-  results update rows and groups without a reload. A tier is only ever a stored `A`, `B`, `C` or
-  `D`; it is never derived from the LTV or mapped from another scale.
+  negative valuation LTV shows a dash. When the stored band is absent, the band falls back to
+  `ltvPct`; with neither source it shows "No LTV yet".
+- When the stored tier is absent, the tier falls back to `applications/{id}/review/underwriting`.
+  A different review tier never overrides a valid stored tier. While the fallback is pending,
+  only rows needing it show "Checking" and group under "Checking risk tiers". If it fails,
+  those rows show "Unavailable" and group under "Risk tier unavailable". The failure notice
+  appears only if at least one application listed after status filtering needs the fallback.
+  Stored tiers remain visible and grouped normally throughout. Once the fallback answers,
+  a row with neither tier source shows "No tier yet". Live changes to either source update
+  rows and group counts without a reload.
 - A snapshot that comes from the local cache and is empty is not published as a real empty result,
   for applications or for tiers: the queue stays in its loading state ("Checking" for tiers) until
   the server answers or a listener fails. This stops an unreachable backend from showing "No
   applications yet".
 
-The queue treats `ltvPct` as a whole-number percentage (83 means 83%); a fraction such as 0.83 would be banded wrongly, which is an open question for the backend owner. The LTV figure is shown to one decimal, and to
-as many more as it takes to stay in the same band as the stored value (80.04 shows as "80.04%"
-beside ">80% to 90%"); a value with no band shows "—".
+The queue treats `ltvPct` as a whole-number percentage (83 means 83%). The valuation figure
+is shown to one decimal, using more decimals at valuation band boundaries (80.04 shows as
+"80.04%"). Its label distinguishes it from the stored asking-price band: an application can
+be grouped under ">90%" while showing a valuation LTV of 85%.
 
 Status badges share one status-to-tone mapping (`src/utils/statusTone.ts`), used by the queue and the
 client list, with the badge colours from `docs/infrastructure.md`: Draft, Applied and Closed are
