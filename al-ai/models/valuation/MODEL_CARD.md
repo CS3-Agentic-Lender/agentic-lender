@@ -97,7 +97,7 @@ The file is a pickle (joblib). **Only load it from this repository after checkin
 
 ## Limits
 
-- **2024 asking prices, not sale prices.** It says nothing about 2027.
+- **2024 asking prices, not sale prices.** It says nothing about 2027. When it values a home for a home equity line of credit, the value is an indicative 2024 asking-price estimate, not a valuation report or a sale price. The model is not retrained for this.
 - **Typical error is real:** an average miss of 21% and a typical miss of 14%. Show the estimate with its range, never alone.
 - **Weaker for the cheapest homes and in some rural counties** (the county table is in the report); the application should say estimates may be off depending on the county.
 - **Biased high a little:** the median estimate is about 1% above the asking price, more for the dearest tenth of estimates.
