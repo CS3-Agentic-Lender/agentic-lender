@@ -63,7 +63,7 @@ Tasks and Bugs skip the grilling, but still get a subsystem label, an owner and 
 
 ## Sprint discipline
 
-The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens **in the sprint it belongs to**, on **the tickets that person was assigned**. Building a later sprint's features early is not "getting ahead": it empties the next sprint, breaks the sprint report, and leaves teammates waiting on work that was skipped.
+The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens on **the tickets that person was assigned**. A ticket from a later sprint can be started early, for example when you would otherwise be waiting on a teammate, so nobody is stuck. The supervisor is fine with this.
 
 ### Sprint cycle
 
@@ -84,19 +84,18 @@ At the end of the sprint, the burndown chart and the list of finished and unfini
 
 ### Check before writing any code
 
-An agent asked to build something runs these three checks first, in order, and **stops** if any of them fails:
+An agent asked to build something runs these two checks first, in order, and **stops** if either fails:
 
 1. **A ticket exists**, and `getJiraIssue` returns it.
-2. **The ticket is in the active sprint.** Check the `Sprint` field, or `searchJiraIssuesUsingJql` with `key = AL-<number> AND sprint in openSprints()`.
-3. **The ticket is assigned to the person asking.** Check `assignee` against `atlassianUserInfo`.
+2. **The ticket is assigned to the person asking.** Check `assignee` against `atlassianUserInfo`.
 
-If a check fails, say which one, and offer the legitimate routes: pick a ticket from the active sprint instead, ask the team to pull the ticket into the sprint, or take the ticket over in Jira first. Do not start the work and sort the ticket out afterwards.
+If a check fails, say which one, and offer the legitimate routes: pick one of the person's own tickets instead, or take the ticket over in Jira first. Do not start the work and sort the ticket out afterwards.
 
 ### While working
 
 - **One ticket per branch and per PR.** Don't add "while I was in there" changes for other tickets; open a new ticket instead.
 - **Work found mid-ticket** that is outside its scope becomes a new Jira ticket with `needs-triage`. It is not quietly built.
-- **Out-of-sprint requests**, however small or however framed (a quick screen, scaffolding, a placeholder, groundwork for next sprint), get the same answer: it goes into a ticket, the team pulls it into a sprint, then it gets built.
+- **Work from a later sprint** is fine to start early on your own ticket. It still needs a ticket, a branch and a PR like anything else.
 - **Don't edit someone else's subsystem to unblock yourself.** Integration work that genuinely needs a change in another owner's directory is allowed, but it is agreed first: comment on their ticket, get their agreement, then do it on its own ticket in its own PR, which `CODEOWNERS` sends to them to review. What is not allowed is quietly changing their code inside your own ticket.
 
 ### Done in Jira, and finished for the sprint
@@ -210,7 +209,22 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
+**Exception: small changes to the agent rules and docs need no ticket.** Wording fixes in `AGENTS.md`, `docs/agents/` and the READMEs skip the ticket check, the sprint check and the branch format above. Use a branch named `docs/short-description` and a commit and PR title with no `AL-` key anywhere, so Jira cannot link the change to an unrelated ticket. Anything that changes code, or a rule the team has not agreed, still needs a ticket.
+
 Creating that branch moves the ticket to In Progress, and opening a PR moves it to In Review, so both happen when the work really starts and really ends. Don't create branches for tickets you are not about to work on, and don't open a PR to park unfinished work.
+
+### Keeping Jira status true
+
+The Jira automation has a usage limit and sometimes stops moving tickets (PR opened → In Review, PR merged → Done). So an agent does not trust the board: at the start and end of a session it checks each ticket it touched against what has actually happened.
+
+| What has happened | Status it should have |
+|---|---|
+| Assigned, no branch yet | To Do |
+| Branch exists, no PR | In Progress |
+| PR open | In Review |
+| PR merged into `main` | Done |
+
+If a status is wrong, the agent moves it with the Jira tools when the user has asked for Jira updates. Otherwise, or if the connection is down, it keeps a list of the tickets that need moving (key, current status, status it should have, and why) and shows it at the end of the session so the person can move them by hand. A merged PR whose ticket is not Done is the one to catch, because the burndown chart only falls when a Story reaches Done.
 
 ### Formats
 
@@ -224,11 +238,15 @@ A commit that fixes a review comment keeps the same key; never renumber mid-bran
 
 ### Opening the PR
 
-**The person opens the PR, not the agent.** Committing and pushing a feature branch is normal agent work. Opening the pull request is not: a PR asks a named teammate to spend their time reviewing, and puts that person's name on the work.
+**An agent may commit, push and open the PR, but the developer sees the PR first and says yes.** Committing and pushing a feature branch is normal agent work, and so is opening the pull request once the developer has approved it: a PR asks a named teammate to spend their time reviewing and puts the developer's name on the work, so the developer must see exactly what will be opened before it is.
 
-An agent therefore **never** runs `gh pr create`, opens a PR through the API, marks a draft ready for review, merges, approves, or resolves someone's review comment, unless the user has asked for that in the current conversation. "Finish the ticket" is not that request.
+Before opening, the agent shows the developer the whole PR: the branch, the commits (subject lines), the title, the full body, the files changed, and the reviewers it will request. It opens the PR only after the developer says yes to that PR, in the current conversation. "Finish the ticket" is not that yes. A yes to one PR does not cover the next one.
 
-Before asking, the agent checks its own work against the rules above and says so in one line each:
+An agent approves or merges a PR only when the developer explicitly asks for that PR in the current conversation, and only after a pre-check it states in one line each: the head commit is unchanged since the review, there are no bot or Copilot commits on the branch, CI is green, and the branch will be deleted after the merge. A failed check is fixed or reported, not skipped. This catches an approval that GitHub dismisses seconds later because the branch is behind `main`, and a bot commit nobody reviewed.
+
+An agent never resolves someone's review comment on the developer's behalf, and it never marks a draft ready for review without showing the developer first. Any change to the PR the developer approved (a new title or body, extra commits) goes back to the developer before it is pushed or posted.
+
+Before showing the PR, the agent checks its own work against the rules above and says so in one line each:
 
 - [ ] Branch, every commit message, and the PR title it is proposing carry **one** key, the ticket's own, and nothing else carries a key.
 - [ ] Commit subjects match the format table, and each commit is one person's work on this ticket.
@@ -242,9 +260,10 @@ When the branch looks finished, the agent stops and reports:
 - what is on the branch, file by file;
 - the evidence it works: the commands run and their output;
 - anything left undone or uncertain;
-- then asks whether to open the PR.
+- the PR as it would be opened, written with the `pr` skill (what changed, evidence, merge risk, no other ticket's key in it);
+- then asks whether to open it.
 
-If the answer is yes, the agent writes the body with the `pr` skill (what changed, evidence, merge risk, no other ticket's key in it) and opens it against `main`.
+If the answer is yes, the agent opens it against `main` exactly as shown and requests the reviewers it listed.
 
 Other rules:
 

@@ -43,8 +43,14 @@ beforeEach(async () => {
     await set('users/underwriter1', { uid: 'underwriter1', role: 'underwriter', fullName: 'Uma' });
     await set('users/borrower1/saved_checks/check1', { estimatedValueEur: 310000 });
 
-    await set('applications/app1', { borrowerId: 'borrower1', brokerId: 'broker1', status: 'AI Deliberated' });
-    await set('applications/app2', { borrowerId: 'borrower2', brokerId: 'broker2', status: 'AI Deliberated' });
+    await set('applications/app1', {
+      borrowerId: 'borrower1', brokerId: 'broker1', status: 'AI Deliberated',
+      ltvBand: '80_to_90', riskTier: 'B', submittedAt: new Date('2026-10-02T09:00:00Z'),
+    });
+    await set('applications/app2', {
+      borrowerId: 'borrower2', brokerId: 'broker2', status: 'AI Deliberated',
+      ltvBand: 'over_90', riskTier: 'D', submittedAt: new Date('2026-10-03T09:00:00Z'),
+    });
     await set('applications/app1/review/underwriting', { applicationId: 'app1', brokerId: 'broker1', riskTier: 'B' });
     await set('applications/app2/review/underwriting', { applicationId: 'app2', brokerId: 'broker2', riskTier: 'D' });
     await set('applications/app1/audit/record', { applicationId: 'app1', auditHash: 'abc' });
@@ -84,6 +90,18 @@ describe('users', () => {
     assertSucceeds(broker1().collection('users').where('brokerId', '==', 'broker1').get()));
   test("a broker can't list users without the brokerId filter", () =>
     assertFails(broker1().collection('users').get()));
+  test('after a broker change the new broker can read the profile and the old one cannot', async () => {
+    await testEnv.withSecurityRulesDisabled((context) =>
+      context.firestore().doc('users/borrower1').update({ brokerId: 'broker2' }));
+    await assertSucceeds(broker2().doc('users/borrower1').get());
+    await assertFails(broker1().doc('users/borrower1').get());
+  });
+  test('after a broker change the old broker keeps the applications made before it', async () => {
+    await testEnv.withSecurityRulesDisabled((context) =>
+      context.firestore().doc('users/borrower1').update({ brokerId: 'broker2' }));
+    await assertSucceeds(broker1().doc('applications/app1').get());
+    await assertFails(broker2().doc('applications/app1').get());
+  });
   test('an underwriter can read any profile', () =>
     assertSucceeds(underwriter().doc('users/borrower2').get()));
   test("a signed-out user can't read profiles", () =>
@@ -120,6 +138,50 @@ describe('applications', () => {
     assertFails(borrower1().doc('applications/app1').update({ status: 'Underwriter Approved' })));
   test("a borrower can't create an application directly", () =>
     assertFails(borrower1().collection('applications').add({ borrowerId: 'borrower1', brokerId: 'broker1', status: 'Draft' })));
+});
+
+// The underwriter's pipeline queue (AL-64): status with LTV band or risk tier, newest first.
+describe('pipeline queue', () => {
+  const queue = (db, field, value) =>
+    db.collection('applications')
+      .where('status', '==', 'AI Deliberated')
+      .where(field, '==', value)
+      .orderBy('submittedAt', 'desc')
+      .get();
+
+  test('an underwriter can filter by status and LTV band', async () => {
+    const snap = await assertSucceeds(queue(underwriter(), 'ltvBand', 'over_90'));
+    expect(snap.docs.map((d) => d.id)).toEqual(['app2']);
+  });
+  test('an underwriter can filter by status and risk tier', async () => {
+    const snap = await assertSucceeds(queue(underwriter(), 'riskTier', 'B'));
+    expect(snap.docs.map((d) => d.id)).toEqual(['app1']);
+  });
+  test('the queue is newest first', async () => {
+    const snap = await assertSucceeds(
+      underwriter().collection('applications').where('status', '==', 'AI Deliberated').orderBy('submittedAt', 'desc').get(),
+    );
+    expect(snap.docs.map((d) => d.id)).toEqual(['app2', 'app1']);
+  });
+  test("a broker can't run the whole queue", () => assertFails(queue(broker1(), 'riskTier', 'B')));
+  // Only al-ai (through the Admin SDK) sets the band and tier.
+  for (const [who, db] of [['borrower', borrower1], ['broker', broker1], ['underwriter', underwriter]]) {
+    test(`a ${who} can't change the LTV band or risk tier`, async () => {
+      await assertFails(db().doc('applications/app1').update({ riskTier: 'A' }));
+      await assertFails(db().doc('applications/app1').update({ ltvBand: '80_or_less' }));
+    });
+  }
+  test("a borrower can't run the whole queue", () => assertFails(queue(borrower1(), 'riskTier', 'B')));
+});
+
+test('firestore.indexes.json has an index for every queue query', () => {
+  const { indexes } = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../firestore.indexes.json'), 'utf8'));
+  const shapes = indexes.map((i) => `${i.collectionGroup}:${i.fields.map((f) => `${f.fieldPath} ${f.order}`).join(',')}`);
+  expect(shapes).toEqual([
+    'applications:status ASCENDING,submittedAt DESCENDING',
+    'applications:status ASCENDING,ltvBand ASCENDING,submittedAt DESCENDING',
+    'applications:status ASCENDING,riskTier ASCENDING,submittedAt DESCENDING',
+  ]);
 });
 
 describe('applications/{id}/review/underwriting', () => {
@@ -195,6 +257,8 @@ describe('support_requests', () => {
     assertFails(borrower2().doc('support_requests/req1').get()));
   test('an underwriter can read any support request', () =>
     assertSucceeds(underwriter().doc('support_requests/req1').get()));
+  test("a broker can't read a support request, even their client's", () =>
+    assertFails(broker1().doc('support_requests/req1').get()));
   test("a borrower can't create a support request directly", () =>
     assertFails(borrower1().collection('support_requests').add({ userId: 'borrower1', subject: 'Hi' })));
 });
@@ -206,6 +270,8 @@ describe('reviews', () => {
     assertFails(borrower2().doc('reviews/borrower1').get()));
   test('an underwriter can read any review', () =>
     assertSucceeds(underwriter().doc('reviews/borrower1').get()));
+  test("a broker can't read a review, even their client's", () =>
+    assertFails(broker1().doc('reviews/borrower1').get()));
   test("a borrower can't write their review directly", () =>
     assertFails(borrower1().doc('reviews/borrower1').set({ userId: 'borrower1', rating: 1 })));
 });

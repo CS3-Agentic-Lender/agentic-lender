@@ -1,0 +1,18 @@
+{
+ "baseline_cv_mape": 31.900908928858648,
+ "cv_mape": 26.718471103101354,
+ "margin_mape_pp": 2.0,
+ "member_params": null,
+ "members": null,
+ "params": {
+  "l2_regularization": 1.9977634480318898,
+  "learning_rate": 0.039774374789764005,
+  "max_iter": 448,
+  "max_leaf_nodes": 23,
+  "min_samples_leaf": 22
+ },
+ "reason": "hist_gradient_boosting is the simplest of 4 contender(s) within 1.0 point(s) of the best (ensemble_mean, 25.92%)",
+ "seed": 42,
+ "tie_band_mape_pp": 1.0,
+ "winner": "hist_gradient_boosting"
+}
