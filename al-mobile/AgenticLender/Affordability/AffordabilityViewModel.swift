@@ -67,8 +67,10 @@ final class AffordabilityViewModel {
     }
 
     /// Checks the form, then asks the endpoint for the result (Figma 07c Calculating, 07d Couldn't calculate).
-    /// With errors in the form it shows them all and sends nothing.
+    /// With errors in the form it shows them all and sends nothing. While one calculation is running,
+    /// another call does nothing, so an older answer can't replace a newer one.
     func calculate() async {
+        guard !isCalculating else { return }
         touched.formUnion(AffordabilityField.allCases)
         guard let request = AffordabilityRequest(form: form) else { return }
 
@@ -78,10 +80,16 @@ final class AffordabilityViewModel {
         do {
             result = try await service.calculate(request)
         } catch let error as AffordabilityError {
-            calculationError = error.message
+            fail(with: error.message)
         } catch {
             logger.error("Unexpected affordability error: \(error.localizedDescription, privacy: .public)")
-            calculationError = AffordabilityError.unavailable.message
+            fail(with: AffordabilityError.unavailable.message)
         }
+    }
+
+    /// Shows the error and drops the earlier result, so an old figure doesn't sit next to it.
+    private func fail(with message: String) {
+        result = nil
+        calculationError = message
     }
 }
