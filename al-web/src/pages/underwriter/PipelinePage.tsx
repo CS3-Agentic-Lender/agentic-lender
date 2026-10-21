@@ -17,7 +17,7 @@ import {
   type GroupBy,
 } from './pipelineGroups';
 
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 7;
 const headerCellClass = 'px-4 py-3 text-left text-xs font-semibold tracking-wide text-muted uppercase';
 const cellClass = 'px-4 py-4 align-middle';
 const groupOptionClass = [
@@ -49,6 +49,9 @@ function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps)
       <th className={`${cellClass} text-left font-mono text-sm font-normal`} scope="row">
         {application.id}
       </th>
+      <td className={`${cellClass} text-sm`}>
+        {application.borrowerName ?? <span className="text-muted">—</span>}
+      </td>
       <td className={`${cellClass} font-mono text-sm`}>{formatEuro(application.loanAmountEur)}</td>
       <td className={`${cellClass} text-sm`}>
         <span className="font-mono">{formatLtv(application.ltvPct)}</span>
@@ -186,6 +189,9 @@ export function PipelinePage() {
                     <tr>
                       <th className={headerCellClass} scope="col">
                         Application
+                      </th>
+                      <th className={headerCellClass} scope="col">
+                        Borrower
                       </th>
                       <th className={headerCellClass} scope="col">
                         Requested

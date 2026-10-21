@@ -113,6 +113,7 @@ function application(id: string, updatedAt: Date | null = null): ApplicationSumm
     id,
     status: 'Applied',
     loanType: null,
+    borrowerName: null,
     loanAmountEur: null,
     ltvPct: null,
     ltvBand: null,

@@ -101,11 +101,13 @@ function application(
   status: string,
   ltvPct: number | null,
   riskTier: RiskTier | null,
+  borrowerName: string | null = 'Alice Byrne',
 ): PipelineApplication {
   return {
     id,
     status,
     loanType: 'mortgage',
+    borrowerName,
     loanAmountEur: 230000,
     ltvPct,
     riskTier,
@@ -413,6 +415,34 @@ describe('underwriter pipeline queue', () => {
     const cell = within(row).getByText('—').closest('td')!;
     expect(within(cell).getByText('No LTV yet')).toBeInTheDocument();
     expect(within(row).queryByText(/-5|^0%/)).not.toBeInTheDocument();
+  });
+
+  it('shows the borrower name on each row and a dash when the application has none', async () => {
+    renderQueue(
+      new FakePipelineService(
+        queue([
+          application('LN-3001', 'Applied', 72, 'A', 'Alice Byrne'),
+          application('LN-3002', 'Applied', 75, 'B', 'Declan Murphy'),
+          application('LN-3003', 'Applied', 78, 'C', null),
+        ]),
+      ),
+    );
+    await screen.findByRole('table');
+
+    expect(screen.getByRole('columnheader', { name: 'Borrower' })).toBeInTheDocument();
+    const named = screen.getByRole('rowheader', { name: 'LN-3002' }).closest('tr')!;
+    expect(within(named).getByText('Declan Murphy')).toBeInTheDocument();
+    const unnamed = screen.getByRole('rowheader', { name: 'LN-3003' }).closest('tr')!;
+    expect(within(unnamed).getByText('—')).toBeInTheDocument();
+    expect(within(unnamed).queryByText(/Alice|Declan/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the group counts when the borrower name is shown', async () => {
+    renderQueue(new FakePipelineService(seededQueue));
+    await screen.findByRole('table');
+
+    expect(screen.getByText(/Showing all 4 applications\. Group counts are of all applications\./)).toBeInTheDocument();
+    expect(screen.getAllByText('Alice Byrne')).toHaveLength(4);
   });
 
   it('shows an underwriter every application with its figures, tier and status', async () => {

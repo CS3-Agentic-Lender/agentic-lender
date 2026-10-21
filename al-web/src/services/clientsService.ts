@@ -40,6 +40,7 @@ export interface ApplicationSummary {
   id: string;
   status: string;
   loanType: string | null;
+  borrowerName?: string | null;
   loanAmountEur: number | null;
   ltvPct: number | null;
   ltvBand?: StoredField<StoredLtvBand>;
@@ -98,6 +99,7 @@ export function toApplicationSummary(id: string, data: DocumentData): Applicatio
     id,
     status: readString(data.status) ?? 'Unknown',
     loanType: readString(data.loanType),
+    borrowerName: readString(data.borrowerName),
     loanAmountEur: readNumber(data.loanAmountEur),
     ltvPct: readNumber(data.ltvPct),
     ltvBand: readStoredField(data.ltvBand, STORED_LTV_BANDS),
