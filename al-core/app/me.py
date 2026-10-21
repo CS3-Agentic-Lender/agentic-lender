@@ -1,4 +1,5 @@
 """POST /core/me creates the caller's borrower profile and role claim; GET /core/me returns it.
+GET /core/brokers lists the brokers a borrower can choose, and PUT /core/me/broker sets the choice.
 
 API fields are snake_case, Firestore fields camelCase (docs/api-design.md). The role is never read
 from the request body: sign-up here always makes a borrower, and it comes from the token after.
@@ -12,9 +13,10 @@ from fastapi.exceptions import RequestValidationError
 from firebase_admin import auth as fb_auth
 from google.api_core.exceptions import AlreadyExists
 from google.cloud.firestore import SERVER_TIMESTAMP
+from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.auth import current_user
+from app.auth import current_user, require_role
 from app.firestore import db
 
 router = APIRouter(prefix="/core")
@@ -70,8 +72,19 @@ def _iso(ts) -> str | None:
     return ts.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _broker_of(doc: dict) -> dict:
+    """The chosen broker's name and firm, read here so the app never reads a broker's profile."""
+    broker_id = doc.get("brokerId")
+    if not broker_id:
+        return {}
+    snap = db().collection("users").document(broker_id).get()
+    broker = snap.to_dict() if snap.exists else {}
+    return broker if broker.get("role") == "broker" else {}
+
+
 def _profile(doc: dict) -> dict:
     """Firestore camelCase to API snake_case."""
+    broker = _broker_of(doc)
     return {
         "uid": doc["uid"],
         "role": doc.get("role"),
@@ -83,6 +96,8 @@ def _profile(doc: dict) -> dict:
         "county": doc.get("county"),
         "eircode": doc.get("eircode"),
         "broker_id": doc.get("brokerId"),
+        "broker_name": broker.get("fullName"),
+        "broker_firm": broker.get("firm"),
         "created_at": _iso(doc.get("createdAt")),
     }
 
@@ -134,3 +149,38 @@ def get_me(user: dict = Depends(current_user)):
     if not snap.exists:
         raise HTTPException(404, "No profile yet. Call POST /core/me to create one")
     return _profile(snap.to_dict())
+
+
+class BrokerChoice(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    broker_id: str = Field(min_length=1, max_length=128)
+
+
+@router.get("/brokers")
+def list_brokers(user: dict = Depends(current_user)):
+    """Every broker a borrower can choose: uid, name and firm (null when not set), sorted by name."""
+    snaps = db().collection("users").where(filter=FieldFilter("role", "==", "broker")).stream()
+    brokers = [
+        {"uid": snap.id, "name": doc.get("fullName"), "firm": doc.get("firm")}
+        for snap in snaps
+        for doc in [snap.to_dict()]
+    ]
+    return sorted(brokers, key=lambda b: (b["name"] or "").lower())
+
+
+@router.put("/me/broker")
+def choose_broker(body: BrokerChoice, user: dict = Depends(require_role("borrower"))):
+    """Set or change the borrower's broker. Applications already created keep their original broker."""
+    ref = db().collection("users").document(user["uid"])
+    if not ref.get().exists:
+        raise HTTPException(404, "No profile yet. Call POST /core/me to create one")
+
+    broker = db().collection("users").document(body.broker_id).get()
+    if not broker.exists or broker.to_dict().get("role") != "broker":
+        raise RequestValidationError(
+            [{"loc": ("body", "broker_id"), "msg": "is not a broker", "type": "value_error"}]
+        )
+
+    ref.update({"brokerId": body.broker_id})
+    return _profile(ref.get().to_dict())

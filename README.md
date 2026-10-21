@@ -88,13 +88,13 @@ Every Jira item gets one **subsystem** label and, once triaged, one **state** la
 
 We are graded sprint by sprint, and each of us is interviewed on our own work, so the rules are strict:
 
-- **Only work on tickets in the active sprint that are assigned to you.** Nothing else gets built, however quick it looks.
-- **No building ahead.** If something from a later sprint needs doing now, raise it with the team and we pull the ticket into the sprint first. Working ahead empties the next sprint and leaves nothing to report.
+- **Only work on tickets that are assigned to you.** Nothing else gets built, however quick it looks.
+- **Building ahead is fine.** A ticket from a later sprint can be started early, for example when you would otherwise be waiting on a teammate. It still needs a ticket, a branch and a PR.
 - **Found something else that needs doing?** Make a ticket with `needs-triage`. Don't fold it into what you are already working on.
 - **Stay in your own subsystem.** If you need a change in someone else's folder, comment on their ticket.
 - **A ticket is Done when** its PR is merged, its acceptance criteria are met, and it is written up in Confluence.
 
-The same rules are in [AGENTS.md](AGENTS.md), and your AI agent checks them before it writes code: it stops if the ticket is missing, not in the active sprint, or not assigned to you.
+The same rules are in [AGENTS.md](AGENTS.md), and your AI agent checks them before it writes code: it stops if the ticket is missing or not assigned to you.
 
 ### Sprint documentation
 

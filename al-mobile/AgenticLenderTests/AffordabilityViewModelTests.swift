@@ -138,8 +138,96 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertNotNil(model.outcome)
     }
 
+    func testShowsCalculatingWhileTheEndpointIsAnswering() async {
+        let service = HeldAffordabilityService()
+        let model = AffordabilityViewModel(service: service)
+        fill(model)
+
+        let first = Task { await model.calculate() }
+        await service.waitForRequest()
+        XCTAssertTrue(model.isCalculating)
+
+        service.answer(FakeAffordabilityService.referenceCaseOne)
+        await first.value
+
+        XCTAssertFalse(model.isCalculating)
+        XCTAssertEqual(model.outcome?.result.maxLoanEur, 240_000)
+    }
+
+    func testASecondCalculateWhileOneIsRunningSendsNothing() async {
+        let service = HeldAffordabilityService()
+        let model = AffordabilityViewModel(service: service)
+        fill(model)
+
+        let first = Task { await model.calculate() }
+        await service.waitForRequest()
+        service.answerLaterRequestsWith(FakeAffordabilityService.referenceCaseOne)
+        await model.calculate()
+        service.answer(FakeAffordabilityService.referenceCaseOne)
+        await first.value
+
+        XCTAssertEqual(service.requests.count, 1)
+        XCTAssertFalse(model.isCalculating)
+    }
+
+    func testAFailedCalculationClearsTheEarlierResult() async {
+        let service = FakeAffordabilityService()
+        let model = makeModel(service)
+        fill(model)
+        await model.calculate()
+        XCTAssertNotNil(model.outcome)
+
+        service.result = .failure(.network)
+        await model.calculate()
+
+        XCTAssertNil(model.outcome)
+        XCTAssertNotNil(model.calculationError)
+        XCTAssertEqual(model.form.income, "60,000")
+    }
+
     private func makeModel(_ service: FakeAffordabilityService = FakeAffordabilityService()) -> AffordabilityViewModel {
         AffordabilityViewModel(service: service)
+    }
+}
+
+/// Holds each request until the test answers it, so a test can look at the model mid-calculation.
+@MainActor
+final class HeldAffordabilityService: AffordabilityService, @unchecked Sendable {
+    private(set) var requests: [AffordabilityRequest] = []
+    private var pending: [CheckedContinuation<AffordabilityResult, Error>] = []
+    private var requestArrived: CheckedContinuation<Void, Never>?
+    private var immediateAnswer: AffordabilityResult?
+
+    nonisolated func calculate(_ request: AffordabilityRequest) async throws -> AffordabilityResult {
+        try await hold(request)
+    }
+
+    /// Returns once a request is waiting for an answer.
+    func waitForRequest() async {
+        guard pending.isEmpty else { return }
+        await withCheckedContinuation { requestArrived = $0 }
+    }
+
+    /// Answers every waiting request, so no test hangs on one it didn't expect.
+    func answer(_ result: AffordabilityResult) {
+        let waiting = pending
+        pending = []
+        waiting.forEach { $0.resume(returning: result) }
+    }
+
+    /// From now on, new requests are answered straight away instead of held.
+    func answerLaterRequestsWith(_ result: AffordabilityResult) {
+        immediateAnswer = result
+    }
+
+    private func hold(_ request: AffordabilityRequest) async throws -> AffordabilityResult {
+        requests.append(request)
+        if let immediateAnswer { return immediateAnswer }
+        return try await withCheckedThrowingContinuation { continuation in
+            pending.append(continuation)
+            requestArrived?.resume()
+            requestArrived = nil
+        }
     }
 }
 

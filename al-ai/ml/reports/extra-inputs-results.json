@@ -1,0 +1,420 @@
+{
+ "meta": {
+  "bathrooms_found": 1.0,
+  "construction_year_found": 0.6671446128635805,
+  "eircode_found": 0.9475624743957395,
+  "rows": 4882
+ },
+ "results": {
+  "bathrooms": {
+   "folds_improved": {
+    "catboost": 5,
+    "hist_gradient_boosting": 5
+   },
+   "gain_pp": {
+    "catboost": 0.3299974725427042,
+    "hist_gradient_boosting": 0.30904841809282857
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 25.81024311119753,
+     "fold_mape": [
+      23.301230544128305,
+      25.845893691610865,
+      26.33978591640687,
+      27.290217987874225,
+      26.27408741596738
+     ],
+     "fold_std": 1.4985249232833693,
+     "mae": 135102.5254436259,
+     "mdape": 18.532394252315036,
+     "ppe10": 28.553871364195004,
+     "r2": 0.5858261109329903
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 26.409422685008526,
+     "fold_mape": [
+      24.5305338736165,
+      26.54427201041439,
+      26.63876480966315,
+      27.67601658990945,
+      26.657526141439124
+     ],
+     "fold_std": 1.147477751560204,
+     "mae": 137681.56995462766,
+     "mdape": 18.86591348777678,
+     "ppe10": 27.44776730848013,
+     "r2": 0.6089798372190222
+    }
+   },
+   "verdict": {
+    "needs_new_field": true,
+    "reason": "needs 2.0 point(s) in both models and all five folds; too small for hist_gradient_boosting, catboost",
+    "threshold_pp": 2.0,
+    "worth_proposing": false
+   }
+  },
+  "construction_year": {
+   "folds_improved": {
+    "catboost": 4,
+    "hist_gradient_boosting": 4
+   },
+   "gain_pp": {
+    "catboost": 0.4615948853485108,
+    "hist_gradient_boosting": 0.5268753402865336
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 25.678645698391723,
+     "fold_mape": [
+      23.444819427930284,
+      25.114088066871414,
+      25.968476396804697,
+      27.570877689569645,
+      26.294966910782573
+     ],
+     "fold_std": 1.529141973864275,
+     "mae": 133196.3886797134,
+     "mdape": 18.42326509941871,
+     "ppe10": 29.537074969274883,
+     "r2": 0.6008829861409366
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 26.19159576281482,
+     "fold_mape": [
+      24.345046596037413,
+      26.006018663757548,
+      25.958270317638068,
+      28.184673626954037,
+      26.463969609687027
+     ],
+     "fold_std": 1.373423672193825,
+     "mae": 134084.8353932729,
+     "mdape": 18.446025458207423,
+     "ppe10": 28.861122490782464,
+     "r2": 0.6235417933581879
+    }
+   },
+   "verdict": {
+    "needs_new_field": true,
+    "reason": "needs 2.0 point(s) in both models and all five folds; too small for hist_gradient_boosting, catboost; not better in every fold for hist_gradient_boosting, catboost",
+    "threshold_pp": 2.0,
+    "worth_proposing": false
+   }
+  },
+  "coordinates": {
+   "folds_improved": {
+    "catboost": 5,
+    "hist_gradient_boosting": 5
+   },
+   "gain_pp": {
+    "catboost": 6.299255375337271,
+    "hist_gradient_boosting": 6.547865592410449
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 19.840985208402962,
+     "fold_mape": [
+      18.41033369900473,
+      19.9373243110634,
+      19.880964213475423,
+      20.93561343051013,
+      20.04069038796113
+     ],
+     "fold_std": 0.9077081563293485,
+     "mae": 103243.25131468903,
+     "mdape": 13.100855923016693,
+     "ppe10": 40.24989758295781,
+     "r2": 0.7129799066617244
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 20.170605510690905,
+     "fold_mape": [
+      18.875153311355607,
+      19.871235910962895,
+      19.765200936373425,
+      21.667862656331987,
+      20.673574738430613
+     ],
+     "fold_std": 1.0520133591247625,
+     "mae": 105231.61531921315,
+     "mdape": 13.178976525718216,
+     "ppe10": 39.47152806226956,
+     "r2": 0.7256385199643286
+    }
+   },
+   "verdict": {
+    "reason": "reference only: shows how much more there is to gain, never proposed",
+    "worth_proposing": false
+   }
+  },
+  "eircode_routing_key": {
+   "folds_improved": {
+    "catboost": 5,
+    "hist_gradient_boosting": 5
+   },
+   "gain_pp": {
+    "catboost": 4.360840253588414,
+    "hist_gradient_boosting": 4.489421482927003
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 21.77940033015182,
+     "fold_mape": [
+      19.951027501746836,
+      21.971706515419022,
+      21.862916903393096,
+      22.953700838901252,
+      22.157649891298885
+     ],
+     "fold_std": 1.1078084561313783,
+     "mae": 112539.8281327447,
+     "mdape": 14.912377854263575,
+     "ppe10": 35.866448176976654,
+     "r2": 0.694018249621192
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 22.22904962017435,
+     "fold_mape": [
+      20.617087162317947,
+      22.986935898057332,
+      21.932072615401005,
+      23.33314109511902,
+      22.27601132997644
+     ],
+     "fold_std": 1.0585642758400362,
+     "mae": 115806.97976421658,
+     "mdape": 15.362154736082484,
+     "ppe10": 34.453092994674314,
+     "r2": 0.6829464149682158
+    }
+   },
+   "verdict": {
+    "needs_new_field": false,
+    "reason": "gain of at least 1.0 point(s) in both models and in all five folds",
+    "threshold_pp": 1.0,
+    "worth_proposing": true
+   }
+  },
+  "eircode_routing_key + bathrooms": {
+   "folds_improved": {
+    "catboost": 5,
+    "hist_gradient_boosting": 5
+   },
+   "gain_pp": {
+    "catboost": 4.472376652280314,
+    "hist_gradient_boosting": 4.7962405836175925
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 21.66786393145992,
+     "fold_mape": [
+      19.780532670816164,
+      22.02956390210585,
+      21.88180093290747,
+      22.60159200589122,
+      22.045830145578897
+     ],
+     "fold_std": 1.090105702759301,
+     "mae": 113131.8729693648,
+     "mdape": 14.833770627352404,
+     "ppe10": 35.55919705038919,
+     "r2": 0.6798596758257317
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 21.92223051948376,
+     "fold_mape": [
+      19.99361415841267,
+      22.807376389880726,
+      21.874187111711706,
+      22.845743021483244,
+      22.090231915930463
+     ],
+     "fold_std": 1.1604365837541104,
+     "mae": 115094.6189101252,
+     "mdape": 15.063303574313691,
+     "ppe10": 35.08807865628841,
+     "r2": 0.6951225954518387
+    }
+   },
+   "verdict": {
+    "needs_new_field": true,
+    "reason": "gain of at least 2.0 point(s) in both models and in all five folds",
+    "threshold_pp": 2.0,
+    "worth_proposing": true
+   }
+  },
+  "eircode_routing_key + bathrooms + construction_year": {
+   "folds_improved": {
+    "catboost": 5,
+    "hist_gradient_boosting": 5
+   },
+   "gain_pp": {
+    "catboost": 4.313516964070136,
+    "hist_gradient_boosting": 4.655573118221934
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 21.826723619670098,
+     "fold_mape": [
+      19.959493448242437,
+      22.171365138417183,
+      21.859968794061764,
+      22.926480306191866,
+      22.216310411437256
+     ],
+     "fold_std": 1.1144139905151011,
+     "mae": 113892.25423257197,
+     "mdape": 14.870172140978196,
+     "ppe10": 36.13273248668579,
+     "r2": 0.675394476112062
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 22.06289798487942,
+     "fold_mape": [
+      20.260332517029184,
+      22.68009562015699,
+      21.624901315826275,
+      23.505934752697424,
+      22.243225718687214
+     ],
+     "fold_std": 1.2182866528279483,
+     "mae": 114923.97755387532,
+     "mdape": 15.021471932727634,
+     "ppe10": 35.27242933224088,
+     "r2": 0.6866782073573687
+    }
+   },
+   "verdict": {
+    "needs_new_field": true,
+    "reason": "gain of at least 2.0 point(s) in both models and in all five folds",
+    "threshold_pp": 2.0,
+    "worth_proposing": true
+   }
+  },
+  "eircode_routing_key + bathrooms + construction_year + town + coordinates": {
+   "folds_improved": {
+    "catboost": 5,
+    "hist_gradient_boosting": 5
+   },
+   "gain_pp": {
+    "catboost": 6.608562105932172,
+    "hist_gradient_boosting": 6.869439238038954
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 19.53167847780806,
+     "fold_mape": [
+      18.286856029025962,
+      19.391516347949427,
+      19.742994997959904,
+      20.684888912432907,
+      19.552136101672104
+     ],
+     "fold_std": 0.8579329583698896,
+     "mae": 103651.61330122172,
+     "mdape": 13.285682863767526,
+     "ppe10": 39.59442851290454,
+     "r2": 0.7154987980902251
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 19.8490318650624,
+     "fold_mape": [
+      18.607522500406358,
+      19.800627590732585,
+      19.48456137477551,
+      21.14431808489787,
+      20.208129774499685
+     ],
+     "fold_std": 0.9331726681662268,
+     "mae": 104441.36062363263,
+     "mdape": 13.137227337890693,
+     "ppe10": 39.635395329782874,
+     "r2": 0.7171389990125192
+    }
+   },
+   "verdict": {
+    "reason": "reference only: shows how much more there is to gain, never proposed",
+    "worth_proposing": false
+   }
+  },
+  "five_inputs": {
+   "catboost": {
+    "cv_mape": 26.140240583740233,
+    "fold_mape": [
+     23.86606356483829,
+     25.911280737493676,
+     26.614046105728022,
+     27.556270432749074,
+     26.753542077892106
+    ],
+    "fold_std": 1.3991135276643945,
+    "mae": 135476.1537072449,
+    "mdape": 18.76795434743031,
+    "ppe10": 28.88160589922163,
+    "r2": 0.6027715555635695
+   },
+   "hist_gradient_boosting": {
+    "cv_mape": 26.718471103101354,
+    "fold_mape": [
+     24.881216335768716,
+     26.803758052336224,
+     26.77346580362855,
+     28.169541450378492,
+     26.96437387339479
+    ],
+    "fold_std": 1.1781210343240793,
+    "mae": 137025.54725472018,
+    "mdape": 19.20050951962032,
+    "ppe10": 27.611634575993442,
+    "r2": 0.6130087711522918
+   }
+  },
+  "town": {
+   "folds_improved": {
+    "catboost": 5,
+    "hist_gradient_boosting": 5
+   },
+   "gain_pp": {
+    "catboost": 2.5798104904805257,
+    "hist_gradient_boosting": 1.9155458800075351
+   },
+   "models": {
+    "catboost": {
+     "cv_mape": 23.560430093259708,
+     "fold_mape": [
+      21.577604444725434,
+      22.93361706092099,
+      24.1512869361747,
+      25.29515663493892,
+      23.844485389538487
+     ],
+     "fold_std": 1.3931589576000323,
+     "mae": 122353.1701679723,
+     "mdape": 16.39295508650609,
+     "ppe10": 33.101188037689475,
+     "r2": 0.6562809847862076
+    },
+    "hist_gradient_boosting": {
+     "cv_mape": 24.80292522309382,
+     "fold_mape": [
+      23.06523124468042,
+      24.676986283693527,
+      25.124097092816278,
+      26.101452869449293,
+      25.046858624829593
+     ],
+     "fold_std": 1.1050192194939816,
+     "mae": 129883.45821267787,
+     "mdape": 17.447906426654118,
+     "ppe10": 31.134780827529703,
+     "r2": 0.6188971514593784
+    }
+   },
+   "verdict": {
+    "reason": "reference only: shows how much more there is to gain, never proposed",
+    "worth_proposing": false
+   }
+  }
+ }
+}

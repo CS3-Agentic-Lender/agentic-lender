@@ -1,0 +1,35 @@
+{
+ "cv_mape": 20.330427382025043,
+ "inputs": "five inputs + Eircode routing key",
+ "members": [
+  "hist_gradient_boosting",
+  "catboost",
+  "mlp"
+ ],
+ "params": {
+  "catboost": {
+   "depth": 7,
+   "iterations": 630,
+   "l2_leaf_reg": 2.5020278847851425,
+   "learning_rate": 0.08797429964445563
+  },
+  "hist_gradient_boosting": {
+   "l2_regularization": 0.017442121934573864,
+   "learning_rate": 0.08852345395277607,
+   "max_iter": 554,
+   "max_leaf_nodes": 18,
+   "min_samples_leaf": 13
+  },
+  "mlp": {
+   "alpha": 0.09428030734865749,
+   "hidden_layer_sizes": [
+    128
+   ],
+   "learning_rate_init": 0.0008202123646081394
+  }
+ },
+ "reason": "ensemble_mean is the simplest of 1 contender(s) within 0.0 point(s) of the best (ensemble_mean, 20.33%)",
+ "seed": 42,
+ "training_rows": "development + calibration (80%)",
+ "winner": "ensemble_mean"
+}

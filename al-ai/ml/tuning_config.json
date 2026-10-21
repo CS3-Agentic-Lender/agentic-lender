@@ -1,0 +1,37 @@
+{
+  "written_before_tuning": "This file, with the margin and every rule below, was committed before any tuning code or tuning run existed.",
+  "seed": 42,
+  "improvement_margin_mape_pp": 2.0,
+  "improvement_margin_meaning": "A model ships only if its CV MAPE is at least this many percentage points below the baseline's. If none is, the baseline ships and the report says so.",
+  "tie_band_mape_pp": 1.0,
+  "tie_rule": "Every contender within tie_band_mape_pp of the best CV MAPE is tied. The tie goes to the simplest, in simplicity_order. The ensemble only wins by beating the best single model by more than the tie band.",
+  "simplicity_order": ["hist_gradient_boosting", "catboost", "mlp", "ensemble_mean"],
+  "shortlist": ["catboost", "hist_gradient_boosting", "mlp"],
+  "shortlist_rule": "The three best default models by CV MAPE in the benchmark: CatBoost 26.31, HistGradientBoosting 26.78, MLP 27.18.",
+  "trials_per_model": 50,
+  "search": "Random search, one seeded draw per trial, every trial scored on the same five development folds as the benchmark. No other data is read.",
+  "ensemble_mean": {
+    "what": "Equal-weight average of the three tuned models' predictions in log-price, using their out-of-fold predictions. No weights are learned.",
+    "plan_change": "The valuation plan lists seven single models. The ensemble is an addition agreed on 19 Oct 2026."
+  },
+  "spaces": {
+    "catboost": {
+      "depth": {"type": "int", "low": 4, "high": 8},
+      "learning_rate": {"type": "loguniform", "low": 0.02, "high": 0.3},
+      "iterations": {"type": "int", "low": 300, "high": 1000},
+      "l2_leaf_reg": {"type": "loguniform", "low": 1.0, "high": 10.0}
+    },
+    "hist_gradient_boosting": {
+      "learning_rate": {"type": "loguniform", "low": 0.02, "high": 0.3},
+      "max_iter": {"type": "int", "low": 100, "high": 600},
+      "max_leaf_nodes": {"type": "int", "low": 15, "high": 63},
+      "min_samples_leaf": {"type": "int", "low": 10, "high": 60},
+      "l2_regularization": {"type": "loguniform", "low": 0.001, "high": 10.0}
+    },
+    "mlp": {
+      "hidden_layer_sizes": {"type": "choice", "values": [[64], [128], [64, 32], [128, 64], [100, 100]]},
+      "alpha": {"type": "loguniform", "low": 0.00001, "high": 0.1},
+      "learning_rate_init": {"type": "loguniform", "low": 0.0001, "high": 0.01}
+    }
+  }
+}

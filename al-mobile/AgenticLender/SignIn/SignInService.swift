@@ -19,7 +19,7 @@ enum SignInError: Error, Equatable {
         case .incorrectCredentials:
             "Email or password is incorrect"
         case .tooManyAttempts:
-            "Too many attempts. Try again in a few minutes, or reset your password."
+            "Too many attempts. Try again in a few minutes."
         case .network:
             CommonMessage.cantReachServer
         case .unknown:
