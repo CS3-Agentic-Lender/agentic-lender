@@ -1,0 +1,43 @@
+{
+ "model_file": "valuation-v2.joblib",
+ "sha256": "624fb55f2d9a415689786fbb071a635bf81fceb01b0dc293c72f1c05e5810209",
+ "bytes": 1308539,
+ "model": "v2 ensemble_mean (log-price geometric mean of three pipelines)",
+ "members": [
+  "hist_gradient_boosting",
+  "catboost",
+  "mlp"
+ ],
+ "seed": 42,
+ "input_columns": [
+  "county",
+  "property_type",
+  "bedrooms",
+  "floor_area_m2",
+  "ber",
+  "rkey"
+ ],
+ "background_sample": {
+  "file": "background-sample.csv",
+  "rows": 100,
+  "seed": 42,
+  "area_rounded_to_m2": 5
+ },
+ "reference_predictions": {
+  "file": "reference-predictions.json",
+  "rows": 52,
+  "relative_tolerance": 1e-06
+ },
+ "source_csv_sha256": "d4c1ea0be20fa1b6b4720dcdea92fb8bda22b209efc4174689ff319f4d40ec4c",
+ "threshold": 0.3567057512460361,
+ "dependency_versions": {
+  "python": "3.12.14",
+  "scikit-learn": "1.9.1",
+  "numpy": "2.5.4",
+  "pandas": "3.0.6",
+  "scipy": "1.18.1",
+  "catboost": "1.2.10",
+  "joblib": "1.6.0"
+ },
+ "routing_keys_kept": 117
+}
