@@ -14,7 +14,7 @@ struct SignInView: View {
     var body: some View {
         Group {
             if model.isSignedIn {
-                SignedInPlaceholderView(title: "Signed in", message: "Welcome back.")
+                HomeView()
             } else {
                 form
             }
