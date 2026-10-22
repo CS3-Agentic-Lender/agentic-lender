@@ -24,9 +24,10 @@ enum SignUpValidator {
     static func error(for field: SignUpField, in form: SignUpForm) -> String? {
         switch field {
         case .fullName:
-            return form.fullName.isBlank ? "Enter your full name" : nil
+            if form.fullName.isBlank { return "Enter your full name" }
+            return ProfileLengthLimit.fullName.error(for: form.fullName.trimmed)
         case .email:
-            return Email.error(for: form.email)
+            return ProfileLengthLimit.email.error(for: Email.normalized(form.email)) ?? Email.error(for: form.email)
         case .password:
             if form.password.isEmpty { return "Enter a password" }
             return PasswordRule.allMet(by: form.password)
@@ -36,7 +37,10 @@ enum SignUpValidator {
             return normalizedIrishPhone(form.phone) == nil
                 ? "Enter an Irish phone number, like 087 123 4567" : nil
         case .addressLine1:
-            return form.addressLine1.isBlank ? "Enter the first line of your address" : nil
+            if form.addressLine1.isBlank { return "Enter the first line of your address" }
+            return ProfileLengthLimit.addressLine.error(for: form.addressLine1.trimmed)
+        case .addressLine2:
+            return ProfileLengthLimit.addressLine.error(for: form.addressLine2.trimmed)
         case .county:
             return form.county == nil ? "Choose your county" : nil
         case .eircode:

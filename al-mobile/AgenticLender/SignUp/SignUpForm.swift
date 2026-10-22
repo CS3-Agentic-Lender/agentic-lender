@@ -18,18 +18,19 @@ enum SignUpStep: Equatable {
     var fields: [SignUpField] {
         switch self {
         case .account: [.fullName, .email, .password]
-        case .details: [.phone, .addressLine1, .county, .eircode]
+        case .details: [.phone, .addressLine1, .addressLine2, .county, .eircode]
         }
     }
 }
 
-/// Every field that can show an error. Address line 2 is optional, so it never does.
+/// Every field that can show an error. Address line 2 is optional, so only its length is checked.
 enum SignUpField: CaseIterable, Hashable {
     case fullName
     case email
     case password
     case phone
     case addressLine1
+    case addressLine2
     case county
     case eircode
 }
