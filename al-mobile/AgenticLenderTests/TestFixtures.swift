@@ -20,7 +20,8 @@ enum TestFixtures {
     static func applicationForm() -> ApplicationForm {
         ApplicationForm(
             affordability: AffordabilityRequest(form: affordabilityForm(income: "60,000", deposit: "40,000"))!,
-            maxLoanEur: 240_000
+            maxLoanEur: 240_000,
+            loanType: .mortgage
         )
     }
 

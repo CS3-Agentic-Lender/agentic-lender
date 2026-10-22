@@ -164,7 +164,7 @@ final class ApplicationValidatorTests: XCTestCase {
     }
 
     func testJointDraftCarriesTheHouseholdIncome() throws {
-        var form = ApplicationForm(affordability: TestFixtures.jointAffordabilityRequest(), maxLoanEur: 270_000)
+        var form = ApplicationForm(affordability: TestFixtures.jointAffordabilityRequest(), maxLoanEur: 270_000, loanType: .mortgage)
         form.loanAmount = "270,000"
         form.monthlyTakeHome = "5,200"
         form.monthlyLivingCosts = "2,000"
@@ -228,5 +228,21 @@ final class ApplicationValidatorTests: XCTestCase {
         let property = try XCTUnwrap(body["property"] as? [String: Any])
 
         XCTAssertEqual(property["address_line_2"] as? String, "Bishopstown")
+    }
+
+    func testDraftBodyCarriesTheChosenLoanType() throws {
+        let filled = TestFixtures.filledApplicationForm()
+        var form = ApplicationForm(affordability: filled.affordability, maxLoanEur: filled.maxLoanEur, loanType: .heloc)
+        form.loanAmount = filled.loanAmount
+        form.monthlyTakeHome = filled.monthlyTakeHome
+        form.monthlyLivingCosts = filled.monthlyLivingCosts
+        form.property = filled.property
+        let draft = try XCTUnwrap(ApplicationDraft(form: form))
+
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: draft.body()) as? [String: Any])
+
+        XCTAssertEqual(body["loan_type"] as? String, "heloc")
+        XCTAssertNil(body["deposit_eur"], "al-core refuses a deposit on a HELOC")
+        XCTAssertNil(body["first_time_buyer"], "al-core refuses first-time buyer on a HELOC")
     }
 }

@@ -15,7 +15,7 @@ final class ApplicationViewModelTests: XCTestCase {
 
     func testJointSummaryShowsTheHouseholdIncome() {
         let model = model(
-            form: ApplicationForm(affordability: TestFixtures.jointAffordabilityRequest(), maxLoanEur: 270_000)
+            form: ApplicationForm(affordability: TestFixtures.jointAffordabilityRequest(), maxLoanEur: 270_000, loanType: .mortgage)
         )
 
         XCTAssertEqual(model.affordabilitySummary, "Joint · €90,000 income · €0 debts · €30,000 deposit")

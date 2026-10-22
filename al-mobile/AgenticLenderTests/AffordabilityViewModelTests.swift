@@ -141,7 +141,7 @@ final class AffordabilityViewModelTests: XCTestCase {
 
     func testShowsCalculatingWhileTheEndpointIsAnswering() async {
         let service = HeldAffordabilityService()
-        let model = AffordabilityViewModel(service: service)
+        let model = AffordabilityViewModel(service: service, loanType: .mortgage)
         fill(model)
 
         let first = Task { await model.calculate() }
@@ -157,7 +157,7 @@ final class AffordabilityViewModelTests: XCTestCase {
 
     func testASecondCalculateWhileOneIsRunningSendsNothing() async {
         let service = HeldAffordabilityService()
-        let model = AffordabilityViewModel(service: service)
+        let model = AffordabilityViewModel(service: service, loanType: .mortgage)
         fill(model)
 
         let first = Task { await model.calculate() }
@@ -186,8 +186,23 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertEqual(model.form.income, "60,000")
     }
 
-    private func makeModel(_ service: FakeAffordabilityService = FakeAffordabilityService()) -> AffordabilityViewModel {
-        AffordabilityViewModel(service: service)
+    func testTheChosenLoanTypeIsCarriedIntoTheApplication() async throws {
+        let model = makeModel(loanType: .heloc)
+        fill(model)
+
+        await model.calculate()
+
+        let outcome = try XCTUnwrap(model.outcome)
+        XCTAssertEqual(outcome.loanType, .heloc)
+        XCTAssertEqual(outcome.applicationForm().loanType, .heloc)
+        XCTAssertEqual(outcome.applicationForm().maxLoanEur, 240_000)
+    }
+
+    private func makeModel(
+        _ service: FakeAffordabilityService = FakeAffordabilityService(),
+        loanType: LoanType = .mortgage
+    ) -> AffordabilityViewModel {
+        AffordabilityViewModel(service: service, loanType: loanType)
     }
 }
 

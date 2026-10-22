@@ -64,4 +64,11 @@ struct AffordabilityOutcome: Hashable {
     let request: AffordabilityRequest
     let result: AffordabilityResult
     let summary: AffordabilitySummary
+    /// Chosen before the check started; the application keeps it.
+    let loanType: LoanType
+
+    /// "Start application": the form begins from these answers, this maximum and this loan type.
+    func applicationForm() -> ApplicationForm {
+        ApplicationForm(affordability: request, maxLoanEur: result.maxLoanEur, loanType: loanType)
+    }
 }

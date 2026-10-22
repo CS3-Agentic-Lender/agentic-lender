@@ -15,11 +15,14 @@ final class AffordabilityViewModel {
     private(set) var calculationError: String?
     private var touched: Set<AffordabilityField> = []
 
+    /// What the borrower chose before this form: it travels into the result and the application.
+    let loanType: LoanType
     private let service: AffordabilityService
     private let logger = Logger(category: "Affordability")
 
-    init(service: AffordabilityService) {
+    init(service: AffordabilityService, loanType: LoanType) {
         self.service = service
+        self.loanType = loanType
     }
 
     var canCalculate: Bool {
@@ -82,7 +85,8 @@ final class AffordabilityViewModel {
             outcome = AffordabilityOutcome(
                 request: request,
                 result: result,
-                summary: AffordabilitySummary(result: result, termYears: request.termYears, isFirstTimeBuyer: request.isFirstTimeBuyer)
+                summary: AffordabilitySummary(result: result, termYears: request.termYears, isFirstTimeBuyer: request.isFirstTimeBuyer),
+                loanType: loanType
             )
         } catch let error as AffordabilityError {
             fail(with: error.message)

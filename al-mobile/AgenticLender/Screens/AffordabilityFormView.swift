@@ -6,8 +6,8 @@ struct AffordabilityFormView: View {
     @State private var model: AffordabilityViewModel
     @FocusState private var focused: AffordabilityField?
 
-    init(service: AffordabilityService) {
-        _model = State(initialValue: AffordabilityViewModel(service: service))
+    init(service: AffordabilityService, loanType: LoanType) {
+        _model = State(initialValue: AffordabilityViewModel(service: service, loanType: loanType))
     }
 
     var body: some View {
@@ -148,5 +148,5 @@ private struct CalculationErrorBanner: View {
 }
 
 #Preview {
-    NavigationStack { AffordabilityFormView(service: APIAffordabilityService.live()) }
+    NavigationStack { AffordabilityFormView(service: APIAffordabilityService.live(), loanType: .mortgage) }
 }

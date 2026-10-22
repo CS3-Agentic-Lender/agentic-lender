@@ -9,6 +9,8 @@ struct ApplicationForm: Equatable {
     let affordability: AffordabilityRequest
     /// The maximum loan from the affordability check, for the above-maximum warning.
     let maxLoanEur: Double
+    /// Chosen at the start of the affordability check.
+    let loanType: LoanType
 
     var loanAmount = ""
     var termYears: Int
@@ -18,9 +20,10 @@ struct ApplicationForm: Equatable {
     var monthlyLivingCosts = ""
     var property = ApplicationProperty()
 
-    init(affordability: AffordabilityRequest, maxLoanEur: Double) {
+    init(affordability: AffordabilityRequest, maxLoanEur: Double, loanType: LoanType) {
         self.affordability = affordability
         self.maxLoanEur = maxLoanEur
+        self.loanType = loanType
         termYears = affordability.termYears
     }
 
@@ -56,8 +59,9 @@ enum ApplicationField: CaseIterable, Hashable {
 }
 
 /// A checked application, in whole euro, with the field values of the agreed applications schema.
-/// It is saved as a mortgage Draft through `POST /core/applications`.
+/// It is saved as a Draft of its loan type through `POST /core/applications`.
 struct ApplicationDraft: Encodable, Equatable {
+    let loanType: String
     let applicants: String
     let grossIncomeEur: Int
     let monthlyDebtsEur: Int
@@ -80,6 +84,7 @@ struct ApplicationDraft: Encodable, Equatable {
         else { return nil }
 
         let affordability = form.affordability
+        loanType = form.loanType.rawValue
         applicants = affordability.isJoint ? "joint" : "single"
         grossIncomeEur = affordability.householdGrossIncome
         monthlyDebtsEur = affordability.monthlyDebts
@@ -118,12 +123,15 @@ struct ApplicationDraft: Encodable, Equatable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode("mortgage", forKey: .loanType)
+        try container.encode(loanType, forKey: .loanType)
         try container.encode(applicants, forKey: .applicants)
         try container.encode(grossIncomeEur, forKey: .grossIncomeEur)
         try container.encode(monthlyDebtsEur, forKey: .monthlyDebtsEur)
-        try container.encode(depositEur, forKey: .depositEur)
-        try container.encode(firstTimeBuyer, forKey: .firstTimeBuyer)
+        // Deposit and first-time buyer only apply to a mortgage; al-core refuses them on a HELOC.
+        if loanType == LoanType.mortgage.rawValue {
+            try container.encode(depositEur, forKey: .depositEur)
+            try container.encode(firstTimeBuyer, forKey: .firstTimeBuyer)
+        }
         try container.encode(termYears, forKey: .termYears)
         try container.encode(loanAmountEur, forKey: .loanAmountEur)
         try container.encode(employmentType, forKey: .employmentType)
