@@ -5,8 +5,9 @@ import os
 /// Creates the login in Firebase Auth, then saves the profile through `POST /core/me`,
 /// which also gives the account its `borrower` role.
 ///
-/// If the profile can't be saved, the new login is deleted again so the borrower
-/// can retry with the same email instead of being left with half an account.
+/// A dropped connection or server error on the save is tried once more (`ProfileSaveStep`). If the
+/// profile still can't be saved, the new login is deleted again so the borrower can retry with the
+/// same email instead of being left with half an account.
 struct FirebaseAccountService: AccountService {
     let profileAPI: CoreProfileAPI
 
@@ -35,14 +36,29 @@ struct FirebaseAccountService: AccountService {
             throw AccountError.unknown
         }
 
+        // Nothing has reached al-core without a token, so the login is removed straight away.
+        let idToken: String
         do {
-            let idToken = try await user.getIDToken()
-            try await profileAPI.createProfile(profile, idToken: idToken)
+            idToken = try await user.getIDToken()
         } catch {
-            logger.error("Saving the borrower profile failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("Getting the ID token after sign-up failed: \(error.localizedDescription, privacy: .public)")
             await deleteUnfinished(user)
-            throw error as? AccountError ?? AccountError.profileNotSaved
+            throw AccountError.profileNotSaved
         }
+
+        let api = profileAPI
+        let logger = logger
+        try await ProfileSaveStep(
+            save: {
+                do {
+                    try await api.createProfile(profile, idToken: idToken)
+                } catch {
+                    logger.error("Saving the borrower profile failed: \(error.localizedDescription, privacy: .public)")
+                    throw error
+                }
+            },
+            removeLogin: { await deleteUnfinished(user) }
+        ).run()
 
         await refreshRole(of: user)
         return user.uid
