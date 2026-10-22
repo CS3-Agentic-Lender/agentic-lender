@@ -9,8 +9,8 @@ import os
 @Observable
 final class AffordabilityViewModel {
     var form = AffordabilityForm()
-    /// The latest result from the affordability endpoint.
-    private(set) var result: AffordabilityResult?
+    /// The result to show; the result screen is pushed while this is set.
+    var outcome: AffordabilityOutcome?
     private(set) var isCalculating = false
     private(set) var calculationError: String?
     private var touched: Set<AffordabilityField> = []
@@ -78,7 +78,11 @@ final class AffordabilityViewModel {
         isCalculating = true
         defer { isCalculating = false }
         do {
-            result = try await service.calculate(request)
+            let result = try await service.calculate(request)
+            outcome = AffordabilityOutcome(
+                result: result,
+                summary: AffordabilitySummary(result: result, termYears: request.termYears, isFirstTimeBuyer: request.isFirstTimeBuyer)
+            )
         } catch let error as AffordabilityError {
             fail(with: error.message)
         } catch {
@@ -89,7 +93,7 @@ final class AffordabilityViewModel {
 
     /// Shows the error and drops the earlier result, so an old figure doesn't sit next to it.
     private func fail(with message: String) {
-        result = nil
+        outcome = nil
         calculationError = message
     }
 }
