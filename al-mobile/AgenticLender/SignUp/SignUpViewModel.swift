@@ -67,7 +67,7 @@ final class SignUpViewModel {
     func submit() async {
         touched.formUnion(SignUpField.allCases)
         submitError = nil
-        guard SignUpValidator.errors(for: form).isEmpty else { return }
+        guard !isSubmitting, SignUpValidator.errors(for: form).isEmpty else { return }
 
         isSubmitting = true
         defer { isSubmitting = false }

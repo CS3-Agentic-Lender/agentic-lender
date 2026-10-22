@@ -26,9 +26,10 @@ struct ProfileDetailsFields: View {
                     .focused(focus, equals: .addressLine1)
                     .accessibilityIdentifier("\(idPrefix).addressLine1")
             }
-            FormField("Address line 2 (optional)", error: nil, isDisabled: isDisabled) {
+            FormField("Address line 2 (optional)", error: error(.addressLine2), isDisabled: isDisabled) {
                 TextField("Apartment, estate or area", text: $form.addressLine2)
                     .textContentType(.streetAddressLine2)
+                    .focused(focus, equals: .addressLine2)
                     .accessibilityIdentifier("\(idPrefix).addressLine2")
             }
             FormField("County", error: error(.county), isDisabled: isDisabled) {

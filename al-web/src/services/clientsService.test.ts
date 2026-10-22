@@ -76,6 +76,7 @@ describe('reading an application document', () => {
         borrowerId: 'borrower-1',
         brokerId: 'broker-1',
         status: 'AI Deliberated',
+        borrowerName: 'Alice Byrne',
         loanAmountEur: 230000,
         ltvPct: 82.5,
         createdAt,
@@ -85,6 +86,7 @@ describe('reading an application document', () => {
       borrowerId: 'borrower-1',
       status: 'AI Deliberated',
       loanType: null,
+      borrowerName: 'Alice Byrne',
       loanAmountEur: 230000,
       ltvPct: 82.5,
       ltvBand: null,
@@ -102,6 +104,13 @@ describe('reading an application document', () => {
 
     expect(result).toMatchObject({ status: 'Unknown', loanAmountEur: null, ltvPct: null, updatedAt: null });
   });
+
+  it.each([[undefined], [null], [''], [42], [{ name: 'Alice Byrne' }]])(
+    'reads %j as no borrower name',
+    (borrowerName) => {
+      expect(toBrokerApplication('app-1', { borrowerId: 'borrower-1', borrowerName })?.borrowerName).toBeNull();
+    },
+  );
 
   it('skips a document with no borrower', () => {
     expect(toBrokerApplication('app-1', { status: 'Applied' })).toBeNull();

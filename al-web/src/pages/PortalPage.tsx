@@ -22,8 +22,7 @@ export function PortalPage({ role }: PortalPageProps) {
           {heading}
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-          You are signed in as {user?.email ?? 'an authenticated user'}. Your trusted Firebase role
-          claim permits this placeholder route.
+          You are signed in as {user?.email ?? 'an authenticated user'}. Your account has access to this portal.
         </p>
 
         <section className="mt-12 rounded-2xl border border-line bg-tint p-8">

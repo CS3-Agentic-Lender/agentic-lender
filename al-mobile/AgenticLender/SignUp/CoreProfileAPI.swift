@@ -33,9 +33,16 @@ struct CoreProfileAPI: Sendable {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 201 || status == 200 else {
             logger.error("POST /core/me returned \(status, privacy: .public)")
-            throw AccountError.profileNotSaved
+            throw Self.serverErrors.contains(status) ? ServerError(status: status) : AccountError.profileNotSaved
         }
     }
+
+    /// A 5xx from `POST /core/me`: the server failed rather than refused, so sign-up tries again (AL-239).
+    struct ServerError: Error, Equatable {
+        let status: Int
+    }
+
+    private static let serverErrors = 500...599
 
     /// Whether the signed-in user already has a profile: 200 yes, 404 not yet.
     func hasProfile(idToken: String) async throws -> Bool {
@@ -56,6 +63,42 @@ struct CoreProfileAPI: Sendable {
         case let status:
             logger.error("GET /core/me returned \(status, privacy: .public)")
             throw AccountError.unknown
+        }
+    }
+
+    /// The signed-in borrower's full name from their profile, for the home screen greeting.
+    func fullName(idToken: String) async throws -> String {
+        var request = URLRequest(url: baseURL.appending(path: Self.path))
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await send(request)
+        } catch let error as URLError {
+            logger.error("GET /core/me failed: \(error.localizedDescription, privacy: .public)")
+            throw AccountError.network
+        }
+
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            logger.error("GET /core/me returned \(status, privacy: .public)")
+            throw AccountError.unknown
+        }
+        do {
+            return try JSONDecoder().decode(StoredName.self, from: data).fullName
+        } catch {
+            logger.error("GET /core/me sent a profile without a full name: \(error.localizedDescription, privacy: .public)")
+            throw AccountError.unknown
+        }
+    }
+
+    /// The one field of the `GET /core/me` profile the app reads so far.
+    private struct StoredName: Decodable {
+        let fullName: String
+
+        enum CodingKeys: String, CodingKey {
+            case fullName = "full_name"
         }
     }
 }

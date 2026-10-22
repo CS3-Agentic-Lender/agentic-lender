@@ -13,6 +13,23 @@ private final class FakeAccountService: AccountService, @unchecked Sendable {
     }
 }
 
+/// Holds the first `createAccount` call until `release()`, so a second tap can arrive meanwhile.
+private final class SlowAccountService: AccountService, @unchecked Sendable {
+    private(set) var calls = 0
+    private var gate: CheckedContinuation<Void, Never>?
+
+    func createAccount(_ account: NewAccount) async throws -> String {
+        calls += 1
+        await withCheckedContinuation { gate = $0 }
+        return "uid-1"
+    }
+
+    func release() {
+        gate?.resume()
+        gate = nil
+    }
+}
+
 @MainActor
 final class SignUpViewModelTests: XCTestCase {
     private func fill(_ model: SignUpViewModel) {
@@ -123,6 +140,20 @@ final class SignUpViewModelTests: XCTestCase {
         XCTAssertEqual(request.profile?.eircode, "A65 F4E2")
         XCTAssertTrue(model.isAccountCreated)
         XCTAssertFalse(model.isSubmitting)
+    }
+
+    func testASecondSubmitWhileOneIsRunningDoesNotCreateAnotherAccount() async {
+        let service = SlowAccountService()
+        let model = SignUpViewModel(service: service)
+        fill(model)
+
+        let first = Task { await model.submit() }
+        while service.calls == 0 { await Task.yield() }
+        await model.submit()
+        service.release()
+        await first.value
+
+        XCTAssertEqual(service.calls, 1)
     }
 
     func testFailedSubmitShowsTheServiceError() async {

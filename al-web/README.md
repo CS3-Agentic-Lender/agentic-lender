@@ -125,6 +125,9 @@ because it uses the valuation and can belong to a different band. Only the exact
 show "Invalid stored band" or "Invalid stored tier" in their own groups and never use a
 fallback. Only absent values (`undefined` or `null`) use the valuation band or review tier.
 
+Each row shows the application's `borrowerName` in a Borrower column. A missing or blank name
+shows a dash, and the portal never makes a name up.
+
 `src/services/pipelineService.ts` keeps one unfiltered live listener on `applications` and
 filters statuses in the browser. The summary counts all applications, and ordering the query
 by `submittedAt` would silently drop Draft documents that lack that field. A second listener
@@ -175,6 +178,14 @@ contain no lending-decision functionality.
 The portal re-checks the verified ID token's role whenever Firebase reports an ID token change,
 including token refreshes. Protected content is hidden while the role is checked; missing or
 unrecognised roles are refused. Older checks cannot replace a newer result.
+
+A failed ID-token lookup shows "We could not verify your session, reload to try again" with a Retry
+button, rather than a role refusal or administrator advice. Retry reloads the current page through
+the same injectable `resetSession` function used for sign-out and role changes. The `error` status
+handles token-lookup failures and subscription initialization errors through one shared retry page
+on protected routes, sign in and refused access. Missing or invalid roles still show "Not allowed".
+The installed SDK documents its listener error callbacks as unused, but its implementation can
+invoke them when initialization rejects; ordinary token-change notifications use only the next callback.
 
 A successful sign-out reloads the page at `/login`. If a signed-in user's role changes to another
 valid role, the page reloads at its current location so access is checked again. These reloads drop

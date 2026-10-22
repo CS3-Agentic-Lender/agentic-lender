@@ -1,17 +1,23 @@
 import { Link, useNavigate } from 'react-router';
 import { Mark } from '../components/Mark';
+import { AuthLoadingPage } from '../components/auth/AuthLoadingPage';
+import { SessionRetryPage } from '../components/auth/SessionRetryPage';
+import { portalHomeFor } from '../utils/portalHomeFor';
 import { useAuth } from '../context/AuthContext';
 
 export function ForbiddenPage() {
   const { role, denialReason, status, action, authError, signOut } = useAuth();
   const navigate = useNavigate();
   const borrower = role === 'borrower';
-  const ownPortal =
-    role === 'broker'
-      ? { to: '/broker', label: 'Go to the broker portal' }
-      : role === 'underwriter'
-        ? { to: '/underwriter', label: 'Go to the underwriter portal' }
-        : null;
+  const ownPortal = role === 'broker' || role === 'underwriter' ? portalHomeFor(role) : null;
+
+  if (status === 'loading') {
+    return <AuthLoadingPage />;
+  }
+
+  if (status === 'error') {
+    return <SessionRetryPage />;
+  }
 
   const handleSignOut = async () => {
     try {
@@ -35,10 +41,10 @@ export function ForbiddenPage() {
         <p className="mt-5 leading-7 text-muted">
           {borrower
             ? 'This portal is for brokers and bank staff.'
-            : 'Your verified Firebase role does not allow access to this portal area.'}
+            : 'Your account does not allow access to this portal area.'}
         </p>
         {denialReason && !borrower ? (
-          <p className="mt-3 text-sm text-muted">Ask an administrator to check your role claim.</p>
+          <p className="mt-3 text-sm text-muted">Ask an administrator to check your account access.</p>
         ) : null}
         {status === 'authenticated' ? (
           <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -58,9 +64,9 @@ export function ForbiddenPage() {
             {ownPortal ? (
               <Link
                 className="inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-5 py-3 font-semibold text-pine transition-colors hover:bg-tint"
-                to={ownPortal.to}
+                to={ownPortal}
               >
-                {ownPortal.label}
+                Go to the {role} portal
               </Link>
             ) : null}
           </div>
