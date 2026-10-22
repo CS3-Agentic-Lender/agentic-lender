@@ -179,6 +179,14 @@ The portal re-checks the verified ID token's role whenever Firebase reports an I
 including token refreshes. Protected content is hidden while the role is checked; missing or
 unrecognised roles are refused. Older checks cannot replace a newer result.
 
+A failed ID-token lookup shows "We could not verify your session, reload to try again" with a Retry
+button, rather than a role refusal or administrator advice. Retry reloads the current page through
+the same injectable `resetSession` function used for sign-out and role changes. The `error` status
+handles token-lookup failures and subscription initialization errors through one shared retry page
+on protected routes, sign in and refused access. Missing or invalid roles still show "Not allowed".
+The installed SDK documents its listener error callbacks as unused, but its implementation can
+invoke them when initialization rejects; ordinary token-change notifications use only the next callback.
+
 A successful sign-out reloads the page at `/login`. If a signed-in user's role changes to another
 valid role, the page reloads at its current location so access is checked again. These reloads drop
 all in-memory caches, which clearing React state alone cannot do. Initial sign-in, page restoration

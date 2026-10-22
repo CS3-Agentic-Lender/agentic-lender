@@ -204,14 +204,24 @@ describe('authenticated routing', () => {
     renderAt('/broker', auth);
     auth.restore(brokerUser);
     expect(await screen.findByRole('heading', { name: 'Not allowed' })).toBeInTheDocument();
+    expect(screen.getByText('Ask an administrator to check your account access.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Broker portal' })).not.toBeInTheDocument();
   });
 
-  it('denies access when trusted claim retrieval fails', async () => {
+  it.each(['/broker', '/login', '/forbidden'])('offers a session retry when token lookup fails on %s', async (path) => {
     const auth = new FakeAuthService({ resolutionError: new Error('token unavailable') });
-    renderAt('/broker', auth);
+    const resetSession = vi.fn();
+    renderAt(path, auth, resetSession);
     auth.restore(brokerUser);
-    expect(await screen.findByRole('heading', { name: 'Not allowed' })).toBeInTheDocument();
+    expect(await screen.findByText('We could not verify your session, reload to try again')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Not allowed' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/administrator/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Broker portal' })).not.toBeInTheDocument();
+    expect(resetSession).not.toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+    expect(resetSession).toHaveBeenCalledTimes(1);
+    expect(resetSession).toHaveBeenCalledWith();
   });
 
   it('redirects an anonymous direct navigation to sign in', async () => {
@@ -264,7 +274,7 @@ describe('authenticated routing', () => {
     auth.restore(brokerUser);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
-    expect(await screen.findByText('Firebase sign-out failed. Try again.')).toBeInTheDocument();
+    expect(await screen.findByText('Sign-out failed. Try again.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Broker portal' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Portal access' })).not.toBeInTheDocument();
   });
@@ -295,8 +305,8 @@ describe('login', () => {
     const auth = new FakeAuthService();
     renderAt('/login', auth);
     auth.failRestoration();
-    expect(await screen.findByRole('heading', { name: 'Authentication unavailable' })).toBeInTheDocument();
-    expect(screen.getByText('Firebase authentication could not be restored.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Session unavailable' })).toBeInTheDocument();
+    expect(screen.getByText('We could not verify your session, reload to try again')).toBeInTheDocument();
   });
 
   it('submits email and password without asking the user to choose a role', async () => {
@@ -313,6 +323,40 @@ describe('login', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(await screen.findByRole('heading', { name: 'Broker portal' })).toBeInTheDocument();
     expect(auth.signInCalls).toEqual([{ email: 'broker@example.test', password: TEST_PASSWORD }]);
+  });
+
+  it.each([
+    ['underwriter', 'Underwriter portal'],
+    ['borrower', 'Not allowed'],
+  ] as const)('submits the login form for an %s account', async (role, heading) => {
+    const account = { ...underwriterUser, uid: `${role}-1`, email: `${role}@example.test` };
+    const auth = new FakeAuthService({
+      resolution: { role, denialReason: null },
+      signInUser: account,
+    });
+    renderAt('/login', auth);
+    auth.restore(null);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Email address'), account.email);
+    await user.type(screen.getByLabelText('Password'), TEST_PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(auth.signInCalls).toEqual([{ email: account.email, password: TEST_PASSWORD }]);
+    if (role === 'borrower') {
+      expect(screen.getByText('This portal is for brokers and bank staff.')).toBeInTheDocument();
+    }
+  });
+
+  it.each([
+    ['broker', brokerUser, 'Broker portal'],
+    ['underwriter', underwriterUser, 'Underwriter portal'],
+  ] as const)('redirects a signed-in %s opening login to their portal home', async (role, account, heading) => {
+    const auth = new FakeAuthService({ resolution: { role, denialReason: null } });
+    renderAt('/login', auth);
+    auth.restore(account);
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    expect(auth.signInCalls).toEqual([]);
   });
 
   it('shows a safe invalid-credentials error beside the form', async () => {
@@ -337,6 +381,20 @@ function deferredRole() {
 }
 
 describe('session boundaries', () => {
+  it('keeps forbidden content hidden until the account role resolves', async () => {
+    const auth = new FakeAuthService();
+    const pending = deferredRole();
+    auth.deferNextRole(pending.promise);
+    renderAt('/forbidden', auth);
+    expect(screen.getByRole('heading', { name: 'Checking portal access' })).toBeInTheDocument();
+    act(() => auth.restore(brokerUser));
+    expect(screen.getByRole('heading', { name: 'Checking portal access' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Not allowed' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/administrator/i)).not.toBeInTheDocument();
+    await act(async () => pending.resolve({ role: null, denialReason: 'missing-role' }));
+    expect(await screen.findByRole('heading', { name: 'Not allowed' })).toBeInTheDocument();
+  });
+
   it('blocks a same-user downgrade while resolving and resets once at the current location', async () => {
     const auth = new FakeAuthService({ resolution: { role: 'underwriter', denialReason: null } });
     const resetSession = vi.fn();
@@ -446,7 +504,7 @@ describe('session boundaries', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
     const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent('Firebase sign-out failed. Try again.');
+    expect(alert).toHaveTextContent('Sign-out failed. Try again.');
     expect(screen.queryByText('private persistence detail')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign out' }).parentElement).toContainElement(alert);
     expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();

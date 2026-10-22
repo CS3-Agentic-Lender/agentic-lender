@@ -28,6 +28,7 @@ interface AuthContextValue {
   authError: string | null;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+  retrySession(): void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -112,9 +113,8 @@ export function AuthProvider({
 
             resolvedSession = null;
             setRole(null);
-            setDenialReason('claim-error');
-            setAuthError('Your access role could not be verified.');
-            setStatus('authenticated');
+            setDenialReason(null);
+            setStatus('error');
             setAction('idle');
           });
       },
@@ -127,8 +127,7 @@ export function AuthProvider({
         resolvedSession = null;
         setUser(null);
         setRole(null);
-        setDenialReason('claim-error');
-        setAuthError('Firebase authentication could not be restored.');
+        setDenialReason(null);
         setStatus('error');
         setAction('idle');
       },
@@ -168,16 +167,18 @@ export function AuthProvider({
       setStatus('anonymous');
       resetSession('/login');
     } catch (error) {
-      setAuthError('Firebase sign-out failed. Try again.');
+      setAuthError('Sign-out failed. Try again.');
       throw error;
     } finally {
       setAction('idle');
     }
   }, [service, resetSession]);
 
+  const retrySession = useCallback(() => resetSession(), [resetSession]);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ status, action, user, role, denialReason, authError, signIn, signOut }),
-    [status, action, user, role, denialReason, authError, signIn, signOut],
+    () => ({ status, action, user, role, denialReason, authError, signIn, signOut, retrySession }),
+    [status, action, user, role, denialReason, authError, signIn, signOut, retrySession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
