@@ -29,7 +29,7 @@ struct FirebaseProfileService: ProfileService {
     }
 
     var signedInUser: GoogleUser? {
-        Auth.auth().currentUser.map { GoogleUser(email: $0.email ?? "", name: $0.displayName ?? "") }
+        Auth.auth().currentUser.flatMap { GoogleUser(signedInEmail: $0.email, name: $0.displayName) }
     }
 
     func loadBrokers() async throws -> [Broker] {
@@ -51,5 +51,14 @@ struct FirebaseProfileService: ProfileService {
             logger.error("Getting the ID token failed: \(error.localizedDescription, privacy: .public)")
             throw AccountError(authError: error)
         }
+    }
+}
+
+extension GoogleUser {
+    /// The signed-in Firebase user, for "Your details". Nil without an email: al-core rejects a profile
+    /// whose email differs from the ID token's, so an empty one could never be saved.
+    init?(signedInEmail email: String?, name: String?) {
+        guard let email, !email.isBlank else { return nil }
+        self.init(email: email, name: name ?? "")
     }
 }
