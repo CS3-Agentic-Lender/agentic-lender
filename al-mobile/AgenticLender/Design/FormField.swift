@@ -71,6 +71,24 @@ struct PrimaryButton: View {
     }
 }
 
+/// The full-width outlined button for a second action, such as Start application, Sign out or Retry.
+struct SecondaryButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
+        }
+        .foregroundStyle(Theme.pine)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.pine))
+    }
+}
+
 private struct PineButtonStyle: ButtonStyle {
     let isLoading: Bool
     @Environment(\.isEnabled) private var isEnabled
@@ -81,24 +99,5 @@ private struct PineButtonStyle: ButtonStyle {
             .foregroundStyle(colours.foreground)
             .background(colours.background)
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-    }
-}
-
-/// The full-width outlined button for a second action, such as Sign out or Retry.
-struct SecondaryButton: View {
-    let title: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(Theme.pine)
-                .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
-                .background(Theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-                .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.line))
-        }
-        .buttonStyle(.plain)
     }
 }
