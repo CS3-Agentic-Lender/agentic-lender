@@ -1,0 +1,22 @@
+{
+  "written_before_any_run": "Committed before the follow-up code or any run. This is an exploratory follow-up added AFTER the four research agents reported; it is not part of the original pre-registered experiments.",
+  "seed": 42,
+  "question": "Does an 'expected price' feature help beyond the Eircode key, and is it leak-free?",
+  "feature": {
+    "name": "expected_price",
+    "definition": "log(area) plus the routing key's smoothed mean of log(price per m2), computed from training rows only. Smoothing m=10 towards the overall mean, unseen or missing keys get the overall mean.",
+    "how_training_rows_get_it": "out-of-fold: a training row's value uses only training rows outside its own inner fold, and inner folds are whole property groups, so neither the row's own price nor its repeat adverts' prices feed into it",
+    "how_scored_rows_get_it": "from all training rows of that fold only; the scored fold's prices are never used",
+    "app_collects_it_today": "nothing new is asked: it is a lookup table learned from training data, plus the house's own area"
+  },
+  "compare": {"current": ["eircode_routing_key"], "candidate": ["eircode_routing_key", "expected_price"]},
+  "models": ["hist_gradient_boosting", "catboost"],
+  "adopt_rule": "Same rule as any input the app already collects: at least 1.0 point lower CV MAPE in BOTH models and lower in ALL five folds. A smaller gain is reported but not adopted.",
+  "also_report": "MdAPE, within 10%, MAE, R2 and the median signed error, because MAPE alone can be flattered by estimating low.",
+  "leakage_checks": [
+    "unit tests: a row's training feature does not change when its own price, or its repeat advert's price, changes",
+    "unit test: the scored rows' prices cannot influence their own predictions",
+    "canary on the real development rows: shuffle the prices at random (three seeds); a leak-free feature must give no gain on shuffled prices"
+  ],
+  "figures": "Same figures as the Eircode comparison, current (blue) against candidate (orange)."
+}

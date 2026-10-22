@@ -1,0 +1,19 @@
+{
+  "written_before_any_run": "Committed before the code or any run. Question: if v2 drops the separate calibration set and trains on those rows too, does the model get better?",
+  "seed": 42,
+  "question": "Does training on development plus calibration rows (about 80% of the data) beat training on development rows only (about 60%)?",
+  "inputs": "The five inputs plus the Eircode routing key, as in the current v2 candidate, with the v1 tuned settings.",
+  "models": ["hist_gradient_boosting", "catboost"],
+  "design": {
+    "scored_rows": "The same 4,882 development rows in the same five group folds, in both arms. Only these rows are ever scored.",
+    "arm_a_60": "For each fold, train on the other four development folds (the current setup).",
+    "arm_b_80": "For each fold, train on the other four development folds PLUS every calibration row that has a floor area.",
+    "what_is_read": "Calibration rows are read as training rows only. Their prices are never scored here. The final test is not read.",
+    "why_fair": "Same scored rows, same folds, same model settings. The only difference is the extra training rows, so any change is down to more data."
+  },
+  "adopt_rule": "Drop the separate calibration set for v2 only if ALL hold: (1) arm B has at least 0.3 points lower CV MAPE than arm A in BOTH models; (2) arm B is lower in at least 4 of the 5 folds in both models; (3) arm B's median over or under estimate stays within plus or minus 2%, so it does not win by estimating low.",
+  "if_adopted": "v2 trains on the 80%, sets its accuracy threshold and its price range from out-of-fold predictions, and is judged once on the untouched final test. The v2 final test checks that this threshold holds.",
+  "if_not_adopted": "v2 keeps the 60/20/20 split.",
+  "also_report": "MdAPE, within 10%, MAE, R2 and the median signed error, plus the number of training rows in each arm.",
+  "nothing_else_changes": "The frozen v1 model, its split and its final test are untouched."
+}

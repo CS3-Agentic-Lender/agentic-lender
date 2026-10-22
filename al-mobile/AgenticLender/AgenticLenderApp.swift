@@ -30,8 +30,7 @@ struct AgenticLenderApp: App {
                     case .signUp:
                         SignUpView(service: FirebaseAccountService())
                     case .affordability:
-                        // The result screen is the next affordability subtask; until then Calculate only checks the form.
-                        AffordabilityFormView(onCalculate: { _ in })
+                        AffordabilityFormView(service: APIAffordabilityService.live())
                     }
                 }
             }

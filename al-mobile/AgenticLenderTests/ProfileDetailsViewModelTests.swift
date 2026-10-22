@@ -36,6 +36,20 @@ final class ProfileDetailsViewModelTests: XCTestCase {
         XCTAssertTrue(model.isProfileSaved)
     }
 
+    /// AL-240: Your details has sign-up's length limits on the name and both address lines.
+    func testANameOrAddressOverTheLimitShowsUnderItsFieldAndSavesNothing() async throws {
+        let service = FakeGoogleSignInService()
+        let model = filled(service)
+        model.form.fullName = String(repeating: "a", count: 101)
+        model.form.addressLine2 = String(repeating: "b", count: 201)
+
+        await model.submit()
+
+        XCTAssertEqual(model.visibleError(for: .fullName), "Use 100 characters or fewer")
+        XCTAssertEqual(model.visibleError(for: .addressLine2), "Use 200 characters or fewer")
+        XCTAssertTrue(service.savedProfiles.isEmpty)
+    }
+
     func testTheEmailCannotBeChangedFromTheGoogleOne() async throws {
         let service = FakeGoogleSignInService()
         let model = filled(service)

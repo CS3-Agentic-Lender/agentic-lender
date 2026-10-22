@@ -38,3 +38,6 @@ PROJECT GUIDELINES/
 
 # Week 3 submission working folder (kept local, not in git)
 docs/week 3 report/
+
+# al-ai raw datasets and row-level exports stay out of git; only aggregate reports are committed
+al-ai/data/

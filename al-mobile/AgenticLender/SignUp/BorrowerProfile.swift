@@ -27,6 +27,8 @@ struct BorrowerProfile: Encodable, Equatable {
         case eircode
     }
 
+    /// Nil unless every profile field passes, including the /core/me length limits, so a profile that al-core
+    /// would refuse is never built.
     init?(form: SignUpForm) {
         guard SignUpValidator.errors(for: form, fields: SignUpValidator.profileFields).isEmpty,
               let phone = SignUpValidator.normalizedIrishPhone(form.phone),

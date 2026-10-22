@@ -1,0 +1,196 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  firebaseAuthService,
+  type AuthService,
+  type AuthUser,
+  type DenialReason,
+  type TrustedRole,
+} from '../services/authService';
+
+type AuthStatus = 'loading' | 'anonymous' | 'authenticated' | 'error';
+type AuthAction = 'idle' | 'signing-in' | 'signing-out';
+
+interface AuthContextValue {
+  status: AuthStatus;
+  action: AuthAction;
+  user: AuthUser | null;
+  role: TrustedRole | null;
+  denialReason: DenialReason | null;
+  authError: string | null;
+  signIn(email: string, password: string): Promise<void>;
+  signOut(): Promise<void>;
+  retrySession(): void;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+interface AuthProviderProps {
+  children: ReactNode;
+  service?: AuthService;
+  resetSession?: (destination?: string) => void;
+}
+
+function reloadSession(destination = window.location.href) {
+  window.location.replace(destination);
+}
+
+export function AuthProvider({
+  children,
+  service = firebaseAuthService,
+  resetSession = reloadSession,
+}: AuthProviderProps) {
+  const [status, setStatus] = useState<AuthStatus>('loading');
+  const [action, setAction] = useState<AuthAction>('idle');
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [role, setRole] = useState<TrustedRole | null>(null);
+  const [denialReason, setDenialReason] = useState<DenialReason | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const authChange = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    let resolvedSession: { uid: string; role: TrustedRole | null } | null = null;
+
+    const unsubscribe = service.subscribe(
+      (nextUser) => {
+        if (!active) {
+          return;
+        }
+
+        const change = ++authChange.current;
+        setAuthError(null);
+        setRole(null);
+        setDenialReason(null);
+
+        if (!nextUser) {
+          resolvedSession = null;
+          setUser(null);
+          setStatus('anonymous');
+          setAction('idle');
+          return;
+        }
+
+        setUser(nextUser);
+        setStatus('loading');
+
+        void service
+          .resolveTrustedRole(nextUser)
+          .then((resolution) => {
+            if (!active || change !== authChange.current) {
+              return;
+            }
+
+            const roleChanged =
+              resolvedSession?.uid === nextUser.uid &&
+              resolvedSession.role !== null &&
+              resolution.role !== null &&
+              resolvedSession.role !== resolution.role;
+            resolvedSession = { uid: nextUser.uid, role: resolution.role };
+
+            setRole(resolution.role);
+            setDenialReason(resolution.denialReason);
+            setStatus('authenticated');
+            setAction('idle');
+
+            if (roleChanged) {
+              resetSession();
+            }
+          })
+          .catch(() => {
+            if (!active || change !== authChange.current) {
+              return;
+            }
+
+            resolvedSession = null;
+            setRole(null);
+            setDenialReason(null);
+            setStatus('error');
+            setAction('idle');
+          });
+      },
+      () => {
+        if (!active) {
+          return;
+        }
+
+        ++authChange.current;
+        resolvedSession = null;
+        setUser(null);
+        setRole(null);
+        setDenialReason(null);
+        setStatus('error');
+        setAction('idle');
+      },
+    );
+
+    return () => {
+      active = false;
+      ++authChange.current;
+      unsubscribe();
+    };
+  }, [service, resetSession]);
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      setAction('signing-in');
+      setAuthError(null);
+      try {
+        await service.signIn(email, password);
+      } catch (error) {
+        setAction('idle');
+        throw error;
+      }
+    },
+    [service],
+  );
+
+  const signOut = useCallback(async () => {
+    setAction('signing-out');
+    setAuthError(null);
+
+    try {
+      await service.signOut();
+      ++authChange.current;
+      setUser(null);
+      setRole(null);
+      setDenialReason(null);
+      setStatus('anonymous');
+      resetSession('/login');
+    } catch (error) {
+      setAuthError('Sign-out failed. Try again.');
+      throw error;
+    } finally {
+      setAction('idle');
+    }
+  }, [service, resetSession]);
+
+  const retrySession = useCallback(() => resetSession(), [resetSession]);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({ status, action, user, role, denialReason, authError, signIn, signOut, retrySession }),
+    [status, action, user, role, denialReason, authError, signIn, signOut, retrySession],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error('useAuth must be used inside AuthProvider.');
+  }
+
+  return context;
+}
+
