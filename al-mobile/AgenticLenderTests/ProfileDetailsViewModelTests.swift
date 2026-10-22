@@ -3,11 +3,11 @@ import XCTest
 
 /// The profile screen a first-time Google user fills in before reaching home (AL-94 AC2).
 @MainActor
-final class GoogleProfileViewModelTests: XCTestCase {
+final class ProfileDetailsViewModelTests: XCTestCase {
     private let user = GoogleUser(email: "aoife@gmail.com", name: "Aoife Byrne")
 
-    private func filled(_ service: FakeGoogleSignInService) -> GoogleProfileViewModel {
-        let model = GoogleProfileViewModel(user: user, service: service)
+    private func filled(_ service: FakeGoogleSignInService) -> ProfileDetailsViewModel {
+        let model = ProfileDetailsViewModel(user: user, service: service)
         model.form.phone = "087 123 4567"
         model.form.addressLine1 = "12 Lough Road"
         model.form.county = .cork
@@ -16,7 +16,7 @@ final class GoogleProfileViewModelTests: XCTestCase {
     }
 
     func testStartsWithTheGoogleNameAndEmail() {
-        let model = GoogleProfileViewModel(user: user, service: FakeGoogleSignInService())
+        let model = ProfileDetailsViewModel(user: user, service: FakeGoogleSignInService())
 
         XCTAssertEqual(model.form.fullName, "Aoife Byrne")
         XCTAssertEqual(model.email, "aoife@gmail.com")
@@ -62,7 +62,7 @@ final class GoogleProfileViewModelTests: XCTestCase {
 
     func testCannotFinishUntilEveryProfileFieldIsFilledIn() async {
         let service = FakeGoogleSignInService()
-        let model = GoogleProfileViewModel(user: user, service: service)
+        let model = ProfileDetailsViewModel(user: user, service: service)
 
         await model.submit()
 
@@ -74,7 +74,7 @@ final class GoogleProfileViewModelTests: XCTestCase {
     }
 
     func testErrorsOnlyShowOnceAFieldIsLeft() {
-        let model = GoogleProfileViewModel(user: user, service: FakeGoogleSignInService())
+        let model = ProfileDetailsViewModel(user: user, service: FakeGoogleSignInService())
 
         XCTAssertNil(model.visibleError(for: .eircode))
         model.markTouched(.eircode)

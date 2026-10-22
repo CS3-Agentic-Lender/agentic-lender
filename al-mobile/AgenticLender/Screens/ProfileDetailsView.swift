@@ -1,19 +1,21 @@
 import SwiftUI
 
-/// The profile a first-time Google user fills in before reaching home (Figma 05b Your details, from Google).
-struct GoogleProfileView: View {
-    @State private var model: GoogleProfileViewModel
+/// "Your details" (Figma 05b): the profile a signed-in borrower fills in before reaching home when
+/// they have none yet, either a first-time Google user or an email sign-up that stopped before the
+/// profile was saved. The email is the signed-in account's and can't be changed.
+struct ProfileDetailsView: View {
+    @State private var model: ProfileDetailsViewModel
     @FocusState private var focused: SignUpField?
     @State private var isCountySheetShown = false
 
     init(user: GoogleUser, service: GoogleSignInService) {
-        _model = State(initialValue: GoogleProfileViewModel(user: user, service: service))
+        _model = State(initialValue: ProfileDetailsViewModel(user: user, service: service))
     }
 
     var body: some View {
         Group {
             if model.isProfileSaved {
-                HomeView()
+                HomeGateView()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -56,7 +58,7 @@ struct GoogleProfileView: View {
                 .font(.largeTitle.bold())
                 .foregroundStyle(Theme.text)
                 .accessibilityAddTraits(.isHeader)
-            // The email is the Google account's and can't be changed here.
+            // The email is the signed-in account's and can't be changed here.
             Label("Signed in as \(model.email)", systemImage: "person.crop.circle")
                 .font(.footnote)
                 .foregroundStyle(Theme.mutedText)
@@ -91,7 +93,7 @@ private struct PreviewGoogleSignInService: GoogleSignInService {
 
 #Preview {
     NavigationStack {
-        GoogleProfileView(user: GoogleUser(email: "alice@gmail.com", name: "Alice Murphy"), service: PreviewGoogleSignInService())
+        ProfileDetailsView(user: GoogleUser(email: "alice@gmail.com", name: "Alice Murphy"), service: PreviewGoogleSignInService())
     }
 }
 #endif

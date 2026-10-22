@@ -16,21 +16,12 @@ struct CoreProfileAPI: Sendable {
     private let logger = Logger(category: "SignUp")
 
     func createProfile(_ profile: BorrowerProfile, idToken: String) async throws {
-        var request = URLRequest(url: baseURL.appending(path: Self.path))
+        var request = request(Self.path, idToken: idToken)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try profile.body()
 
-        let response: URLResponse
-        do {
-            (_, response) = try await send(request)
-        } catch let error as URLError {
-            logger.error("POST /core/me failed: \(error.localizedDescription, privacy: .public)")
-            throw AccountError.network
-        }
-
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let (_, status) = try await perform(request)
         guard status == 201 || status == 200 else {
             logger.error("POST /core/me returned \(status, privacy: .public)")
             throw Self.serverErrors.contains(status) ? ServerError(status: status) : AccountError.profileNotSaved
@@ -46,59 +37,74 @@ struct CoreProfileAPI: Sendable {
 
     /// Whether the signed-in user already has a profile: 200 yes, 404 not yet.
     func hasProfile(idToken: String) async throws -> Bool {
-        var request = URLRequest(url: baseURL.appending(path: Self.path))
-        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
-
-        let response: URLResponse
-        do {
-            (_, response) = try await send(request)
-        } catch let error as URLError {
-            logger.error("GET /core/me failed: \(error.localizedDescription, privacy: .public)")
-            throw AccountError.network
-        }
-
-        switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
+        let (_, status) = try await perform(request(Self.path, idToken: idToken))
+        switch status {
         case 200: return true
         case 404: return false
-        case let status:
+        default:
             logger.error("GET /core/me returned \(status, privacy: .public)")
             throw AccountError.unknown
         }
     }
 
-    /// The signed-in borrower's full name from their profile, for the home screen greeting.
-    func fullName(idToken: String) async throws -> String {
-        var request = URLRequest(url: baseURL.appending(path: Self.path))
-        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+    /// The signed-in borrower's profile: their name for the greeting and their broker, if chosen.
+    func profile(idToken: String) async throws -> CoreProfile {
+        let (data, status) = try await perform(request(Self.path, idToken: idToken))
+        if status == 404 { throw AccountError.noProfile }
+        return try decode(CoreProfile.self, from: data, status: status, call: "GET /core/me")
+    }
 
-        let data: Data
-        let response: URLResponse
+    /// Builds an authorised request to `path` under the gateway; a GET unless changed.
+    func request(_ path: String, idToken: String) -> URLRequest {
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
+    /// Sends the request; a dropped connection becomes `AccountError.network`.
+    func perform(_ request: URLRequest) async throws -> (Data, Int) {
+        let call = "\(request.httpMethod ?? "GET") \(request.url?.path() ?? "")"
         do {
-            (data, response) = try await send(request)
+            let (data, response) = try await send(request)
+            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
         } catch let error as URLError {
-            logger.error("GET /core/me failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("\(call, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             throw AccountError.network
         }
+    }
 
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+    /// Decodes a 200 answer; any other status, or a body that doesn't match, is `AccountError.unknown`.
+    func decode<Value: Decodable>(_ type: Value.Type, from data: Data, status: Int, call: String) throws -> Value {
         guard status == 200 else {
-            logger.error("GET /core/me returned \(status, privacy: .public)")
+            logger.error("\(call, privacy: .public) returned \(status, privacy: .public)")
             throw AccountError.unknown
         }
         do {
-            return try JSONDecoder().decode(StoredName.self, from: data).fullName
+            return try JSONDecoder().decode(type, from: data)
         } catch {
-            logger.error("GET /core/me sent a profile without a full name: \(error.localizedDescription, privacy: .public)")
+            logger.error("\(call, privacy: .public) sent an answer the app can't read: \(error.localizedDescription, privacy: .public)")
             throw AccountError.unknown
         }
     }
+}
 
-    /// The one field of the `GET /core/me` profile the app reads so far.
-    private struct StoredName: Decodable {
-        let fullName: String
+/// The part of the `GET /core/me` profile the app reads. al-core sends `broker_name` and
+/// `broker_firm` (AL-56) so the app never reads a broker's own profile.
+struct CoreProfile: Decodable, Equatable, Sendable {
+    let fullName: String
+    let brokerID: String?
+    let brokerName: String?
+    let brokerFirm: String?
 
-        enum CodingKeys: String, CodingKey {
-            case fullName = "full_name"
-        }
+    /// Whether the borrower still has to choose a broker before home.
+    var needsBroker: Bool {
+        brokerName?.trimmed.isEmpty ?? true
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
+        case brokerID = "broker_id"
+        case brokerName = "broker_name"
+        case brokerFirm = "broker_firm"
     }
 }

@@ -1,42 +1,26 @@
 import Observation
-import os
 
-/// Drives the home screen: the greeting with the borrower's first name, and handing over to sign-out.
+/// Drives the home screen: the greeting with the borrower's first name, and their broker.
 @MainActor
 @Observable
 final class HomeViewModel {
-    private(set) var firstName: String?
-    private(set) var isLoading = true
+    private(set) var profile: CoreProfile
 
-    private let loadFullName: () async throws -> String
-    private let onSignOut: () -> Void
-    private let logger = Logger(category: "Home")
-
-    /// `loadFullName` reads the profile from al-core. `onSignOut` is supplied by whoever owns
-    /// the sign-in state, so this screen only asks for it.
-    init(loadFullName: @escaping () async throws -> String, onSignOut: @escaping () -> Void) {
-        self.loadFullName = loadFullName
-        self.onSignOut = onSignOut
+    /// `profile` comes from the gate, which has already loaded it from al-core.
+    init(profile: CoreProfile) {
+        self.profile = profile
     }
 
-    /// "Hello, Aoife", or just "Hello" while the name loads or if it can't be read.
+    /// "Hello, Aoife", or just "Hello" if the name is blank.
     var greeting: String {
-        firstName.map { "Hello, \($0)" } ?? "Hello"
+        Self.firstName(from: profile.fullName).map { "Hello, \($0)" } ?? "Hello"
     }
 
-    func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            firstName = Self.firstName(from: try await loadFullName())
-        } catch {
-            // The name is a courtesy: everything else on home still works without it.
-            logger.error("Loading the borrower's name failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
+    var brokerName: String? { profile.brokerName }
+    var brokerFirm: String? { profile.brokerFirm }
 
-    func signOut() {
-        onSignOut()
+    func brokerChanged(_ profile: CoreProfile) {
+        self.profile = profile
     }
 
     static func firstName(from fullName: String) -> String? {

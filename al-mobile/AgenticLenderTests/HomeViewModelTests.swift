@@ -3,38 +3,10 @@ import XCTest
 
 @MainActor
 final class HomeViewModelTests: XCTestCase {
-    private func model(
-        fullName: Result<String, AccountError> = .success("Aoife Byrne"),
-        onSignOut: @escaping () -> Void = {}
-    ) -> HomeViewModel {
-        HomeViewModel(loadFullName: { try fullName.get() }, onSignOut: onSignOut)
-    }
+    func testGreetsTheBorrowerByFirstName() {
+        let home = HomeViewModel(profile: .aliceWithBob)
 
-    func testGreetsTheBorrowerByFirstNameOnceTheProfileLoads() async {
-        let home = model()
-
-        await home.load()
-
-        XCTAssertEqual(home.greeting, "Hello, Aoife")
-        XCTAssertFalse(home.isLoading)
-    }
-
-    func testIsLoadingUntilTheNameArrives() {
-        let home = model()
-
-        XCTAssertTrue(home.isLoading)
-        XCTAssertEqual(home.greeting, "Hello")
-    }
-
-    func testFallsBackToAPlainGreetingWhenTheProfileCantBeRead() async {
-        for failure in [AccountError.network, .unknown] {
-            let home = model(fullName: .failure(failure))
-
-            await home.load()
-
-            XCTAssertEqual(home.greeting, "Hello", "\(failure)")
-            XCTAssertFalse(home.isLoading, "\(failure)")
-        }
+        XCTAssertEqual(home.greeting, "Hello, Alice")
     }
 
     func testFirstNameIsTheFirstWordOfTheFullName() {
@@ -44,20 +16,29 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertNil(HomeViewModel.firstName(from: "   "))
     }
 
-    func testABlankNameKeepsThePlainGreeting() async {
-        let home = model(fullName: .success("  "))
-
-        await home.load()
+    func testABlankNameKeepsThePlainGreeting() {
+        let home = HomeViewModel(profile: CoreProfile(fullName: "  ", brokerID: nil, brokerName: nil, brokerFirm: nil))
 
         XCTAssertEqual(home.greeting, "Hello")
     }
 
-    func testSignOutHandsOverToTheSignOutAction() {
-        var signOutCount = 0
-        let home = model(onSignOut: { signOutCount += 1 })
+    func testShowsTheChosenBrokerAndFirm() {
+        let home = HomeViewModel(profile: .aliceWithBob)
 
-        home.signOut()
+        XCTAssertEqual(home.brokerName, "Bob Murphy")
+        XCTAssertEqual(home.brokerFirm, "Murphy Mortgages")
+    }
 
-        XCTAssertEqual(signOutCount, 1)
+    func testChangingBrokerUpdatesTheCard() {
+        let home = HomeViewModel(profile: .aliceWithBob)
+        let changed = CoreProfile(
+            fullName: "Alice Byrne", brokerID: "broker2", brokerName: "Ciara Kelly", brokerFirm: "Kelly Financial"
+        )
+
+        home.brokerChanged(changed)
+
+        XCTAssertEqual(home.brokerName, "Ciara Kelly")
+        XCTAssertEqual(home.brokerFirm, "Kelly Financial")
+        XCTAssertEqual(home.profile, changed)
     }
 }

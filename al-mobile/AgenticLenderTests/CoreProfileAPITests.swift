@@ -152,28 +152,54 @@ final class CoreProfileAPITests: XCTestCase {
         }
     }
 
-    func testFullNameReadsTheProfileFromCoreMe() async throws {
+    func testProfileReadsTheNameAndBrokerFromCoreMe() async throws {
         let network = FakeNetwork()
         network.status = 200
-        network.body = #"{"uid": "u1", "role": "borrower", "full_name": "Aoife Byrne", "email": "aoife@test.com"}"#
+        network.body = #"""
+        {"uid": "u1", "role": "borrower", "full_name": "Alice Byrne", "email": "alice@test.com",
+         "broker_id": "broker1", "broker_name": "Bob Murphy", "broker_firm": "Murphy Mortgages"}
+        """#
 
-        let fullName = try await api(network).fullName(idToken: "test-token")
+        let profile = try await api(network).profile(idToken: "test-token")
 
-        XCTAssertEqual(fullName, "Aoife Byrne")
+        XCTAssertEqual(profile, .aliceWithBob)
         let sent = try XCTUnwrap(network.sent)
         XCTAssertEqual(sent.httpMethod, "GET")
         XCTAssertEqual(sent.url?.absoluteString, "http://localhost:8000/core/me")
         XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
     }
 
-    func testFullNameFailsWithoutAProfileOrOnABadAnswer() async throws {
-        for (status, body) in [(404, "{}"), (500, "{}"), (200, "not json"), (200, #"{"uid": "u1"}"#)] {
+    func testAProfileWithoutABrokerHasNoBrokerName() async throws {
+        let network = FakeNetwork()
+        network.status = 200
+        network.body = #"{"full_name": "Alice Byrne", "broker_id": null, "broker_name": null, "broker_firm": null}"#
+
+        let profile = try await api(network).profile(idToken: "test-token")
+
+        XCTAssertEqual(profile, .alice)
+    }
+
+    func testProfileNotFoundMeansNoProfileYet() async throws {
+        let network = FakeNetwork()
+        network.status = 404
+        network.body = #"{"error": {"code": "NOT_FOUND", "message": "No profile yet"}}"#
+
+        do {
+            _ = try await api(network).profile(idToken: "test-token")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? AccountError, .noProfile)
+        }
+    }
+
+    func testProfileFailsOnABadAnswer() async throws {
+        for (status, body) in [(500, "{}"), (200, "not json"), (200, #"{"uid": "u1"}"#)] {
             let network = FakeNetwork()
             network.status = status
             network.body = body
 
             do {
-                _ = try await api(network).fullName(idToken: "test-token")
+                _ = try await api(network).profile(idToken: "test-token")
                 XCTFail("status \(status) with \(body) should throw")
             } catch {
                 XCTAssertEqual(error as? AccountError, .unknown, "status \(status) with \(body)")
@@ -181,12 +207,105 @@ final class CoreProfileAPITests: XCTestCase {
         }
     }
 
-    func testNoConnectionWhenReadingTheNameIsANetworkError() async throws {
+    func testNoConnectionWhenReadingTheProfileIsANetworkError() async throws {
         let network = FakeNetwork()
         network.failure = URLError(.notConnectedToInternet)
 
         do {
-            _ = try await api(network).fullName(idToken: "test-token")
+            _ = try await api(network).profile(idToken: "test-token")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? AccountError, .network)
+        }
+    }
+
+    // MARK: - GET /core/brokers
+
+    func testBrokersReadsTheListFromCoreBrokers() async throws {
+        let network = FakeNetwork()
+        network.status = 200
+        network.body = #"""
+        [{"uid": "broker1", "name": "Bob Murphy", "firm": "Murphy Mortgages"},
+         {"uid": "broker2", "name": "Ciara Kelly", "firm": "Kelly Financial"}]
+        """#
+
+        let brokers = try await api(network).brokers(idToken: "test-token")
+
+        XCTAssertEqual(brokers, [.bob, .ciara])
+        let sent = try XCTUnwrap(network.sent)
+        XCTAssertEqual(sent.httpMethod, "GET")
+        XCTAssertEqual(sent.url?.absoluteString, "http://localhost:8000/core/brokers")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+    }
+
+    func testBrokersFailsOnARefusalOrABadAnswer() async throws {
+        for (status, body) in [(401, "[]"), (500, "[]"), (200, "not json")] {
+            let network = FakeNetwork()
+            network.status = status
+            network.body = body
+
+            do {
+                _ = try await api(network).brokers(idToken: "test-token")
+                XCTFail("status \(status) with \(body) should throw")
+            } catch {
+                XCTAssertEqual(error as? AccountError, .unknown, "status \(status) with \(body)")
+            }
+        }
+    }
+
+    func testNoConnectionWhenListingBrokersIsANetworkError() async throws {
+        let network = FakeNetwork()
+        network.failure = URLError(.timedOut)
+
+        do {
+            _ = try await api(network).brokers(idToken: "test-token")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? AccountError, .network)
+        }
+    }
+
+    // MARK: - PUT /core/me/broker
+
+    func testChooseBrokerPutsTheIDAndReadsBackTheProfile() async throws {
+        let network = FakeNetwork()
+        network.status = 200
+        network.body = #"""
+        {"full_name": "Alice Byrne", "broker_id": "broker1", "broker_name": "Bob Murphy", "broker_firm": "Murphy Mortgages"}
+        """#
+
+        let profile = try await api(network).chooseBroker(id: "broker1", idToken: "test-token")
+
+        XCTAssertEqual(profile, .aliceWithBob)
+        let sent = try XCTUnwrap(network.sent)
+        XCTAssertEqual(sent.httpMethod, "PUT")
+        XCTAssertEqual(sent.url?.absoluteString, "http://localhost:8000/core/me/broker")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+        XCTAssertEqual(sent.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let body = try JSONSerialization.jsonObject(with: XCTUnwrap(sent.httpBody)) as? [String: String]
+        XCTAssertEqual(body, ["broker_id": "broker1"])
+    }
+
+    func testChooseBrokerFailsWhenRefused() async throws {
+        for status in [403, 404, 422, 500] {
+            let network = FakeNetwork()
+            network.status = status
+
+            do {
+                _ = try await api(network).chooseBroker(id: "broker1", idToken: "test-token")
+                XCTFail("status \(status) should throw")
+            } catch {
+                XCTAssertEqual(error as? AccountError, .unknown, "status \(status)")
+            }
+        }
+    }
+
+    func testNoConnectionWhenChoosingIsANetworkError() async throws {
+        let network = FakeNetwork()
+        network.failure = URLError(.networkConnectionLost)
+
+        do {
+            _ = try await api(network).chooseBroker(id: "broker1", idToken: "test-token")
             XCTFail("should throw")
         } catch {
             XCTAssertEqual(error as? AccountError, .network)
