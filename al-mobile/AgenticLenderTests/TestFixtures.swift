@@ -1,3 +1,4 @@
+import Foundation
 @testable import AgenticLender
 
 /// Values shared by the unit tests. Every password here is fake and used only in unit tests.
@@ -34,6 +35,20 @@ enum TestFixtures {
         form.monthlyLivingCosts = "1,400"
         form.property = exampleProperty()
         return form
+    }
+
+    /// The example application as `GET /core/applications/{id}` returns it: al-core sends money as floats.
+    static func storedApplication(status: String) throws -> StoredApplication {
+        let json = """
+        {"id": "app42", "borrower_id": "u1", "broker_id": "broker1", "status": "\(status)", "loan_type": "mortgage",
+         "gross_income_eur": 60000.0, "monthly_debts_eur": 250.0, "deposit_eur": 40000.0, "first_time_buyer": true,
+         "applicants": "single", "term_years": 30, "loan_amount_eur": 210000.0, "employment_type": "self_employed",
+         "years_in_current_job": 4.0, "monthly_take_home_eur": 3650.0, "monthly_living_costs_eur": 1400.0,
+         "property": {"address_line_1": "12 Model Farm Road", "address_line_2": "Bishopstown", "eircode": "T12 X8Y2",
+                      "county": "Cork", "property_type": "Semi-D", "bedrooms": 3, "floor_area_sqm": 98.0,
+                      "ber_rating": "C2", "asking_price_eur": 380000.0}}
+        """
+        return try JSONDecoder().decode(StoredApplication.self, from: Data(json.utf8))
     }
 
     /// The api-design example home, filled in and valid. The Eircode is typed in lower case without its space.

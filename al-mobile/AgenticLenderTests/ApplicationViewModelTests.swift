@@ -3,8 +3,12 @@ import XCTest
 
 @MainActor
 final class ApplicationViewModelTests: XCTestCase {
-    private func model(form: ApplicationForm, service: FakeApplicationService = FakeApplicationService()) -> ApplicationViewModel {
-        ApplicationViewModel(form: form, service: service)
+    private func model(
+        form: ApplicationForm,
+        service: FakeApplicationService = FakeApplicationService(),
+        draftIDs: FakeDraftIDStore = FakeDraftIDStore()
+    ) -> ApplicationViewModel {
+        ApplicationViewModel(form: form, service: service, draftIDs: draftIDs)
     }
 
     func testSummarisesTheAffordabilityAnswers() {
@@ -134,18 +138,18 @@ final class ApplicationViewModelTests: XCTestCase {
         XCTAssertFalse(model.isSaved)
     }
 
-    func testAnExistingDraftIsKeptAndTheBorrowerIsTold() async {
+    func testAnExistingDraftIsUpdatedWithWhatWasTypedAndTheBorrowerIsTold() async {
         let service = FakeApplicationService()
         service.outcome = .success(.existingDraft(id: "app7"))
-        let model = model(form: TestFixtures.filledApplicationForm(), service: service)
+        let draftIDs = FakeDraftIDStore()
+        let model = model(form: TestFixtures.filledApplicationForm(), service: service, draftIDs: draftIDs)
 
         await model.save()
 
-        XCTAssertEqual(
-            model.saveMessage,
-            "You already have a draft application, so this one wasn't saved."
-        )
-        XCTAssertTrue(model.isSaved)
+        XCTAssertEqual(service.edited.map(\.id), ["app7"])
+        XCTAssertEqual(service.edited.first?.draft.loanAmountEur, 210_000)
+        XCTAssertEqual(draftIDs.storedID, "app7")
+        XCTAssertEqual(model.saveMessage, ApplicationViewModel.existingDraftUpdatedMessage)
     }
 
     func testAFailedSaveSaysWhyAndCanBeTriedAgain() async {
@@ -176,25 +180,55 @@ final class ApplicationViewModelTests: XCTestCase {
         XCTAssertEqual(service.saved.count, 2)
     }
 
-    func testASavedDraftCannotBeSavedAgainFromThisForm() async {
+    func testASecondSaveChangesTheSameDraft() async {
         let service = FakeApplicationService()
         let model = model(form: TestFixtures.filledApplicationForm(), service: service)
         await model.save()
 
-        XCTAssertFalse(model.canSave)
+        model.form.loanAmount = "200,000"
+        XCTAssertTrue(model.canSave)
         await model.save()
 
-        XCTAssertEqual(service.saved.count, 1)
+        XCTAssertEqual(service.saved.count, 1, "only the first save creates a Draft")
+        XCTAssertEqual(service.edited.map(\.id), ["app42"])
+        XCTAssertEqual(service.edited.first?.draft.loanAmountEur, 200_000)
     }
 }
 
-/// Records the drafts it's given and answers with `outcome`.
+/// Records what it's asked to do and answers with the outcome set for each call.
 final class FakeApplicationService: ApplicationService, @unchecked Sendable {
     var outcome: Result<DraftSaveOutcome, ApplicationSaveError> = .success(.created(id: "app42"))
+    var editFailure: ApplicationSaveError?
+    var loadOutcome: Result<StoredApplication, ApplicationSaveError> = .failure(.draftNotFound)
     private(set) var saved: [ApplicationDraft] = []
+    private(set) var edited: [(id: String, draft: ApplicationDraft)] = []
+    private(set) var loaded: [String] = []
 
     func saveDraft(_ draft: ApplicationDraft) async throws -> DraftSaveOutcome {
         saved.append(draft)
         return try outcome.get()
     }
+
+    func editDraft(id: String, _ draft: ApplicationDraft) async throws {
+        edited.append((id, draft))
+        if let editFailure { throw editFailure }
+    }
+
+    func loadApplication(id: String) async throws -> StoredApplication {
+        loaded.append(id)
+        return try loadOutcome.get()
+    }
+}
+
+/// Keeps the draft id in memory instead of on the phone.
+final class FakeDraftIDStore: DraftIDStore, @unchecked Sendable {
+    var storedID: String?
+
+    init(storedID: String? = nil) {
+        self.storedID = storedID
+    }
+
+    func draftID() -> String? { storedID }
+    func remember(_ id: String) { storedID = id }
+    func forget() { storedID = nil }
 }

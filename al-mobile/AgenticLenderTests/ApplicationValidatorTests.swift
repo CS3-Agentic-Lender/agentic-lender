@@ -215,8 +215,11 @@ final class ApplicationValidatorTests: XCTestCase {
         XCTAssertEqual(property["bedrooms"] as? Int, 3)
         XCTAssertEqual(property["floor_area_sqm"] as? Int, 98)
         XCTAssertEqual(property["ber_rating"] as? String, "C2")
-        XCTAssertNil(property["address_line_2"], "an empty second line is left out")
-        XCTAssertEqual(property.count, 8)
+        XCTAssertTrue(
+            property["address_line_2"] is NSNull,
+            "an empty second line is sent as null: a new Draft ignores it, and an edit clears the old one"
+        )
+        XCTAssertEqual(property.count, 9)
     }
 
     func testDraftBodySendsASecondAddressLineWhenThereIsOne() throws {

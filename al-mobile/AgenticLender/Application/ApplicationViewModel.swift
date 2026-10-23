@@ -2,37 +2,69 @@ import Observation
 import os
 
 /// Drives the application form: which errors show, the loan warning, the two steppers,
-/// and saving the Draft.
+/// reopening the saved Draft, and saving it.
 ///
+/// The first save creates the Draft and keeps its id on the phone; after that, saving changes
+/// that Draft. Once submitted, the application opens read-only.
 /// Like the other forms, an error only shows once the borrower has left that field.
 @MainActor
 @Observable
 final class ApplicationViewModel {
     static let savedMessage = "Draft saved. You can review and submit it next."
-    /// Changing an existing Draft is the edit-a-draft work (PATCH), so this promises nothing more.
-    static let existingDraftMessage = "You already have a draft application, so this one wasn't saved."
+    static let existingDraftUpdatedMessage = "You already had a draft, so it's been updated with these details."
+    static let loadFailedMessage = "We couldn't load your saved draft. Check your connection and try again."
+    static let readOnlyNote = ApplicationSaveError.submitted.message
 
-    var form: ApplicationForm
+    /// Any change clears the saved message, so it never claims unsaved changes are saved.
+    var form: ApplicationForm {
+        didSet { saveMessage = nil }
+    }
     private var touched: Set<ApplicationField> = []
     private(set) var isSaving = false
     private(set) var saveError: String?
     /// What happened to the saved Draft; set once a save succeeds.
     private(set) var saveMessage: String?
+    private(set) var isLoading = false
+    private(set) var loadError: String?
+    /// The application has been submitted: it shows what was sent, and nothing can change.
+    private(set) var isReadOnly = false
 
     private let service: ApplicationService
+    private let draftIDs: DraftIDStore
     private let logger = Logger(category: "Application")
 
-    init(form: ApplicationForm, service: ApplicationService) {
+    init(form: ApplicationForm, service: ApplicationService, draftIDs: DraftIDStore) {
         self.form = form
         self.service = service
+        self.draftIDs = draftIDs
     }
 
-    /// The form has been saved, or matched an existing Draft. Changing a saved Draft is a later step.
     var isSaved: Bool { saveMessage != nil }
 
-    var canSave: Bool { !isSaving && !isSaved }
+    /// Off while the kept Draft failed to load, so the empty form can't be saved over it (Nic on #79).
+    var canSave: Bool { !isSaving && !isLoading && loadError == nil && !isReadOnly }
 
-    /// Checks the form, then saves it as a Draft. With errors it shows them all and sends nothing.
+    /// Fills the form from the kept Draft, if there is one. A submitted application opens read-only;
+    /// a finished one, or an id al-core no longer has, is forgotten so a new application can start.
+    func loadSavedDraft() async {
+        guard !isLoading, let id = draftIDs.draftID() else { return }
+        loadError = nil
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let stored = try await service.loadApplication(id: id)
+            guard !stored.isFinished else { return draftIDs.forget() }
+            form = stored.filling(form)
+            isReadOnly = !stored.isDraft
+        } catch ApplicationSaveError.draftNotFound {
+            draftIDs.forget()
+        } catch {
+            logger.error("Couldn't load the saved draft: \(error.localizedDescription, privacy: .public)")
+            loadError = Self.loadFailedMessage
+        }
+    }
+
+    /// Checks the form, then saves it. With errors it shows them all and sends nothing.
     func save() async {
         guard canSave else { return }
         touched.formUnion(ApplicationField.allCases)
@@ -42,15 +74,36 @@ final class ApplicationViewModel {
         isSaving = true
         defer { isSaving = false }
         do {
-            switch try await service.saveDraft(draft) {
-            case .created: saveMessage = Self.savedMessage
-            case .existingDraft: saveMessage = Self.existingDraftMessage
-            }
+            saveMessage = try await store(draft)
+        } catch ApplicationSaveError.submitted {
+            isReadOnly = true
         } catch let error as ApplicationSaveError {
             saveError = error.message
         } catch {
             logger.error("Unexpected error saving the application: \(error.localizedDescription, privacy: .public)")
             saveError = ApplicationSaveError.unavailable.message
+        }
+    }
+
+    /// Changes the kept Draft, or creates one and keeps its id. If the borrower already had a Draft
+    /// (another phone, say), that one is kept and changed to match the form.
+    private func store(_ draft: ApplicationDraft) async throws -> String {
+        if let id = draftIDs.draftID() {
+            do {
+                try await service.editDraft(id: id, draft)
+                return Self.savedMessage
+            } catch ApplicationSaveError.draftNotFound {
+                draftIDs.forget()
+            }
+        }
+        switch try await service.saveDraft(draft) {
+        case .created(let id):
+            draftIDs.remember(id)
+            return Self.savedMessage
+        case .existingDraft(let id):
+            draftIDs.remember(id)
+            try await service.editDraft(id: id, draft)
+            return Self.existingDraftUpdatedMessage
         }
     }
 
