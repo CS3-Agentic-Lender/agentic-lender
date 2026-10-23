@@ -23,7 +23,7 @@ final class AppSession {
     static let signOutFailedMessage = "Couldn't sign out. Try again."
 
     private(set) var start: Start
-    /// Changes on every sign-out; the navigation stack is keyed on it so it starts afresh.
+    /// Changes on every sign-out and return home; the navigation stack is keyed on it so it starts afresh.
     private(set) var stackID = 0
     private(set) var signOutError: String?
 
@@ -45,6 +45,12 @@ final class AppSession {
         }
         signOutError = nil
         start = .welcome
+        stackID += 1
+    }
+
+    /// Leaves a finished flow, such as a submitted application, for a fresh home screen.
+    func returnHome() {
+        start = .home
         stackID += 1
     }
 }
