@@ -107,6 +107,23 @@ final class ApplicationSubmitViewModelTests: XCTestCase {
 
         XCTAssertFalse(model.canSubmit)
     }
+
+    func testASecondSubmitWhileOneIsRunningSendsNothing() async throws {
+        let gate = CallGate()
+        let service = FakeApplicationService()
+        service.gate = gate
+        let model = try model(service: service)
+        let first = Task { await model.confirmSubmit() }
+        await gate.waitForCall()
+
+        model.requestSubmit()
+        await model.confirmSubmit()
+        gate.open()
+        await first.value
+
+        XCTAssertEqual(service.submitted, ["7f3k9qx2abcd"])
+        XCTAssertEqual(model.reference?.text, "7F3K9QX2")
+    }
 }
 
 /// The form's way into the review: only for a saved, unchanged mortgage Draft.
@@ -140,6 +157,38 @@ final class ApplicationReviewEntryTests: XCTestCase {
 
         model.form.monthlyLivingCosts = "1,500"
 
+        XCTAssertNil(model.reviewTarget)
+    }
+
+    func testTheFormIsLockedWhileItSaves() async {
+        let gate = CallGate()
+        let service = FakeApplicationService()
+        service.gate = gate
+        let model = ApplicationViewModel(form: TestFixtures.filledApplicationForm(), service: service, draftIDs: FakeDraftIDStore())
+        XCTAssertFalse(model.isFormLocked)
+
+        let saving = Task { await model.save() }
+        await gate.waitForCall()
+        XCTAssertTrue(model.isFormLocked)
+
+        gate.open()
+        await saving.value
+        XCTAssertFalse(model.isFormLocked)
+    }
+
+    func testAChangeMadeDuringASaveMustBeSavedBeforeReviewing() async {
+        let gate = CallGate()
+        let service = FakeApplicationService()
+        service.gate = gate
+        let model = ApplicationViewModel(form: TestFixtures.filledApplicationForm(), service: service, draftIDs: FakeDraftIDStore())
+        let saving = Task { await model.save() }
+        await gate.waitForCall()
+
+        model.form.monthlyLivingCosts = "1,500"
+        gate.open()
+        await saving.value
+
+        XCTAssertFalse(model.isSaved)
         XCTAssertNil(model.reviewTarget)
     }
 

@@ -113,7 +113,7 @@ struct ApplicationFormView: View {
                 propertySection
                     .id(ApplicationFormAnchor.home)
             }
-            .disabled(model.isReadOnly || model.isLoading)
+            .disabled(model.isFormLocked)
             .padding(Theme.screenPadding)
         }
         .task { await model.loadSavedDraft() }

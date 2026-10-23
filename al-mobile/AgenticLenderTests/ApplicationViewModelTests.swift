@@ -203,9 +203,12 @@ final class FakeApplicationService: ApplicationService, @unchecked Sendable {
     private(set) var saved: [ApplicationDraft] = []
     private(set) var edited: [(id: String, draft: ApplicationDraft)] = []
     private(set) var loaded: [String] = []
+    /// When set, a save or a submit waits here until the test opens the gate.
+    var gate: CallGate?
 
     func saveDraft(_ draft: ApplicationDraft) async throws -> DraftSaveOutcome {
         saved.append(draft)
+        if let gate { await gate.pass() }
         return try outcome.get()
     }
 
@@ -225,8 +228,40 @@ final class FakeApplicationService: ApplicationService, @unchecked Sendable {
 
     func submit(id: String) async throws -> StoredApplication {
         submitted.append(id)
+        if let gate { await gate.pass() }
         if let submitOutcome { return try submitOutcome.get() }
         return try TestFixtures.storedApplication(status: "Applied")
+    }
+}
+
+/// Holds calls open so a test can act while a save or a submit is still running.
+@MainActor
+final class CallGate {
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    private var callArrived: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+
+    func pass() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation in
+            waiting.append(continuation)
+            callArrived?.resume()
+            callArrived = nil
+        }
+    }
+
+    /// Returns once a call is waiting at the gate.
+    func waitForCall() async {
+        guard waiting.isEmpty else { return }
+        await withCheckedContinuation { callArrived = $0 }
+    }
+
+    /// Lets every waiting call through, and any later one.
+    func open() {
+        isOpen = true
+        let released = waiting
+        waiting = []
+        released.forEach { $0.resume() }
     }
 }
 

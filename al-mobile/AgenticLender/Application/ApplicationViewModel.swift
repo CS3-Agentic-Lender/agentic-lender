@@ -51,6 +51,9 @@ final class ApplicationViewModel {
         return (review, id)
     }
 
+    /// No edits while loading or saving, so the review always shows what was saved (Nic on #98).
+    var isFormLocked: Bool { isReadOnly || isLoading || isSaving }
+
     /// Off while the kept Draft failed to load, so the empty form can't be saved over it (Nic on #79).
     var canSave: Bool { !isSaving && !isLoading && loadError == nil && !isReadOnly }
 
@@ -80,11 +83,14 @@ final class ApplicationViewModel {
         touched.formUnion(ApplicationField.allCases)
         guard let draft = ApplicationDraft(form: form) else { return }
 
+        let sentForm = form
         saveError = nil
         isSaving = true
         defer { isSaving = false }
         do {
-            saveMessage = try await store(draft)
+            let message = try await store(draft)
+            // A change that slipped in during the save isn't in the Draft, so it still needs saving.
+            if form == sentForm { saveMessage = message }
         } catch ApplicationSaveError.submitted {
             isReadOnly = true
         } catch let error as ApplicationSaveError {
