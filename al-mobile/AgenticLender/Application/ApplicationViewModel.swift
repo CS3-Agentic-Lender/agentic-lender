@@ -41,6 +41,19 @@ final class ApplicationViewModel {
 
     var isSaved: Bool { saveMessage != nil }
 
+    /// What "Review and submit" opens: the saved Draft, only while the form still matches it
+    /// (any change clears `isSaved`). A HELOC is submitted from its own form (AL-208).
+    var reviewTarget: (review: ApplicationReview, applicationID: String)? {
+        guard isSaved, !isReadOnly, form.loanType == .mortgage,
+              let id = draftIDs.draftID(),
+              let review = ApplicationReview(form: form)
+        else { return nil }
+        return (review, id)
+    }
+
+    /// No edits while loading or saving, so the review always shows what was saved (Nic on #98).
+    var isFormLocked: Bool { isReadOnly || isLoading || isSaving }
+
     /// Off while the kept Draft failed to load, so the empty form can't be saved over it (Nic on #79).
     var canSave: Bool { !isSaving && !isLoading && loadError == nil && !isReadOnly }
 
@@ -70,11 +83,14 @@ final class ApplicationViewModel {
         touched.formUnion(ApplicationField.allCases)
         guard let draft = ApplicationDraft(form: form) else { return }
 
+        let sentForm = form
         saveError = nil
         isSaving = true
         defer { isSaving = false }
         do {
-            saveMessage = try await store(draft)
+            let message = try await store(draft)
+            // A change that slipped in during the save isn't in the Draft, so it still needs saving.
+            if form == sentForm { saveMessage = message }
         } catch ApplicationSaveError.submitted {
             isReadOnly = true
         } catch let error as ApplicationSaveError {

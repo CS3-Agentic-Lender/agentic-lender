@@ -6,6 +6,7 @@ import SwiftUI
 /// property checker in Sprint 2.
 struct AffordabilityResultView: View {
     let outcome: AffordabilityOutcome
+    @Environment(AppSession.self) private var session
     @State private var isApplying = false
 
     private var summary: AffordabilitySummary { outcome.summary }
@@ -33,7 +34,7 @@ struct AffordabilityResultView: View {
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isApplying) {
-            ApplicationFormView(form: outcome.applicationForm())
+            ApplicationFormView(form: outcome.applicationForm(), onBackToHome: session.returnHome)
         }
     }
 
@@ -109,6 +110,7 @@ private struct FigureRow: View {
     }
 }
 
+#if DEBUG
 #Preview {
     var form = AffordabilityForm()
     form.income = "60,000"
@@ -127,4 +129,6 @@ private struct FigureRow: View {
             loanType: .mortgage
         ))
     }
+    .environment(AppSession(state: PreviewSignedInState()))
 }
+#endif

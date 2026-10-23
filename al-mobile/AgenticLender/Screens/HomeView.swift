@@ -117,7 +117,8 @@ struct HomeView: View {
 }
 
 #if DEBUG
-private struct PreviewSignedInState: SignedInState {
+/// A signed-in login for previews of screens that read the session.
+struct PreviewSignedInState: SignedInState {
     var hasSignedInUser: Bool { true }
     func signOut() throws {}
 }

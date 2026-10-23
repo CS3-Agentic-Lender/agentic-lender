@@ -47,6 +47,20 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNil(session.signOutError)
     }
 
+    func testReturningHomeAfterSubmittingStartsTheScreensAfreshOnHome() {
+        // Signing in from Welcome leaves start at .welcome, with home pushed on top.
+        let state = FakeSignedInState(hasSignedInUser: false)
+        let session = AppSession(state: state)
+        state.hasSignedInUser = true
+        let stackBefore = session.stackID
+
+        session.returnHome()
+
+        XCTAssertEqual(session.start, .home)
+        XCTAssertNotEqual(session.stackID, stackBefore)
+        XCTAssertEqual(state.signOutCount, 0)
+    }
+
     func testAfterSigningOutTheNextLaunchOpensOnWelcome() {
         let state = FakeSignedInState(hasSignedInUser: true)
         AppSession(state: state).signOut()

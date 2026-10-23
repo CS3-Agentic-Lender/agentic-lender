@@ -3,22 +3,63 @@ import SwiftUI
 /// "Your application" (Figma frames "12 Application form" and 12a Above your maximum).
 ///
 /// It reopens the borrower's saved Draft, and "Save draft" creates it the first time and changes it
-/// after that. A submitted application opens read-only. Reviewing and submitting is the next step.
+/// after that. A saved mortgage Draft can then be reviewed and submitted; an Edit link on the review
+/// comes back here, scrolled to its part. A submitted application opens read-only.
 /// The home's details use the same controls as the HELOC check (Figma 07i).
 struct ApplicationFormView: View {
     @State private var model: ApplicationViewModel
     @State private var isCountySheetShown = false
     @FocusState private var focused: ApplicationField?
+    @State private var submitModel: ApplicationSubmitViewModel?
+    /// Where the review's Edit link asked to land, scrolled to once the review has closed.
+    @State private var editAnchor: ApplicationFormAnchor?
+    private let service: ApplicationService
+    private let onBackToHome: () -> Void
 
     init(
         form: ApplicationForm,
         service: ApplicationService = APIApplicationService.live(),
-        draftIDs: DraftIDStore = liveDraftIDStore()
+        draftIDs: DraftIDStore = liveDraftIDStore(),
+        onBackToHome: @escaping () -> Void = {}
     ) {
         _model = State(initialValue: ApplicationViewModel(form: form, service: service, draftIDs: draftIDs))
+        self.service = service
+        self.onBackToHome = onBackToHome
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            formScroll
+                .onChange(of: submitModel == nil) { _, isClosed in
+                    guard isClosed, let anchor = editAnchor else { return }
+                    editAnchor = nil
+                    withAnimation { proxy.scrollTo(anchor, anchor: .top) }
+                }
+        }
+        .navigationDestination(isPresented: isReviewing) {
+            if let submitModel {
+                ApplicationReviewView(
+                    model: submitModel,
+                    onEdit: { anchor in
+                        editAnchor = anchor
+                        self.submitModel = nil
+                    },
+                    onBackToHome: onBackToHome
+                )
+            }
+        }
+    }
+
+    private var isReviewing: Binding<Bool> {
+        Binding(get: { submitModel != nil }, set: { if !$0 { submitModel = nil } })
+    }
+
+    private func openReview() {
+        guard let target = model.reviewTarget else { return }
+        submitModel = ApplicationSubmitViewModel(review: target.review, applicationID: target.applicationID, service: service)
+    }
+
+    private var formScroll: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Your application")
@@ -27,6 +68,7 @@ struct ApplicationFormView: View {
                     .accessibilityAddTraits(.isHeader)
 
                 affordabilityCard
+                    .id(ApplicationFormAnchor.money)
 
                 HStack(alignment: .top, spacing: 12) {
                     amountField("Monthly take-home pay", field: .monthlyTakeHome, placeholder: "3,650")
@@ -38,6 +80,7 @@ struct ApplicationFormView: View {
                         LoanWarning(message: warning)
                     }
                 }
+                .id(ApplicationFormAnchor.loan)
                 StepperRow(
                     label: "Term",
                     value: "\(model.form.termYears) years",
@@ -55,6 +98,7 @@ struct ApplicationFormView: View {
                         options: ApplicationForm.Employment.allCases.map { ($0, $0.title) }
                     )
                 }
+                .id(ApplicationFormAnchor.employment)
                 StepperRow(
                     label: "Years in current job",
                     value: "\(model.form.yearsInCurrentJob) years",
@@ -67,8 +111,9 @@ struct ApplicationFormView: View {
                 )
 
                 propertySection
+                    .id(ApplicationFormAnchor.home)
             }
-            .disabled(model.isReadOnly || model.isLoading)
+            .disabled(model.isFormLocked)
             .padding(Theme.screenPadding)
         }
         .task { await model.loadSavedDraft() }
@@ -147,6 +192,10 @@ struct ApplicationFormView: View {
                 Task { await model.save() }
             }
             .accessibilityIdentifier("application.save")
+            if model.reviewTarget != nil {
+                SecondaryButton(title: "Review and submit", action: openReview)
+                    .accessibilityIdentifier("application.review")
+            }
         }
         .padding(Theme.screenPadding)
         .background(Theme.oat)

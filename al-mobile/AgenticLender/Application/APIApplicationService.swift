@@ -33,6 +33,16 @@ struct APIApplicationService: ApplicationService {
         return try decode(StoredApplication.self, from: data, "GET")
     }
 
+    /// A submit sends no body, so a 422 can only mean a field the Draft still needs.
+    func submit(id: String) async throws -> StoredApplication {
+        let (data, status) = try await send("POST", "\(Self.path)/\(id)/submit", body: nil)
+        switch status {
+        case 200: return try decode(StoredApplication.self, from: data, "POST submit")
+        case 422: throw Self.missingFieldError(from: data)
+        default: throw failure(status, data, "POST submit")
+        }
+    }
+
     private func send(_ method: String, _ path: String, body: Data?) async throws -> (Data, Int) {
         let token = try await idToken()
         var request = URLRequest(url: baseURL.appending(path: path))
@@ -80,7 +90,9 @@ struct APIApplicationService: ApplicationService {
         if message.hasPrefix("Create your profile first") { return .noProfile }
         if message.hasPrefix("Choose a broker") { return .noBroker }
         if message.contains("already have an application in progress") { return .inProgress }
-        if message.hasPrefix("Only a Draft can be edited") { return .submitted }
+        if message.hasPrefix("Only a Draft can be edited") || message.hasPrefix("Only a Draft can be submitted") {
+            return .submitted
+        }
         return .rejected(message)
     }
 
@@ -89,6 +101,14 @@ struct APIApplicationService: ApplicationService {
         guard let detail = ErrorEnvelope.decode(data) else { return .unavailable }
         if let field = detail.field, let name = fieldNames[field] { return .invalidField(name) }
         return ErrorEnvelope.message(in: data).map(ApplicationSaveError.rejected) ?? .unavailable
+    }
+
+    /// A submit's 422 names the first field the Draft still needs (al-core `_first_missing`).
+    static func missingFieldError(from data: Data) -> ApplicationSaveError {
+        guard let field = ErrorEnvelope.decode(data)?.field, let name = fieldNames[field] else {
+            return ErrorEnvelope.message(in: data).map(ApplicationSaveError.rejected) ?? .unavailable
+        }
+        return .missingToSubmit(name)
     }
 
     /// API field → how the application form labels it.
