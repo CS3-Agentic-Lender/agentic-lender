@@ -1,0 +1,980 @@
+Summary,Issue key,Issue id,Issue Type,Status,Project key,Project name,Project type,Project lead,Project lead id,Project description,Priority,Resolution,Assignee,Assignee Id,Reporter,Reporter Id,Creator,Creator Id,Created,Updated,Last Viewed,Resolved,Due date,Votes,Labels,Labels,Labels,Description,Environment,Watchers,Watchers,Watchers,Watchers,Watchers Id,Watchers Id,Watchers Id,Watchers Id,Original estimate,Remaining Estimate,Time Spent,Work Ratio,Σ Original Estimate,Σ Remaining Estimate,Σ Time Spent,Security Level,Inward issue link (Relates),Outward issue link (Relates),Outward issue link (Relates),Custom field (Affected hardware),Custom field (Affected services),Custom field (Change reason),Custom field (Change risk),Custom field (Change type),Custom field (Checklist Completed),Custom field (Checklist Text),Custom field (Development),Custom field (Epic Color),Custom field (Epic Name),Custom field (Epic Status),Custom field (Impact),Custom field (Incident manager),Custom field (Issue color),Custom field (Locked forms),Custom field (Major incident),Custom field (Open forms),Custom field (Pending reason),Custom field (Rank),Custom field (Request Type),Custom field (Request language),Custom field (Request participants),Custom field (Responders),Satisfaction rating,Custom field (Satisfaction date),Custom field (Sentiment),Custom field (Severity),Sprint,Custom field (Start date),Custom field (Story point estimate),Custom field (Submitted forms),Team Id,Team Name,Custom field (Time to close after resolution),Custom field (Time to first response),Custom field (Time to resolution),Custom field (Total forms),Custom field (Urgency),Custom field (Vulnerability),Custom field (Work category),Comment,Comment,Comment,Comment,Comment,Comment,Comment,Comment,Parent,Parent key,Parent summary,Status category,Status category changed
+"As a borrower, I register and log in with email/password or Google",AL-16,10047,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Ibrahima Toure,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:22 PM,23/Oct/26 5:05 PM,,23/Oct/26 5:05 PM,23/Oct/26 12:00 AM,0,core,mobile,,"h2. User story
+
+As a *borrower*, I want to register and log in with email and password or with Google, so that my application and personal details are kept in my own account.
+
+*Brief line:* Mobile: Register/Login: secure client sign-in via email/password or social authentication using Firebase Auth.
+
+h2. Acceptance criteria
+
+# Given the sign-up form, when a borrower enters valid details (name, email, password, phone, address, county, Eircode), then a Firebase Auth account is created and a borrower profile with role ""borrower"" is saved in Firestore.
+# A password under 8 characters, or without both a letter and a number, can't be submitted, and the rule is shown under the field.
+# Signing in with a wrong password shows ""Email or password is incorrect"" without saying which is wrong, and ""Forgot password?"" sends Firebase's reset email (visible in the Emulator UI).
+# ""Continue with Google"" signs a borrower in; a first-time Google user completes the same profile fields (without a password) before reaching the home screen.
+# A signed-in borrower stays signed in after closing and reopening the app, and signing out returns to the welcome screen.
+
+h2. Decisions
+
+* *Sign-up fields:* name, email, password, phone, address, county, Eircode. The broker and underwriter need a contactable borrower with an Irish address.
+* *Passwords:* at least 8 characters, with a letter and a number. Clear enough to explain on screen, and stronger than Firebase's 6-character minimum.
+* *Google sign-in:* yes; the brief asks for social sign-in. Google users complete the same profile.
+* *Forgot password:* yes, using Firebase's reset email.
+* *Broker:* the borrower picks one after sign-up and can change it later. _Moved to its own story (choose and change my broker) in the backlog review._
+* *Later, not this sprint:* accepting terms and conditions, and GDPR consent.
+
+h2. Test case
+
+Against the Firebase Emulator Suite with the seeded users.
+
+# Sign up with Alice Murphy, a new email, a valid password, 087 123 4567, 12 Oak Park, Cork, {{a65f4e2}}. *Expect:* the account is created, and the profile in the Emulator UI has role {{borrower}}, Eircode {{A65 F4E2}} and phone {{+353871234567}}.
+# On the password field, type {{abcdefgh}}. *Expect:* ""Contains a number"" stays unticked and Continue stays disabled. Add a {{1}}. *Expect:* all three rules tick and Continue is enabled.
+# Sign in as {{alice@test.com}} with a wrong password, then with an unknown email. *Expect:* both show ""Email or password is incorrect"".
+# Tap Forgot password? for {{alice@test.com}}. *Expect:* ""Check your email"", and the reset email appears in the Emulator UI under Auth.
+# Continue with Google as a first-time user. *Expect:* the same profile fields without a password, then the home screen.
+# Close and reopen the app. *Expect:* still signed in. Sign out. *Expect:* the Welcome screen.",,Ibrahima Toure,Nicholas Groenewald,,,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,AL-142,,,,,,,,,"{build={count=1, dataType=build, failedBuildCount=0, successfulBuildCount=1, unknownBuildCount=0}, repository={count=2, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-22T22:00:23.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":2,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":2,""name"":""GitHub""}}},""build"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-23T16:43:08.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":1,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":1,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i0002n:,,,,,,,,,Sprint 1,,8.0,,2ee37d31-5a59-4878-89cd-1aac369042e3,Frontend Team,,,,,,,,"29/Sep/26 7:13 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee] Backlog review (product backlog, AL-77). *It's your ticket, so refine it however you need based on your own ideas.*
+
+What changed:
+
+* Added the user story line (""As a borrower, I want…, so that…"") and five acceptance criteria, built from your decisions, which are kept as they were.
+* Priority set to Highest (MoSCoW: Must, a brief line).
+* *Split:* choosing and changing a broker is now its own story, AL-142, linked here, and your subtask AL-95 moved under it. This ticket keeps register, log in, Google sign-in and forgot password.
+
+Why the split: picking a broker is a different goal from logging in, it depends on Dumi's broker list, and the broker-only view in the portal depends on it, so it may land in a different sprint.","23/Oct/26 5:05 PM;712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee;Closing for Sprint 1: sign-up with profile fields and password rules, email sign-in and forgot-password, Continue with Google, staying signed in and signing out, and finishing the profile after sign-in are all merged, and every subtask is Done. Signing out from Your details (AL-256) was raised later in a review and never pulled into this sprint, so it is now its own story in Sprint 2.",,,,,,,10035,AL-4,Accounts & Roles,Done,23/Oct/26 5:05 PM
+"As a broker or underwriter, I log in to the web portal and see only the views for my role",AL-17,10048,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:22 PM,19/Oct/26 9:05 PM,,19/Oct/26 9:05 PM,23/Oct/26 12:00 AM,0,core,web,,"h2. User story
+
+As a *broker or underwriter*, I want to log in to the web portal and see only the pages my role allows, so that I can do my job without seeing tools or files I shouldn't.
+
+*Brief line:* Web: Role-Based Access: independent mortgage brokers and bank underwriting officers get distinct authenticated views.
+
+h2. Acceptance criteria
+
+# The seeded broker and underwriter each sign in with email and password and land on their own dashboard.
+# The role comes from the Firebase ID token's {{role}} claim; a borrower account signing in to the portal is refused with ""This portal is for brokers and bank staff"".
+# Opening an underwriter-only URL (stress test, sign-off) as a broker shows a ""not allowed"" page instead of the content; a Vitest test covers the route guard.
+# Signing out returns to the login page, and refreshing the page keeps a signed-in user signed in.
+
+h2. V2 implementation refinement
+
+This supplements the existing user story and acceptance criteria with the inspected V2 design, suggested frontend files and integration boundaries. It does not change the ticket's assignee, sprint, priority or lifecycle status.
+
+*Design:* [Login / Role Selection|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU?node-id=469-1289].
+
+*Shared implementation rules:* Work inside al-web using React, React Router, Tailwind and Firebase. Reuse shared layout/components and the approved tokens in docs/infrastructure.md; preserve V2's hierarchy. Handle loading, empty, pending, permission-denied and failed states without presenting prototype sample data as live results. Suggested .jsx/.js paths may be .tsx/.ts if the actual scaffold uses TypeScript; extend suitable existing files rather than create duplicates.
+
+h3. Suggested files and responsibilities
+
+* pages/LoginPage.jsx; layouts/AuthLayout.jsx — Brand/form layout, accessible email/password form and submission states.
+* context/AuthContext.jsx; components/auth/RequireRole.jsx; routes.jsx — Wait for Firebase session and token claims before routing; choose the role-specific landing route and protect deep links.
+* services/firebase.js; services/authService.js; services/apiClient.js — Firebase setup, sign-in/out and ID token handling.
+
+h3. Backend connections and dependencies
+
+* [AL-55|https://alprojectcs3.atlassian.net/browse/AL-55] — Dumi: Firebase ID token verification and API 401/403 enforcement.
+* [AL-53|https://alprojectcs3.atlassian.net/browse/AL-53] — Existing emulator users/role claims; development Auth on 9099 and Firestore on 8080, project demo-al.
+* [AL-85|https://alprojectcs3.atlassian.net/browse/AL-85] — Dumi: profile/application API, exact route contracts and CORS; direct Firestore versus API boundary is still to be agreed.
+
+Agree any unnamed field, collection/subcollection path, endpoint, request/response unit, error shape and live-update boundary with the relevant backend owner before wiring it. Use Firebase token authentication and backend/rules authorisation, not only UI hiding. The checked-in emulator setup is a starting point, not proof that all feature contracts already exist.
+
+h3. Additional acceptance criteria for V2 and integration
+
+# Use the approved shared tokens. Broker landing and underwriter landing are separate protected routes; pending auth shows a loading state and reveals neither role's content.
+# Use the trusted role custom claim, never the selected Figma demo role or users document convenience role as authority. Unknown/missing roles and borrower accounts receive a clear refused-access state; refresh, expiry and sign-out do not expose cached protected data.
+# Login failures are visible beside the form; prevent duplicate submits and clear role-specific subscriptions/state on sign-out.
+# The backend/rules remain the authority even when a route guard exists.
+
+h3. Moved to Sprint 2 (agreed by the team in #meetings and Slack, 19 Oct 2026)
+
+* The V2 split login layout (brand panel beside the form). It was agreed on 13 Oct as a later change.
+* Continue with Google and the demo role-entry buttons, which need the separate scope and provisioning decision tracked in AL-192. A visual prototype button does not grant access.
+* Sending the Firebase ID token on protected API requests and telling an expired or invalid token (401) apart from permission denied (403). The portal makes no API calls yet, so this waits for its first one; the demonstration of API role denial moves with it.
+
+h3. Evidence and delivery boundary
+
+Vitest covers signed-out, loading, broker, underwriter, borrower and missing-role guards plus deep-link refresh and sign-out. A real seeded broker/underwriter login was verified against the Auth emulator.
+
+Record the matching story test case and actual verification evidence in Nikoloz's own sprint folder/summary in Confluence, with the merged PR when implemented. Build only in the sprint the ticket is assigned to; each ticket keeps its own branch/PR and backend owners' work stays on their own tickets. [AL-192|https://alprojectcs3.atlassian.net/browse/AL-192] tracks unagreed contracts and uncovered V2 screens; this ticket does not silently absorb them.",,Nicholas Groenewald,Nikoloz Chilachava,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,"{repository={count=1, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-22T18:14:32.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}}}},""isStale"":true}}",,,,,,,,,,,0|i0002v:,,,,,,,,,Sprint 1,,,,2ee37d31-5a59-4878-89cd-1aac369042e3,Frontend Team,,,,,,,,"29/Sep/26 7:18 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091] Backlog review (product backlog, AL-77). This was a title only, so this is a first draft. *It's your ticket, so refine it however you need based on your own ideas.*
+
+* User story line and four acceptance criteria added (role-based landing, borrowers refused, route guard with a Vitest test, session kept on refresh).
+* One web subtask added for the login page and route guard.
+* Priority set to Highest (MoSCoW: Must).
+
+Why: every story needs a test case in the sprint docs, and Seamus asked for every story broken into subtasks.","19/Oct/26 12:34 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Status check, 19 Oct 2026. Both subtasks are Done: AL-55 (Dumi) and AL-153 (login and role guard, PR 28, merged 18 Oct).
+
+*Met, with evidence (AL-153 tests and emulator sign-ins as the seeded accounts):* criteria 1 to 4. The seeded broker and underwriter sign in and reach their own portal. The role comes only from the token's {{role}} claim, and a borrower is refused with the required message. A broker opening an underwriter URL sees ""Not allowed"" (a link back to the broker portal is included), and the route guard is covered by tests. Sign-out returns to the login page, and a refresh keeps a signed-in user signed in.
+
+*Not met, from the V2 refinement section:* the split login layout (moved to a later sprint by the team on 13 Oct), Google sign-in and demo role buttons (deferred, email and password only), and distinguishing 401 from 403 on API calls (the portal makes no API call yet; the session-fault follow-ups are in AL-243).
+
+I am leaving this story open. It should close once those V2 items are formally moved out of this story's criteria, as was done for the queue ticket. That needs the team's agreement, so I have not changed the ticket text.","19/Oct/26 9:05 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Closing for Sprint 1, 19 Oct 2026. The description now lists what moved to Sprint 2: the V2 split login layout, Continue with Google and the demo role buttons, and sending the ID token with 401 vs 403 handling on API calls. Dumi, Nic and Ibrahima agreed in #meetings and Slack today. Delivered: email and password login for the seeded broker and underwriter (merged in PR 28), role from the token claim, the route guard with the Not allowed page, sign-out and refresh. The role re-check on token refresh and the session reset on sign-out landed in PR 76, reviewed by Nic. Evidence is on the Confluence page ""Sprint 1 summary - Nikoloz"".",,,,,,10035,AL-4,Accounts & Roles,Done,19/Oct/26 9:05 PM
+"As a broker, I see only the files of clients I referred",AL-18,10049,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:22 PM,19/Oct/26 3:15 PM,,19/Oct/26 3:15 PM,23/Oct/26 12:00 AM,0,core,web,,"h2. User story
+
+As a *broker*, I want to see only the files of clients I referred, so that other brokers' clients stay private.
+
+*Brief line:* Web: Role-Based Access: independent mortgage brokers restricted to viewing and managing only their referred client files.
+
+h2. Acceptance criteria
+
+# Signed in as the seeded broker, the client list shows only that broker's clients; the second seeded broker sees a different list.
+# Opening another broker's client by URL shows ""not found"", because the Firestore rule refuses the read (not just the UI).
+# A broker can open each of their clients' applications and see its status. Messaging the borrower: moved to the Sprint 2 broker inbox story (team decision, 19 Oct 2026).
+# The list updates without refreshing when a borrower chooses this broker.
+
+h2. V2 implementation refinement
+
+This supplements the existing user story and acceptance criteria with the inspected V2 design, suggested frontend files and integration boundaries. It does not change the ticket's assignee, sprint, priority or lifecycle status.
+
+*Design:* [Broker / Overview|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU?node-id=469-1321]; [Broker / My Clients|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU?node-id=469-7871]; [Broker / Applications|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU?node-id=469-2268].
+
+*Shared implementation rules:* Work inside al-web using React, React Router, Tailwind and Firebase. Reuse shared layout/components and the approved tokens in docs/infrastructure.md; preserve V2's hierarchy. Handle loading, empty, pending, permission-denied and failed states without presenting prototype sample data as live results. Suggested .jsx/.js paths may be .tsx/.ts if the actual scaffold uses TypeScript; extend suitable existing files rather than create duplicates.
+
+h3. Suggested files and responsibilities
+
+* pages/broker/ClientsPage.jsx; pages/broker/BrokerApplicationsPage.jsx — Assigned-client/application views and existing-scope search/filter/selection state.
+* components/lending/ApplicationTable.jsx; ApplicationRow.jsx; components/ui/FilterBar.jsx; Badge.jsx — Reusable rows and status/risk display; empty/loading/error states.
+* services/applicationsService.js; utils/formatters.js — Authorised live queries, profile/application identifiers and formatted amounts/dates.
+
+h3. Backend connections and dependencies
+
+* [AL-56|https://alprojectcs3.atlassian.net/browse/AL-56] — Dumi: chosen-broker field, profile/application read permissions, two-broker seeds and reassignment rules.
+* [AL-64|https://alprojectcs3.atlassian.net/browse/AL-64] — Nic, coordinating with Dumi: queue display fields, risk mapping and indexes when used in the applications view.
+* [AL-85|https://alprojectcs3.atlassian.net/browse/AL-85] — Agree any application/profile API read routes rather than inventing paths.
+
+Agree any unnamed field, collection/subcollection path, endpoint, request/response unit, error shape and live-update boundary with the relevant backend owner before wiring it. Use Firebase token authentication and backend/rules authorisation, not only UI hiding. The checked-in emulator setup is a starting point, not proof that all feature contracts already exist.
+
+h3. Additional acceptance criteria for V2 and integration
+
+# Render the referred-client list and application links using V2's table/panel treatment. Any broker overview summary reused here must describe this same authorised dataset; a separate dashboard expansion is triaged in AL-192.
+# Query only the signed-in broker's assigned records using the field/schema agreed with Dumi. The checked-in starter rules currently do not grant brokers read access to other users' profile documents; use AL-56's approved profile contract instead of a broad users query.
+# Counts, filter results and selected-file details stay within the same authorised set. Direct URLs to another broker's client/application produce the existing not-found behaviour without disclosing details.
+# Attach and clean up live listeners; reassignment removes stale client details from the old broker view and adds them to the new broker view. No full-database fetch followed by client-side filtering.
+
+h3. Evidence and delivery boundary
+
+Verify with two distinct broker accounts and a reassignment in the emulator; check list and direct-file access. Vitest covers listener cleanup, authorised filtering, empty data and permission-denied handling. Final security evidence comes from AL-56's rules tests.
+
+Record the matching story test case and actual verification evidence in Nikoloz's own sprint folder/summary in Confluence, with the merged PR when implemented. Build only in the sprint the ticket is assigned to; each ticket keeps its own branch/PR and backend owners' work stays on their own tickets. [AL-192|https://alprojectcs3.atlassian.net/browse/AL-192] tracks unagreed contracts and uncovered V2 screens; this ticket does not silently absorb them.",,Nicholas Groenewald,Nikoloz Chilachava,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,"{repository={count=2, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-23T16:54:43.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":2,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":2,""name"":""GitHub""}}}}},""isStale"":true}}",,,,,,,,,,,0|i00033:,,,,,,,,,Sprint 1,,,,2ee37d31-5a59-4878-89cd-1aac369042e3,Frontend Team,,,,,,,,"29/Sep/26 7:18 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091] Backlog review (product backlog, AL-77). This was a title only, so this is a first draft. *It's your ticket, so refine it however you need based on your own ideas.*
+
+* User story line and four acceptance criteria added, including that the Firestore rule (not just the UI) blocks other brokers' clients.
+* One web subtask added for the broker's client list.
+* Priority set to Highest (MoSCoW: Must).","19/Oct/26 12:34 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Status check, 19 Oct 2026. Both subtasks are Done: AL-56 (Dumi) and AL-154 (broker client list, PR 68, merged 19 Oct).
+
+*Met, with evidence (95 tests and the emulator checks on* {{main}}'s rules and seed):
+
+* Criterion 1: each seeded broker sees only their own clients (broker 1: 3 applications and 1 profile; broker 2: 4 and 1; none in common).
+* Criterion 2: another broker's client opened by URL shows ""Client not found"", and the Firestore rules also refuse the read (the emulator check is refused by id).
+* Criterion 4: the list is live, so a borrower who chooses this broker appears without a refresh.
+
+*Not met:* criterion 3, ""see its status and message the borrower"". A broker can open a client and see the applications and their status, but messaging is not built. It belongs to the broker inbox work in Sprint 2.
+
+I am leaving this story open. The team needs to agree whether criterion 3 moves to the inbox story before this one can close. I have not changed the ticket text.","19/Oct/26 3:14 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Scope change recorded, 19 Oct 2026. Criterion 3 now reads ""see its status"" and no longer includes messaging the borrower, which moves to the Sprint 2 broker inbox story. Nic agreed in the #meetings thread, and Dumi agreed in the same channel. Reason: messaging is not built in Sprint 1, and the inbox is where it belongs. All remaining criteria are met (evidence in my status comment above), and both subtasks (AL-56, AL-154) are Done, so I am closing the story.",,,,,,10035,AL-4,Accounts & Roles,Done,19/Oct/26 3:15 PM
+"As a borrower, I see how much I can borrow from my income, debts and deposit",AL-19,10050,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Ibrahima Toure,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:23 PM,23/Oct/26 5:03 PM,,23/Oct/26 5:03 PM,23/Oct/26 12:00 AM,0,ai,mobile,,"h2. User story
+
+As a *borrower*, I want to see how much I can borrow from my income, debts and deposit, so that I know my budget before I start looking at houses.
+
+*Brief line:* Mobile: Affordability & Loan Application: forms capturing household annual gross income, existing debts, deposit and requested term.
+
+h2. Acceptance criteria
+
+# Given valid inputs, the result shows the maximum loan, maximum property price, monthly repayment, the repayment if rates rise 2 points, and which limit applied (""limited by income (4x income)"" or 3.5x for non-first-time buyers, ""limited by deposit (90% LTV)"" or ""limited by debts (40% of income)"").
+# For the two reference cases on the affordability endpoint subtask (AL-57), at its 4.00% test rate, the app shows exactly the same figures as the endpoint.
+# The rate used is shown with its month (for example ""Average Irish new mortgage rate, Aug 2026: 3.9%"") and labelled indicative, not an offer.
+# Invalid inputs (negative amounts, a term outside 5 to 35 years) show an error under the field, and ""Calculate"" stays disabled until the form is valid.
+# From the result, ""Check a property"" opens the property checker and ""Start application"" opens the application form with these inputs filled in.
+
+h2. Decisions
+
+* *Inputs:* single or joint, gross yearly income, monthly debts, deposit, term (5 to 35 years), first-time buyer. These are what the Central Bank lending limits depend on.
+* *Joint applications (agreed with Nic on AL-57):* the app asks for each applicant's income, then adds them up and sends one household income to the endpoint. Debts are sent as one household total too.
+* *Limits used:* a loan of up to 4x income for first-time buyers and 3.5x otherwise; *LTV of up to 90% for all buyers*; and the loan where the repayment at the rate plus 2 points, plus existing monthly debts, reaches 40% of gross monthly income. The maximum loan is whichever of the three is lowest. The first two are the Central Bank of Ireland's mortgage measures; the 40% cap is our prototype policy. _(Corrected in the backlog review: this said 80% for non-first-time buyers, but the Central Bank raised that to 90% on 1 Jan 2023.)_
+* *Monthly debts (updated 12 Oct, confirmed by Nic on AL-57):* they do lower the maximum loan, through the 40% debt cap above. When that cap is the lowest limit, the result says ""limited by debts (40% of income)"". _(This used to say debts don't lower the maximum and are only judged by the credit committee. That contradicted AL-57.)_
+* *Result:* maximum loan, maximum property price, monthly repayment, and the repayment if rates rise 2%. The borrower sees what they can afford and how sensitive it is to rates, which matches the underwriter's stress test.
+* *Where it's calculated:* in the backend endpoint, not the app, so the app and the underwriter portal always agree.
+* *Sign-in:* required. The endpoint checks the Firebase ID token, and results can be saved to the borrower's application.
+* *Interest rate (decided in the backlog review):* the latest ECB benchmark rate for Irish new mortgages, the same rate the credit committee uses, shown with its month and labelled indicative. It replaces the fixed assumed rate that was still to agree.
+
+h2. Test case
+
+All figures use the affordability endpoint's 4.00% test rate.
+
+# Single first-time buyer: €60,000 income, €0 debts, €40,000 deposit, 30 years. *Expect:* €240,000 ""limited by income (4x income)"", €280,000 price, €1,145.80 a month, ""If rates rise 2%: €1,438.92 a month"".
+# Joint, not first-time buyers: €90,000 income (entered as two incomes that add up to it), €30,000 deposit, 25 years. *Expect:* €270,000 ""limited by deposit (90% LTV)"", €300,000, €1,425.16, €1,739.61.
+# Single first-time buyer with debts: €60,000 income, €1,000 monthly debts, €50,000 deposit, 30 years. *Expect:* €166,792 ""limited by debts (40% of income)"", €216,792 price, €796.29 a month, ""If rates rise 2%: €1,000.00 a month"". (The stressed repayment plus €1,000 of debts is exactly 40% of €5,000 a month.)
+# Enter €12,000,000 income, and step the term down from 5 and up from 35. *Expect:* ""Enter an amount up to €10,000,000"", the term stops at 5 and 35, and Calculate stays disabled.
+# On the result. *Expect:* the rate shows with its month and is labelled indicative.
+# Tap Start application. *Expect:* the application form is filled in from these inputs.
+
+{panel:bgColor=#eae6ff}
+*Open point:* ""Check a property"" (criterion 5) opens the property checker, which is built in Sprint 2, so it can't be tested in Sprint 1. _(Resolved 12 Oct on AL-57: joint income is sent combined, and the 40% debt cap is confirmed, so case 3 and the Monthly debts decision were added.)_
+{panel}",,Ibrahima Toure,Nicholas Groenewald,,,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,"{build={count=1, dataType=build, failedBuildCount=0, successfulBuildCount=1, unknownBuildCount=0}, repository={count=2, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-22T22:00:23.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":2,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":2,""name"":""GitHub""}}},""build"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-23T16:43:08.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":1,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":1,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i0003b:,,,,,,,,,Sprint 1,,5.0,,2ee37d31-5a59-4878-89cd-1aac369042e3,Frontend Team,,,,,,,,"29/Sep/26 7:13 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee] Backlog review (product backlog, AL-77). *It's your ticket, so refine it however you need based on your own ideas.*
+
+What changed:
+
+* Added the user story line and five acceptance criteria; your decisions are kept.
+* *Correction:* the LTV limit is 90% for all buyers. The Central Bank raised it from 80% for second and subsequent buyers on 1 Jan 2023, and your result subtask already said 90%.
+* *Rate decided:* the calculator uses the same ECB benchmark rate as the credit committee, shown with its month and labelled indicative, instead of a fixed assumed rate.
+* Two reference cases with exact expected figures are now on the affordability endpoint subtask (AL-57), so your result screen can be checked against them.
+* Priority set to Highest (MoSCoW: Must).
+
+Why: the ticket had decisions but no testable criteria, one outdated limit and one open question.","23/Oct/26 5:03 PM;712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee;Closing for Sprint 1: the form, the endpoint call, the result screen and Start application are all merged, and all four subtasks are Done. The one part not built yet is what ""Check a property"" opens: the property checker is the Sprint 2 story AL-22, so the link has nothing to open until then.",,,,,,,10036,AL-5,Loan Application,Done,23/Oct/26 5:03 PM
+"As a borrower, I submit a loan application with my requested term and target property",AL-20,10051,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Ibrahima Toure,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:23 PM,23/Oct/26 5:03 PM,,23/Oct/26 5:03 PM,23/Oct/26 12:00 AM,0,core,mobile,,"h2. User story
+
+As a *borrower*, I want to submit a mortgage application with my requested loan, term and target property, so that my broker and the bank can assess it.
+
+*Brief line:* Mobile: Affordability & Loan Application (household gross income, existing debts, deposit, requested term).
+
+h2. Acceptance criteria
+
+# Given a completed affordability check, the application form is filled in from it and also asks for the loan amount, target property (from saved property checks), employment type, years in current job, monthly take-home pay and monthly living costs.
+# A loan amount above the calculated maximum shows a warning, and a borrower with no saved property check is sent to the property checker first.
+# Submitting asks for confirmation, then saves the application with status Applied and shows a reference number; a borrower with an active application can't start a second one.
+# A draft can be edited freely; once submitted it's read-only, because the AI review starts straight away.
+# The saved record matches the applications schema agreed with Dumi.
+
+h2. Decisions
+
+* *Product (changed 8 Oct):* mortgage in this story. HELOC is its own story (AL-195), pulled into Sprint 1 at planning on 7 Oct.
+* *Target property:* chosen from the borrower's saved property checks, so every application has a model valuation. The underwriter's loan file compares the asking price against that valuation.
+* *One active application per borrower.* It keeps the status screen and messaging simple.
+* *Editing (changed in the backlog review):* editable while Draft, read-only once submitted (Applied), because the AI committee now starts automatically on submit. The earlier rule (""editable while Submitted, locked once broker review starts"") relied on a Broker review status that isn't in the agreed status list. The edit-after-submit subtask is marked blocked until you decide what it becomes.
+* *Take-home pay and living costs (added in the backlog review):* needed by the affordability agent to work out net disposable surplus, which the brief names.
+* *Document uploads* (payslips, bank statements): not in scope for now; they would need Firebase Storage.
+
+h2. Test case
+
+# From a completed affordability check, enter €210,000, €3,650 take-home pay, €1,400 living costs, Employed, 4 years, and choose a saved property. *Expect:* the review shows these values. Confirm. *Expect:* status Applied and a reference number.
+# Enter a €260,000 loan against a €240,000 maximum. *Expect:* a warning, but the borrower can still continue.
+# With no saved property checks. *Expect:* the form sends the borrower to the property checker (Figma 12b).
+# Edit a draft. *Expect:* changes save. After submitting. *Expect:* the application is read-only.
+# With an active application, try to start another. *Expect:* it's blocked.
+# In the Emulator UI. *Expect:* the saved record matches the agreed applications schema.
+
+{panel:bgColor=#eae6ff}
+*Open point:* steps 1 and 3 need saved property checks, which come from the property checker built in Sprint 2. Whether a Sprint 1 draft can be saved without a property is asked on AL-58.
+{panel}",,Ibrahima Toure,Nicholas Groenewald,,,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,"{build={count=1, dataType=build, failedBuildCount=0, successfulBuildCount=1, unknownBuildCount=0}, repository={count=2, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-23T16:14:57.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":2,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":2,""name"":""GitHub""}}},""build"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-23T16:43:08.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":1,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":1,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i0003j:,,,,,,,,,Sprint 1,,8.0,,2ee37d31-5a59-4878-89cd-1aac369042e3,Frontend Team,,,,,,,,"29/Sep/26 7:13 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee] Backlog review (product backlog, AL-77). *It's your ticket, so refine it however you need based on your own ideas.*
+
+What changed:
+
+* Added the user story line and five acceptance criteria.
+* *Two new form fields:* monthly take-home pay and monthly living costs. The affordability agent needs them to work out net disposable surplus, which the brief names.
+* *Editing rule changed:* the team agreed one status list (Draft, Applied, AI Deliberated, Underwriter Approved or Declined, Funded, Closed), and the AI review now starts automatically on submit. So an application is editable while Draft and read-only once submitted. There's no Broker review status any more.
+* Your subtask for editing a submitted application (AL-101) is labelled blocked until you decide what it becomes: drop it, or let an edit send the application back for a fresh AI review.
+* Priority set to Highest (MoSCoW: Must).
+
+Why: the status list differed between the app, the portal and the backend, and the brief is marked on its exact status names.","08/Oct/26 11:48 AM;712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee;Updated the Product decision. It still said ""mortgage only for now, with HELOC later"", but sprint planning on 7 Oct pulled HELOC into Sprint 1 as its own story (AL-195). This story stays mortgage only, and the HELOC application form is a subtask under AL-195.",,,,,,,10036,AL-5,Loan Application,Done,23/Oct/26 5:03 PM
+"As a data scientist, I train a property valuation model and report how accurate it is",AL-24,10055,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:23 PM,23/Oct/26 11:15 AM,,21/Oct/26 8:12 PM,23/Oct/26 12:00 AM,0,ai,,,"h2. User story
+
+As a *data scientist*, I want a valuation model trained on the Daft.ie 2024 listings and tested on listings it never saw, so that the property checker and the valuation agent give estimates whose accuracy we can state and defend.
+
+*Brief line:* Automated Property Valuation Model (ML): a trained regression model using modern tabular housing datasets to establish fair property valuations.
+
+h2. Acceptance criteria
+
+# The data report accounts for every row of the Daft CSV (14,289 in the file I checked, SHA-256 recorded) as kept or dropped, with the reason for each drop. The raw CSV stays out of git.
+# One re-runnable benchmark compares the county/type median price per m2 baseline with the seven models on the same five folds inside the 60% development split and reports MAPE, MdAPE, PPE10, MAE and how much the folds vary.
+# The winner is frozen before the 20% calibration split sets the ""price needs review"" threshold and the 20% final test is scored once, with the result reported even if it's bad.
+# The saved pipeline gives the same predictions as the saved reference ones after reloading (within a stated tolerance) and the model card covers the data, features, target transform, metrics, threshold and limits.
+# The model only takes the five app inputs (county, floor area, bedrooms, property type, BER or Unknown) and accepts both the old A1 to G and the new A to G BER scales.
+
+h2. Notes
+
+* Design: valuation model plan (al-ai docs), decisions D1 to D27.
+* Serving the model is the /valuation subtask on the property checker story and explaining each estimate is the custom feature epic.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,{},,,,,,,,,,,0|i0004f:,,,,,,,,,Sprint 1,,8.0,,235e8b7d-b84b-4425-b278-f090d5c878eb,Backend Team,,,,,,,,"29/Sep/26 7:01 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Backlog review (product backlog, AL-77).
+
+What changed:
+
+* Description rewritten as a user story. The role is now ""data scientist"" instead of ""the team"", since a story needs a real role.
+* Five acceptance criteria added from the valuation model plan (D1 to D27).
+* Priority set to Highest (MoSCoW: Must, a brief line).
+* Five subtasks added: data readiness, benchmark, tuning and winner, calibration and final test, saved pipeline and model card.
+
+Why: the ticket was a title only, and Seamus asked for every backlog story to be broken into concrete subtasks.","23/Oct/26 11:04 AM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Decision from Nic, 23 Oct 2026: the valuation model takes *six inputs*, not five: county, floor area, bedrooms, property type, BER and the Eircode routing key (the first three characters of the Eircode the application form already collects). Acceptance criterion 5 above says five. The routing key was added in v2 (AL-257, PR 93) because it cut the error by about 4.5 points, and the saved model and the model card describe the six columns.
+
+The Sprint 2 tickets are updated to match: AL-22 and AL-143 (the form asks for the full Eircode), AL-60 (the endpoint takes the full Eircode), and AL-131, AL-134 and AL-135 (the breakdown has six contributions).",,,,,,,10037,AL-6,Fair-Price Property Checker,Done,21/Oct/26 8:12 PM
+"As an underwriter, an affordability agent reports disposable surplus, stress-tested repayments and DTI",AL-25,10056,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:23 PM,23/Oct/26 11:16 AM,,19/Oct/26 8:17 PM,23/Oct/26 12:00 AM,0,ai,,,"h2. User story
+
+As an *underwriter*, I want an affordability agent to report the borrower's net disposable surplus, stress-tested repayment and DTI, so that I can see whether the loan is affordable today and if rates rise.
+
+*Brief line:* Affordability Agent: evaluates net disposable surplus, stress-tested repayments and regulatory borrowing caps.
+
+h2. Acceptance criteria
+
+# For a synthetic application code (not the LLM) works out the monthly repayment at the benchmark mortgage rate, the repayment at +2 points, DTI and net disposable surplus at both rates, and loan-to-income against the Central Bank limit (4x first-time buyers, 3.5x others).
+# Unit tests cover normal, zero-rate and stressed repayment, joint totals, missing or zero income and both sides of every band and cap boundary.
+# Code sets the stressed DTI band (40% or less / up to 50% / over 50%) and the surplus band (EUR 500 or more / EUR 0 or more / below EUR 0) and passes them to the agent, and a test shows the agent's reply can't change a band or clear a cap breach.
+# Given those figures the agent on Ollama returns JSON that passes our schema check: rating (strong / adequate / weak / unaffordable), recommendation (Approve / Conditionally Approve / Decline), concerns and conditions, quoting only figures it was given.
+# A reply that fails the check is retried once with the error shown and if it fails again the run stops as failed, with no other provider used in its place.
+
+h2. Notes
+
+* Design: agent committee plan (al-ai docs), decisions A1, A7 to A10.
+* The benchmark mortgage rate is the Irish new house-purchase rate (ECB series MIR.M.IE.B.A2C.A.R.A.2250.EUR.P).
+* Needs monthly take-home pay and monthly living costs from the application form (asked for on the affordability and loan application stories).
+* The calculations are shared with the affordability endpoint and the rate-shock simulator, so they live in one module (first subtask).",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,{},,,,,,,,,,,0|i0004n:,,,,,,,,,Sprint 1,,5.0,,235e8b7d-b84b-4425-b278-f090d5c878eb,Backend Team,,,,,,,,"29/Sep/26 6:59 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Backlog review (product backlog, AL-77).
+
+What changed:
+
+* Description rewritten as a user story, with the brief line it answers.
+* Five acceptance criteria added, taken from the agent committee plan (A1, A7 to A10), so each one can be checked as a test case.
+* Priority set to Highest (MoSCoW: Must, because the brief names this agent).
+* Two subtasks added: the shared affordability calculations, and the agent step itself.
+
+Why: the brief is marked line by line, and every story needs a test case in the sprint docs. The ticket was a title only, so nobody else could tell what done means.",,,,,,,,10038,AL-7,AI Credit Committee,Done,19/Oct/26 8:17 PM
+"As an underwriter, I see all applications in a queue grouped by LTV, risk tier and status",AL-32,10063,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:24 PM,22/Oct/26 12:36 AM,,22/Oct/26 12:36 AM,23/Oct/26 12:00 AM,0,core,web,,"h2. User story
+
+As an *underwriter*, I want every application in one queue that I can group by LTV band, risk tier and status, so that I can decide what to review first.
+
+*Brief line:* Web: Origination Pipeline View: centralised queue of incoming applications, categorised by LTV thresholds, risk tiers and lifecycle status (Applied, AI Deliberated, Underwriter Approved, Funded, Closed).
+
+h2. Acceptance criteria
+
+# The queue lists every application with borrower name, loan amount, LTV band, risk tier, status and date, and can be grouped or filtered by LTV band, by risk tier and by status.
+# Status uses the agreed list with the brief's names (Draft, Applied, AI Deliberated, Underwriter Approved, Declined, Funded, Closed) and the shared semantic badge colours from docs/infrastructure.md.
+# A new or changed application appears in the queue without refreshing.
+# Clicking a row opens its loan file; a broker gets the same view limited to their own clients. (Moved to Sprint 2, see below.)
+
+h2. Notes
+
+LTV bands are 80% or less, over 80% to 90%, and over 90%. Risk tiers are still to be defined (open decision on the backend subtask).
+
+h2. V2 implementation refinement
+
+This supplements the existing user story and acceptance criteria with the inspected V2 design, suggested frontend files and integration boundaries. It does not change the ticket's assignee, sprint, priority or lifecycle status.
+
+*Design:* [Underwriter / Application Pipeline|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU?node-id=469-5349]; [Underwriter / Decision Workspace|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU?node-id=469-2451].
+
+*Shared implementation rules:* Work inside al-web using React, React Router, Tailwind and Firebase. Reuse shared layout/components and the approved tokens in docs/infrastructure.md; preserve V2's hierarchy. Handle loading, empty, pending, permission-denied and failed states without presenting prototype sample data as live results. Suggested .jsx/.js paths may be .tsx/.ts if the actual scaffold uses TypeScript; extend suitable existing files rather than create duplicates.
+
+h3. Suggested files and responsibilities
+
+* pages/underwriter/ApplicationPipelinePage.jsx — Queue, summary strip, grouping/filter/sort state and selected-file side panel.
+* components/lending/ApplicationTable.jsx; ApplicationRow.jsx; MetricsStrip.jsx; DecisionSignal.jsx — Shared row presentation, correctly scoped counts, compact signal and accessible selection.
+* services/applicationsService.js; utils/statusMaps.js; utils/formatters.js — Live permitted query subscriptions, canonical lifecycle labels and agreed risk/LTV mapping.
+
+h3. Backend connections and dependencies
+
+* [AL-64|https://alprojectcs3.atlassian.net/browse/AL-64] — Nic with Dumi: LTV bands, risk-tier mapping, queue fields, composite indexes and representative seeds.
+* [AL-34|https://alprojectcs3.atlassian.net/browse/AL-34] — Dumi: canonical lifecycle list and separate AI-run status.
+* [AL-56|https://alprojectcs3.atlassian.net/browse/AL-56] — Assigned-client limitation if the queue components are reused on broker applications.
+* [AL-62|https://alprojectcs3.atlassian.net/browse/AL-62] — Nic: selected-file AI summary only where a real saved run is available.
+
+Agree any unnamed field, collection/subcollection path, endpoint, request/response unit, error shape and live-update boundary with the relevant backend owner before wiring it. Use Firebase token authentication and backend/rules authorisation, not only UI hiding. The checked-in emulator setup is a starting point, not proof that all feature contracts already exist.
+
+h3. Additional acceptance criteria for V2 and integration
+
+# Keep grouping/filtering by status, risk tier and LTV band as well as any V2 sort tabs; sort alone does not satisfy the existing grouping requirement.
+# Use Draft, Applied, AI Deliberated, Underwriter Approved, Declined, Funded and Closed from the backend. Prototype UW Review/Underwriting/Recorded text is a display/review stage, not a new lifecycle value. Distinguish risk tier, recommendation, review stage and lifecycle status.
+# Keep LTV bands <=80%, >80%-90%, >90%. Do not infer A-D tiers from V2 Low/Medium/High labels or from committee votes: the mapping remains an explicit AL-64/AL-192 agreement.
+# Summary totals derive from the agreed authorised scope; label all-portfolio versus filtered totals. A new/update event refreshes the relevant rows/counts.
+
+h3. Moved to Sprint 2 (agreed by the team in #meetings and Slack, 19 Oct 2026)
+
+* Clicking a row opens its loan file, and a broker gets the same view limited to their own clients. It goes with the loan file page (AL-158).
+* The V2 dark metric strip, the V2 sort tabs and the selected-file card or side panel (V2 criteria 1 and 5), and clearing a removed selected row, which needs the selection. They go with the decision workspace and the loan file work.
+
+h3. Evidence and delivery boundary
+
+Vitest covers grouping counts, combined filters, correct lifecycle/risk separation and the borrower name. Emulator evidence includes live updates and authorised broker and underwriter access; the queue was also checked in the browser against the seed on main.
+
+Record the matching story test case and actual verification evidence in Nikoloz's own sprint folder/summary in Confluence, with the merged PR when implemented. Build only in the sprint the ticket is assigned to; each ticket keeps its own branch/PR and backend owners' work stays on their own tickets. [AL-192|https://alprojectcs3.atlassian.net/browse/AL-192] tracks unagreed contracts and uncovered V2 screens; this ticket does not silently absorb them.",,Nicholas Groenewald,Nikoloz Chilachava,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,"{repository={count=1, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-22T18:14:32.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}}}},""isStale"":true}}",,,,,,,,,,,0|i00067:,,,,,,,,,Sprint 1,,,,2ee37d31-5a59-4878-89cd-1aac369042e3,Frontend Team,,,,,,,,"29/Sep/26 7:18 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091] Backlog review (product backlog, AL-77). This was a title only, so this is a first draft. *It's your ticket, so refine it however you need based on your own ideas.*
+
+* User story line and four acceptance criteria added.
+* Status uses the one list the team agreed: Draft, Applied, AI Deliberated, Underwriter Approved, Declined, Funded, Closed (the brief's names, which the marker checks against this view).
+* LTV bands defined; risk tiers are still an open decision on the backend subtask.
+* One web subtask added for the queue.
+* Priority set to Highest (MoSCoW: Must).","19/Oct/26 3:24 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Status check, 19 Oct 2026. Both subtasks are Done: AL-64 (Dumi, #65 merged) and AL-157 (the queue, #69 merged). I am *not* closing this story yet, because two of its criteria are not met:
+
+* *Criterion 1 asks for the borrower name* in the queue. The queue shows the application id. {{borrowerName}} is on the application documents (SCHEMA.md) but it is not in the seed on {{main}}, so the queue cannot show it from the seeded data yet.
+* *Criterion 4 asks that clicking a row opens its loan file*, and that a broker gets the same view limited to their clients. The loan file page is AL-158 in Sprint 2, and the broker's view of the queue is not built.
+
+The V2 items for the metric strip, sort tabs and selected-file card are already moved to Sprint 2 (decisions of 13 and 19 Oct). Proposal for the two items above: the row opening the loan file moves to Sprint 2 with AL-158 (and the broker view with it), and the borrower name is added to the queue from {{borrowerName}} once the seed carries it. I have asked the team in #meetings. Criteria 2 and 3 are met (status names and badge colours; live updates, checked on the emulators). The stored {{ltvBand}} and {{riskTier}} change is in review as AL-247.","22/Oct/26 12:36 AM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Closing for Sprint 1, 22 Oct 2026. All three subtasks are merged to main: AL-64 (backend fields, Dumi and Nic), AL-157 (the queue with grouping and filters, PR 69, with PR 77 reading the stored {{ltvBand}} and {{riskTier}}) and AL-260 (borrower name in the queue, PR 97, merged 21 Oct). Criteria 1 to 3 are met: the queue lists every application with borrower name, amount, LTV band, risk tier, status and date; it groups by LTV band, risk tier and status and filters by status; status uses the agreed list and shared badge colours (AL-235); and it updates live without a refresh. Criterion 4 (row click opens the loan file, broker view limited to their clients) and the V2 metric strip, sort tabs and selected-file card moved to Sprint 2 with the loan file page (AL-158); the description now says so. Nic and Dumi agreed to this scope move in #meetings and Slack on 19 Oct; Ibrahima agreed to the matching moves for AL-17, AL-18 and AL-157. Evidence is on the Confluence page ""Sprint 1 summary - Nikoloz"".",,,,,,10039,AL-8,Origination Pipeline,Done,22/Oct/26 12:36 AM
+"As a bank, an approved loan is minted as a digital loan note (principal, APR, term, borrower ID)",AL-35,10066,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:24 PM,18/Oct/26 11:24 PM,,18/Oct/26 11:24 PM,23/Oct/26 12:00 AM,0,core,,,"h2. User story
+
+As a *bank*, I want each approved loan minted as a digital loan note holding its principal, APR, term and a borrower identifier, so that the loan exists as a verifiable on-chain record.
+
+*Brief line:* Core: Loan Tokenization Contract (Solidity): approved mortgages/HELOCs as digital loan notes (ERC-721 or stateful contract) containing principal, APR, term and borrower public identifier.
+
+h2. Acceptance criteria
+
+# A Solidity contract mints one note per approved loan storing principal, APR, term, loan type (mortgage, with HELOC reserved) and a borrower public identifier that contains no personal data (for example a salted hash of the borrower's ID, or a wallet address).
+# Only the authorised minter can mint; a Hardhat test shows another account is refused.
+# Minting the same application twice is rejected (test).
+# Hardhat tests read back every stored field of a minted note.
+# The choice of ERC-721 or a plain stateful contract, and why, is written in al-core/README.md.
+
+h2. Notes
+
+Storing a loan type lets the contract represent HELOCs, which the brief names, even though the app only originates mortgages for now.",,Nicholas Groenewald,Solomon,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,,,,,,,,,,,,,,,,,,,,,{},,,,,,,,,,,0|i0006v:,,,,,,,,,Sprint 1,,5.0,,235e8b7d-b84b-4425-b278-f090d5c878eb,Backend Team,,,,,,,,"29/Sep/26 7:25 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c] Backlog review (product backlog, AL-77). This was a title only, so this is a first draft. *It's your ticket, so refine it however you need based on your own ideas.*
+
+* User story line and five acceptance criteria added: fields stored, only the minter can mint, no double mint, tests read back every field, and the ERC-721-or-stateful choice written in the README.
+* Suggestion: store a loan type (mortgage, with HELOC reserved), so the contract can represent HELOCs, which the brief names, even though the app only does mortgages. Drop it if you disagree.
+* One contract subtask added.
+* Priority set to Highest (MoSCoW: Must).","15/Oct/26 10:15 AM;712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c;*Decisions for the loan note (from the blockchain breakdown, AL-168):*
+
+# *ERC-721 via OpenZeppelin.* Each loan is a unique token, the base contract is standard and audited, and block explorers show it properly once it's on the testnet.
+# *Stored on-chain per note:* principal in euro cents, APR in basis points (4.25% = 425), term in months, loan type (mortgage or HELOC), and a borrower reference.
+# *Borrower reference:* a salted SHA-256 of the borrower's uid, with the salt held only by al-core. No name, email or other personal data goes on-chain.
+# *No double mint:* each note is keyed by a hash of the application id, and a second mint for the same application is rejected.
+# *Only the minter can mint:* OpenZeppelin {{AccessControl}} with a {{MINTER_ROLE}} held by al-core's wallet. Any other account is refused.
+
+The ERC-721 choice and these reasons go in {{al-core/README.md}} with the contract (AL-170).",,,,,,,10040,AL-9,On-Chain Settlement,Done,18/Oct/26 11:24 PM
+Sprint 1 retrospective,AL-51,10082,Task,To Do,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,17/Sep/26 3:26 PM,22/Oct/26 6:26 PM,,,24/Oct/26 12:00 AM,0,docs,,,"h2. User story
+
+As a *developer on the team*, I want a retrospective at the end of Sprint 1 with its outcomes written up, so that the next sprint improves and the sprint's grade has its review evidence.
+
+*Brief line:* Weeks 3 to 11, each sprint: sprint retrospective/review.
+
+h2. Acceptance criteria
+
+# The retrospective meeting is held before Sprint 2 planning, with all four members.
+# A Retrospective page (Confluence template) in the Sprint 1 folder records what went well, what didn't, and at least two actions with an owner each.
+# The sprint review part lists every Sprint 1 ticket as finished or not, with the reason for anything not finished and the ticket it moved to.
+# The page is linked on this ticket.
+
+h2. Notes
+
+Split in the backlog review: this ticket covered Sprints 1, 2 and 3. Each retrospective is graded in its own sprint and a ticket can only be Done once, so Sprints 2 and 3 have their own tickets (linked).",,Nicholas Groenewald,Solomon,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,,,,,,,,,,,,AL-173,AL-174,,,,,,,,{},,,,,,,,,,,0|i000af:,,,,,,,,,Sprint 1,,,,3b66f1e6-022c-42c9-8a5a-0a25cdac7886,CS3 AL TEAM,,,,,,,,"29/Sep/26 7:27 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Backlog review (product backlog, AL-77).
+
+What changed:
+
+* *Split:* this ticket covered the retrospectives for Sprints 1, 2 and 3. It's now the Sprint 1 retrospective (title updated), and Sprint 2 (AL-173) and Sprint 3 (AL-174) have their own tickets, linked here.
+* User story line and four acceptance criteria added (meeting held, Confluence retrospective page with actions, sprint review of every ticket, page linked).
+* Priority set to Highest (MoSCoW: Must, graded each sprint).
+
+Why the split: each retrospective is marked in its own sprint, but a ticket can only sit in one sprint and be Done once. Still unassigned; the team assigns it at planning.","22/Oct/26 6:26 PM;712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c;The Sprint 1 retrospective is being run in writing, because the four of us have no common time before the submission deadline. Everyone was asked in #meetings on 22 Oct 2026 to answer three questions, agree or change the proposed points and actions, and check the sprint review table: [https://agenticlendercs3.slack.com/archives/C0C7QTHHY1G/p1792689611175149|https://agenticlendercs3.slack.com/archives/C0C7QTHHY1G/p1792689611175149|smart-link]
+
+The prefilled Confluence page, with every Sprint 1 ticket as finished or not, is here: [https://alprojectcs3.atlassian.net/wiki/spaces/AL/pages/29229057/Sprint+1+retrospective|https://alprojectcs3.atlassian.net/wiki/spaces/AL/pages/29229057/Sprint+1+retrospective|smart-link]
+
+Replies are due Fri 23 Oct, 21:00. The short Word retrospective for the submission goes in docs/sprint-1-submission/retrospective/ on Sat 24 Oct, before Nic's 18:00 cut-off.",,,,,,,10046,AL-15,Project Infrastructure,To Do,17/Sep/26 3:26 PM
+Scaffold the FastAPI service with endpoints that save and read applications,AL-85,10180,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,27/Sep/26 8:05 PM,20/Oct/26 10:36 AM,,20/Oct/26 10:36 AM,23/Oct/26 12:00 AM,0,core,ready-for-human,,"h2. User story
+
+As a *developer*, I want a running FastAPI service that checks Firebase ID tokens and saves and reads applications, so that web and mobile have a real API to build against.
+
+*Brief line:* AL-Database & API: Python (Flask/FastAPI) for user management, application routing and ML/agent dispatching.
+
+h2. Acceptance criteria
+
+# The service verifies Firebase ID tokens (Admin SDK against the emulators from AL-53) on protected routes; a request without a valid token gets 401.
+# Endpoints create and read an application and read the signed-in user's profile, and the web and mobile owners can call them against the local emulators.
+# FastAPI's {{/docs}} page lists every endpoint with its request and response.
+# The README gives the run command and port, and the chosen options below are written on this ticket with the reasons.
+
+h2. Original brief
+
+The team picked FastAPI for the Python API. Once it can save to and read from the local database, web and mobile have a real interface to build against.
+
+h3. Scope
+
+* A FastAPI app that checks the Firebase ID token on protected routes (Firebase Admin SDK, pointed at the emulators from AL-53)
+* Endpoints to create and read an application, and to read the signed-in user's profile
+* FastAPI's built-in {{/docs}} page, so web and mobile can see every request and response
+* A short README with the run command and port
+
+h3. Options to explore and document
+
+Write what you chose, and why, on this ticket.
+
+* *One app or two:* one FastAPI app holding both your endpoints and Nic's AI endpoints (valuation, affordability, agents), or a core API plus a separate AI service. Agree it with Nic.
+* *API or straight to Firestore:* Firebase lets the apps read and write Firestore directly under the security rules. Decide which actions go through the API and which don't.
+* *How it runs:* Docker Compose alongside the emulators, or {{uv run fastapi dev}}.
+
+h3. Done when
+
+* Web and mobile owners can create and read an application through the API against the local emulators
+* {{/docs}} lists every endpoint
+
+Nic can pair on this or take part of it if needed.
+
+h3. Out of scope
+
+AI endpoints (Nic), blockchain.",,Ibrahima Toure,Nicholas Groenewald,Nikoloz Chilachava,Solomon,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,,,,,,,,,,,,,,,,,,,{},,,,,,,,,,,0|i000hz:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"29/Sep/26 7:25 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c] Backlog review (product backlog, AL-77): added a user story line and four acceptance criteria built from your existing scope and ""done when""; your full original text is kept underneath. Priority set to Highest (MoSCoW: Must, the brief's Database & API line). Refine it however you need.","19/Oct/26 2:37 PM;712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c;*Chosen options (criterion 4).* Written up on the subtask AL-218 on 8 Oct; copied here so the ticket has them:
+
+* *One app or two:* two services, al-core ({{/core/*}}, port 5002) and al-ai ({{/ai/*}}, port 5001), behind one gateway on 8000 that the apps call. Separate containers stop slow AI runs holding up core requests like sign-off and payments, and one base URL matches the AWS load balancer.
+* *API or straight to Firestore:* the apps read Firestore directly under the read-only rules; every write goes through an API.
+* *How it runs:* Docker Compose for the whole stack (al-core joined it in AL-242), or {{uv run uvicorn app.main:app --port 5002 --reload}} for quick work on al-core alone. Ports agreed with Nic.
+
+Details in {{docs/infrastructure.md}} and {{docs/api-design.md}}. What's left on this ticket is AL-222: example requests in the README, and a one-line confirmation here from Nikoloz (web) and Ibrahima (mobile) that they can call the API against the local emulators.","19/Oct/26 3:21 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Web side (Nikoloz), 19 Oct 2026: I can call the al-core API against the local emulators. I ran the API from {{main}} on port 5002 (Python 3.12 venv, {{uvicorn app.main:app}}) with the Auth and Firestore emulators running on {{main}}'s seed. I signed in through the Auth emulator as the seeded accounts, the same sign-in the portal uses, and called the API with the ID token:
+
+* {{GET /core/health}} returns 200 with {{{""status"": ""ok""}}}.
+* {{GET /core/me}} as {{bob@test.com}} returns 200 with {{uid}} broker1 and {{role}} broker, plus the profile fields.
+* {{GET /core/me}} as {{uma@test.com}} returns 200 with {{uid}} underwriter1 and {{role}} underwriter.
+* {{GET /core/me}} with no token returns 401 {{UNAUTHENTICATED}}, in the shared error shape with a request id.
+I called port 5002 directly. I did not go through the gateway on port 8000, because I did not run Docker. The portal does not call the API yet; it reads Firestore directly, so this confirms the API is reachable and role-aware from the web side, as the criterion asks.","20/Oct/26 10:16 AM;712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee;iOS side (Ibrahima), 15 and 19 Oct: against the local emulators and gateway, the app calls GET and POST /core/me, GET /core/brokers, PUT /core/me/broker, and POST, PATCH and GET /core/applications, and all return the expected responses. The submit call comes with AL-100.",,,,,10046,AL-15,Project Infrastructure,Done,20/Oct/26 10:36 AM
+Set up the Hardhat project and local chain for the loan note and audit contracts,AL-87,10182,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,27/Sep/26 8:12 PM,19/Oct/26 2:12 PM,,19/Oct/26 2:12 PM,23/Oct/26 12:00 AM,0,core,ready-for-human,,"h2. User story
+
+As a *developer*, I want a Hardhat project with the loan note contract running on a local chain, so that minting can be built and tested without a testnet. The audit registry contract joins it with the audit hash story (AL-36) in Sprint 2.
+
+*Brief line:* Core: Execution Environment: deployed locally using Hardhat/Anvil (via Docker Compose) or to a public EVM testnet (Polygon Amoy or Arbitrum Sepolia).
+
+h2. Acceptance criteria
+
+# {{npx hardhat node}} plus the deploy script puts the loan note contract on a local chain, and its address is saved where the API can read it.
+# {{npx hardhat test}} passes for the loan note contract.
+# The chosen options below (where the chain runs for the live site, who signs transactions, which library) are written in {{al-core/README.md}} with the reasons.
+# The local node runs through Docker Compose, as the brief suggests, or the README says why not.
+# Private keys live only in {{.env}} (testnet wallets only), with empty names in {{.env.example}}.
+
+h2. Scope change (18 Oct)
+
+The criteria first said both contracts (loan note and audit registry). The audit registry belongs to the audit hash story (AL-36), which is in Sprint 2, and the Sprint 1 goal covers the loan note only, so it moved there. Agreed with Nic in #dev on 18 Oct. The deploy script and tests get the second contract with AL-36.
+
+h2. Split (backlog review)
+
+The ""This week: break the blockchain stories down"" part below is now its own Week 3 task, linked here, so this ticket is only the Hardhat setup (the ticket already said the setup can go into Sprint 1). The original text is kept below.
+
+h2. Original brief
+
+The blockchain half of al-core. The brief asks for a loan note contract (ERC-721 or a stateful contract holding principal, APR, term and a public borrower ID) and an audit registry that stores a SHA-256 hash of the credit memo, valuation and approval.
+
+The breakdown and the choices below are for this week. The setup itself can go into sprint 1.
+
+h3. This week: break the blockchain stories down (moved to its own task)
+
+Same as everyone else: add subtasks to each story that pin down the details, and write what you chose, and why, on the story.
+
+* *AL-34 Lifecycle:* which states live on-chain and which only in Firestore (Applied, AI Deliberated, Underwriter Approved, Funded, Closed)? Who may move a loan into each state? Can a state be skipped?
+* *AL-35 Loan note:* ERC-721 or a plain stateful contract? Which fields go on-chain? What is the borrower's public identifier, and how does personal data stay off-chain?
+* *AL-36 Audit hash:* which fields go into the hash, and in what format, so anyone can recompute it later? Can a stored hash ever be changed or deleted?
+
+h3. Options to explore and document
+
+Write what you chose, and why, in {{al-core/README.md}}.
+
+* *Where the chain runs:* a local Hardhat node for development (port 8545 in {{docs/infrastructure.md}}). The live site on AWS can't reach a node on a laptop, the same problem as Ollama, so choose between a public testnet (Polygon Amoy or Arbitrum Sepolia, both allowed by the brief) and a Hardhat node running on AWS.
+* *Who signs transactions:* the underwriter's own wallet in the browser (for example MetaMask with ethers.js), or the API signing with a key it holds (web3.py). This decides how Nikoloz builds sign-off (AL-37), so agree it with him.
+* *Which library:* Ethers.js, Web3.py or both, depending on the answer above.
+
+h3. Scope once the options are chosen
+
+* A Hardhat project in {{al-core/}} with the two contracts and their tests (the audit registry now with AL-36)
+* A deploy script that puts the contracts on the local node
+* Run commands in {{al-core/README.md}}
+
+Testnet wallets only. Private keys stay in {{.env}}, never in the repo.
+
+h3. Done when
+
+* {{npx hardhat node}} plus the deploy script puts the loan note contract on a local chain
+* The contract tests pass
+
+Nic can pair on this if needed.",,Nicholas Groenewald,Nikoloz Chilachava,Solomon,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,,,,,,,,,,,AL-168,,,,,,,,,"{build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, repository={count=6, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":6,""lastUpdated"":""2026-10-19T14:08:58.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":6,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":6,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-18T23:28:48.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i000if:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"29/Sep/26 7:25 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;[~accountid:712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c] Backlog review (product backlog, AL-77). *It's your ticket, so refine it however you need based on your own ideas.*
+
+* *Split:* the ""break the blockchain stories down this week"" part is now its own Week 3 task, AL-168, linked here. This ticket keeps the Hardhat setup, which it already said can go into Sprint 1. Your full original text is kept.
+* User story line and five acceptance criteria added, including the brief's ""via Docker Compose"" wording (use it, or say in the README why not).
+* Priority set to Highest (MoSCoW: Must, the brief's execution environment line).
+
+Why the split: one ticket can only sit in one sprint, and this one held Week 3 work and Sprint 1 work.","15/Oct/26 10:16 AM;712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c;*Decisions for the Hardhat setup (from the blockchain breakdown, AL-168):*
+
+# *Who signs transactions:* al-core signs with a server-held testnet wallet (web3.py). The underwriter clicks sign-off in the portal, the API mints. No MetaMask or browser wallet. Nikoloz to confirm on this ticket, since it shapes the portal's sign-off (AL-37).
+# *Libraries:* Hardhat with ethers.js for the contracts, tests and deploy script; web3.py in al-core for minting.
+# *Where the chain runs:* a local Hardhat node (port 8545) for development. For the live site, a public testnet in Sprint 3, most likely Polygon Amoy.
+# *Docker Compose:* not for Sprint 1, as the team agreed on 13 Oct. {{npx hardhat node}} runs on its own and al-core only needs its URL in an env var. The README will say so.
+# *Keys:* testnet wallets only, private keys in {{.env}}, empty names in {{.env.example}}.
+# *Scope this sprint:* the loan note contract (AL-170). The audit registry (AL-171) is Sprint 2, so this ticket deploys the loan note now and the registry gets added to the same deploy script in Sprint 2.","18/Oct/26 9:52 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Confirming decision 1 from the comment above, from the portal side: the API signs the mint with the server-held testnet wallet, and the portal never signs anything.
+
+What that means for sign-off (AL-37 and its subtasks):
+
+* The underwriter's Approve button calls the API. There is no MetaMask or any browser wallet in the portal, and no private key or signer in {{al-web}}.
+* The portal only shows what the API reports back: minting in progress, the loan note result, or a failure message. I will agree the exact response and error shape with you when we get to the sign-off ticket in Sprint 2.
+* Because the portal does not talk to the chain, it needs no wallet library, so the web build stays free of any chain dependency.
+
+This also settles item 5 of the AL-192 triage (transaction signer). The network (local Hardhat node now, a public testnet in Sprint 3) is your call and does not change anything on the web side.","18/Oct/26 11:24 PM;712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c;Moved the audit registry contract out of this ticket's criteria. It belongs to the audit hash story (AL-36), which is in Sprint 2, and the Sprint 1 goal only covers the loan note contract, so building it here would pull Sprint 2 work forward. Nic agreed in #dev on 18 Oct (option 1). Criteria 1, 2 and the ""Done when"" now cover the loan note only, and the README says where the audit registry went.
+
+Signer confirmed by Nikoloz above: al-core signs the mint with a server testnet wallet (web3.py), so sign-off in the portal just calls the API.",,,,,10046,AL-15,Project Infrastructure,Done,19/Oct/26 2:12 PM
+"As a borrower, I choose my broker after sign-up and can change them later",AL-142,10434,Story,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,High,Done,Ibrahima Toure,712020:a8dbfa73-b67e-4552-8c28-98fb0fb7b5ee,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,29/Sep/26 7:11 PM,23/Oct/26 4:23 PM,,23/Oct/26 4:23 PM,23/Oct/26 12:00 AM,0,core,mobile,,"h2. User story
+
+As a *borrower*, I want to choose my mortgage broker after signing up, and change them later, so that my application goes to the broker I picked.
+
+*Brief lines:* Core: Centralised Data Store (broker assignments). Web: Role-Based Access (brokers see only their referred clients).
+
+h2. Acceptance criteria
+
+# After sign-up, the borrower picks a broker from a list (name and firm) before reaching the home screen; the seeded broker bob@test.com is in the list.
+# The choice is saved on the borrower's profile in the field agreed with Dumi, and that broker can then see the borrower's application in the portal.
+# The borrower can change broker from their profile; after the change only the new broker can see the application (rules test on the broker-client assignment subtask).
+# If no brokers can be loaded, the screen shows an error with Retry rather than an empty list.
+
+h2. Notes
+
+Split from AL-16 (register and log in) in the backlog review: choosing a broker is a separate goal, it depends on Dumi's broker list, and broker-only visibility in the portal depends on it. The iOS subtask AL-95 moved here from AL-16.
+
+h2. Test case
+
+Against the Firebase Emulator Suite and al-core, with the seeded users.
+
+# After sign-up. *Expect:* a broker list with name and firm that includes Bob Broker ({{bob@test.com}}). Choose Bob. *Expect:* the home screen.
+# *Expect:* Bob is saved on the profile, and Bob sees the borrower's application in the portal.
+# Change the broker from the profile. *Expect:* only the new broker can see the application.
+# Stop al-core, then open the broker list. *Expect:* an error with Retry, not an empty list.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,AL-16,,,,,,,,,,"{repository={count=1, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-22T20:29:31.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}}}},""isStale"":true}}",,,,,,,,,,,0|i001o7:,,,,,,,,,Sprint 1,,5.0,,,,,,,,,,,,,,,,,,,10035,AL-4,Accounts & Roles,Done,23/Oct/26 4:23 PM
+"Week 3: break down the blockchain stories (lifecycle, loan note, audit hash)",AL-168,10460,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,29/Sep/26 7:24 PM,18/Oct/26 11:24 PM,,18/Oct/26 11:24 PM,23/Oct/26 12:00 AM,0,core,,,"h2. User story
+
+As a *developer*, I want the three blockchain stories broken into subtasks with their key choices written down, so that the team knows what goes on-chain before Sprint 1 starts.
+
+h2. Acceptance criteria
+
+# Lifecycle story (AL-34): which states are written on-chain and which live only in Firestore, who may move each, and whether a state can be skipped, written on the story.
+# Loan note story (AL-35): ERC-721 or a stateful contract, the fields stored on-chain, and what the borrower public identifier is, written on the story.
+# Audit hash story (AL-36): which fields go into the hash and in what format, and confirmation that a stored hash can't be changed or deleted, written on the story.
+# Who signs transactions (a key held by the API or the underwriter's wallet) is agreed with Nikoloz and written on the Hardhat setup ticket (AL-87).
+
+h2. Notes
+
+Split from AL-87 in the backlog review. AL-87 held both this Week 3 breakdown and the Sprint 1 Hardhat setup, which can't sit in one sprint. The questions are copied from AL-87.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,AL-87,,,,,,,,,,{},,,,,,,,,,,0|i001tz:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,10046,AL-15,Project Infrastructure,Done,18/Oct/26 11:24 PM
+Apply agreed Pine and Oat palette to the AL-Web Figma prototype,AL-190,10498,Task,In Progress,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,01/Oct/26 9:14 AM,19/Oct/26 11:44 PM,,,23/Oct/26 12:00 AM,0,figma,web,,"h2. Purpose
+
+Adopt the Pine & Oat visual palette already agreed by Ibrahima and Nikoloz and recorded in {{docs/infrastructure.md}} for the existing AL-Web Week 3 clickable prototype.
+
+h2. Scope
+
+* Update the existing AL-Web Figma file's shared colour roles/components and relevant Broker and Underwriter screens to the exact Pine & Oat values from the borrower-app Figma foundations and the merged infrastructure document.
+* Preserve the current layout, type, dummy data, navigation, role separation, and working prototype flows. Keep semantic risk and lifecycle states distinguishable by text and accessible colour.
+* Re-check both Broker and Underwriter journeys and representative loan file, AI assessment, stress test, decision, and audit screens after recolouring.
+* Do not change the borrower-app Figma, production code, or unrelated features. Keep earlier theme exploration frames as reference unless the team explicitly decides otherwise.
+* {{docs/infrastructure.md}} is already updated through Ibrahima's merged documentation task; verify its token values rather than duplicating that work.
+
+h2. Acceptance criteria
+
+# AL-Web Figma uses the agreed Pine & Oat values consistently on the active prototype screens and shared styles/components.
+# Existing Broker and Underwriter clickable journeys still work; role access is unchanged.
+# Text/action contrast remains accessible and semantic statuses stay clear.
+# The updated Figma link and a short verification note are recorded on this ticket.",,Nikoloz Chilachava,,,,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,,{},,,,,,,,,,,0|i001yn:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"14/Oct/26 6:49 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Recoloured copy of the V2 prototype page is up: [https://www.figma.com/design/F6lldwqy172ox5SeALdDEU/?node-id=539-1618|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU/?node-id=539-1618|smart-link] (page 'AL-Web - V2 - Pine & Oat'). The original V2 page is unchanged (same node count, links and paint fingerprint before and after). The theme switcher is removed from both Settings screens. Every colour on the copy is bound to the existing Pine & Oat variables; no new tokens. Ibrahima agreed the on-dark mapping (Line, Tint, Pine pressed) on 13 Oct. Not yet done: a click-through of the prototype in presentation mode, and the shared navigation components on the original page are still blue.","18/Oct/26 9:57 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Verification note, 18 Oct 2026.
+
+*Checked today*
+
+* The recoloured page ""AL-Web - V2 - Pine & Oat"" (node 539-1618) is in the file with 72 top-level frames and components and 6,174 nodes, read back through Figma.
+* I rendered two frames from it and looked at them: Login / Role Selection and Queue by LTV. Both use the pine green and oat cream tones. The text, buttons, status badges and filter chips are readable.
+
+*Not done yet, so this ticket stays open*
+
+* Criterion 2 (the Broker and Underwriter journeys still work): the click-through in presentation mode has not been done. It cannot be done through the tools I have, so I will do it by hand.
+* Criterion 3 (contrast stays accessible): no contrast ratios have been measured yet.
+* The shared navigation components on the original V2 page are still blue. This ticket's copy page is the recoloured one.
+
+Moving the ticket to In Progress. It goes to Done after the click-through and a contrast check are recorded here.","18/Oct/26 10:10 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Checks run on 18 Oct 2026 against the copy page ""AL-Web - V2 - Pine & Oat"" (read-only scripts through the Figma Plugin API, plus a calculation on the documented tokens).
+
+*Criterion 1: values used consistently.* Of 6,560 solid fills and 361 strokes on the page, 6,558 fills and all 361 strokes are bound to variables. The only 2 unbound fills (#059669) sit in two frames named ""Reference only / Legacy theme study"", which this ticket says to keep as reference. No gradients and no images.
+
+*Criterion 2: journeys still work.* 680 prototype links on 58 frames. Every destination exists and is on the same page, none point elsewhere. This shows the links are intact. It does not replace playing both journeys in presentation mode with the Broker and Underwriter roles, which is still to do by hand.
+
+*Criterion 3: contrast.* I calculated the WCAG ratio for every text and badge pair in the Design tokens section of {{docs/infrastructure.md}}. The lowest is the Success badge at 6.49:1, so every pair passes AA (4.5:1): Text on Oat 14.64, Muted on Surface 7.26, Surface on Pine 12.92, Neutral badge 7.75, Tint badge 11.31, Danger badge 6.80. This checks the token pairs, not each rendered frame. Statuses also carry their name as text.
+
+*Criterion 4.* Link: [https://www.figma.com/design/F6lldwqy172ox5SeALdDEU/?node-id=539-1618|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU/?node-id=539-1618|smart-link]. This comment is the verification note.
+
+Left to do before Done: the presentation-mode click-through of both journeys.","19/Oct/26 11:44 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Prototype trace, 19 Oct 2026 (read-only, through the Figma API on the page ""AL-Web - V2 - Pine & Oat""; nothing was changed). This is a check of the links, not the presentation-mode click-through, which still has to be done by hand.
+
+* 72 top-level frames, 680 prototype links, 0 links with a missing destination.
+* One flow starting point (""AL — Extravagant Concept V2""). From it, 48 frames are reachable by following the links, covering both journeys: login to the broker overview, My Clients, Applications and the loan file; and login to the underwriter pipeline, the queue grouped by LTV, risk and status, the decision flow (approve, decline, conditional, confirm, recorded), stress lab, portfolio, audit registry and settings.
+* 24 top-level frames are not reachable from the start: the Green and Plum legacy theme frames, the V2 foundations, component and navigation frames, and the showcase. That is expected for component and reference frames.
+
+*One finding to decide:* on the frame ""22 / Broker / Appearance Settings"", the layer ""Nav / Overview"" links to ""Reference only / Legacy theme study / Blue Dashboard"" instead of ""V2 / Broker / Overview"". A click there would land on a legacy theme frame. I have not changed it because that frame belongs to the legacy theme study; the fix is to point that one link at the V2 broker overview, or to leave it if the theme page is meant to stay a legacy flow.
+
+Still manual: open the prototype in presentation mode and click through both journeys once, as the broker and as the underwriter.",,,,,10046,AL-15,Project Infrastructure,In Progress,18/Oct/26 9:57 PM
+Triage remaining V2 portal screens and frontend/backend contract gaps,AL-192,10500,Task,In Progress,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,High,,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,06/Oct/26 1:45 PM,19/Oct/26 11:44 PM,,,23/Oct/26 12:00 AM,0,needs-triage,web,,"h2. Purpose
+
+As the web owner, I want uncovered V2 screens and integration decisions reviewed with the backend owners, so the portal implementation has explicit scope and agreed data contracts.
+
+This is backlog refinement, not approval to implement features or pull work into a sprint.
+
+h2. Design reference
+
+[AL-Web — EXTRAVAGANT CONCEPT V2|https://www.figma.com/design/F6lldwqy172ox5SeALdDEU?node-id=469-1288].
+
+h2. Decisions to record
+
+# Map the prototype's Valuation / Affordability / Risk / Funding presentation to the real backend committee: affordability, valuation, Market & Macro, strategist and policy gate. Backend AL-62/AL-130 stores three votes; Macro has no vote. Define whether any numeric scores, alignment or funding capacity are actually available. Missing outputs must not become invented percentages or a fictitious funding agent.
+# Agree the meaning and persistence of conditional approval with the sign-off and lifecycle owners (AL-151, AL-165, AL-166, AL-34, AL-169): decision field, conditions, status mapping and when minting is eligible. The prototype's separate conditional path must not silently create a new lifecycle status or mint a declined/unresolved decision.
+# Agree direct Firestore reads versus protected FastAPI routes, application/run identifiers, exact field names and units, endpoint paths, auth, error/pending states, re-run authorisation, API base URL and CORS with AL-85 and the feature backend subtasks.
+# Agree risk-tier display mapping with AL-64 and the two LTV definitions with AL-61. UI review stages, risk tier, AI recommendation and canonical lifecycle status remain separate.
+# Confirm the transaction signer and network with AL-87/AL-66 before introducing a browser wallet; audit record/hash format and AI call-log digest with AL-161/AL-172.
+# Resolve the V2 colour/typography and legacy-sidebar differences against the agreed docs/infrastructure.md tokens with both client owners. Pine & Oat is the agreed palette (docs/infrastructure.md, recorded 30 Sep) and is applied to a copy of the prototype page under AL-190.
+# Triage portal Google login separately from the existing email/password acceptance scope: AL-54 configures providers for borrower sign-up; provisioned broker/underwriter Google accounts still need trusted role claims. No role picker grants real permissions.
+
+h2. Coverage gaps to classify
+
+* Broker overview and Underwriter Decision Workspace: decide which summary panels/navigation belong to existing client-list/pipeline work and whether a separate dashboard story is required.
+* Portfolio Overview and Audit Registry browsing: the current stress/export stories do not automatically authorise a standalone overview or full cross-application event ledger. Define needed read contracts and create separate feature stories if required.
+* Settings/Profile/Appearance/Notifications: no current implementation story explicitly covers these. Define MVP scope and create appropriate stories/subtasks before implementation.
+* Property-document preview/evidence: confirm whether this is read-only loan-file evidence or requires separate upload/preview work and a storage/permission contract.
+* Combined +200 bps / -10% per-loan scenario: AL-68 and AL-69 cover separate portfolio calculations. Agree any combined result and per-loan API before treating the fixed Figma preset as a complete simulator.
+
+h2. Acceptance criteria
+
+# Each gap has a documented disposition: covered by an existing ticket (with a scope reason), a new needs-triage ticket, or deferred with a reason.
+# Backend contract decisions are recorded with Nic/Dumi's agreement on the relevant tickets; this task does not change their assignments or acceptance criteria.
+# New feature stories have backend subtasks where necessary and are scheduled through team sprint planning.
+# Existing story requirements for DTI, risk grouping, real committee traces, charts, audit exports and server-enforced access are retained; no feature is marked complete from a Figma screenshot.
+# Nikoloz's implementation tickets link to this decision list. No code is written as part of this triage task.",,Nikoloz Chilachava,,,,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,,{},,,,,,,,,,,0|i001yw:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"12/Oct/26 1:52 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;I'm recording where each AL-192 item stands on 12 Oct 2026 and what still needs the team's agreement.
+
+h2. Decisions
+
+# Proposed, needs agreement: I would replace the prototype's VAL/AFF/RISK/FUND scores, alignment percentages and funding figures with the committee's stored ratings, its three votes and the disagreement marker. Nic must confirm the voters and saved fields (AL-62, AL-130). Approval likelihood is not decided: Nic suggested keeping the percentage internal and showing only a label.
+# Proposed, needs agreement: I would keep Sprint 2 sign-off to Approve/Decline, showing AI conditions as advice. Dumi and I must settle persistence, justification and mint eligibility before enabling conditional approval.
+# Agreed in the merged API design (docs/api-design.md on main), confirmed by Nic in #dev on 12 Oct: reads go directly to Firestore and every write goes through the API; the local base URL is {{http://localhost:8000}} (the gateway, with the {{/ai/}} and {{/core/}} paths behind it); the portal's CORS origin is {{http://localhost:5173}}; section 8 has example bodies for decision, mint, re-run and audit pack. Not built yet: Nic created AL-232 (al-ai) and AL-233 (al-core, unassigned) to allow that origin, both To Do, and calls under {{/core/}} return 502 until al-core joins the gateway. Still proposed: exact Firestore field names (schema 0.2, unmerged). Deployed URLs are Sprint 3.
+# Proposed, needs agreement: schema 0.2 computes {{ltvPct}} from the model valuation and proposes LTV/DTI thresholds for tiers A to D, both marked ""Nic to confirm""; AL-64 specifies asking-price LTV and a different tier rule. Nic/Dumi must reconcile the two LTV definitions (AL-61, AL-64) and the tier rule (AL-64). Agreed with Ibrahima: tier letters show as plain text for now.
+# Open: Dumi has not yet answered who signs the mint transaction, and the network is not confirmed (AL-87, AL-66, AL-183), so no browser wallet is introduced. Designed, to confirm on AL-161/AL-172: the merged API design (section 3) has al-core build the audit record at mint, as sorted-key JSON hashed with SHA-256, listing each {{ai_calls}} id with that document's SHA-256.
+# Agreed with Ibrahima (#dev, 12 Oct): both apps use Pine & Oat in light mode only, with no theme choice, and no amber unless one shared token is agreed and added to the palette table. Status tones: Draft/Applied/Closed = Neutral; AI Deliberated = Tint; Underwriter Approved/Funded = Success; Declined = Danger. I'll record the mapping in docs/infrastructure.md under AL-235. The theme switcher comes out of the portal Figma; I'd do that with the recolour in AL-190 if we agree to add it to that ticket's scope. Not yet discussed: the typography and legacy-sidebar differences. This item's ""do not revive Pine & Oat"" wording is superseded: docs/infrastructure.md on main records Pine & Oat as the decision.
+# Proposed, needs agreement: I would keep AL-153 to email/password and defer Google and demo role-entry controls. Nic confirmed staff accounts come from the seed data locally and the role claim is never taken from a request. The merged API design gives deployed staff accounts their claim from an admin script, which does not exist yet; Google sign-in for staff waits on that.
+
+h2. Coverage gaps
+
+# Overviews: AL-154 covers the referred-client list and counts over that same authorised set, and AL-157 covers the queue. I'll draft separate broker-overview and underwriter-workspace tickets (needs-triage) for the remaining panels.
+# Portfolio overview and audit-registry browsing: I'll draft a portfolio-overview ticket and a narrow audit-registry ticket (needs-triage); Dumi must scope the cross-application read rules, which depend on AL-66 and AL-172.
+# Settings: Profile and Notifications are deferred, because they add no origination capability or have no data source. Appearance goes, because no theme choice is offered (decision 6).
+# Property documents: the loan file shows property and collateral figures as read-only evidence under AL-155 and AL-158 (Sprint 2); document preview and upload are deferred until scope and a storage/permission contract are agreed.
+# Combined stress: defer to Sprint 3 planning; AL-68/AL-69 and AL-162/AL-163 cover the separate calculations and screens, not a combined or per-loan result.
+
+h2. Next
+
+* Dumi: confirm which ticket adds the Firestore rules for {{review}}, {{ai_runs}} and {{ai_calls}} (AL-56 already covers a broker reading a referred borrower's profile). Schema 0.2 proposes copying {{brokerId}} onto review, run and call documents for collection-group queries, letting a broker read their clients' profiles, and keeping an application's {{brokerId}} when the borrower changes broker. None of that is in the rules on main.
+* Nic/Dumi: decide the approval-likelihood display, the LTV basis and tier rule, how the portal finds an application's latest run, and the mint signer; confirm the audit-record design on AL-161/AL-172.
+* AL-157: I'll ask the team to agree that the summary strip counts applications per lifecycle status, that the V2 selected-file card moves to Sprint 2 with the loan file (AL-158), and that the prototype's numeric scores are not shown because no backend field defines them.
+* I'll prepare backlog drafts for standup; schema 0.2 remains unmerged, while the scaffold, the two-broker seed and {{fullName}} are on main.","12/Oct/26 10:27 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;One more gap to add to the record above, from Nic's review of the login PR (AL-153):
+
+* The V2 split login layout was not built on AL-153. The login page is a single card with the shared Pine & Oat tokens. The split brand and form layout needs either its own ticket or a team decision to drop it. I'm raising it at the 13 Oct meeting.","18/Oct/26 9:57 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Status on 18 Oct 2026. I'm moving this ticket to In Progress, because the triage is not finished.
+
+*Settled since the 12 Oct record* (Dumi's replies in #meetings on 13 Oct, and Slack and Jira since)
+
+* Pipeline queue (decision 1 and the AL-157 proposal): the four scores are dropped and the selected-file card moves to Sprint 2 with the loan file. Dumi agreed.
+* AL-235 (decision 6): agreed to pull in. It is now in Sprint 1.
+* Split login layout: later sprint. AL-153 stays a single card.
+* Sprint 2 sign-off (decision 2): Approve and Decline only. Dumi suggests a {{conditions}} list on {{review/underwriting}} and no mint until the conditions are met, for later.
+* Login scope (decision 7): email and password only.
+* Changing broker: al-core copies {{borrowerName}} onto the application, the same way as {{brokerId}}. Dumi will add it to SCHEMA.md.
+* Mint signer (decision 5): the API signs with a server-held testnet wallet. I confirmed the portal side on AL-87 today.
+* LTV basis (decision 4): asking price for mortgages. PR 65 stores {{ltvBand}} and {{riskTier}} on the application, and {{ltvPct}} stays the valuation-based figure, so the queue now has two LTV numbers to choose between. I am raising that on PR 65.
+
+*Still open before this can close*
+
+* The follow-up tickets for the broker overview, the underwriter workspace, the portfolio overview and the audit registry browsing are not created yet (criteria 1 and 3).
+* The committee's stored ratings and the exact Firestore field names still need Nic's confirmation (decisions 1 and 3).
+* Links from my implementation tickets to this list (criterion 5).","19/Oct/26 11:44 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Follow-up triage proposal, 19 Oct 2026. These are proposals for the team, not decisions; no ticket has been created for the four stories and nothing is moved into a sprint. The drafts are ready with their criteria.
+
+||V2 screen without a story||Proposal||Why||Needs before it is built||
+|Broker overview|Create as a Story in the backlog, candidate for Sprint 2|The existing broker reads already cover client and application counts; no new backend is needed for a first version|The panel list and count definitions; what the counts do after a client changes broker (same question as AL-248 item 1)|
+|Decision workspace summary|Do not create separately yet. Check it against the loan file tickets AL-158, AL-137 and AL-155 first, and fold it in if it overlaps|Those Sprint 2 tickets already cover the loan file and its panels, so a second story risks duplicating them|Which panels are not already in those three tickets; Nic to confirm any AI-owned field|
+|Portfolio overview|Create in the backlog, candidate for Sprint 3|The cross-application read does not exist; the core read contract comes first|Dumi's agreed portfolio read contract and a core subtask|
+|Audit registry|Create in the backlog, candidate for Sprint 3|It depends on the Sprint 2 backend audit hash work|The audit hash ticket key and the browsing read contract from Dumi|
+
+The stored {{ltvBand}} and {{riskTier}} follow-up already exists as AL-247 (in review).
+
+Decisions needed: Dumi on the portfolio and audit read contracts, Nic on the AI fields, and the team on the parent Epic for each story. Stories are created only after they have been grilled with their owner, as the team's ticket rules require.",,,,,10046,AL-15,Project Infrastructure,In Progress,18/Oct/26 9:57 PM
+"AI: test seed-bagged ensembles, GPBoost and TabPFN for the v2 valuation model",AL-257,10612,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,19/Oct/26 7:30 PM,21/Oct/26 8:08 PM,,21/Oct/26 8:08 PM,,0,ai,,,"h2. What
+
+The literature research found three model ideas worth one fair test each for the v2 valuation model (five inputs plus the Eircode routing key): averaging several seeds and models (bagging and the equal-average ensemble), GPBoost (boosting with county and routing-key random effects), and TabPFN (a pretrained model for small tables). Measure them against the single-model references on the development folds and say whether any is worth shipping.
+
+h2. Acceptance criteria
+
+# Before any comparison runs, a config is committed with the variants, the references (HistGradientBoosting 22.23% and CatBoost 21.78% CV MAPE with the Eircode key), the settings, and the rule for what counts as worth adopting, including that estimates must not shift low.
+# Each variant is scored on the same development rows and the same five group folds, with MAPE, MdAPE, within 10%, MAE, R2, and the median over or under estimate. Calibration and the final test are not read.
+# TabPFN's model weights are downloaded only after the owner agrees, and the report records the licence and where the weights came from.
+# The report says plainly whether any variant clears the rule, what it would cost to ship (models, dependencies, speed), and what the result means for the v2 plan.
+
+h2. Notes
+
+Nothing here changes the frozen v1 model or its final test. A v2 would be a new version with its own tuning and final test.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-21T20:08:26.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-21T19:13:52.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i001z0:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,10037,AL-6,Fair-Price Property Checker,Done,21/Oct/26 8:08 PM
+Record Mistral as the valuation agent's model in the infrastructure doc and fix A17 in the committee plan,AL-193,10501,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,06/Oct/26 4:13 PM,19/Oct/26 8:13 PM,,19/Oct/26 8:13 PM,23/Oct/26 12:00 AM,0,docs,,,"h2. What
+
+The valuation agent now runs on Mistral Small 4 with Groq gpt-oss-120b as a backup, but docs/infrastructure.md only says ""Groq / Gemini"" and decision A17 in the committee plan still says Groq Llama 3.3 70B. AGENTS.md wants a team decision recorded in the infrastructure doc before the stack changes, so record it the same way as the FastAPI, Bedrock and LangGraph decisions.
+
+h2. Acceptance criteria
+
+# docs/infrastructure.md says Mistral Small 4 is the valuation agent's main model with Groq gpt-oss-120b as the backup switched by hand, and why.
+# A17 in agent-committee-plan.md matches the tickets.
+# The agents line in section 4 lists the cloud and local providers as they actually run.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=1, dataType=build, failedBuildCount=0, successfulBuildCount=1, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-19T17:00:51.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-19T15:02:13.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":1,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":1,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i001z4:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,,,,Done,19/Oct/26 8:13 PM
+Write the API design and deployment docs with their diagrams,AL-199,10507,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,06/Oct/26 10:02 PM,12/Oct/26 1:03 PM,,12/Oct/26 1:03 PM,23/Oct/26 12:00 AM,0,docs,,,"h2. What
+
+Write down how the AL APIs are built and how AL is deployed on AWS so the whole team works from the same design. The API doc covers the two FastAPI services, authentication, security, rate limiting, endpoints and responses. The deployment doc covers the AWS architecture, environments, options considered, the Well-Architected review, how a deploy runs, cost and the open decisions.
+
+h2. Acceptance criteria
+
+# {{docs/api-design.md}} and {{docs/deployment.md}} are in the repo and match the decisions the team has made.
+# Each doc has its diagrams as PNG and SVG. The AWS architecture diagram also has its editable draw.io source.
+# {{docs/infrastructure.md}} and {{DEVELOPER_SETUP.md}} are updated for the deployment decisions and for Slack replacing Teams.
+# The open decisions in the deployment doc are the agenda for the next team meeting: the Bedrock model and where the contracts run. The AWS account and who pays is also on that list.
+# Both docs are in Confluence in an Architecture folder and are published once the team agrees them.
+# {{betterleaks}} is clean and the docs contain no keys or account numbers.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=DECLINED, stateCount=2}, build={count=1, dataType=build, failedBuildCount=0, successfulBuildCount=1, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-12T13:02:35.000+0100"",""stateCount"":2,""state"":""DECLINED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-12T12:14:19.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":1,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":1,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i0020s:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,,,,Done,12/Oct/26 1:03 PM
+Scaffold the al-ai FastAPI service with the Firebase token check and the local gateway,AL-200,10508,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,07/Oct/26 12:01 PM,13/Oct/26 9:08 AM,,13/Oct/26 9:08 AM,23/Oct/26 12:00 AM,0,ai,,,"The al-ai service every AI endpoint and agent plugs into. Build it first in Sprint 1 so the rest of the AI work has somewhere to live.
+
+h2. Acceptance criteria
+
+# {{GET /ai/health}} returns 200.
+# A request without a valid Firebase ID token from the Auth emulator gets 401 in the shared error shape from docs/api-design.md.
+# {{docker compose up}} starts al-ai and an nginx gateway on localhost:8000 that sends {{/ai/*}} to al-ai and {{/core/*}} to al-core and applies the same rate limit as the planned WAF rule.
+# A pytest for the health and token checks runs in CI.
+# Everything runs locally. Nothing is deployed to AWS in this ticket.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-13T09:08:13.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-12T15:07:58.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i00214:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,10046,AL-15,Project Infrastructure,Done,13/Oct/26 9:08 AM
+Sprint 1 submission: zip the deliverables and upload to Canvas,AL-202,10510,Task,To Do,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Highest,,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,07/Oct/26 12:02 PM,07/Oct/26 12:02 PM,,,25/Oct/26 12:00 AM,0,docs,,,"Canvas: Sprint 1 Submission, due 23:59 Sun 25 Oct. Only the group leader submits.
+
+h2. Acceptance criteria
+
+# The zip has the sprint backlog (an export of the Sprint 1 board).
+# It has a use case for each feature (epic) in the sprint.
+# It has a wireframe and a test case for every Sprint 1 story, plus a design where it helps.
+# It has the sprint retrospective/review as a short Word document.
+# It has the code from {{main}} at the end of the sprint.
+# Nic uploads it to Canvas by 23:59 on Sun 25 Oct.
+
+h2. Notes
+
+Everyone hands their wireframes, test cases and retro input to Nic by Saturday 24 Oct. All four of us can help write the retro and the report.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,"{repository={count=12, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":12,""lastUpdated"":""2026-10-23T17:07:48.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":12,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":12,""name"":""GitHub""}}}}},""isStale"":true}}",,,,,,,,,,,0|i0021j:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,,,,To Do,07/Oct/26 12:02 PM
+Add the Slack communication rules to AGENTS.md and DEVELOPER_SETUP.md,AL-211,10520,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,08/Oct/26 12:45 PM,09/Oct/26 1:08 PM,,09/Oct/26 1:08 PM,,0,docs,,,"At the team meeting on 8 Oct we agreed that when we can't talk in person, meeting notes, announcements and questions for another developer go in Slack, not DMs. The Team guide in Confluence now says so, including how to join Slack and connect it to Claude. The repo doesn't mention Slack, so agents don't know where team communication lives and a new teammate following DEVELOPER_SETUP.md never sets Slack up.
+
+h2. Acceptance criteria
+
+# AGENTS.md has a short ""Team communication"" section saying that when we can't meet in person, meeting notes, announcements and questions for another developer go in Slack, with the channels: {{#announcements}}, {{#meetings}}, {{#dev}}, {{#standups}}.
+# It keeps the existing rules that a question about a ticket, and the Ollama hand-off, go as a comment on the Jira ticket, with a link to that comment posted in {{#dev}}.
+# It says that when an agent needs something from a teammate, it drafts the Slack message in the right channel (a Slack draft through the connector, or the text in chat) and the person checks and sends it. The agent never posts for them, as with opening a PR.
+# DEVELOPER_SETUP.md has a step to join the Slack workspace from the invite link, run {{/github signin}}, connect the Jira Cloud app, and connect Slack to Claude (Settings, Connectors, Slack), with a test prompt.
+# The wording matches the Team guide's ""Talking to each other"" and ""Getting set up"" sections, and nothing contradicts them.
+# The change is on its own branch and PR carrying only this ticket's key, and betterleaks is clean.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=1, dataType=build, failedBuildCount=0, successfulBuildCount=1, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-09T13:08:14.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-08T12:54:31.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":1,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":1,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i0023m:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"08/Oct/26 12:53 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Pulled into Sprint 1 on 8 Oct, the day it started. It comes straight out of today's team meeting, where we agreed Slack is where we talk when we can't meet, and new teammates are joining Slack now, so the setup steps need to be in the repo this sprint.",,,,,,,,,,,Done,09/Oct/26 1:08 PM
+Write the AL-Web architecture document from the shared backend designs,AL-214,10523,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,08/Oct/26 1:48 PM,19/Oct/26 11:36 PM,,19/Oct/26 11:36 PM,,0,docs,ready-agent-assisted,web,"h2. Purpose
+
+Document the broker and underwriter portal architecture using the Deployment and API design pages plus the available database schema proposal. Owned by Nikoloz; documentation only, with no feature implementation.
+
+h2. Acceptance criteria
+
+# Publish Web architecture in Nikoloz's Sprint 1 folder in Confluence, linking the source documents.
+# Describe React, React Router, Tailwind and Firebase Auth, module responsibilities, role access, direct Firestore reads/live listeners and authenticated API writes.
+# Explain pipeline, mortgage/HELOC review, committee progress, decision, mint and audit flows, with each feature kept in its assigned sprint.
+# Include local/deployed configuration, expected verification and unresolved contracts. Distinguish current design from implemented evidence.
+# Flag the missing standalone database architecture doc and conflicts in the older schema proposal rather than invent final fields or change backend-owner work.
+
+This document describes planned architecture; it is not a personal sprint account or evidence that features were built.",,Nikoloz Chilachava,,,,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,,{},,,,,,,,,,,0|i0024g:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"08/Oct/26 1:51 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Architecture draft published and read back: [Web architecture|https://alprojectcs3.atlassian.net/wiki/spaces/AL/pages/18448385/Web+architecture], in Nikoloz → Sprint 1 - Nikoloz. Based on Deployment v3, API design v2 and the Proposed Database Schema in the Week 3 Deliverables Summary. Covers module boundaries, trusted roles, Firestore live reads, API-only writes, HELOC review, lifecycle/actions, local/deployed configuration, verification plans and unresolved contracts. No standalone database architecture page exists yet; the older schema proposal differs from the newer API design, so the page flags those conflicts for backend agreement. This is a design draft, not implemented/tested feature evidence or a personal sprint account. No repository files or backend-owner tickets were changed.","12/Oct/26 12:50 AM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Updated and read back [Web architecture|https://alprojectcs3.atlassian.net/wiki/spaces/AL/pages/18448385/Web+architecture], Confluence version 2 / document revision 1.1, in Nikoloz → Sprint 1 - Nikoloz.
+
+Reviewed all five acceptance criteria against Deployment v3, API design v2, the proposed database schema v1, the portal screen map, the HELOC web specification and current Jira sprint assignments. Ran a source audit and a separate acceptance review.
+
+Clarified server-assigned profile roles, backend-enforced pipeline access, mortgage review, actual committee progress, separate decision/mint and canonical audit evidence. Added source status and documentation-verification notes. Final schema/indexes, role provisioning, gateway/CORS configuration and eligibility/response contracts remain explicitly open for backend agreement.
+
+Validation: Confluence update preview succeeded; publication succeeded; a full read-back confirmed all 10 architecture sections, added content, source links and version. No feature implementation or runtime test results are claimed. No tracked repository files or backend-owner work were changed, so there is no code commit or PR from this documentation update. Nikoloz's personal sprint account and sprint completion evidence remain separate.
+
+Ready for human review; moving this ticket to In Review.","19/Oct/26 11:36 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Closing for Sprint 1, 19 Oct 2026. The Confluence page ""Web architecture"" (page 18448385, version 4, 12 sections, status current) is published in the folder ""Sprint 1 - Nikoloz"". It was reviewed against the five criteria of this ticket on 12 Oct and updated since; the last correction was on 14 Oct, to the last bullet of section 10 after the Firestore rules merged. It is marked as a design and separates the intended architecture from what exists. The page ""Sprint 1 summary - Nikoloz"" names it in the ticket table.",,,,,,10046,AL-15,Project Infrastructure,Done,19/Oct/26 11:36 PM
+Record the agreed status colour mapping in the infrastructure doc,AL-235,10558,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,12/Oct/26 1:32 PM,19/Oct/26 3:23 PM,,19/Oct/26 3:23 PM,,0,docs,needs-triage,web,"h2. Purpose
+
+{{docs/infrastructure.md}} lists five badge tones and says the portal's status mapping ""is set when the portal adopts the palette"". The portal's pipeline queue now needs that mapping, and the borrower app will show application status too, so one mapping is recorded for both.
+
+Agreed by Ibrahima and Nikoloz in #dev on 12 Oct 2026:
+
+||Lifecycle status||Tone||
+|Draft, Applied, Closed|Neutral|
+|AI Deliberated|Tint|
+|Underwriter Approved, Funded|Success|
+|Declined|Danger|
+
+Also agreed: risk is shown as plain text for now (no amber tone unless one shared token is added to the palette table), and there is no theme choice in either app: Pine & Oat, light mode only.
+
+Documentation only. No code change.
+
+h2. Acceptance criteria
+
+# The ""Design tokens"" section of {{docs/infrastructure.md}} has a table mapping each of the seven lifecycle statuses to one of the existing tones, replacing the sentence that says the portal's mapping is still to be set.
+# The section states that risk tiers are shown as plain text until a shared warning token is agreed, and that neither app offers a theme choice.
+# No colour value in the palette or badge tables changes.
+# Ibrahima approves the pull request, since the tokens are shared with the borrower app.
+
+Not in a sprint yet: created mid-sprint, so it needs the team's agreement at standup before it is pulled into Sprint 1.",,Nikoloz Chilachava,,,,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=1, dataType=build, failedBuildCount=0, successfulBuildCount=1, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-19T15:11:35.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":1,""lastUpdated"":""2026-10-19T12:33:26.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":1,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":1,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i002by:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,10046,AL-15,Project Infrastructure,Done,19/Oct/26 3:23 PM
+Web: group the pipeline queue by the stored ltvBand and riskTier,AL-247,10602,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,18/Oct/26 10:13 PM,21/Oct/26 9:06 PM,,21/Oct/26 9:06 PM,,0,needs-triage,web,,"h2. Why
+
+Found while reviewing PR 65 (the backend ticket for the queue fields). That PR adds {{ltvBand}} and {{riskTier}} to each application document, and AL-246 makes al-ai write them later. The portal queue today derives its band on the client from the valuation-based {{ltvPct}} and reads its tier from {{review/underwriting}}. The asking-price band and the valuation figure can put the same application in different bands (loan 300,000, asking price 400,000, valuation 360,000: 75% on the price, so {{80_or_less}}; 83% on the valuation, so {{80_to_90}}).
+
+h2. Spec
+
+Use the application document's stored {{ltvBand}} and {{riskTier}} for queue grouping. The band values are {{80_or_less}}, {{80_to_90}} and {{over_90}}, based on the asking price. Tiers are A to D.
+
+For each field independently, keep the current behaviour only while that stored field is absent: the band falls back to the valuation-based {{ltvPct}}, the tier falls back to {{review/underwriting}}. Once a stored field exists it takes precedence. Label the displayed {{ltvPct}} as the valuation-based LTV and keep it separate from the stored asking-price band.
+
+Scope: queue reads, grouping, labels and tests in {{al-web/}} only. Field production stays in the backend work.
+
+Open questions to confirm with Dumi and Nic before implementation: how the agreed schema represents an unset field, and what the queue shows if a stored field exists with an invalid value (it must not silently fall back to the old source).
+
+h2. Acceptance criteria
+
+# With valid stored fields present, grouping uses {{ltvBand}} and {{riskTier}} from the application. A different tier in {{review/underwriting}} does not override the stored tier.
+# Tests cover both fields absent and each field absent on its own. Only the absent field uses its current fallback. With neither source available, the existing missing-value group stays visible.
+# A test application with stored {{ltvBand: over_90}} and valuation-based {{ltvPct: 85}} appears in the over-90 group, and its 85% is labelled as the valuation-based LTV.
+# A live update that adds the stored fields moves the row and updates the group counts without a reload.
+# Tests cover all three stored bands and tiers A to D. Status grouping still returns the expected rows and counts.
+
+Depends on PR 65 merging and on AL-246 for the field-writing. Backlog until the team agrees to pull it into a sprint.",,Nicholas Groenewald,Nikoloz Chilachava,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-21T21:01:03.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-19T21:12:12.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i002c2:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"19/Oct/26 2:39 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Pulled into the current sprint, agreed on 19 Oct so that #69 (AL-157) can land first and this follows straight after #65 merges. Before you start, two things missing from the criteria. 1. The queue still listens to the whole applications collection with no filter, so it should query by status and order by submittedAt desc using the indexes from #65. 2. Say whether the second listener on review/underwriting is dropped once the stored riskTier is there, or kept as a fallback, so it's not left open. Also worth labelling the shown LTV figure as the valuation LTV so it never looks like it contradicts the stored asking price band.","19/Oct/26 3:14 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Starting now (19 Oct), on branch {{feature/AL-247-group-queue-by-stored-fields}}, from {{main}} after #65 and #69 merged. Answers to Nic's three points:
+
+# *Query shape.* In this ticket I keep the single listener on {{applications}} and the client-side status filter. Two reasons: the summary line counts all applications, and Draft documents have no {{submittedAt}}, and Firestore leaves out documents that lack the field a query orders by, so a {{status}} plus {{orderBy(submittedAt)}} query would drop the Drafts from the queue. The new status indexes stay ready for a per-status or paged view later. Nic, say so if you would rather have the filtered query now and I will look at how to keep the totals and the Drafts.
+# *Second listener.* Kept as a fallback, per field, only while a stored value is absent, because the al-ai ticket that writes {{ltvBand}} and {{riskTier}} (AL-246) is not built yet. It is removed once that ticket lands. A different tier in a review document never overrides a valid stored tier.
+# *LTV label.* The displayed {{ltvPct}} is labelled as the valuation LTV, so it never looks like it contradicts the stored asking-price band.",,,,,,,,,,Done,21/Oct/26 9:06 PM
+Reject NaN and infinity in the affordability calculations,AL-236,10559,Bug,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,12/Oct/26 3:26 PM,12/Oct/26 4:27 PM,,12/Oct/26 4:27 PM,,0,ai,,,"h2. Context
+
+Found in review by Ibrahima. The input checks in {{al-ai/app/affordability.py}} only compare against zero, and NaN and infinity pass that comparison, so a non-finite number is treated as valid. For example {{monthly_repayment(nan, 0.04, 30)}} returns {{nan}} and {{dti(0, 1000, inf)}} returns {{0.0}}.
+
+The affordability endpoint had the same gap for infinity on its own fields; that is fixed in the endpoint's own pull request, so this ticket covers the shared module only.
+
+h2. Acceptance criteria
+
+# Every numeric input in the module (loan, income, debts, deposit, rates, terms, margins and the DTI cap) raises a {{ValueError}} naming the field when it is NaN or infinite.
+# Regression tests cover NaN, +infinity and -infinity for each input.
+# The existing tests still pass.",,Nicholas Groenewald,,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-12T16:27:07.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-12T15:47:32.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i002c7:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"12/Oct/26 3:27 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Added to Sprint 1 mid-sprint. This is a fault in the affordability calculations module that was merged this sprint, found in review by Ibrahima, so it's rework on Sprint 1 work and not new scope. It's a bug with no story points, so it will show on the burndown as a rise in count only. The team can move it back to the backlog at the meeting if they'd rather.",,,,,,,,,,,Done,12/Oct/26 4:27 PM
+Web: handle session faults and role changes while the portal is open,AL-243,10566,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,14/Oct/26 8:24 PM,22/Oct/26 3:21 PM,,21/Oct/26 7:26 PM,,0,needs-triage,web,,"h2. Why
+
+Found while reviewing the login pull request for AL-153. These behaviours are safe (they fail closed, and the security rules and API still use the fresh token) but they are the wrong experience, and two tests are missing. They are outside AL-153's scope, so they are raised here instead of growing that pull request.
+
+h2. Spec
+
+# *Session restore faults.* The Firebase {{onAuthStateChanged}} error callback is never called in the installed SDK, so the portal's {{error}} auth status and its page cannot happen. When the ID-token lookup fails (offline, expired token with no network, emulator stopped) the user lands on ""Not allowed, ask an administrator"". Show ""We could not verify your session, reload to try again"" with a retry for that case, and remove or document the unreachable {{error}} status.
+# *Role change in an open tab.* The role is resolved only when the signed-in uid changes. Subscribe with {{onIdTokenChanged}} and re-resolve silently when the uid is unchanged (go to {{loading}} only on a uid change), so a role change reaches an open tab without a reload.
+# *Small clean-ups from the same review.* Remove the unused {{state.from}} on the redirect to {{/login}}, or make it work with an allow-list; one {{portalHomeFor(role)}} helper instead of three copies; a {{loading}} branch on {{/forbidden}}; user-facing copy that does not say ""Firebase"".
+
+h2. Acceptance criteria
+
+# With the token lookup failing, a signed-in user sees the retry message, not the administrator message; a Vitest test covers it.
+# A fake service that changes the role claim for the same uid moves the open page from {{/underwriter}} to ""Not allowed"" without a reload; a test covers it.
+# A test defers one user's role resolution, delivers a different user (or a sign-out), then resolves the first, and asserts the page never shows the first user's role (the out-of-order race).
+# A test drives the login form for an underwriter, for a borrower (refusal message) and for an already signed-in user opening {{/login}}.
+# {{firebaseAuthService}} and {{firebase.ts}} have at least one test each (a stub user with {{getIdTokenResult}}; production config throws on a missing value and never connects the emulator).
+
+Not scheduled: it needs the team to pull it into a sprint.",,Nikoloz Chilachava,,,,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,,"{build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, repository={count=5, dataType=repository}, json={""cachedValue"":{""errors"":[],""summary"":{""repository"":{""overall"":{""count"":5,""lastUpdated"":""2026-10-22T15:18:02.000+0100"",""dataType"":""repository""},""byInstanceType"":{""GitHub"":{""count"":5,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":5,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-19T15:22:16.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i002dz:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"18/Oct/26 10:43 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Security review of the portal code on 18 Oct 2026 (a source review plus {{npm audit --omit=dev}}, which reported 0 vulnerabilities in 121 production dependencies). It found three things that belong in this ticket. None is exploitable across brokers today, because the Firestore rules remain the access boundary, and I have not reproduced any of them in a browser.
+
+# *Role changes on a token refresh do not reach the route guard (medium).* {{authService.ts}} subscribes to {{onAuthStateChanged}}, which does not fire on a token refresh. If a user is downgraded and a refreshed token carries the new role, the guard can keep admitting the old routes until the next sign-in. Fix: subscribe to {{onIdTokenChanged}}, clear the old role and data while the new role resolves, and add a test with a same-user downgrade.
+# *Sign-out does not clear the Firestore document cache (medium).* Sign-out unsubscribes the listeners and clears the React state, but the SDK's in-memory cache lives on in the page, and a new sign-in can show cached results before the server confirms them. With the current filters a broker can only see their own documents this way, so I did not find a cross-broker leak. Fix: tie the database instance to the session (terminate it on sign-out) and avoid showing cached results before the server confirms them. Test it with account switching and a broker reassignment.
+# *A failed sign-out is invisible on the data pages (low).* The header swallows the rejection and the pages do not show the provider's error. Fix: show the safe message in the shared header as an accessible alert.
+
+Also in scope here from the earlier note: 401 and 403 handling once the portal makes API calls. Not started, because this ticket is in the backlog and needs the team to pull it into a sprint.","18/Oct/26 10:55 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Update 18 Oct, 22:55. The three fixes are done on a local branch ({{feature/AL-243-handle-session-faults}}, commit 519accf, based on current {{main}}). It is not pushed and there is no PR, because this ticket is still in the backlog and the team has been asked in #meetings whether to pull it into Sprint 1.
+
+* *Token refresh:* the portal now listens for ID token changes. When the role changes for the same user, protected content is hidden while the new role resolves, an older check can never overwrite a newer one, and the page reloads once so access is evaluated from scratch.
+* *Sign-out:* a successful sign-out reloads the page at {{/login}}, which drops the SDK's in-memory cache that React state cannot clear. Initial sign-in, a restored page and an unchanged role never trigger a reload.
+* *Failed sign-out:* the safe message now shows beside the Sign out button on both pages (as an alert), and the session is kept.
+
+Evidence: tests 30 to 42 (all pass, run twice), build passes, secret scan clean. Each fix has regression tests, and each fails when only that fix is removed. A second reviewer read the diff. Not tested: a real browser reload and the Firestore cache itself, because the Firestore client is not on {{main}} yet.
+
+Known trade-offs: an unchanged role also hides content briefly while its refresh resolves (about once an hour), and a role removed entirely shows ""Not allowed"" without a reload; the reload happens at sign-out.","19/Oct/26 12:33 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Team answer, 19 Oct. Dumi replied in #meetings (18 Oct, 23:33): yes to pulling this into Sprint 1, because it is a small, tested security fix to Sprint 1 work and, as a Task, it does not touch the burndown. Nic and Ibrahima have not answered yet, so I am not moving it into the sprint or pushing the branch until at least one of them agrees. The fix stays on the local branch {{feature/AL-243-handle-session-faults}} (commit 519accf, 42 tests).","19/Oct/26 3:20 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Pulled into Sprint 1 on 19 Oct 2026. The team agreed: Dumi in #meetings (18 Oct, 23:33) and Nic in a Slack DM (19 Oct, 14:56) both said yes. Reason: it is a small, tested security fix to Sprint 1 work. The fix branch is rebased onto {{main}} after #68, #69 and #67 merged (214 tests pass, run twice, and the build passes), and the pull request follows now.","19/Oct/26 9:05 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;PR 76 merged into main on 19 Oct 2026 after Nic's approval (merge commit c7641fc). It covers the role re-check on token refresh (listening with onIdTokenChanged), the session reset on sign-out and the failed sign-out message, with regression tests (214 tests). Still open on this ticket: the ""could not verify your session, reload to try again"" message, the small clean-ups, and the extra form and service tests. They will either be built before Friday or moved to a Sprint 2 ticket with the team's agreement; the ticket stays open until that is settled.","22/Oct/26 3:21 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;PR 96 merged into main on 22 Oct 2026 (merge commit 9172a7c) after Ibrahima's approval. It finishes the remaining items of this ticket: a retry page (""We could not verify your session, reload to try again"") when the ID token lookup fails instead of ""Not allowed"", one {{portalHomeFor}} helper, a loading state on the refused page, no ""Firebase"" wording in the screens, the unused redirect state removed, and tests for the login form, the auth service adapter and the Firebase configuration. 273 tests pass and the build passes. Together with PR 76 (19 Oct) the ticket's session-restore message, role-change handling, out-of-order test, login form test and adapter and configuration tests are covered. Left for a follow-up: a Sign out button on the retry page, suggested in a second review.",,,,,,Done,21/Oct/26 7:26 PM
+Web: broker client list polish from the PR 68 review,AL-248,10603,Task,In Progress,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,Nikoloz Chilachava,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,19/Oct/26 12:33 PM,22/Oct/26 4:03 PM,,,,0,needs-triage,web,,"h2. Why
+
+The client list PR (#68) was approved by Ibrahima and Nic on 19 Oct 2026 with small non-blocking notes. They are recorded here so they do not get lost.
+
+h2. Spec
+
+# *Name fallback.* When a borrower changes broker, the old broker keeps the application but can no longer read the profile, so the row shows ""Name unavailable"". SCHEMA.md has {{borrowerName}} on each application for this case. Show {{application.borrowerName}} when there is no profile. Check first that {{borrowerName}} is on the seeded applications on {{main}}; if it is not, this waits for the core change.
+# *Unreachable Firestore.* The page stays on ""Loading your clients"" forever when Firestore is unreachable. After a timeout, move to the existing error state.
+# *Profiles read error.* Log the error code ({{console.warn}}) in the profiles error handler so a rules regression is visible.
+# *Flaky test.* The test ""shows no clients yet only once profiles have answered with nothing"" timed out once on a cold run for Nic, and once for the independent reviewer before the PR was opened. Give its {{findBy}} calls a longer timeout, or remove the timing dependence.
+# *Question for the team:* should brokers see Draft applications in the list? The borrower app now saves drafts, so half-filled ones will appear. Record the answer on this ticket.
+
+h2. Acceptance criteria
+
+# A client whose profile cannot be read shows its application's {{borrowerName}}; with neither, it still shows ""Name unavailable"". A test covers both.
+# When Firestore does not answer within the timeout, the list shows the error state instead of loading forever. A test covers it with fake timers.
+# A refused profiles query logs the error code once.
+# The named test passes 20 times in a row on a cold run.
+# The Drafts decision is written on this ticket and, if drafts are hidden, a test covers it.
+
+Backlog until the team agrees to pull it into a sprint.",,Nicholas Groenewald,Nikoloz Chilachava,,,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-20T10:52:36.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-19T23:39:23.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i002et:,,,,,,,,,Sprint 1,,,,,,,,,,,,,"19/Oct/26 3:14 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Team answers, 19 Oct. *Drafts:* Nic confirmed that brokers do not see Draft applications. Borrowers see their own drafts in the app, and brokers only see applications from Applied onward. So the client list needs to hide Drafts, and a test should cover it. This is added to the scope of this ticket (item 5, and its criterion 5). *Flaky test:* it failed again on a clean run of {{main}} after #69 merged ({{broker-clients.test.tsx}}, ""shows no clients yet only once profiles have answered with nothing""; 1 failure in 202 tests), which makes three independent sightings, so it can fail CI on any web PR. I would like to fix it first. This ticket is still in the backlog, so I am asking the team to pull it into Sprint 1.","19/Oct/26 3:50 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Correction, 19 Oct 2026, 15:40. The two reviewers gave opposite answers on Drafts, so item 5 is *open, not decided*. Nic (Slack DM, 14:56): brokers do not see Drafts, only applications from Applied onward. Ibrahima (Slack DM, 15:37): brokers can see Drafts, with a ""Draft"" badge, so they can follow up unfinished applications. I have asked both to agree one answer in #meetings. Nothing is changed in the list yet, so Drafts still show. Whatever they decide is implemented here (hide them, or keep them with a Draft badge), and if Drafts are hidden for brokers the Firestore rule is Dumi's to change.","19/Oct/26 7:49 PM;712020:51066a0d-654c-4058-8191-a75ea6cfc6ab;Team answer from Nic, 19 Oct. Yes to pulling the flaky test (item 4) into Sprint 1, since it has failed three independent times and can fail CI on any web PR. The rest (items 1, 2, 3 and 5) stays in Sprint 2: 1 waits on borrowerName landing in the seed and 5 waits on the Drafts decision at the meeting. Please keep the Sprint 1 part to the one test.","19/Oct/26 9:13 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;In Sprint 1 as of 19 Oct 2026, evening, as Nic agreed. The Sprint 1 part is only item 4, the flaky test. Items 1, 2, 3 and 5 stay in Sprint 2 (item 1 waits for borrowerName in the seed, item 5 for the Drafts decision at the meeting). The test failed a fourth time today, in a full run on the AL-247 branch (passed on the immediate re-run). Branch {{feature/AL-248-fix-flaky-client-list-test}}, started from main after PR 76 merged; the fix and a 20-run proof will be on the PR.","21/Oct/26 3:31 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;PR 87 (the flaky client list test, item 4) was approved by Nic and merged into main on 20 Oct 2026. The test now waits for the listener to register and for the pushed snapshot instead of polling. It passed 20 of 20 separate runs and the full suite 4 times; the cause of the earlier failures was never reproduced, so the PR says it is unconfirmed. Items 1, 2, 3 and 5 are not done and stay in Sprint 2 as agreed (item 1 waits for borrowerName in the seed, item 5 for the Drafts decision at the meeting). The ticket stays open for them.","21/Oct/26 9:09 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;21 Oct 2026, evening. The flaky test fix (item 4, PR 87) is merged, but a second test in the same file, {{broker client file > shows not found once profiles have answered and the client is not in them}} in {{broker-clients.test.tsx}}, failed once in a full run on the AL-243 branch (1 failure in 273) and passed on the immediate rerun. I have no earlier sighting of this one. The cause is not confirmed; it may be the same pattern as item 4 (the test waits on a heading with the default {{findBy}} timeout, possibly before the fake listener has registered). It should be looked at with the Sprint 2 part of this ticket. Items 1, 2, 3 and 5 are unchanged and still open for Sprint 2.","22/Oct/26 3:33 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Drafts decision (item 5), 22 Oct 2026: brokers do not see Draft applications. Solomon posted in #dev that the vote is ""hide"" 3 to 0 (Nic, Ibrahima, Solomon); Nic's own answer is in #dev at 20:20 on 21 Oct. The Firestore rule that stops a broker reading Drafts at all is Solomon's, in AL-263 (Sprint 2 planning). Order of work from the thread: the client list query gets a {{status != 'Draft'}} filter first (safe under today's rules), then Solomon turns the rule on, because Firestore will refuse a broker query that could return a Draft. The web part (the filter, plus a test that a broker's list never contains a Draft and that the query still carries {{where brokerId == uid}}) stays in Sprint 2 with items 1, 2 and 3 of this ticket. Open questions asked by Solomon on AL-263: does a borrower who has only a Draft still show in the broker's client list, and should underwriters stop seeing Drafts too.","22/Oct/26 4:03 PM;712020:eaa0b7b1-efef-47b1-b9ce-1f620c274091;Drafts decision (item 5), 22 Oct 2026: brokers do not see Draft applications. Dumi posted in #dev that the vote is ""hide"" 3 to 0 (Nic, Ibrahima, Dumi); Nic's own answer is in #dev at 20:20 on 21 Oct. The Firestore rule that stops a broker reading Drafts at all is Dumi's, in AL-263 (Sprint 2 planning). Order of work: the client list query gets a {{status != 'Draft'}} filter first (safe under today's rules), then Dumi turns the rule on, because Firestore will refuse a broker query that could return a Draft. The web part (the filter, plus a test that a broker's list never contains a Draft and that the query still carries {{where brokerId == uid}}) stays in Sprint 2 with items 1, 2 and 3 of this ticket. Answers given on AL-263: a borrower with only a Draft still shows in the client list (their profile stays), and underwriters keep seeing Drafts for now.",,,,In Progress,19/Oct/26 11:38 PM
+"Seed data: borrower names, the valuation model's property type spelling, and the real AI models",AL-254,10609,Task,Done,AL,AL Project CS3,software,Nicholas Groenewald,712020:51066a0d-654c-4058-8191-a75ea6cfc6ab,,Medium,Done,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,Solomon,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,19/Oct/26 3:07 PM,20/Oct/26 11:43 AM,,20/Oct/26 11:43 AM,,0,core,,,"Three fixes to {{al-core/scripts/seed.js}}, done together so there is one re-seed and one export.
+
+# *Borrower names.* {{borrowerName}} is in SCHEMA.md (copied onto the application when it is created) but the seeded applications don't have it. Nikoloz needs it to show the borrower's name in the underwriter queue (AL-32, agreed in #meetings on 19 Oct).
+# *Property type spelling.* Raised by Nic on the submit-fields PR (#71): the seed uses {{propertyType: 'semi_detached'}}, but the valuation model only accepts {{Detached}}, {{Semi-D}}, {{Terrace}}, {{End of Terrace}}, {{Bungalow}}, {{Apartment}}, {{Duplex}} and {{Townhouse}} (from the data readiness report). The seed should use the model's spelling so a seeded application can be valued as-is. Validating {{property_type}} against this list on submit is a separate, later ticket.
+# *AI call models.* Raised by Nic on the valuation model PR (#74): the seeded {{ai_calls}} still use the old plan (valuation on Gemini, Market & Macro on Groq Llama 3.3 70B, strategist on Mistral). The decision recorded in {{docs/infrastructure.md}} is Market & Macro and the strategist on Gemini, affordability on Ollama {{qwen3.5:9b}}, and valuation on Mistral Small 4 (Groq {{gpt-oss-120b}} only as a manual backup).
+
+*Nic's answer (Slack, 19 Oct 19:40):* only the affordability agent exists, so {{qwen3.5:9b}} is the only real model string. The valuation, market and strategist agents aren't built yet, so seed them with the planned models by name for now and keep the names in one place so they're easy to change. Nic sends the exact model strings once those agents are working; swapping them in is a small follow-up.
+
+Pulled into Sprint 1 because the seed is what the demo and the portal show; no story points (Task).
+
+h2. Acceptance criteria
+
+# Every seeded application has {{borrowerName}}, matching its borrower's {{fullName}}.
+# Every seeded {{property.propertyType}} is one of the model's eight values ({{semi_detached}} becomes {{Semi-D}}).
+# The seeded {{ai_calls}} use: affordability → {{ollama}} / {{qwen3.5:9b}}; valuation → {{mistral}} / Mistral Small 4; market → {{gemini}}; strategist → {{gemini}}. The three not-yet-built agents use the planned model names, defined in one place in seed.js with a comment saying they are placeholders until Nic confirms the exact strings.
+# The audit records and their hashes are rebuilt from the new calls (seed.js does this), and the seed export is regenerated.
+# {{node scripts/seed.js --dry-run}} still covers every status, LTV band and risk tier, and all al-core tests pass.",,Solomon,,,,712020:0460d6e5-1deb-4aad-adf1-a3808b62ed5c,,,,,,,,,,,,,,,,,,,,,,"{pullrequest={dataType=pullrequest, state=MERGED, stateCount=2}, build={count=2, dataType=build, failedBuildCount=0, successfulBuildCount=2, unknownBuildCount=0}, json={""cachedValue"":{""errors"":[],""summary"":{""pullrequest"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-20T10:52:48.000+0100"",""stateCount"":2,""state"":""MERGED"",""dataType"":""pullrequest"",""open"":false},""byInstanceType"":{""GitHub"":{""count"":1,""name"":""GitHub""},""oAuth-com.github.integration.production"":{""count"":1,""name"":""GitHub""}}},""build"":{""overall"":{""count"":2,""lastUpdated"":""2026-10-19T20:11:27.000+0100"",""failedBuildCount"":0,""successfulBuildCount"":2,""unknownBuildCount"":0,""dataType"":""build""},""byInstanceType"":{""cloud-providers"":{""count"":2,""name"":""Other providers""}}}}},""isStale"":true}}",,,,,,,,,,,0|i002gb:,,,,,,,,,Sprint 1,,,,,,,,,,,,,,,,,,,,,10046,AL-15,Project Infrastructure,Done,20/Oct/26 11:43 AM
