@@ -16,6 +16,10 @@ final class ProfileDetailsViewModel {
     private(set) var submitError: String?
     private var touched: Set<SignUpField> = []
 
+    /// Sign out is there so a borrower on the wrong account isn't stuck here, but not while the
+    /// profile is being saved.
+    var canSignOut: Bool { !isSubmitting }
+
     private let service: GoogleSignInService
     private let logger = Logger(category: "GoogleSignIn")
 
