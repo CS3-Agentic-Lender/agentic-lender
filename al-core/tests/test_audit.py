@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -6,7 +7,7 @@ import pytest
 
 from app.audit import audit_hash, canonical_json, utc_iso
 
-VECTORS = json.loads((Path(__file__).parent.parent / "test" / "audit-hash-vectors.json").read_text())["vectors"]
+VECTORS = json.loads((Path(__file__).parent.parent / "test" / "audit-hash-vectors.json").read_text(encoding="utf-8"))["vectors"]
 
 
 def test_the_vector_file_has_the_seeds_audit_records_and_ai_calls():
@@ -37,6 +38,16 @@ def test_changing_one_character_changes_the_hash():
     vector = next(v for v in VECTORS if v["name"].startswith("audit-record:"))
     changed = {**vector["record"], "creditMemo": vector["record"]["creditMemo"] + "."}
     assert audit_hash(changed) != vector["hash"]
+
+
+def test_non_ascii_text_is_escaped_so_a_raw_utf8_hash_does_not_match():
+    vector = next(v for v in VECTORS if v["name"].startswith("non-ascii:"))
+    text = canonical_json(vector["record"])
+    assert "\\u00e9" in text and "é" not in text and text.isascii()
+    assert audit_hash(vector["record"]) == vector["hash"]
+    raw = json.dumps(vector["record"], sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert "é" in raw
+    assert hashlib.sha256(raw.encode("utf-8")).hexdigest() != vector["hash"]
 
 
 def test_a_known_hash_by_hand():

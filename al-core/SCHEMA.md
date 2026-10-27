@@ -131,7 +131,7 @@ Underwriter-only details, kept in a separate document so borrowers can't read th
 
 Written once at mint. Declined applications have none. The audit hash is the SHA-256 of the record **without** its `auditHash` field, serialised with `json.dumps(record, sort_keys=True, separators=(",", ":"))`. To verify a loan, remove `auditHash` from the stored record, hash the rest the same way, and compare with the on-chain value.
 
-The one function that does this is `audit_hash(record)` in `al-core/app/audit.py` (`utc_iso` there formats times). al-ai uses the same rules for the per-call hashes. The shared examples are in `al-core/test/audit-hash-vectors.json`: each is a record and its expected hash, built from the hashes `scripts/seed.js` writes (the audit records and the `ai_calls` documents they list). Rebuild the file with `node scripts/audit-vectors.js --write` after the seed's audit records change; a Jest test fails if it is out of date.
+The one function that does this is `audit_hash(record)` in `al-core/app/audit.py` (`utc_iso` there formats times). al-ai uses the same rules for the per-call hashes. The shared examples are in `al-core/test/audit-hash-vectors.json`: each is a record and its expected hash, built from the hashes `scripts/seed.js` writes (the audit records and the `ai_calls` documents they list). Rebuild the file with `node scripts/audit-vectors.js --write` after the seed's audit records change; a Jest test fails if it is out of date. Non-ASCII text is escaped as Python's `json.dumps` does it (an accented e is hashed as `é`, never as the raw character), and one vector (`non-ascii:...`) checks it, so al-ai must escape the same way.
 
 | Field | Type | Notes |
 |---|---|---|
