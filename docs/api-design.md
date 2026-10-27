@@ -181,6 +181,8 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 
 Adding the contributions to the baseline gives the estimate. There is one contribution for each of the six inputs, biggest first by size (ignoring the sign), and `eircode_area` is the routing key (the first three characters of the Eircode). `model_version` is the version of the saved model (`v2`). **Everything in this response is an estimate of a 2024 asking price, not a verified valuation, and anything that shows it must say so.**
 
+If the estimate works but its breakdown cannot be worked out, the call still returns `200` with the estimate. `baseline_eur` and `contributions` are then both null (always together, never just one) and `support_warnings` has the line "The breakdown of this estimate isn't available right now." A client should hide the breakdown when either is null. If the estimate itself fails the call returns `503` as before.
+
 **Errors.** All errors use this shape:
 
 ```json

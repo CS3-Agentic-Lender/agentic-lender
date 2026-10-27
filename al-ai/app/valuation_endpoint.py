@@ -7,7 +7,7 @@ import time
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app import auth, valuation_checks, valuation_explain, valuation_model
 from app.affordability_endpoint import BER_VALUES, _one_of
@@ -19,6 +19,8 @@ log = logging.getLogger("al-ai.valuation")
 SCHEMA_VERSION = "1"
 MODEL_VERSION = "v2"
 BASIS = "2024 asking-price estimate"
+# Shown by the iOS app exactly as it comes, so it is plain English. Sent when the estimate is fine but its breakdown is not.
+BREAKDOWN_WARNING = "The breakdown of this estimate isn't available right now."
 # The floor areas the model was trained on. Outside them it still answers, with a warning.
 TRAINED_AREA_M2 = (15, 1000)
 # The same rule as al-core and the iOS form: capitals, one space, e.g. "A65 F4E2".
@@ -57,10 +59,20 @@ class ValuationResponse(BaseModel):
     schema_version: str
     asking_price_gap: float | None  # asking price / estimate - 1; null when no asking price was sent
     price_needs_review: bool | None
-    baseline_eur: float = Field(description="The model's average estimate over the 100 sample homes saved with it: the starting point of the breakdown.")
-    contributions: list[Contribution] = Field(
-        description="One piece for each of the six inputs, biggest first by size (ignoring the sign). baseline_eur plus all the pieces is estimate_eur."
+    baseline_eur: float | None = Field(
+        description="The model's average estimate over the 100 sample homes saved with it: the starting point of the breakdown. "
+        "Null together with contributions (never just one of them) when the breakdown could not be worked out. The estimate is still good then."
     )
+    contributions: list[Contribution] | None = Field(
+        description="One piece for each of the six inputs, biggest first by size (ignoring the sign). baseline_eur plus all the pieces is estimate_eur. "
+        "Null together with baseline_eur (never just one of them) when the breakdown could not be worked out. The estimate is still good then."
+    )
+
+    @model_validator(mode="after")
+    def _both_or_neither(self):
+        if (self.baseline_eur is None) != (self.contributions is None):
+            raise ValueError("baseline_eur and contributions are null together or present together, never just one")
+        return self
 
 
 def _breakdown(request: ValuationRequest, routing_key: str) -> tuple[float, list[Contribution]]:
@@ -107,7 +119,12 @@ def value_home(
             request.county, request.property_type, request.bedrooms, request.floor_area_m2, request.ber, routing_key
         )
         warnings = _warnings(request, routing_key)
-        baseline, contributions = _breakdown(request, routing_key)
+        try:
+            baseline, contributions = _breakdown(request, routing_key)
+        except Exception as exc:  # the estimate matters more than its explanation, so a failed breakdown never costs the borrower the estimate
+            baseline = contributions = None
+            warnings.append(BREAKDOWN_WARNING)
+            entry["breakdown_error"] = f"{type(exc).__name__}: {exc}"[:300]  # the log says why, with no Eircode in it
         gap, needs_review = valuation_checks.price_gap_check(estimate, request.asking_price_eur, valuation_model.review_threshold())
         response = ValuationResponse(
             estimate_eur=round(estimate, 2),
