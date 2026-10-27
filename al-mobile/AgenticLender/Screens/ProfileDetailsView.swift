@@ -4,6 +4,7 @@ import SwiftUI
 /// they have none yet, either a first-time Google user or an email sign-up that stopped before the
 /// profile was saved. The email is the signed-in account's and can't be changed.
 struct ProfileDetailsView: View {
+    @Environment(AppSession.self) private var session
     @State private var model: ProfileDetailsViewModel
     @FocusState private var focused: SignUpField?
     @State private var isCountySheetShown = false
@@ -79,6 +80,17 @@ struct ProfileDetailsView: View {
                 Task { await model.submit() }
             }
             .accessibilityIdentifier("googleProfile.continue")
+            // Nothing is saved yet, so no confirmation: signing back in brings this screen back.
+            SecondaryButton(title: "Sign out") { session.signOut() }
+                .disabled(!model.canSignOut)
+                .accessibilityIdentifier("googleProfile.signOut")
+            if let signOutError = session.signOutError {
+                Label(signOutError, systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("googleProfile.signOutError")
+            }
         }
         .padding(Theme.screenPadding)
         .background(Theme.oat)
@@ -95,5 +107,6 @@ private struct PreviewGoogleSignInService: GoogleSignInService {
     NavigationStack {
         ProfileDetailsView(user: GoogleUser(email: "alice@gmail.com", name: "Alice Murphy"), service: PreviewGoogleSignInService())
     }
+    .environment(AppSession(state: PreviewSignedInState()))
 }
 #endif

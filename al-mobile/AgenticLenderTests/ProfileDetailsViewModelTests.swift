@@ -1,12 +1,30 @@
 import XCTest
 @testable import AgenticLender
 
+/// Holds the profile save open until the test releases it, to look at the screen mid-save.
+private final class SlowGoogleSignInService: GoogleSignInService, @unchecked Sendable {
+    private(set) var saves = 0
+    private var gate: CheckedContinuation<Void, Never>?
+
+    func signIn(with token: GoogleToken) async throws -> GoogleSignInOutcome { .signedIn }
+
+    func completeProfile(_ profile: BorrowerProfile) async throws {
+        saves += 1
+        await withCheckedContinuation { gate = $0 }
+    }
+
+    func release() {
+        gate?.resume()
+        gate = nil
+    }
+}
+
 /// The profile screen a first-time Google user fills in before reaching home (AL-94 AC2).
 @MainActor
 final class ProfileDetailsViewModelTests: XCTestCase {
     private let user = GoogleUser(email: "aoife@gmail.com", name: "Aoife Byrne")
 
-    private func filled(_ service: FakeGoogleSignInService) -> ProfileDetailsViewModel {
+    private func filled(_ service: GoogleSignInService) -> ProfileDetailsViewModel {
         let model = ProfileDetailsViewModel(user: user, service: service)
         model.form.phone = "087 123 4567"
         model.form.addressLine1 = "12 Lough Road"
@@ -91,5 +109,36 @@ final class ProfileDetailsViewModelTests: XCTestCase {
         XCTAssertFalse(model.isProfileSaved)
         XCTAssertEqual(model.submitError, AccountError.profileNotSaved.message)
         XCTAssertFalse(model.isSubmitting)
+    }
+
+    // MARK: Sign out (AL-256)
+
+    func testSignOutIsOfferedBeforeAnythingIsSaved() {
+        let model = ProfileDetailsViewModel(user: user, service: FakeGoogleSignInService())
+
+        XCTAssertTrue(model.canSignOut)
+    }
+
+    func testSignOutIsOffWhileContinueIsSavingTheProfile() async {
+        let service = SlowGoogleSignInService()
+        let model = filled(service)
+
+        let saving = Task { await model.submit() }
+        while service.saves == 0 { await Task.yield() }
+        XCTAssertFalse(model.canSignOut)
+
+        service.release()
+        await saving.value
+        XCTAssertFalse(model.isSubmitting)
+    }
+
+    func testSignOutComesBackAfterASaveFails() async {
+        let service = FakeGoogleSignInService()
+        service.completeResult = .failure(.profileNotSaved)
+        let model = filled(service)
+
+        await model.submit()
+
+        XCTAssertTrue(model.canSignOut)
     }
 }
