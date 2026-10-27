@@ -1,10 +1,12 @@
-// Deploys the loan note contract and saves its address where al-core can read it:
-//   deployments/<network>.json  ->  { network, chainId, LoanNote: { address, admin, minter, holder }, deployedAt }
+// Deploys the loan note contract and the audit registry and saves their addresses where al-core can read them:
+//   deployments/<network>.json  ->  { network, chainId, LoanNote: { address, admin, minter, holder },
+//                                     AuditRegistry: { address, admin, registrar }, deployedAt }
 //
 // Local:   npx hardhat node                        (window 1)
 //          npx hardhat run scripts/deploy.js --network localhost
 // The minter (al-core's wallet) is MINTER_ADDRESS from .env and the holder (the bank, which keeps every note) is
-// HOLDER_ADDRESS. Each defaults to the deployer, which is fine for local work.
+// HOLDER_ADDRESS. Each defaults to the deployer, which is fine for local work. The registry's registrar is the same
+// wallet as the minter: al-core has one wallet and uses it for both.
 const fs = require("fs");
 const path = require("path");
 const { ethers, network } = require("hardhat");
@@ -29,11 +31,16 @@ async function main() {
   const loanNote = await LoanNote.deploy(deployer.address, minter, holder);
   await loanNote.waitForDeployment();
 
+  const AuditRegistry = await ethers.getContractFactory("AuditRegistry");
+  const auditRegistry = await AuditRegistry.deploy(deployer.address, minter);
+  await auditRegistry.waitForDeployment();
+
   const { chainId } = await ethers.provider.getNetwork();
   const record = {
     network: network.name,
     chainId: Number(chainId),
     LoanNote: { address: await loanNote.getAddress(), admin: deployer.address, minter, holder },
+    AuditRegistry: { address: await auditRegistry.getAddress(), admin: deployer.address, registrar: minter },
     deployedAt: new Date().toISOString(),
   };
 
@@ -43,7 +50,8 @@ async function main() {
   fs.writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
 
   console.log(`LoanNote deployed to ${record.LoanNote.address} on ${network.name} (chain ${record.chainId})`);
-  console.log(`Minter: ${minter}`);
+  console.log(`AuditRegistry deployed to ${record.AuditRegistry.address}`);
+  console.log(`Minter and registrar: ${minter}`);
   console.log(`Holder: ${holder}`);
   console.log(`Saved to ${path.relative(process.cwd(), file)}`);
 }

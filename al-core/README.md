@@ -208,7 +208,7 @@ End-to-end check against the emulators (API running as above, from `al-core/`):
 uv run python scripts/smoke_me.py
 ```
 
-## Blockchain: the loan note contract (`chain/`)
+## Blockchain: the loan note and audit registry contracts (`chain/`)
 
 The blockchain half of al-core is a Hardhat project in `al-core/chain/`, separate from the Firebase tooling so the two test runners never pick up each other's tests.
 
@@ -253,7 +253,7 @@ npm run demo:local
 
 (the same as `npx hardhat run scripts/deploy.js --network localhost` and `scripts/demo-mint.js`.)
 
-`deploy.js` deploys the loan note and saves its address to `deployments/localhost.json`, which al-core will read to find the contract once minting is wired in. `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node: `demo-mint.js` says so if the saved address has no contract behind it.
+`deploy.js` deploys the loan note and the audit registry and saves both addresses to `deployments/localhost.json`, which al-core will read to find the contracts once minting is wired in. `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node: `demo-mint.js` says so if the saved address has no contract behind it.
 
 ### Choices for the chain
 
@@ -261,5 +261,5 @@ npm run demo:local
 - **Libraries:** Hardhat and ethers.js for the contracts, tests and scripts; web3.py in al-core for minting.
 - **Where the chain runs:** a local Hardhat node for development. The live site can't reach a node on a laptop, so it will use a public testnet, most likely Polygon Amoy, set up in Sprint 3 (`--network amoy` once `.env` is filled in).
 - **Docker Compose:** not for now (team decision, 13 Oct). `npx hardhat node` runs fine on its own and al-core only needs its URL, so Compose would add a container without changing anything. Revisit when the chain is deployed.
-- **Audit registry:** the second contract (the write-once SHA-256 audit hash) comes with the audit hash story in Sprint 2, agreed with Nic on 18 Oct, since the Sprint 1 goal covers the loan note only.
+- **Audit registry:** the second contract, `contracts/AuditRegistry.sol` (Sprint 2, agreed with Nic on 18 Oct). It stores one SHA-256 hash and the time stored per application reference (the same SHA-256 of the application id the loan note uses), emits `HashStored`, and refuses a second write for the same application, so a stored hash can't change. Only the registrar role, al-core's wallet (the same wallet as the minter), can write, and the admin can hand that role on. Only a hash and the reference go on-chain. Read it with `recordOf(applicationRef)`. How the hash is built is in `SCHEMA.md` and `app/audit.py`.
 - **Keys:** testnet wallets only. Private keys live in `chain/.env`, which git ignores; `chain/.env.example` lists the names with empty values.
