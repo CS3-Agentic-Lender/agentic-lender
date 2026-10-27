@@ -1,0 +1,57 @@
+{
+ "what": "One tiny structured-output request per provider. No keys are stored here. A skipped provider had no key set.",
+ "schema": {
+  "type": "object",
+  "properties": {
+   "answer": {
+    "type": "integer"
+   }
+  },
+  "required": [
+   "answer"
+  ],
+  "additionalProperties": false
+ },
+ "prompt": "What is 2 plus 2? Put the number in the answer field.",
+ "results": [
+  {
+   "provider": "mistral",
+   "model": "mistral-small-2603",
+   "status": "skipped",
+   "reason": "MISTRAL_API_KEY is not set"
+  },
+  {
+   "status": "passed",
+   "provider": "gemini",
+   "model": "gemini-3.1-flash-lite",
+   "raw_reply": "{\"answer\": 4}",
+   "input_tokens": 27,
+   "output_tokens": 6,
+   "request_id": "iQXhapTVCNb9vdIPyZr1wQU",
+   "duration_s": 2.164,
+   "checked_on": "2026-10-27"
+  },
+  {
+   "status": "passed",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "raw_reply": "{\n  \"answer\": 4\n}",
+   "input_tokens": 43,
+   "output_tokens": 10,
+   "request_id": null,
+   "duration_s": 0.213,
+   "checked_on": "2026-10-27"
+  },
+  {
+   "status": "passed",
+   "provider": "groq",
+   "model": "openai/gpt-oss-120b",
+   "raw_reply": "{\"answer\":4}",
+   "input_tokens": 186,
+   "output_tokens": 75,
+   "request_id": "req_01m5zfva29eh8ssqz4mkct80r2",
+   "duration_s": 0.549,
+   "checked_on": "2026-10-27"
+  }
+ ]
+}
