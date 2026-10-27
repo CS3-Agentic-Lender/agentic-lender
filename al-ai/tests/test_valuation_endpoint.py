@@ -13,7 +13,7 @@ client = TestClient(app)
 AUTH = {"Authorization": "Bearer ok"}
 KEYS = {
     "estimate_eur", "display_estimate_eur", "basis", "support_warnings", "model_version", "schema_version",
-    "asking_price_gap", "price_needs_review",
+    "asking_price_gap", "price_needs_review", "baseline_eur", "contributions",
 }
 
 

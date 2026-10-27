@@ -159,26 +159,27 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 
 ```json
 {
-  "estimate_eur": 365600,
-  "display_estimate_eur": 366000,
+  "estimate_eur": 371800,
+  "display_estimate_eur": 372000,
   "basis": "2024 asking-price estimate",
   "support_warnings": [],
-  "model_version": "valuation-1.0",
+  "model_version": "v2",
   "schema_version": "1",
-  "asking_price_gap": 0.0394,
+  "asking_price_gap": 0.0221,
   "price_needs_review": false,
   "baseline_eur": 312000,
   "contributions": [
     { "feature": "floor_area", "value": 98, "eur": 31200 },
     { "feature": "county", "value": "Cork", "eur": 18500 },
     { "feature": "bedrooms", "value": 3, "eur": 9800 },
+    { "feature": "eircode_area", "value": "T12", "eur": 6200 },
     { "feature": "property_type", "value": "Semi-D", "eur": -4600 },
     { "feature": "ber", "value": "C", "eur": -1300 }
   ]
 }
 ```
 
-Adding the contributions to the baseline gives the estimate. It is an indicative estimate based on 2024 asking prices, not a verified valuation.
+Adding the contributions to the baseline gives the estimate. There is one contribution for each of the six inputs, biggest first by size (ignoring the sign), and `eircode_area` is the routing key (the first three characters of the Eircode). `model_version` is the version of the saved model (`v2`). **Everything in this response is an estimate of a 2024 asking price, not a verified valuation, and anything that shows it must say so.**
 
 **Errors.** All errors use this shape:
 
