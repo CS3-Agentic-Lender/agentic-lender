@@ -27,6 +27,8 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `reviews/{uid}` | That user, underwriters | al-core | One review per user |
 | `users/{uid}/saved_checks/{checkId}` | That user | al-core (`POST` and `DELETE /core/saved-checks`) | A borrower's saved property checks |
 
+**Brokers don't read Drafts.** A Draft is the borrower's working copy, so the rules close `applications/{id}` and its `audit` and `messages` subcollections to a broker while the status is `Draft`. Applied and every later status stay readable to the assigned broker. Borrowers and underwriters are unaffected. Because Firestore rules don't filter results, a broker's application query must exclude Drafts (`where('brokerId', '==', uid).where('status', '!=', 'Draft')`), or Firestore refuses it. That query needs the `brokerId` + `status` index in `firestore.indexes.json`.
+
 ## users/{uid}
 
 | Field | Type | Required | Notes |
