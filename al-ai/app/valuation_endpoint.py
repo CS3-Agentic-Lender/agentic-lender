@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from app import auth, valuation_explain, valuation_model
+from app import auth, valuation_checks, valuation_explain, valuation_model
 from app.affordability_endpoint import BER_VALUES, _one_of
 from ml import data_readiness as dr
 
@@ -108,7 +108,7 @@ def value_home(
         )
         warnings = _warnings(request, routing_key)
         baseline, contributions = _breakdown(request, routing_key)
-        gap =request.asking_price_eur / estimate - 1 if request.asking_price_eur else None
+        gap, needs_review = valuation_checks.price_gap_check(estimate, request.asking_price_eur, valuation_model.review_threshold())
         response = ValuationResponse(
             estimate_eur=round(estimate, 2),
             display_estimate_eur=int(round(estimate / 1000)) * 1000,
@@ -117,7 +117,7 @@ def value_home(
             model_version=MODEL_VERSION,
             schema_version=SCHEMA_VERSION,
             asking_price_gap=None if gap is None else round(gap, 6),
-            price_needs_review=None if gap is None else gap > valuation_model.review_threshold(),
+            price_needs_review=needs_review,
             baseline_eur=baseline,
             contributions=contributions,
         )
