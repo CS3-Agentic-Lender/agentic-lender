@@ -1,0 +1,120 @@
+{
+ "what": "Made-up homes, not listings. The breakdown the /ai/valuation endpoint gives for the first three reference homes that have an Eircode area. A change in the model, the background sample or the Shapley code must reproduce these within the tolerance.",
+ "absolute_tolerance_eur": 0.01,
+ "homes": [
+  {
+   "request": {
+    "county": "Cavan",
+    "property_type": "Apartment",
+    "bedrooms": 3,
+    "floor_area_m2": 93.0,
+    "ber": "G",
+    "eircode": "V14 AB12"
+   },
+   "estimate_eur": 154537.62,
+   "baseline_eur": 576575.36,
+   "contributions": [
+    {
+     "feature": "county",
+     "eur": -154470.32
+    },
+    {
+     "feature": "floor_area",
+     "eur": -107865.37
+    },
+    {
+     "feature": "ber",
+     "eur": -59458.67
+    },
+    {
+     "feature": "eircode_area",
+     "eur": -45322.93
+    },
+    {
+     "feature": "property_type",
+     "eur": -44388.32
+    },
+    {
+     "feature": "bedrooms",
+     "eur": -10532.13
+    }
+   ]
+  },
+  {
+   "request": {
+    "county": "Cavan",
+    "property_type": "End of Terrace",
+    "bedrooms": 3,
+    "floor_area_m2": 175.0,
+    "ber": "B",
+    "eircode": "W23 AB12"
+   },
+   "estimate_eur": 387967.55,
+   "baseline_eur": 576575.36,
+   "contributions": [
+    {
+     "feature": "county",
+     "eur": -229733.84
+    },
+    {
+     "feature": "eircode_area",
+     "eur": 55791.33
+    },
+    {
+     "feature": "property_type",
+     "eur": -39940.38
+    },
+    {
+     "feature": "ber",
+     "eur": 23291.46
+    },
+    {
+     "feature": "floor_area",
+     "eur": 18006.33
+    },
+    {
+     "feature": "bedrooms",
+     "eur": -16022.71
+    }
+   ]
+  },
+  {
+   "request": {
+    "county": "Clare",
+    "property_type": "End of Terrace",
+    "bedrooms": 4,
+    "floor_area_m2": 242.0,
+    "ber": "D",
+    "eircode": "A98 AB12"
+   },
+   "estimate_eur": 481196.0,
+   "baseline_eur": 576575.36,
+   "contributions": [
+    {
+     "feature": "county",
+     "eur": -293658.7
+    },
+    {
+     "feature": "floor_area",
+     "eur": 158704.37
+    },
+    {
+     "feature": "eircode_area",
+     "eur": 91809.97
+    },
+    {
+     "feature": "property_type",
+     "eur": -71444.75
+    },
+    {
+     "feature": "bedrooms",
+     "eur": 27382.32
+    },
+    {
+     "feature": "ber",
+     "eur": -8172.57
+    }
+   ]
+  }
+ ]
+}

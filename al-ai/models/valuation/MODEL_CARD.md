@@ -69,7 +69,21 @@ The flag is a heuristic from historical asking-price gaps. It is not proof that 
 
 ## Background sample
 
-`background-sample.csv`: 100 training homes drawn with seed 42, **inputs only** (no price, title, address or coordinates; floor area rounded to 5 m²). It is the fixed background for the explanation work later.
+`background-sample.csv`: 100 training homes drawn with seed 42, **inputs only** (no price, title, address or coordinates; floor area rounded to 5 m²). It is the fixed background for the breakdown below.
+
+## How to read the breakdown
+
+**This is an estimate of a 2024 asking price. It is not a valuation, and the breakdown only explains the estimate.**
+
+`POST /ai/valuation` returns a `baseline_eur` and a list of `contributions`, one for each of the six inputs (county, property type, bedrooms, floor area, BER and the Eircode area). Start from the baseline and add every piece and you get the estimate.
+
+- **The baseline** is the model's average estimate over the 100 sample homes above. It is a starting point, not a price for any real house. It is high (about EUR 577,000) because a few big, expensive homes are in the sample, and the middle sample home is about EUR 396,000.
+- **A piece** is how much that input moved the estimate away from the baseline for this home: positive pushed it up and negative pulled it down. Dublin is a big plus. A small apartment shows a big minus for floor area because it is smaller than the sample average, which does not mean there is anything wrong with the home.
+- **The pieces share credit.** County and Eircode area carry related information, so a Dublin home often shows a plus for the county and a minus for the Eircode area. Read them together.
+- **They are exact.** Six inputs give 64 combinations, so the pieces are exact Shapley values, not an approximation, and they add up to the estimate within a cent.
+- **Order of the list.** Biggest piece first, ignoring the sign.
+- **What it costs.** The breakdown adds about 0.2 seconds to a call (median 196 ms, worst 230 ms in 15 calls on an Apple M5 Pro laptop on 27 Oct 2026). The plain estimate takes about 16 ms. The limit set for this ticket was 500 ms extra.
+- **The check.** `reference-breakdown.json` holds the breakdown for three made-up reference homes. The test suite checks that the endpoint still gives the same numbers, within 1 cent.
 
 ## Check that a reload gives the same answers
 

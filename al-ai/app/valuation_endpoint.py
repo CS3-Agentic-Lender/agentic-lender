@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from app import auth, valuation_model
+from app import auth, valuation_explain, valuation_model
 from app.affordability_endpoint import BER_VALUES, _one_of
 from ml import data_readiness as dr
 
@@ -38,7 +38,17 @@ class ValuationRequest(BaseModel):
     run_id: str | None = Field(default=None, max_length=100)  # set when the call is part of a committee run
 
 
+class Contribution(BaseModel):
+    feature: Literal["county", "property_type", "bedrooms", "floor_area", "ber", "eircode_area"] = Field(
+        description="The input this piece explains. eircode_area is the routing key, the first three characters of the Eircode."
+    )
+    value: str | int | float = Field(description="The value of that input for this home, as it was sent (eircode_area is the routing key only).")
+    eur: float = Field(description="Euro this input added to the estimate (positive) or took off it (negative), compared with the baseline.")
+
+
 class ValuationResponse(BaseModel):
+    """An ESTIMATE of a 2024 asking price. It is not a valuation. baseline_eur plus every contribution adds up to estimate_eur."""
+
     estimate_eur: float
     display_estimate_eur: int  # nearest EUR 1,000
     basis: Literal["2024 asking-price estimate"]
@@ -47,6 +57,24 @@ class ValuationResponse(BaseModel):
     schema_version: str
     asking_price_gap: float | None  # asking price / estimate - 1; null when no asking price was sent
     price_needs_review: bool | None
+    baseline_eur: float = Field(description="The model's average estimate over the 100 sample homes saved with it: the starting point of the breakdown.")
+    contributions: list[Contribution] = Field(
+        description="One piece for each of the six inputs, biggest first by size (ignoring the sign). baseline_eur plus all the pieces is estimate_eur."
+    )
+
+
+def _breakdown(request: ValuationRequest, routing_key: str) -> tuple[float, list[Contribution]]:
+    """The baseline and one euro piece per input, biggest first. The pieces come from app.valuation_explain."""
+    explained = valuation_explain.explain_value(
+        request.county, request.property_type, request.bedrooms, request.floor_area_m2, request.ber, routing_key
+    )
+    shown = {  # the name the API uses for each model column, and the value that was sent
+        "county": ("county", request.county), "property_type": ("property_type", request.property_type),
+        "bedrooms": ("bedrooms", request.bedrooms), "floor_area_m2": ("floor_area", request.floor_area_m2),
+        "ber": ("ber", request.ber), "rkey": ("eircode_area", routing_key),
+    }
+    pieces = [Contribution(feature=shown[col][0], value=shown[col][1], eur=round(eur, 2)) for col, eur in explained.contributions.items()]
+    return round(explained.baseline, 2), sorted(pieces, key=lambda c: abs(c.eur), reverse=True)
 
 
 def _warnings(request: ValuationRequest, routing_key: str) -> list[str]:
@@ -79,7 +107,8 @@ def value_home(
             request.county, request.property_type, request.bedrooms, request.floor_area_m2, request.ber, routing_key
         )
         warnings = _warnings(request, routing_key)
-        gap = request.asking_price_eur / estimate - 1 if request.asking_price_eur else None
+        baseline, contributions = _breakdown(request, routing_key)
+        gap =request.asking_price_eur / estimate - 1 if request.asking_price_eur else None
         response = ValuationResponse(
             estimate_eur=round(estimate, 2),
             display_estimate_eur=int(round(estimate / 1000)) * 1000,
@@ -89,6 +118,8 @@ def value_home(
             schema_version=SCHEMA_VERSION,
             asking_price_gap=None if gap is None else round(gap, 6),
             price_needs_review=None if gap is None else gap > valuation_model.review_threshold(),
+            baseline_eur=baseline,
+            contributions=contributions,
         )
         entry.update(outcome="ok", estimate_eur=response.estimate_eur)
         return response

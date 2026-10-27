@@ -39,5 +39,10 @@
   "catboost": "1.2.10",
   "joblib": "1.6.0"
  },
- "routing_keys_kept": 117
+ "routing_keys_kept": 117,
+ "reference_breakdown": {
+  "file": "reference-breakdown.json",
+  "homes": 3,
+  "absolute_tolerance_eur": 0.01
+ }
 }
