@@ -45,7 +45,7 @@ class ValuationResponse(BaseModel):
     support_warnings: list[str]
     model_version: str
     schema_version: str
-    price_gap: float | None  # asking price / estimate - 1; null when no asking price was sent
+    asking_price_gap: float | None  # asking price / estimate - 1; null when no asking price was sent
     price_needs_review: bool | None
 
 
@@ -87,7 +87,7 @@ def value_home(
             support_warnings=warnings,
             model_version=MODEL_VERSION,
             schema_version=SCHEMA_VERSION,
-            price_gap=None if gap is None else round(gap, 6),
+            asking_price_gap=None if gap is None else round(gap, 6),
             price_needs_review=None if gap is None else gap > valuation_model.review_threshold(),
         )
         entry.update(outcome="ok", estimate_eur=response.estimate_eur)

@@ -13,7 +13,7 @@ client = TestClient(app)
 AUTH = {"Authorization": "Bearer ok"}
 KEYS = {
     "estimate_eur", "display_estimate_eur", "basis", "support_warnings", "model_version", "schema_version",
-    "price_gap", "price_needs_review",
+    "asking_price_gap", "price_needs_review",
 }
 
 
@@ -43,7 +43,7 @@ def test_a_valid_request_returns_the_estimate_and_its_labels():
     assert j["basis"] == "2024 asking-price estimate"
     assert j["model_version"] == "v2" and j["schema_version"] == "1"
     assert j["support_warnings"] == []
-    assert j["price_gap"] is None and j["price_needs_review"] is None
+    assert j["asking_price_gap"] is None and j["price_needs_review"] is None
 
 
 def test_it_needs_a_signed_in_user():
@@ -86,9 +86,9 @@ def test_a_key_the_model_knows_has_no_warning():
 def test_an_asking_price_adds_the_signed_gap():
     estimate = post(body()).json()["estimate_eur"]
     j = post(body(asking_price_eur=estimate * 1.1)).json()
-    assert j["price_gap"] == pytest.approx(0.1, abs=1e-5)
+    assert j["asking_price_gap"] == pytest.approx(0.1, abs=1e-5)
     assert j["price_needs_review"] is False
-    assert post(body(asking_price_eur=estimate * 0.8)).json()["price_gap"] == pytest.approx(-0.2, abs=1e-5)
+    assert post(body(asking_price_eur=estimate * 0.8)).json()["asking_price_gap"] == pytest.approx(-0.2, abs=1e-5)
 
 
 def test_the_review_flag_fires_only_strictly_above_the_calibrated_threshold():
