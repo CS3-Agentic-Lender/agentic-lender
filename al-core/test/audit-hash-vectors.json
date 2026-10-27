@@ -1,0 +1,185 @@
+{
+  "spec": "hash = SHA-256 (lower-case hex) of json.dumps(record, sort_keys=True, separators=(\",\", \":\")) after removing the record's own auditHash field. Timestamps are UTC ISO strings with milliseconds and Z, e.g. 2026-09-18T11:00:00.000Z. Non-ASCII text is escaped as json.dumps does by default.",
+  "vectors": [
+    {
+      "name": "audit-record:app-funded",
+      "record": {
+        "aiCalls": [
+          {
+            "id": "call-app-funded-affordability",
+            "sha256": "dcf0a6ef3338b340889d58b38749921bd8b7f88429980e0ccb83cc7be209bdd2"
+          },
+          {
+            "id": "call-app-funded-valuation",
+            "sha256": "83c7990976cfaf304354ba6c357bd016a5201ef889020222bda8a68dd4f77928"
+          },
+          {
+            "id": "call-app-funded-market",
+            "sha256": "2dd1368cf5717327965c81580ebf1d2f841911e8f5b0dab2a94fdf4723ebdbd6"
+          },
+          {
+            "id": "call-app-funded-strategist",
+            "sha256": "17f78418433404faa6882248cee25b537674bf88a470f27d3a0c964a7d2275ad"
+          }
+        ],
+        "applicationId": "app-funded",
+        "creditMemo": "Seeded credit memo for app-funded: risk tier A, recommendation approve.",
+        "decision": "approved",
+        "riskTier": "A",
+        "signedOffAt": "2026-09-18T11:00:00.000Z",
+        "underwriterId": "underwriter1"
+      },
+      "hash": "8c57d2db796d5544683b37055c7e1c81e9c53a1b8453cb840749c5cab0a5b384"
+    },
+    {
+      "name": "ai-call:call-app-funded-affordability",
+      "record": {
+        "runId": "run-app-funded",
+        "applicationId": "app-funded",
+        "brokerId": "broker1",
+        "agent": "affordability",
+        "provider": "ollama",
+        "model": "qwen3.5:9b",
+        "output": "Seeded affordability output for app-funded.",
+        "latencyMs": 1200,
+        "createdAt": "2026-09-11T09:01:00.000Z"
+      },
+      "hash": "dcf0a6ef3338b340889d58b38749921bd8b7f88429980e0ccb83cc7be209bdd2"
+    },
+    {
+      "name": "ai-call:call-app-funded-valuation",
+      "record": {
+        "runId": "run-app-funded",
+        "applicationId": "app-funded",
+        "brokerId": "broker1",
+        "agent": "valuation",
+        "provider": "mistral",
+        "model": "mistral-small-4",
+        "output": "Seeded valuation output for app-funded.",
+        "latencyMs": 1650,
+        "createdAt": "2026-09-11T09:02:00.000Z"
+      },
+      "hash": "83c7990976cfaf304354ba6c357bd016a5201ef889020222bda8a68dd4f77928"
+    },
+    {
+      "name": "ai-call:call-app-funded-market",
+      "record": {
+        "runId": "run-app-funded",
+        "applicationId": "app-funded",
+        "brokerId": "broker1",
+        "agent": "market",
+        "provider": "gemini",
+        "model": "gemini",
+        "output": "Seeded market output for app-funded.",
+        "latencyMs": 2100,
+        "createdAt": "2026-09-11T09:03:00.000Z"
+      },
+      "hash": "2dd1368cf5717327965c81580ebf1d2f841911e8f5b0dab2a94fdf4723ebdbd6"
+    },
+    {
+      "name": "ai-call:call-app-funded-strategist",
+      "record": {
+        "runId": "run-app-funded",
+        "applicationId": "app-funded",
+        "brokerId": "broker1",
+        "agent": "strategist",
+        "provider": "gemini",
+        "model": "gemini",
+        "output": "Seeded strategist output for app-funded.",
+        "latencyMs": 2550,
+        "createdAt": "2026-09-11T09:04:00.000Z"
+      },
+      "hash": "17f78418433404faa6882248cee25b537674bf88a470f27d3a0c964a7d2275ad"
+    },
+    {
+      "name": "audit-record:app-closed",
+      "record": {
+        "aiCalls": [
+          {
+            "id": "call-app-closed-affordability",
+            "sha256": "378da00fcdae83b02895faec881f0c7a4b4c115e970ac559d6aa5f0de41b7832"
+          },
+          {
+            "id": "call-app-closed-valuation",
+            "sha256": "ae25cbf9bc8c4ab6c0d62910c54e35eddab0813e226dab132e806efd6f60ceda"
+          },
+          {
+            "id": "call-app-closed-market",
+            "sha256": "e8e83566bdc3191d4cfdec9cd9aade3e44114c890733ae9c25c9ea1a06330d0d"
+          },
+          {
+            "id": "call-app-closed-strategist",
+            "sha256": "18834677840071e0fab49bcaa005d0f182e7be6e21e5da9b1eafb65cd8f0649c"
+          }
+        ],
+        "applicationId": "app-closed",
+        "creditMemo": "Seeded credit memo for app-closed: risk tier B, recommendation approve.",
+        "decision": "approved",
+        "riskTier": "B",
+        "signedOffAt": "2026-09-08T11:00:00.000Z",
+        "underwriterId": "underwriter1"
+      },
+      "hash": "3e4737cc206561b9f4b177b97a6492ffd067e561c79dc18f1d86a9d2ba18ed03"
+    },
+    {
+      "name": "ai-call:call-app-closed-affordability",
+      "record": {
+        "runId": "run-app-closed",
+        "applicationId": "app-closed",
+        "brokerId": "broker2",
+        "agent": "affordability",
+        "provider": "ollama",
+        "model": "qwen3.5:9b",
+        "output": "Seeded affordability output for app-closed.",
+        "latencyMs": 1200,
+        "createdAt": "2026-09-02T09:01:00.000Z"
+      },
+      "hash": "378da00fcdae83b02895faec881f0c7a4b4c115e970ac559d6aa5f0de41b7832"
+    },
+    {
+      "name": "ai-call:call-app-closed-valuation",
+      "record": {
+        "runId": "run-app-closed",
+        "applicationId": "app-closed",
+        "brokerId": "broker2",
+        "agent": "valuation",
+        "provider": "mistral",
+        "model": "mistral-small-4",
+        "output": "Seeded valuation output for app-closed.",
+        "latencyMs": 1650,
+        "createdAt": "2026-09-02T09:02:00.000Z"
+      },
+      "hash": "ae25cbf9bc8c4ab6c0d62910c54e35eddab0813e226dab132e806efd6f60ceda"
+    },
+    {
+      "name": "ai-call:call-app-closed-market",
+      "record": {
+        "runId": "run-app-closed",
+        "applicationId": "app-closed",
+        "brokerId": "broker2",
+        "agent": "market",
+        "provider": "gemini",
+        "model": "gemini",
+        "output": "Seeded market output for app-closed.",
+        "latencyMs": 2100,
+        "createdAt": "2026-09-02T09:03:00.000Z"
+      },
+      "hash": "e8e83566bdc3191d4cfdec9cd9aade3e44114c890733ae9c25c9ea1a06330d0d"
+    },
+    {
+      "name": "ai-call:call-app-closed-strategist",
+      "record": {
+        "runId": "run-app-closed",
+        "applicationId": "app-closed",
+        "brokerId": "broker2",
+        "agent": "strategist",
+        "provider": "gemini",
+        "model": "gemini",
+        "output": "Seeded strategist output for app-closed.",
+        "latencyMs": 2550,
+        "createdAt": "2026-09-02T09:04:00.000Z"
+      },
+      "hash": "18834677840071e0fab49bcaa005d0f182e7be6e21e5da9b1eafb65cd8f0649c"
+    }
+  ]
+}
