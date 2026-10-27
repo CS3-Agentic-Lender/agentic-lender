@@ -29,9 +29,23 @@ DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 class LlmError(Exception):
     """The call failed or the reply is not usable. The message never contains a key."""
 
+    status: int | None = None  # the HTTP status when the provider answered with an error, so a caller can tell a wrong key from an outage
+
 
 class MissingKey(LlmError):
     """The key for this provider is not set. Nothing was sent."""
+
+
+class InvalidReply(LlmError):
+    """The provider answered but the reply is not JSON or does not match the schema. A caller may ask again and show it this message.
+
+    It keeps the raw text and the provider's request ID and token counts so a log can show exactly what came back.
+    """
+
+    def __init__(self, message: str, *, raw_reply: str | None, request_id: str | None, input_tokens: int | None, output_tokens: int | None):
+        super().__init__(message)
+        self.raw_reply, self.request_id = raw_reply, request_id
+        self.input_tokens, self.output_tokens = input_tokens, output_tokens
 
 
 @dataclass(frozen=True)
@@ -232,19 +246,22 @@ def complete_json(
         except OSError as exc:  # no connection, a timeout, a refused connection
             raise LlmError(clean(f"{provider} could not be reached ({type(exc).__name__}: {exc})")) from None
         if status != 200:
-            raise LlmError(clean(f"{provider} answered HTTP {status}: {raw.decode(errors='replace')[:300]}"))
+            failure = LlmError(clean(f"{provider} answered HTTP {status}: {raw.decode(errors='replace')[:300]}"))
+            failure.status = status
+            raise failure
         try:
             text, input_tokens, output_tokens, request_id = spec.read(response_headers, json.loads(raw))
         except (ValueError, KeyError, IndexError, TypeError, AttributeError):
             raise LlmError(f"{provider} sent a reply in a shape we do not recognise") from None
         entry.update(request_id=request_id, input_tokens=input_tokens, output_tokens=output_tokens)
+        kept = dict(raw_reply=text if isinstance(text, str) else None, request_id=request_id, input_tokens=input_tokens, output_tokens=output_tokens)
         try:
             parsed = json.loads(text)
         except (TypeError, ValueError):
-            raise LlmError(f"{provider} did not reply with JSON") from None
+            raise InvalidReply(f"{provider} did not reply with JSON", **kept) from None
         problems = schema_errors(parsed, schema)
         if problems:
-            raise LlmError(f"{provider} reply does not match the schema: {'; '.join(problems[:3])}")
+            raise InvalidReply(f"{provider} reply does not match the schema: {'; '.join(problems[:3])}", **kept)
         entry["outcome"] = "ok"
         return LlmResult(provider, model, text, parsed, input_tokens, output_tokens, request_id, round(time.monotonic() - started, 3))
     except LlmError as exc:
