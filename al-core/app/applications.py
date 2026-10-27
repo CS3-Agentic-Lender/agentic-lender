@@ -128,6 +128,9 @@ class ApplicationOut(BaseModel):
     property: PropertyOut | None = None
     estimated_value_eur: float | None = None
     ltv_pct: float | None = None
+    # Set by al-ai after each run, never by a client. Null until the first run.
+    ltv_band: str | None = None
+    risk_tier: str | None = None
     created_at: str | None = None
     submitted_at: str | None = None
     updated_at: str | None = None
@@ -244,6 +247,8 @@ def _out(app_id: str, doc: dict) -> dict:
         "property": {api: prop.get(fs) for api, fs in PROPERTY.items()} if prop else None,
         "estimated_value_eur": doc.get("estimatedValueEur"),
         "ltv_pct": doc.get("ltvPct"),
+        "ltv_band": doc.get("ltvBand"),
+        "risk_tier": doc.get("riskTier"),
         "created_at": _iso(doc.get("createdAt")),
         "submitted_at": _iso(doc.get("submittedAt")),
         "updated_at": _iso(doc.get("updatedAt")),

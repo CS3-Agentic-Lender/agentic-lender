@@ -286,6 +286,43 @@ def test_an_underwriter_can_read_any_application(fake):
     assert read(app_id).status_code == 200
 
 
+# AL-252: ltv_band and risk_tier are returned, set only by al-ai
+
+
+def test_ltv_band_and_risk_tier_are_null_until_al_ai_sets_them(fake):
+    app_id = create({"loan_type": "mortgage"}).json()["id"]
+    body = read(app_id).json()
+    assert body["ltv_band"] is None and body["risk_tier"] is None
+
+
+@pytest.mark.parametrize("uid,role", [("borrower1", "borrower"), ("broker1", "broker"), ("underwriter1", "underwriter")])
+def test_the_borrower_the_assigned_broker_and_an_underwriter_get_the_band_and_tier(fake, uid, role):
+    app_id = create({"loan_type": "mortgage"}).json()["id"]
+    fake["db"].store[f"applications/{app_id}"].update({"ltvBand": "80_to_90", "riskTier": "C"})
+    sign_in(fake, uid, role)
+    body = read(app_id).json()
+    assert body["ltv_band"] == "80_to_90" and body["risk_tier"] == "C"
+
+
+def test_the_band_and_tier_are_never_taken_from_a_new_draft(fake):
+    r = create({"loan_type": "mortgage", "ltv_band": "over_90", "risk_tier": "D"})
+    body = r.json()
+    assert body["ltv_band"] is None and body["risk_tier"] is None
+    stored = fake["db"].store[f"applications/{body['id']}"]
+    assert "ltvBand" not in stored and "riskTier" not in stored
+
+
+def test_an_edit_never_changes_or_clears_the_band_and_tier(fake):
+    app_id = create({"loan_type": "mortgage"}).json()["id"]
+    fake["db"].store[f"applications/{app_id}"].update({"ltvBand": "80_or_less", "riskTier": "A"})
+    body = edit(app_id, {"ltv_band": "over_90", "risk_tier": "D", "loan_amount_eur": 200000}).json()
+    assert body["ltv_band"] == "80_or_less" and body["risk_tier"] == "A" and body["loan_amount_eur"] == 200000
+    body = edit(app_id, {"ltv_band": None, "risk_tier": None}).json()
+    assert body["ltv_band"] == "80_or_less" and body["risk_tier"] == "A"
+    stored = fake["db"].store[f"applications/{app_id}"]
+    assert stored["ltvBand"] == "80_or_less" and stored["riskTier"] == "A"
+
+
 def test_the_old_broker_keeps_the_application_after_a_broker_change(fake):
     app_id = create({"loan_type": "mortgage"}).json()["id"]
     fake["db"].store["users/borrower1"]["brokerId"] = "broker2"  # borrower changes broker
