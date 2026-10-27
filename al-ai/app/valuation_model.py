@@ -36,6 +36,28 @@ def _load(model_dir: Path = MODEL_DIR):
         raise ValuationUnavailable(f"the valuation model could not be loaded: {type(exc).__name__}") from exc
 
 
+def manifest() -> dict:
+    """The recorded facts about the model file. Only read after _load has checked the file against it."""
+    _load()
+    return json.loads((MODEL_DIR / "manifest.json").read_text())
+
+
+def review_threshold() -> float:
+    """The calibrated gap above which an asking price needs review (AL-24): asking price / estimate - 1."""
+    return float(manifest()["threshold"])
+
+
+@lru_cache(maxsize=1)
+def routing_keys() -> frozenset[str]:
+    """The Eircode routing keys the model kept. Any other key is valued as if it were missing."""
+    model, _ = _load()
+    try:
+        regressor = next(iter(model.members.values())).regressor_
+        return frozenset(regressor.named_steps["features"].keys_)
+    except Exception as exc:  # a model saved with a different shape: refuse rather than call every key seen
+        raise ValuationUnavailable(f"the model's routing keys could not be read: {type(exc).__name__}") from exc
+
+
 def estimate_value(county: str, property_type: str, bedrooms: int, floor_area_m2: float, ber: str, routing_key: str | None = None) -> float:
     """The model's estimate of the asking price in euro. Old BER subgrades (A1 to E3) become their A to G band; anything else is Unknown."""
     model, columns = _load()
