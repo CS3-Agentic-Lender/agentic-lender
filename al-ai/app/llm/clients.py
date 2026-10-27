@@ -13,6 +13,7 @@ import logging
 import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Callable
@@ -107,8 +108,26 @@ def _read_gemini(headers: dict, body: dict):
     return text, usage.get("promptTokenCount"), usage.get("candidatesTokenCount"), body.get("responseId")
 
 
+def ollama_base_url(raw: str | None) -> str:
+    """OLLAMA_HOST the way Ollama's own docs write it: a scheme and a port are both optional ("127.0.0.1:11434", "0.0.0.0")."""
+    raw = (raw or "").strip() or DEFAULT_OLLAMA_HOST
+    if "://" not in raw:
+        raw = "http://" + raw
+    try:
+        parts = urllib.parse.urlsplit(raw)
+        port = parts.port  # raises ValueError for a port that is not a number or is out of range
+    except ValueError:
+        raise LlmError("OLLAMA_HOST is not a usable address") from None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise LlmError("OLLAMA_HOST is not a usable address")
+    netloc = parts.netloc
+    if port is None and parts.scheme == "http":
+        netloc += ":11434"  # Ollama's default port
+    return f"{parts.scheme}://{netloc}{parts.path.rstrip('/')}"
+
+
 def _build_ollama(model, system, user, schema, key, env):
-    host = (env.get("OLLAMA_HOST") or DEFAULT_OLLAMA_HOST).rstrip("/")
+    host = ollama_base_url(env.get("OLLAMA_HOST"))
     body = {
         "model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],

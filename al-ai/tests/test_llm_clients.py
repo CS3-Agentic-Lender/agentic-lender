@@ -181,3 +181,29 @@ def test_the_schema_check_handles_enums_arrays_and_numbers():
     assert clients.schema_errors({"label": "a", "items": [1, 2.5]}, schema) == []
     assert clients.schema_errors({"label": "c", "items": []}, schema)
     assert clients.schema_errors({"label": "a", "items": [1, "x"]}, schema)
+
+
+# ---- OLLAMA_HOST in the forms Ollama's own docs use ---------------------------------------------------------
+
+@pytest.mark.parametrize("host,url", [
+    ("127.0.0.1:11434", "http://127.0.0.1:11434/api/chat"),
+    ("0.0.0.0", "http://0.0.0.0:11434/api/chat"),
+    ("localhost", "http://localhost:11434/api/chat"),
+    ("http://ollama.test:11434/", "http://ollama.test:11434/api/chat"),
+    ("http://ollama.test:9000", "http://ollama.test:9000/api/chat"),
+    ("https://ollama.example.com", "https://ollama.example.com/api/chat"),
+    ("  http://localhost:11434  ", "http://localhost:11434/api/chat"),
+    ("", "http://localhost:11434/api/chat"),
+])
+def test_ollama_host_works_with_or_without_a_scheme_and_a_port(host, url):
+    net = net_for("ollama")
+    ask("ollama", net, env={"OLLAMA_HOST": host})
+    assert net.calls[0]["url"] == url
+
+
+@pytest.mark.parametrize("host", ["ftp://x", "http://", "http://host:notaport", "://nothing", "http://host:99999"])
+def test_a_bad_ollama_host_is_an_llm_error_not_a_crash(host):
+    net = net_for("ollama")
+    with pytest.raises(clients.LlmError, match="OLLAMA_HOST"):
+        ask("ollama", net, env={"OLLAMA_HOST": host})
+    assert net.calls == []
