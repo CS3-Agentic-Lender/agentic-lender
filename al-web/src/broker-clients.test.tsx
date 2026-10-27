@@ -175,7 +175,7 @@ describe('broker client list', () => {
     });
 
     const row = (await screen.findByRole('link', { name: 'Ben Walsh, client borrower-2' })).closest('tr');
-    expect(within(row!).getByText('No application yet')).toBeInTheDocument();
+    expect(within(row!).getByText('No submitted application yet')).toBeInTheDocument();
   });
 
   it('removes a client who moves to another broker', async () => {
@@ -226,7 +226,7 @@ describe('broker client list', () => {
 
     const row = (await screen.findByRole('link', { name: 'Ben Walsh, client borrower-2' })).closest('tr');
     expect(row).not.toBeNull();
-    expect(within(row!).getByText('No application yet')).toBeInTheDocument();
+    expect(within(row!).getByText('No submitted application yet')).toBeInTheDocument();
     expect(within(row!).queryByText('Draft')).not.toBeInTheDocument();
   });
 
@@ -340,6 +340,18 @@ describe('broker client list', () => {
     expect(screen.getByText('Showing 0 of 2')).toBeInTheDocument();
   });
 
+  it('does not offer Draft in the status filter, because brokers never see Drafts', async () => {
+    const clients = new FakeClientsService({
+      'broker-1': files([alice], [application('LN-1001', 'borrower-1', 'Applied')]),
+    });
+    renderAs('broker-1', 'broker', '/broker/clients', clients);
+    await screen.findByRole('link', { name: 'Alice Byrne, client borrower-1' });
+
+    const filter = screen.getByLabelText('Status');
+    expect(within(filter).queryByRole('option', { name: 'Draft' })).not.toBeInTheDocument();
+    expect(within(filter).getByRole('option', { name: 'Applied' })).toBeInTheDocument();
+  });
+
   it('refuses an underwriter', async () => {
     const clients = new FakeClientsService(seededFiles);
     renderAs('underwriter-1', 'underwriter', '/broker/clients', clients);
@@ -362,7 +374,7 @@ describe('broker client file', () => {
     renderAs('broker-1', 'broker', '/broker/clients/borrower-2', new FakeClientsService({ 'broker-1': files([ben], []) }));
 
     expect(await screen.findByRole('heading', { name: 'Ben Walsh' })).toBeInTheDocument();
-    expect(screen.getByText('This client has not started an application yet.')).toBeInTheDocument();
+    expect(screen.getByText('This client has no submitted application yet.')).toBeInTheDocument();
   });
 
   it('shows not found for another broker’s client opened by URL', async () => {
@@ -397,7 +409,7 @@ describe('broker client file', () => {
     });
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' })).toBeInTheDocument();
-    expect(screen.getByText('This client has not started an application yet.')).toBeInTheDocument();
+    expect(screen.getByText('This client has no submitted application yet.')).toBeInTheDocument();
   });
 
   it('shows not found once profiles have answered and the client is not in them', async () => {
