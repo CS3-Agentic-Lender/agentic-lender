@@ -27,19 +27,30 @@ def _positive(value: float, name: str) -> float:
     return value
 
 
+def price_gap_check(estimate: float, asking_price: float | None, review_threshold: float) -> tuple[float | None, bool | None]:
+    """The signed gap (asking price / estimate - 1) and whether the price needs review. (None, None) with no asking price.
+
+    The one place this rule lives: the valuation endpoint and check_valuation both call it. The gap is not rounded here.
+    A gap exactly equal to the threshold does not trigger a review.
+    """
+    _positive(estimate, "estimate")
+    if asking_price is None:
+        return None, None
+    _positive(asking_price, "asking_price")
+    gap = asking_price / estimate - 1
+    return gap, gap > review_threshold
+
+
 def check_valuation(
     estimate: float, loan: float, asking_price: float | None, review_threshold: float, support_warnings: tuple[str, ...] = ()
 ) -> ValuationChecks:
     _positive(estimate, "estimate")
     _positive(loan, "loan")
-    if asking_price is not None:
-        _positive(asking_price, "asking_price")
+    gap, flag = price_gap_check(estimate, asking_price, review_threshold)
     if asking_price is None:
-        gap = flag = purchase_ltv = purchase_ok = None
+        purchase_ltv = purchase_ok = None
         cautious_value = estimate
     else:
-        gap = asking_price / estimate - 1
-        flag = gap > review_threshold  # equal does not trigger
         purchase_ltv = loan / asking_price
         purchase_ok = purchase_ltv <= LTV_LIMIT
         cautious_value = min(asking_price, estimate)
