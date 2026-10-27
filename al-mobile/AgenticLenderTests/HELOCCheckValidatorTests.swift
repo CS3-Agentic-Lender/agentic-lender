@@ -6,6 +6,7 @@ final class HELOCCheckValidatorTests: XCTestCase {
     private func validForm() -> HELOCCheckForm {
         HELOCCheckForm(
             county: .cork,
+            propertyType: .semiDetached,
             floorArea: "110",
             bedrooms: 3,
             berRating: .b3,
@@ -24,6 +25,7 @@ final class HELOCCheckValidatorTests: XCTestCase {
         let form = HELOCCheckForm()
 
         XCTAssertNil(form.county)
+        XCTAssertNil(form.propertyType)
         XCTAssertNil(form.berRating)
         XCTAssertEqual(form.bedrooms, 3)
         XCTAssertEqual(form.termYears, 20)
@@ -35,6 +37,7 @@ final class HELOCCheckValidatorTests: XCTestCase {
         let errors = HELOCCheckValidator.errors(for: HELOCCheckForm())
 
         XCTAssertEqual(errors[.county], "Choose the county")
+        XCTAssertEqual(errors[.propertyType], "Choose the property type")
         XCTAssertEqual(errors[.floorArea], "Enter the floor area in m²")
         XCTAssertEqual(errors[.berRating], "Choose the BER rating")
         XCTAssertEqual(errors[.mortgageBalance], "Enter what's left on your mortgage, or 0 if it's paid off")
@@ -45,22 +48,33 @@ final class HELOCCheckValidatorTests: XCTestCase {
 
     // MARK: - Floor area
 
-    func testFloorAreaMustBeAWholeNumberAboveZero() {
-        for text in ["0", "-20", "85.5", "big"] {
+    /// The HELOC endpoint values the home with the model, which was trained on 15 to 1,000 m²,
+    /// and refuses anything else, so the form does too.
+    func testFloorAreaMustBeWholeSquareMetresFromFifteenToOneThousand() {
+        for text in ["0", "-20", "14", "1,001", "85.5", "big"] {
             var form = validForm()
             form.floorArea = text
 
             XCTAssertEqual(
                 HELOCCheckValidator.errors(for: form)[.floorArea],
-                "Enter the floor area in whole m², more than 0",
+                "Enter the floor area in whole m², from 15 to 1,000",
                 "floor area \(text)"
             )
         }
     }
 
+    func testFloorAreaAcceptsBothEndsOfTheRange() {
+        for text in ["15", "1000"] {
+            var form = validForm()
+            form.floorArea = text
+
+            XCTAssertNil(HELOCCheckValidator.errors(for: form)[.floorArea], "floor area \(text)")
+        }
+    }
+
     func testFloorAreaAllowsSpacesAndThousandsSeparators() {
         var form = validForm()
-        form.floorArea = " 1,200 "
+        form.floorArea = " 1,000 "
 
         XCTAssertNil(HELOCCheckValidator.errors(for: form)[.floorArea])
     }

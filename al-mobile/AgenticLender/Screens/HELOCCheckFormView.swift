@@ -1,13 +1,15 @@
 import SwiftUI
 
 /// "What can I borrow?" for a home equity line of credit (Figma frames 07i HELOC check and 07j Error).
-///
-/// Property type, Calculate and the result join once Nic sends the property types (AL-60) and
-/// the HELOC request shape (AL-198).
+/// Calculate sends the house details to the affordability endpoint, which values the home itself.
 struct HELOCCheckFormView: View {
-    @State private var model = HELOCCheckViewModel()
+    @State private var model: HELOCCheckViewModel
     @State private var isCountySheetShown = false
     @FocusState private var focused: HELOCCheckField?
+
+    init(service: HELOCService) {
+        _model = State(initialValue: HELOCCheckViewModel(service: service))
+    }
 
     var body: some View {
         ScrollView {
@@ -24,12 +26,20 @@ struct HELOCCheckFormView: View {
 
                 FormField("County", error: model.visibleError(for: .county)) { countyButton }
 
+                FormField("Property type", error: model.visibleError(for: .propertyType)) {
+                    PropertyTypeMenu(selection: $model.form.propertyType) { model.markTouched(.propertyType) }
+                        .accessibilityIdentifier("helocCheck.propertyType")
+                }
+
                 HStack(alignment: .top, spacing: 12) {
                     numberField("Size", field: .floorArea, placeholder: "110", unit: "m²", accessibilityUnit: "in square metres")
                     bedroomsStepper
                 }
 
-                FormField("BER rating", error: model.visibleError(for: .berRating)) { berMenu }
+                FormField("BER rating", error: model.visibleError(for: .berRating)) {
+                    BERMenu(selection: $model.form.berRating) { model.markTouched(.berRating) }
+                        .accessibilityIdentifier("helocCheck.berRating")
+                }
 
                 numberField(
                     "Balance left on your mortgage", field: .mortgageBalance, placeholder: "150,000",
@@ -55,6 +65,10 @@ struct HELOCCheckFormView: View {
             .padding(Theme.screenPadding)
         }
         .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) { footer }
+        .navigationDestination(item: $model.result) { result in
+            HELOCResultView(result: result, termYears: model.form.termYears)
+        }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isCountySheetShown, onDismiss: { model.markTouched(.county) }) {
@@ -70,69 +84,50 @@ struct HELOCCheckFormView: View {
             focused = nil
             isCountySheetShown = true
         } label: {
-            pickerLabel(model.form.county?.name, placeholder: "Choose county")
+            PickerFieldLabel(value: model.form.county?.name, placeholder: "Choose county")
         }
         .accessibilityLabel("County, \(model.form.county?.name ?? "not chosen")")
         .accessibilityIdentifier("helocCheck.county")
     }
 
-    private var berMenu: some View {
-        Menu {
-            Picker("BER rating", selection: Binding(
-                get: { model.form.berRating },
-                set: { model.form.berRating = $0; model.markTouched(.berRating) }
-            )) {
-                ForEach(BERRating.allCases) { rating in
-                    Text(rating.title).tag(Optional(rating))
-                }
+    /// Calculate, with why it's off or why the last try failed (Figma 07c and 07d).
+    private var footer: some View {
+        VStack(spacing: 12) {
+            if let error = model.calculationError {
+                CalculationErrorBanner(message: error, identifier: "helocCheck.calculationError")
             }
-        } label: {
-            pickerLabel(model.form.berRating?.title, placeholder: "Choose rating")
+            if let hint = model.calculateHint {
+                Text(hint)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.mutedText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("helocCheck.calculateHint")
+            }
+            PrimaryButton(title: calculateTitle, isLoading: model.isCalculating, isEnabled: model.canCalculate) {
+                focused = nil
+                Task { await model.calculate() }
+            }
+            .accessibilityHint(model.calculateHint ?? "")
+            .accessibilityIdentifier("helocCheck.calculate")
         }
-        .accessibilityLabel("BER rating, \(model.form.berRating?.title ?? "not chosen")")
-        .accessibilityIdentifier("helocCheck.berRating")
+        .padding(Theme.screenPadding)
+        .background(Theme.oat)
     }
 
-    /// The text and chevron inside a picker field (Figma 07i County and BER rating).
-    private func pickerLabel(_ value: String?, placeholder: String) -> some View {
-        HStack {
-            Text(value ?? placeholder)
-                .foregroundStyle(value == nil ? Theme.mutedText : Theme.text)
-            Spacer()
-            Image(systemName: "chevron.down")
-                .foregroundStyle(Theme.mutedText)
-                .accessibilityHidden(true)
-        }
-        .frame(maxWidth: .infinity, minHeight: Theme.fieldHeight)
-        .contentShape(Rectangle())
+    private var calculateTitle: String {
+        if model.isCalculating { return "Calculating…" }
+        return model.calculationError == nil ? "Calculate" : "Try again"
     }
 
-    /// Bedrooms with − / + either side of the count (Figma 07i).
     private var bedroomsStepper: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Bedrooms")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.text)
-            HStack {
-                StepButton(systemImage: "minus", label: "Fewer bedrooms", isEnabled: model.canDecreaseBedrooms, action: model.decreaseBedrooms)
-                Text("\(model.form.bedrooms)")
-                    .font(.body.monospacedDigit())
-                    .foregroundStyle(Theme.text)
-                    .frame(maxWidth: .infinity)
-                StepButton(systemImage: "plus", label: "More bedrooms", isEnabled: true, action: model.increaseBedrooms)
-            }
-            .frame(minHeight: Theme.fieldHeight)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Bedrooms")
-        .accessibilityValue("\(model.form.bedrooms)")
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment: model.increaseBedrooms()
-            case .decrement: model.decreaseBedrooms()
-            @unknown default: break
-            }
-        }
+        BedroomsStepper(
+            count: model.form.bedrooms,
+            error: nil,
+            canDecrease: model.canDecreaseBedrooms,
+            canIncrease: true,
+            decrease: model.decreaseBedrooms,
+            increase: model.increaseBedrooms
+        )
         .accessibilityIdentifier("helocCheck.bedrooms")
     }
 
@@ -170,11 +165,22 @@ struct HELOCCheckFormView: View {
         case .mortgageBalance: model.form.mortgageBalance
         case .income: model.form.income
         case .monthlyDebts: model.form.monthlyDebts
-        case .county, .berRating, .term: ""
+        case .county, .propertyType, .berRating, .term: ""
         }
     }
 }
 
-#Preview {
-    NavigationStack { HELOCCheckFormView() }
+#if DEBUG
+private struct PreviewHELOCService: HELOCService {
+    func checkHELOC(_ request: HELOCRequest) async throws -> HELOCResult {
+        HELOCResult(
+            homeValueEur: 262_353.72, maxLineEur: 59_882.97, combinedLtv: 0.8, monthlyRepaymentEur: 362.88,
+            stressedRepaymentEur: 429.02, limitedBy: .equity, benchmarkRatePct: 4.0, stressedRatePct: 6.0, rateDate: "2026-08"
+        )
+    }
 }
+
+#Preview {
+    NavigationStack { HELOCCheckFormView(service: PreviewHELOCService()) }
+}
+#endif

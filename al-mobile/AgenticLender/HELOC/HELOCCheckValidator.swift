@@ -1,7 +1,10 @@
-/// Checks the HELOC check form. Amounts follow the affordability check's rules; the floor area
-/// is whole m² above 0 (Nic on AL-60). Returns one message per field that is wrong.
+/// Checks the HELOC check form. Amounts follow the affordability check's rules. The floor area is
+/// whole m² within what the valuation model was trained on, the range the HELOC endpoint accepts.
+/// Returns one message per field that is wrong.
 enum HELOCCheckValidator {
-    private static let floorAreaInvalid = "Enter the floor area in whole m², more than 0"
+    static let floorAreaRange = 15...1000
+    private static let floorAreaInvalid =
+        "Enter the floor area in whole m², from \(floorAreaRange.lowerBound) to \(EuroAmount.format(floorAreaRange.upperBound))"
 
     static func errors(for form: HELOCCheckForm) -> [HELOCCheckField: String] {
         Dictionary(uniqueKeysWithValues: HELOCCheckField.allCases.compactMap { field in
@@ -13,6 +16,8 @@ enum HELOCCheckValidator {
         switch field {
         case .county:
             return form.county == nil ? "Choose the county" : nil
+        case .propertyType:
+            return form.propertyType == nil ? "Choose the property type" : nil
         case .floorArea:
             return floorAreaError(form.floorArea)
         case .berRating:
@@ -34,7 +39,7 @@ enum HELOCCheckValidator {
 
     private static func floorAreaError(_ text: String) -> String? {
         if text.isBlank { return "Enter the floor area in m²" }
-        guard let area = EuroAmount.parse(text), area > 0 else { return floorAreaInvalid }
+        guard let area = EuroAmount.parse(text), floorAreaRange.contains(area) else { return floorAreaInvalid }
         return nil
     }
 }

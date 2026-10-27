@@ -21,9 +21,4 @@ enum LoanType: String, CaseIterable, Hashable {
             "Home equity line of credit (HELOC). See how much you can borrow against the value of the home you own."
         }
     }
-
-    /// The choices to offer: HELOC only once its check exists, so no card leads nowhere.
-    static func available(hasHELOCCheck: Bool) -> [LoanType] {
-        hasHELOCCheck ? allCases : [.mortgage]
-    }
 }

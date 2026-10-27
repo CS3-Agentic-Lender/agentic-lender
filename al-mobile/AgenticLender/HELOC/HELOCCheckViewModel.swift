@@ -1,17 +1,36 @@
 import Observation
+import os
 
-/// Drives the HELOC check form: which errors show and the bedrooms and term steppers.
+/// Drives the HELOC check form: which errors show, the bedrooms and term steppers, and Calculate.
 ///
-/// Like the affordability check, an error only shows once the homeowner has left that field.
-/// Calculate joins once the HELOC request shape is agreed (AL-198).
+/// Like the affordability check, an error only shows once the homeowner has left that field or
+/// pressed Calculate.
 @MainActor
 @Observable
 final class HELOCCheckViewModel {
     var form = HELOCCheckForm()
+    /// The answer to show; the result screen is pushed while this is set.
+    var result: HELOCResult?
+    private(set) var isCalculating = false
+    private(set) var calculationError: String?
     private var touched: Set<HELOCCheckField> = []
+
+    private let service: HELOCService
+    private let logger = Logger(category: "HELOC")
+
+    init(service: HELOCService) {
+        self.service = service
+    }
 
     var isComplete: Bool {
         HELOCCheckValidator.errors(for: form).isEmpty
+    }
+
+    var canCalculate: Bool { isComplete && !isCalculating }
+
+    /// Why Calculate is disabled: the first problem in screen order, so a grey button always has a reason.
+    var calculateHint: String? {
+        HELOCCheckField.allCases.lazy.compactMap { HELOCCheckValidator.error(for: $0, in: self.form) }.first
     }
 
     var canDecreaseBedrooms: Bool { form.bedrooms > 0 }
@@ -35,7 +54,7 @@ final class HELOCCheckViewModel {
         case .mortgageBalance: form.mortgageBalance = regrouped
         case .income: form.income = regrouped
         case .monthlyDebts: form.monthlyDebts = regrouped
-        case .county, .berRating, .term: break
+        case .county, .propertyType, .berRating, .term: break
         }
     }
 
@@ -56,5 +75,32 @@ final class HELOCCheckViewModel {
     func decreaseTerm() {
         guard canDecreaseTerm else { return }
         form.termYears -= 1
+    }
+
+    /// Checks the form, then asks the endpoint (Figma 07c Calculating, 07d Couldn't calculate).
+    /// With errors it shows them all and sends nothing. While one calculation runs, another call
+    /// does nothing, so an older answer can't replace a newer one.
+    func calculate() async {
+        guard !isCalculating else { return }
+        touched.formUnion(HELOCCheckField.allCases)
+        guard let request = HELOCRequest(form: form) else { return }
+
+        calculationError = nil
+        isCalculating = true
+        defer { isCalculating = false }
+        do {
+            result = try await service.checkHELOC(request)
+        } catch let error as AffordabilityError {
+            fail(with: error.message)
+        } catch {
+            logger.error("Unexpected HELOC check error: \(error.localizedDescription, privacy: .public)")
+            fail(with: AffordabilityError.unavailable.message)
+        }
+    }
+
+    /// Shows the error and drops the earlier answer, so an old figure doesn't sit next to it.
+    private func fail(with message: String) {
+        result = nil
+        calculationError = message
     }
 }
