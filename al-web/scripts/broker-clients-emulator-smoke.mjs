@@ -1,5 +1,5 @@
 // Checks, against the seeded Auth and Firestore emulators, that the queries the client list uses
-// return only the signed-in broker's files and that the rules refuse everything wider.
+// return only the signed-in broker's files, with no Drafts, and that the rules refuse everything wider.
 import { deleteApp, initializeApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import {
@@ -74,11 +74,14 @@ try {
       throw error;
     }
 
-    const own = await getDocs(query(collection(db, 'applications'), where('brokerId', '==', uid)));
+    // The same query the portal runs: brokers do not see Drafts.
+    const own = await getDocs(
+      query(collection(db, 'applications'), where('brokerId', '==', uid), where('status', '!=', 'Draft')),
+    );
     applicationsByBroker.set(uid, own.docs.map((snapshot) => snapshot.id));
     check(
-      own.docs.every((snapshot) => snapshot.data().brokerId === uid),
-      `${email} (${uid}) reads ${own.size} application(s), all assigned to them`,
+      own.docs.every((snapshot) => snapshot.data().brokerId === uid && snapshot.data().status !== 'Draft'),
+      `${email} (${uid}) reads ${own.size} application(s), all assigned to them and none a Draft`,
     );
 
     check(

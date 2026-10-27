@@ -220,6 +220,16 @@ describe('broker client list', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  // The applications query excludes Drafts, so such a borrower arrives from profiles only.
+  it('lists a borrower whose only application is a Draft with no application', async () => {
+    renderAs('broker-1', 'broker', '/broker/clients', new FakeClientsService({ 'broker-1': files([ben], []) }));
+
+    const row = (await screen.findByRole('link', { name: 'Ben Walsh, client borrower-2' })).closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText('No application yet')).toBeInTheDocument();
+    expect(within(row!).queryByText('Draft')).not.toBeInTheDocument();
+  });
+
   it('says so when the broker has no clients', async () => {
     renderAs('broker-1', 'broker', '/broker/clients', new FakeClientsService({ 'broker-1': files([], []) }));
 
@@ -346,6 +356,13 @@ describe('broker client file', () => {
     expect(await screen.findByRole('heading', { name: 'Alice Byrne' })).toBeInTheDocument();
     expect(screen.getByText('LN-1001')).toBeInTheDocument();
     expect(screen.getByText('Applied')).toBeInTheDocument();
+  });
+
+  it('opens a borrower whose only application is a Draft with no applications listed', async () => {
+    renderAs('broker-1', 'broker', '/broker/clients/borrower-2', new FakeClientsService({ 'broker-1': files([ben], []) }));
+
+    expect(await screen.findByRole('heading', { name: 'Ben Walsh' })).toBeInTheDocument();
+    expect(screen.getByText('This client has not started an application yet.')).toBeInTheDocument();
   });
 
   it('shows not found for another broker’s client opened by URL', async () => {

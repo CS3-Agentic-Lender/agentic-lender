@@ -99,9 +99,14 @@ in this web ticket.
 ## Broker client list
 
 `src/services/clientsService.ts` holds two live Firestore queries, both filtered to the signed-in
-broker's uid: `applications` where `brokerId` matches, and `users` where `brokerId` matches. A client
-is a borrower in either result. The Firestore rules are the access boundary: an unfiltered query is
-refused, and the client file page only looks inside the broker's own list.
+broker's uid: `applications` where `brokerId` matches and `status` is not `Draft`, and `users` where
+`brokerId` matches. A client is a borrower in either result. The Firestore rules are the access
+boundary: an unfiltered query is refused, and the client file page only looks inside the broker's own
+list.
+
+Brokers do not see Drafts, in the list or on the client file, and the rules refuse a broker query
+that could return one. A borrower whose only application is a Draft still appears, from the `users`
+query, with no application listed. The underwriter queue still shows Drafts.
 
 Applications appear as soon as their query answers, even while profiles are pending. Pending
 names show as "Loading name" alongside the client ID, without an unavailable-names notice.
