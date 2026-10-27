@@ -30,7 +30,8 @@ struct AgenticLenderApp: App {
                     case .signUp:
                         SignUpView(service: FirebaseAccountService())
                     case .affordability:
-                        LoanTypeChoiceView(affordabilityService: APIAffordabilityService.live())
+                        let service = APIAffordabilityService.live()
+                        LoanTypeChoiceView(affordabilityService: service, helocService: service)
                     }
                 }
             }

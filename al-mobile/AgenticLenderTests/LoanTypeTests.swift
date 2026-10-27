@@ -18,8 +18,7 @@ final class LoanTypeTests: XCTestCase {
         )
     }
 
-    func testOnlyMortgageIsOfferedUntilTheHELOCCheckExists() {
-        XCTAssertEqual(LoanType.available(hasHELOCCheck: false), [.mortgage])
-        XCTAssertEqual(LoanType.available(hasHELOCCheck: true), [.mortgage, .heloc])
+    func testBothLoanTypesAreOfferedMortgageFirst() {
+        XCTAssertEqual(LoanType.allCases, [.mortgage, .heloc])
     }
 }

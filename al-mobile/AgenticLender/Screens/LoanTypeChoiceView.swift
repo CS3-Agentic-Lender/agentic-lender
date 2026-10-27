@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// "What can I borrow?" choice between a mortgage and a HELOC (Figma frame 07h Mortgage or HELOC).
-/// Mortgage opens the affordability form unchanged.
+/// Mortgage opens the affordability form unchanged; HELOC opens the HELOC check.
 struct LoanTypeChoiceView: View {
     let affordabilityService: AffordabilityService
+    let helocService: HELOCService
 
     var body: some View {
         ScrollView {
@@ -16,7 +17,7 @@ struct LoanTypeChoiceView: View {
                     .foregroundStyle(Theme.mutedText)
                     .padding(.bottom, 4)
 
-                ForEach(LoanType.available(hasHELOCCheck: false), id: \.self) { loanType in
+                ForEach(LoanType.allCases, id: \.self) { loanType in
                     NavigationLink {
                         destination(for: loanType)
                     } label: {
@@ -35,7 +36,7 @@ struct LoanTypeChoiceView: View {
     private func destination(for loanType: LoanType) -> some View {
         switch loanType {
         case .mortgage: AffordabilityFormView(service: affordabilityService, loanType: loanType)
-        case .heloc: EmptyView()
+        case .heloc: HELOCCheckFormView(service: helocService)
         }
     }
 }
@@ -65,5 +66,6 @@ private struct ChoiceCard: View {
 }
 
 #Preview {
-    NavigationStack { LoanTypeChoiceView(affordabilityService: APIAffordabilityService.live()) }
+    let service = APIAffordabilityService.live()
+    return NavigationStack { LoanTypeChoiceView(affordabilityService: service, helocService: service) }
 }

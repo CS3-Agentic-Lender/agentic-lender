@@ -127,9 +127,10 @@ struct AffordabilityFormView: View {
     }
 }
 
-/// Why the last calculation failed, above the Try again button (Figma 07d).
-private struct CalculationErrorBanner: View {
+/// Why the last calculation failed, above the Try again button (Figma 07d). Shared with the HELOC check.
+struct CalculationErrorBanner: View {
     let message: String
+    var identifier = "affordability.calculationError"
 
     var body: some View {
         Label {
@@ -143,7 +144,7 @@ private struct CalculationErrorBanner: View {
         .padding(12)
         .background(Theme.error.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-        .accessibilityIdentifier("affordability.calculationError")
+        .accessibilityIdentifier(identifier)
     }
 }
 

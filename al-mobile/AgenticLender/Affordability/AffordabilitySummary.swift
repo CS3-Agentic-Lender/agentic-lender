@@ -31,21 +31,21 @@ struct AffordabilitySummary: Hashable {
         }
     }
 
-    private static func wholeEuro(_ amount: Double) -> String {
+    static func wholeEuro(_ amount: Double) -> String {
         amount.formatted(.currency(code: "EUR").precision(.fractionLength(0)).rounded(rule: .toNearestOrAwayFromZero).locale(locale))
     }
 
-    private static func euroAndCent(_ amount: Double) -> String {
+    static func euroAndCent(_ amount: Double) -> String {
         amount.formatted(.currency(code: "EUR").precision(.fractionLength(2)).locale(locale))
     }
 
     /// 4.0 → "4.0%", 3.87 → "3.87%".
-    private static func percent(_ value: Double) -> String {
+    static func percent(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(1...2)).locale(locale)) + "%"
     }
 
     /// "2026-08" → "Aug 2026"; anything else is shown as sent.
-    private static func month(_ rateDate: String) -> String {
+    static func month(_ rateDate: String) -> String {
         let parser = DateFormatter()
         parser.locale = Locale(identifier: "en_US_POSIX")
         parser.timeZone = TimeZone(identifier: "UTC")
