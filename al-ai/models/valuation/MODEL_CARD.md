@@ -83,6 +83,7 @@ The flag is a heuristic from historical asking-price gaps. It is not proof that 
 - **They are exact.** Six inputs give 64 combinations, so the pieces are exact Shapley values, not an approximation, and they add up to the estimate within a cent.
 - **Order of the list.** Biggest piece first, ignoring the sign.
 - **What it costs.** The breakdown adds about 0.2 seconds to a call (median 196 ms, worst 230 ms in 15 calls on an Apple M5 Pro laptop on 27 Oct 2026). The plain estimate takes about 16 ms. The limit set for this ticket was 500 ms extra.
+- **If the breakdown is missing.** If the estimate works but its breakdown cannot be worked out, `baseline_eur` and `contributions` are both null (always together, never just one) and the response carries the warning "The breakdown of this estimate isn't available right now." The estimate is still good. Hide the breakdown and show the estimate.
 - **The check.** `reference-breakdown.json` holds the breakdown for three made-up reference homes. The test suite checks that the endpoint still gives the same numbers, within 1 cent.
 
 ## Check that a reload gives the same answers
