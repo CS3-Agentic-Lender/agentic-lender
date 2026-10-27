@@ -1,8 +1,13 @@
-# Runs the iOS app's tests on PRs that change al-mobile/.
+# Runs the iOS app's tests on PRs that change al-mobile/, and again on main after they merge.
 name: Mobile tests
 
 on:
   pull_request:
+    paths:
+      - "al-mobile/**"
+      - ".github/workflows/mobile.yml"
+  push:
+    branches: [main]
     paths:
       - "al-mobile/**"
       - ".github/workflows/mobile.yml"
@@ -13,6 +18,8 @@ permissions:
 jobs:
   test:
     runs-on: macos-latest
+    # A green run takes about 10 minutes. A hang fails here instead of running for 6 hours.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: al-mobile
@@ -26,9 +33,17 @@ jobs:
           udid=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r,l in d.items() if "iOS" in r for x in l if x["name"].startswith("iPhone")))')
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
+      # Boot it on its own and wait, so a slow boot shows up here rather than as a silent stall inside xcodebuild.
+      - name: Boot the simulator
+        timeout-minutes: 15
+        run: xcrun simctl bootstatus "${{ steps.simulator.outputs.udid }}" -b
+
+      # One simulator, no parallel clones: parallel testing crashed the job on GitHub's macOS runners (exit 134).
       - name: Run tests
         run: |
           xcodebuild test \
             -project AgenticLender.xcodeproj \
             -scheme AgenticLender \
-            -destination "id=${{ steps.simulator.outputs.udid }}"
+            -destination "id=${{ steps.simulator.outputs.udid }}" \
+            -parallel-testing-enabled NO \
+            -maximum-parallel-testing-workers 1
