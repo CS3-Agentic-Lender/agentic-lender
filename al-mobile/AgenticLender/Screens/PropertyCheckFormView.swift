@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// "Check a property" (Figma frames 10 Specs form, 10a Errors, 10b BER sheet, 10c Valuing and
-/// 10d Couldn't value). Check value sends the home's details to the valuation endpoint.
-/// The result screen is the next subtask (AL-144).
+/// 10d Couldn't value). Check value sends the home's details to the valuation endpoint and
+/// shows the result screen.
 struct PropertyCheckFormView: View {
     @State private var model: PropertyCheckViewModel
     @State private var isCountySheetShown = false
@@ -62,6 +62,9 @@ struct PropertyCheckFormView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { footer }
+        .navigationDestination(item: $model.summary) { summary in
+            ValuationResultView(summary: summary)
+        }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isCountySheetShown, onDismiss: { model.markTouched(.county) }) {

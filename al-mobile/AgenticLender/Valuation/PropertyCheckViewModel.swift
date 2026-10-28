@@ -9,8 +9,12 @@ import os
 @Observable
 final class PropertyCheckViewModel {
     var form = PropertyCheckForm()
-    /// The estimate from the last check. The result screen (AL-144) is shown from it.
-    var result: ValuationResult?
+    /// The estimate from the last check.
+    private(set) var result: ValuationResult?
+    /// The result screen's text; the screen is pushed while this is set. Closing it clears both.
+    var summary: ValuationSummary? {
+        didSet { if summary == nil { result = nil } }
+    }
     private(set) var isValuing = false
     private(set) var checkError: String?
     private var touched: Set<PropertyCheckField> = []
@@ -73,7 +77,9 @@ final class PropertyCheckViewModel {
         isValuing = true
         defer { isValuing = false }
         do {
-            result = try await service.value(request)
+            let answer = try await service.value(request)
+            result = answer
+            summary = ValuationSummary(request: request, result: answer)
         } catch let error as APIError {
             fail(with: Self.message(for: error))
         } catch {
@@ -92,7 +98,7 @@ final class PropertyCheckViewModel {
 
     /// Shows the error and drops the earlier answer, so an old estimate doesn't sit next to it.
     private func fail(with message: String) {
-        result = nil
+        summary = nil
         checkError = message
     }
 }
