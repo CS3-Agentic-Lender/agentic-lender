@@ -1,9 +1,9 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
-import { ClientsServiceContext } from './context/BrokerClientsContext';
+import { CLIENTS_LOAD_TIMEOUT_MS, ClientsServiceContext } from './context/BrokerClientsContext';
 import { AppRoutes } from './routes';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
 import {
@@ -512,5 +512,122 @@ describe.each([
     expect(screen.getByText(/Client names are not available yet/)).toBeInTheDocument();
     expect(screen.getByText('LN-1001')).toBeInTheDocument();
     expect(clients.subscriptions).toHaveLength(1);
+  });
+});
+
+// A borrower who moved to another broker: the old broker keeps the application, which carries the
+// name the API copied onto it, but can no longer read the profile.
+describe('client name fallback', () => {
+  const named = (id: string, borrowerId: string, borrowerName: string | null) => ({
+    ...application(id, borrowerId, 'Applied'),
+    borrowerName,
+  });
+
+  it("shows the application's borrowerName in the list when the profile cannot be read", async () => {
+    renderAs(
+      'broker-1',
+      'broker',
+      '/broker/clients',
+      new FakeClientsService({
+        'broker-1': files([], [named('LN-1001', 'borrower-1', 'Alice Byrne'), named('LN-1002', 'borrower-2', null)], 'unavailable'),
+      }),
+    );
+
+    expect(await screen.findByRole('link', { name: 'Alice Byrne, client borrower-1' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Name unavailable, client borrower-2' })).toBeInTheDocument();
+  });
+
+  it("shows the application's borrowerName on the client file, and Name unavailable with neither", async () => {
+    const clients = new FakeClientsService({
+      'broker-1': files([], [named('LN-1001', 'borrower-1', 'Alice Byrne'), named('LN-1002', 'borrower-2', null)], 'unavailable'),
+    });
+    renderAs('broker-1', 'broker', '/broker/clients/borrower-1', clients);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' })).toBeInTheDocument();
+    cleanup();
+
+    renderAs('broker-1', 'broker', '/broker/clients/borrower-2', clients);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Name unavailable' })).toBeInTheDocument();
+  });
+
+  it('prefers the profile name over the name on the application', async () => {
+    renderAs(
+      'broker-1',
+      'broker',
+      '/broker/clients',
+      new FakeClientsService({ 'broker-1': files([alice], [named('LN-1001', 'borrower-1', 'A. Byrne')]) }),
+    );
+
+    expect(await screen.findByRole('link', { name: 'Alice Byrne, client borrower-1' })).toBeInTheDocument();
+    expect(screen.queryByText('A. Byrne')).not.toBeInTheDocument();
+  });
+
+  it('finds a client by the name on their application', async () => {
+    renderAs(
+      'broker-1',
+      'broker',
+      '/broker/clients',
+      new FakeClientsService({
+        'broker-1': files([ben], [named('LN-1001', 'borrower-1', 'Alice Byrne'), application('LN-2001', 'borrower-2', 'Funded')], 'available'),
+      }),
+    );
+
+    await userEvent.setup().type(await screen.findByRole('searchbox'), 'alice');
+
+    expect(screen.getByRole('link', { name: 'Alice Byrne, client borrower-1' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Ben Walsh, client borrower-2' })).not.toBeInTheDocument();
+  });
+});
+
+describe('client list loading timeout', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // The timer starts in the same effect that subscribes, and React may run that effect after the
+  // loading heading is on screen, so wait for the subscription before moving the clock.
+  async function renderAndWaitForSubscription(clients: FakeClientsService) {
+    renderAs('broker-1', 'broker', '/broker/clients', clients);
+    await screen.findByRole('heading', { name: 'Loading your clients' });
+    await waitFor(() => expect(clients.subscriptions).toHaveLength(1));
+  }
+
+  it('shows the error state when Firestore does not answer in time', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await renderAndWaitForSubscription(new FakeClientsService());
+
+    await act(async () => {
+      vi.advanceTimersByTime(CLIENTS_LOAD_TIMEOUT_MS - 1000);
+    });
+    expect(screen.getByRole('heading', { name: 'Loading your clients' })).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByRole('heading', { name: 'Client files could not be loaded' })).toBeInTheDocument();
+  });
+
+  it('replaces the error with the files when a late answer arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const clients = new FakeClientsService();
+    await renderAndWaitForSubscription(clients);
+
+    await act(async () => {
+      vi.advanceTimersByTime(CLIENTS_LOAD_TIMEOUT_MS);
+    });
+    expect(screen.getByRole('heading', { name: 'Client files could not be loaded' })).toBeInTheDocument();
+
+    act(() => clients.push('broker-1', seededFiles['broker-1']));
+    expect(await screen.findByRole('link', { name: 'Alice Byrne, client borrower-1' })).toBeInTheDocument();
+  });
+
+  it('does not time out once the files have answered', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderAs('broker-1', 'broker', '/broker/clients', new FakeClientsService(seededFiles));
+    await screen.findByRole('link', { name: 'Alice Byrne, client borrower-1' });
+
+    await act(async () => {
+      vi.advanceTimersByTime(CLIENTS_LOAD_TIMEOUT_MS * 2);
+    });
+    expect(screen.queryByRole('heading', { name: 'Client files could not be loaded' })).not.toBeInTheDocument();
   });
 });
