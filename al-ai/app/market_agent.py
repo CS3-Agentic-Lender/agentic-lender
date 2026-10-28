@@ -17,11 +17,11 @@ import math
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Callable, Protocol
 
-from app import serper
+from app import agent_loop, serper
 from app import valuation_agent as va
 from app.llm import clients, config
 
@@ -178,48 +178,11 @@ def run(
 ) -> AgentResult:
     """Run the step with the model agents.json names for the market agent. Never calls any other model."""
     agent = agent or config.load().agent("market")
-    prompt = build_prompt(facts)
-    links = [r["url"] for r in facts["search_results"]]
-    attempts: list[dict] = []
-    error = None  # why the last reply was rejected, shown to the model on the retry
-    invalid_retries = provider_retries = 0
-    while True:
-        sent = prompt if error is None else f"{prompt}\n\nYour previous reply was rejected: {error}. Reply again with only the corrected JSON object."
-        t0 = time.monotonic()
-        attempt = {
-            "run_id": run_id, "attempt": len(attempts) + 1, "provider": agent.provider, "model": agent.model,
-            "prompt_version": PROMPT_VERSION, "started_at": datetime.now(UTC).isoformat(), "search_links": links,
-            "raw_reply": None, "parsed_reply": None, "request_id": None, "input_tokens": None, "output_tokens": None,
-            "outcome": None, "error": None,
-        }
-        retry = False
-        try:
-            got = clients.complete_json(agent.provider, agent.model, SYSTEM, sent, SCHEMA, transport=transport, env=env)
-            attempt.update(raw_reply=got.raw_reply, request_id=got.request_id, input_tokens=got.input_tokens, output_tokens=got.output_tokens)
-            attempt["parsed_reply"] = check_reply(got.parsed, facts)
-            attempt["outcome"] = "ok"
-        except va.ReplyRejected as exc:
-            attempt.update(outcome="invalid_reply", error=str(exc))
-            error, invalid_retries, retry = str(exc), invalid_retries + 1, invalid_retries < va.INVALID_REPLY_RETRIES
-        except clients.InvalidReply as exc:  # not JSON, or JSON that breaks the schema
-            attempt.update(outcome="invalid_reply", error=str(exc), raw_reply=exc.raw_reply, request_id=exc.request_id,
-                           input_tokens=exc.input_tokens, output_tokens=exc.output_tokens)
-            error, invalid_retries, retry = str(exc), invalid_retries + 1, invalid_retries < va.INVALID_REPLY_RETRIES
-        except clients.MissingKey as exc:  # nothing was sent and asking again cannot help
-            attempt.update(outcome="missing_key", error=str(exc))
-        except clients.LlmError as exc:
-            attempt.update(outcome="provider_error", error=str(exc))
-            retry = va._retryable(exc) and provider_retries < va.PROVIDER_RETRIES
-        attempt["duration_s"] = round(time.monotonic() - t0, 3)
-        attempts.append(attempt)
-        log.info(json.dumps(attempt))
-        if attempt["outcome"] == "ok":
-            return AgentResult(True, attempt["parsed_reply"], None, attempts)
-        if not retry:
-            return AgentResult(False, None, attempt["error"], attempts)
-        if attempt["outcome"] == "provider_error":
-            sleep(va.BACKOFF_S[provider_retries])
-            provider_retries += 1
+    return agent_loop.run_step(
+        log=log, agent=agent, prompt=build_prompt(facts), system=SYSTEM, schema=SCHEMA, check=lambda reply: check_reply(reply, facts),
+        run_id=run_id, prompt_version=PROMPT_VERSION, context={"search_links": [r["url"] for r in facts["search_results"]]},
+        transport=transport, env=env, sleep=sleep,
+    )
 
 
 # ---- reusing a report for the day --------------------------------------------------------------------------------------
