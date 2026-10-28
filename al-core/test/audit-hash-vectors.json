@@ -1,5 +1,5 @@
 {
-  "spec": "hash = SHA-256 (lower-case hex) of json.dumps(record, sort_keys=True, separators=(\",\", \":\")) after removing the record's own auditHash field. Timestamps are UTC ISO strings with milliseconds and Z, e.g. 2026-09-18T11:00:00.000Z. Non-ASCII text is escaped as json.dumps does by default.",
+  "spec": "hash = SHA-256 (lower-case hex) of json.dumps(record, sort_keys=True, separators=(\",\", \":\")) after removing the record's own auditHash field. Timestamps are UTC ISO strings with milliseconds and Z, e.g. 2026-09-18T11:00:00.000Z. Non-ASCII text is escaped as json.dumps does by default (ensure_ascii), so an accented e is hashed as backslash, u, 0, 0, e, 9 and never as the raw character: an implementation that hashes raw UTF-8 fails the non-ascii vector.",
   "vectors": [
     {
       "name": "audit-record:app-funded",
@@ -180,6 +180,17 @@
         "createdAt": "2026-09-02T09:04:00.000Z"
       },
       "hash": "18834677840071e0fab49bcaa005d0f182e7be6e21e5da9b1eafb65cd8f0649c"
+    },
+    {
+      "name": "non-ascii:accents-and-euro-sign",
+      "record": {
+        "applicationId": "non-ascii-example",
+        "creditMemo": "Caf\u00e9 owner Zo\u00eb \u00d3 S\u00failleabh\u00e1in, loan EUR 300k (\u20ac300,000)",
+        "decision": "approved",
+        "signedOffAt": "2026-10-01T09:00:00.000Z",
+        "underwriterId": "underwriter1"
+      },
+      "hash": "43d93d374b636f65c501242af20f871fab6ada70ecea503126aa01a799adc305"
     }
   ]
 }
