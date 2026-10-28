@@ -168,8 +168,6 @@ interface LoanFileProps {
 
 function LoanFile({ application, review }: LoanFileProps) {
   const { property } = application;
-  const perApplicant =
-    review.state === 'available' ? review.stressTest.grossIncomePerApplicantAnnualEur : null;
   const heloc = application.loanType === 'heloc';
 
   return (
@@ -195,12 +193,8 @@ function LoanFile({ application, review }: LoanFileProps) {
               value: application.applicants === null ? null : application.applicants === 'joint' ? 'Joint' : 'Single',
               mono: false,
             },
-            { label: 'Gross income', unit: 'per year', value: euro(application.grossIncomeAnnualEur) },
-            {
-              label: 'Gross income per applicant',
-              unit: 'per year',
-              value: perApplicant === null ? null : perApplicant.map(formatEuro).join(' and '),
-            },
+            // Combined for a joint application: the form collects one household figure.
+            { label: 'Gross income', unit: 'per year, combined', value: euro(application.grossIncomeAnnualEur) },
             { label: 'Existing debt repayments', unit: 'per month', value: euro(application.monthlyDebtsEur) },
             { label: 'Take-home pay', unit: 'per month', value: euro(application.monthlyTakeHomeEur) },
             { label: 'Living costs', unit: 'per month', value: euro(application.monthlyLivingCostsEur) },

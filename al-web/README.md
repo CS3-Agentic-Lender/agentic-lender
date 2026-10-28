@@ -204,11 +204,14 @@ labelled "per year" (`grossIncomeEur`); the DTI table's figures are "per month"
 (`dtiBreakdown.incomeMonthlyEur`, `existingDebtsMonthlyEur`, `newRepaymentMonthlyEur`). Debt to
 income at the offered rate is the application's `dtiPct`.
 
-The stressed column is headed "Stressed (+2 points)". The stressed rate, repayment and DTI, the
-surplus at both rates, the DTI and surplus bands, the benchmark rate, a stored stress margin and
-income per applicant are not stored by al-core yet, so they show "Unavailable". Their field names
-are placeholders read in one function, `readStressTest`; change only that function when al-core
-names them. Until a margin is stored, the label uses the agreed default of 2 points and says so.
+The stressed figures are stored flat in the same `dtiBreakdown` map (al-core `SCHEMA.md`) and read
+in one function, `readStressTest`: `stressMarginPct`, `benchmarkRatePct`, `stressedRatePct`,
+`rateDate`, `stressedRepaymentMonthlyEur`, `stressedDtiPct`, `surplusMonthlyEur`,
+`stressedSurplusMonthlyEur`, `dtiBand` and `surplusBand`. The stressed column is headed with the
+stored margin, "Stressed (+2 points)"; with no stored margin it uses the agreed default of 2 points
+and says so. There is one DTI band and one surplus band, both set on the stressed figures, so each
+spans both columns. Take-home pay and living costs come from the breakdown too. Income is combined
+for a joint application; there is no per-applicant figure.
 
 Collateral and the valuation breakdown are labelled placeholders with no figures.
 

@@ -177,49 +177,74 @@ describe('loan file review parser', () => {
     });
   });
 
+  it('reads take-home pay and living costs from the breakdown', () => {
+    expect(
+      toLoanFileReview({ dtiBreakdown: { takeHomeMonthlyEur: 4900, livingCostsMonthlyEur: 1800 } }),
+    ).toMatchObject({ dtiBreakdown: { takeHomeMonthlyEur: 4900, livingCostsMonthlyEur: 1800 } });
+  });
+
   it('has no stressed figures while none are stored', () => {
     expect(readStressTest({})).toEqual({
-      marginPoints: null,
+      stressMarginPct: null,
       benchmarkRatePct: null,
       stressedRatePct: null,
+      rateDate: null,
       stressedRepaymentMonthlyEur: null,
       stressedDtiPct: null,
       surplusMonthlyEur: null,
       stressedSurplusMonthlyEur: null,
       dtiBand: null,
-      stressedDtiBand: null,
       surplusBand: null,
-      stressedSurplusBand: null,
-      grossIncomePerApplicantAnnualEur: null,
     });
   });
 
-  it('reads stored stressed figures, keeps a negative surplus, and rejects unknown bands', () => {
+  // The shape al-core seeds for app-funded (SCHEMA.md, dtiBreakdown): every figure flat in one map.
+  it('reads the stressed figures flat from the DTI breakdown', () => {
     expect(
       readStressTest({
-        stressTest: {
-          marginPoints: 2,
-          stressedDtiPct: 38.1,
-          stressedSurplusMonthlyEur: -120,
+        dtiBreakdown: {
+          incomeMonthlyEur: 7333.33,
+          newRepaymentMonthlyEur: 1384.5,
+          stressedRepaymentMonthlyEur: 1738.7,
+          benchmarkRatePct: 4,
+          stressMarginPct: 2,
+          stressedRatePct: 6,
+          rateDate: '2026-09',
+          dtiPct: 21.61,
+          stressedDtiPct: 26.44,
+          surplusMonthlyEur: 1515.5,
+          stressedSurplusMonthlyEur: 1161.3,
           dtiBand: 'Comfortable',
-          stressedDtiBand: 'Pass',
-          grossIncomePerApplicantEur: [45000, 30000],
+          surplusBand: 'Comfortable',
         },
       }),
-    ).toMatchObject({
-      marginPoints: 2,
-      stressedDtiPct: 38.1,
-      stressedSurplusMonthlyEur: -120,
+    ).toEqual({
+      stressMarginPct: 2,
+      benchmarkRatePct: 4,
+      stressedRatePct: 6,
+      rateDate: '2026-09',
+      stressedRepaymentMonthlyEur: 1738.7,
+      stressedDtiPct: 26.44,
+      surplusMonthlyEur: 1515.5,
+      stressedSurplusMonthlyEur: 1161.3,
       dtiBand: 'Comfortable',
-      stressedDtiBand: null,
-      grossIncomePerApplicantAnnualEur: [45000, 30000],
+      surplusBand: 'Comfortable',
     });
   });
 
-  it('drops income per applicant when any entry is unusable', () => {
+  it('keeps a negative surplus and rejects unknown bands and malformed months', () => {
     expect(
-      readStressTest({ stressTest: { grossIncomePerApplicantEur: [45000, null] } }).grossIncomePerApplicantAnnualEur,
-    ).toBeNull();
+      readStressTest({
+        dtiBreakdown: { stressedSurplusMonthlyEur: -120, dtiBand: 'Pass', surplusBand: 'Adverse', rateDate: '2026-13' },
+      }),
+    ).toMatchObject({ stressedSurplusMonthlyEur: -120, dtiBand: null, surplusBand: 'Adverse', rateDate: null });
+  });
+
+  it('ignores the old nested stressTest map', () => {
+    expect(readStressTest({ stressTest: { stressedDtiPct: 38.1, stressMarginPct: 3 } })).toMatchObject({
+      stressedDtiPct: null,
+      stressMarginPct: null,
+    });
   });
 });
 

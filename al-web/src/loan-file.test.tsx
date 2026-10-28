@@ -230,46 +230,77 @@ describe('loan file page', () => {
     await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
 
     expect(within(dtiTable()).getByRole('columnheader', { name: 'Stressed (+2 points)' })).toBeInTheDocument();
-    for (const label of ['Interest rate', 'New loan repayment', 'Debt to income', 'DTI band', 'Surplus after', 'Surplus band']) {
+    for (const label of ['Interest rate', 'New loan repayment', 'Debt to income', 'Surplus after']) {
       expect(dtiRow(label)[2]).toHaveTextContent(/^Unavailable$/);
     }
     expect(dtiRow('Surplus after')[1]).toHaveTextContent(/^Unavailable$/);
-    expect(dtiRow('DTI band')[1]).toHaveTextContent(/^Unavailable$/);
+    for (const label of ['Take-home pay', 'Living costs', 'DTI band', 'Surplus band']) {
+      expect(dtiRow(label)[1]).toHaveTextContent(/^Unavailable/);
+    }
     expect(screen.getByText('Benchmark rate').nextElementSibling).toHaveTextContent('Unavailable');
+    expect(screen.getByText('Benchmark rate from').nextElementSibling).toHaveTextContent('Unavailable');
     expect(screen.getByText('Stress margin').nextElementSibling).toHaveTextContent('+2 points');
     expect(screen.getByText(/Stressed figures, surpluses and bands are not stored/)).toBeInTheDocument();
   });
 
-  it('shows stored stressed figures and a stored margin once they exist', async () => {
+  // The breakdown al-core seeds for app-funded (al-core SCHEMA.md, dtiBreakdown), every figure stored.
+  it('shows every stored breakdown figure at both rates, with one band each', async () => {
     const review = toLoanFileReview({
-      ...seededReview,
-      stressTest: {
-        marginPoints: 3,
+      riskTier: 'A',
+      dtiBreakdown: {
+        incomeMonthlyEur: 7333.33,
+        takeHomeMonthlyEur: 4900,
+        existingDebtsMonthlyEur: 200,
+        livingCostsMonthlyEur: 1800,
+        newRepaymentMonthlyEur: 1384.5,
+        stressedRepaymentMonthlyEur: 1738.7,
         benchmarkRatePct: 4,
-        stressedRatePct: 7,
-        stressedRepaymentMonthlyEur: 1763.1,
-        stressedDtiPct: 33.0,
-        surplusMonthlyEur: 900,
+        stressMarginPct: 2,
+        stressedRatePct: 6,
+        rateDate: '2026-09',
+        dtiPct: 21.61,
+        stressedDtiPct: 26.44,
+        surplusMonthlyEur: 1515.5,
         stressedSurplusMonthlyEur: -150,
         dtiBand: 'Comfortable',
-        stressedDtiBand: 'Caution',
-        surplusBand: 'Comfortable',
-        stressedSurplusBand: 'Adverse',
+        surplusBand: 'Adverse',
       },
     });
+    const application = { ...seededApplication, dtiPct: 21.6 };
+    renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', application, review) }));
+    await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
+
+    expect(within(dtiTable()).getByRole('columnheader', { name: 'Stressed (+2 points)' })).toBeInTheDocument();
+    expect(dtiRow('Interest rate')[2]).toHaveTextContent('6%');
+    expect(dtiRow('Gross income')[1]).toHaveTextContent('€7,333');
+    expect(dtiRow('Take-home pay')[1]).toHaveTextContent('€4,900');
+    expect(dtiRow('Take-home pay')[0]).toHaveTextContent('per month, after tax');
+    expect(dtiRow('Existing debt repayments')[1]).toHaveTextContent('€200');
+    expect(dtiRow('Living costs')[1]).toHaveTextContent('€1,800');
+    expect(dtiRow('New loan repayment')[1]).toHaveTextContent('€1,385');
+    expect(dtiRow('New loan repayment')[2]).toHaveTextContent('€1,739');
+    expect(dtiRow('Debt to income')[1]).toHaveTextContent('21.6%');
+    expect(dtiRow('Debt to income')[2]).toHaveTextContent('26.4%');
+    expect(dtiRow('Surplus after')[1]).toHaveTextContent('€1,516');
+    expect(dtiRow('Surplus after')[2]).toHaveTextContent('-€150');
+    // One band each, set on the stressed figures, so the row spans both columns.
+    expect(dtiRow('DTI band')).toHaveLength(2);
+    expect(dtiRow('DTI band')[1]).toHaveTextContent('Comfortable');
+    expect(dtiRow('DTI band')[1]).toHaveTextContent('Set on the stressed figures');
+    expect(dtiRow('Surplus band')[1]).toHaveTextContent('Adverse');
+    expect(screen.getByText('Benchmark rate').nextElementSibling).toHaveTextContent('4%');
+    expect(screen.getByText('Benchmark rate from').nextElementSibling).toHaveTextContent('September 2026');
+    expect(screen.getByText('Stress margin').nextElementSibling).toHaveTextContent('+2 points');
+    expect(screen.queryByText(/not stored with this application yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText('agreed default, not yet stored')).not.toBeInTheDocument();
+  });
+
+  it('labels the stressed column with a stored margin other than 2 points', async () => {
+    const review = toLoanFileReview({ ...seededReview, dtiBreakdown: { ...seededReview.dtiBreakdown, stressMarginPct: 3 } });
     renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', seededApplication, review) }));
     await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
 
     expect(within(dtiTable()).getByRole('columnheader', { name: 'Stressed (+3 points)' })).toBeInTheDocument();
-    expect(dtiRow('Interest rate')[2]).toHaveTextContent('7%');
-    expect(dtiRow('New loan repayment')[2]).toHaveTextContent('€1,763');
-    expect(dtiRow('Debt to income')[2]).toHaveTextContent('33%');
-    expect(dtiRow('DTI band')[2]).toHaveTextContent('Caution');
-    expect(dtiRow('Surplus after')[1]).toHaveTextContent('€900');
-    expect(dtiRow('Surplus after')[2]).toHaveTextContent('-€150');
-    expect(dtiRow('Surplus band')[2]).toHaveTextContent('Adverse');
-    expect(screen.queryByText(/not stored with this application yet/)).not.toBeInTheDocument();
-    expect(screen.queryByText('agreed default, not yet stored')).not.toBeInTheDocument();
   });
 
   it('shows the borrower, the loan and the property', async () => {

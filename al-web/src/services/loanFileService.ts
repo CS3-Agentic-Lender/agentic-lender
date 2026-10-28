@@ -21,7 +21,7 @@ export const DECISION_OUTCOMES = ['approved', 'declined'] as const;
 export type DecisionOutcome = (typeof DECISION_OUTCOMES)[number];
 
 // The stress margin shown on the stressed column until a stored margin replaces it.
-export const DEFAULT_STRESS_MARGIN_POINTS = 2;
+export const DEFAULT_STRESS_MARGIN_PCT = 2;
 
 export interface LoanFileProperty {
   addressLine1: string | null;
@@ -62,25 +62,28 @@ export interface LoanFileApplication extends ApplicationSummary {
 }
 
 // applications/{id}/review/underwriting dtiBreakdown, monthly euro figures at the offered rate.
+// Income is combined for a joint application: there is no per-applicant figure.
 export interface DtiBreakdown {
   incomeMonthlyEur: number | null;
+  takeHomeMonthlyEur: number | null;
   existingDebtsMonthlyEur: number | null;
+  livingCostsMonthlyEur: number | null;
   newRepaymentMonthlyEur: number | null;
 }
 
+// The stressed half of the same dtiBreakdown map. The two bands are set on the stressed figures.
 export interface StressTest {
-  marginPoints: number | null;
+  stressMarginPct: number | null;
   benchmarkRatePct: number | null;
   stressedRatePct: number | null;
+  // The month the benchmark rate is from, stored as YYYY-MM.
+  rateDate: string | null;
   stressedRepaymentMonthlyEur: number | null;
   stressedDtiPct: number | null;
   surplusMonthlyEur: number | null;
   stressedSurplusMonthlyEur: number | null;
   dtiBand: AffordabilityBand | null;
-  stressedDtiBand: AffordabilityBand | null;
   surplusBand: AffordabilityBand | null;
-  stressedSurplusBand: AffordabilityBand | null;
-  grossIncomePerApplicantAnnualEur: number[] | null;
 }
 
 export type LoanFileReview =
@@ -177,33 +180,30 @@ export function toLoanFileApplication(id: string, data: DocumentData): LoanFileA
   };
 }
 
-// The stressed figures, surplus, bands, benchmark rate, stress margin and income per applicant
-// are not stored yet: al-core has not named their fields. Every name below is a placeholder
-// guess, kept in this one function so it is the only thing to change once the names are agreed.
-// Nothing here is calculated in the browser; a missing field stays null and shows "Unavailable".
+function readMonth(value: unknown) {
+  const month = readString(value);
+
+  return month !== null && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : null;
+}
+
+// The stressed figures are stored flat in review/underwriting.dtiBreakdown (al-core SCHEMA.md),
+// written by al-ai after each run. Nothing here is calculated in the browser; a missing field
+// stays null and shows "Unavailable".
 export function readStressTest(review: DocumentData): StressTest {
-  const stress = readMap(review.stressTest);
-  const perApplicant = Array.isArray(stress.grossIncomePerApplicantEur)
-    ? stress.grossIncomePerApplicantEur.map(readAmount)
-    : null;
+  const breakdown = readMap(review.dtiBreakdown);
 
   return {
-    marginPoints: readAmount(stress.marginPoints),
-    benchmarkRatePct: readAmount(stress.benchmarkRatePct),
-    stressedRatePct: readAmount(stress.stressedRatePct),
-    stressedRepaymentMonthlyEur: readAmount(stress.stressedRepaymentMonthlyEur),
-    stressedDtiPct: readAmount(stress.stressedDtiPct),
+    stressMarginPct: readAmount(breakdown.stressMarginPct),
+    benchmarkRatePct: readAmount(breakdown.benchmarkRatePct),
+    stressedRatePct: readAmount(breakdown.stressedRatePct),
+    rateDate: readMonth(breakdown.rateDate),
+    stressedRepaymentMonthlyEur: readAmount(breakdown.stressedRepaymentMonthlyEur),
+    stressedDtiPct: readAmount(breakdown.stressedDtiPct),
     // A surplus can be negative: that is a shortfall, not an unusable value.
-    surplusMonthlyEur: readNumber(stress.surplusMonthlyEur),
-    stressedSurplusMonthlyEur: readNumber(stress.stressedSurplusMonthlyEur),
-    dtiBand: readOneOf(stress.dtiBand, AFFORDABILITY_BANDS),
-    stressedDtiBand: readOneOf(stress.stressedDtiBand, AFFORDABILITY_BANDS),
-    surplusBand: readOneOf(stress.surplusBand, AFFORDABILITY_BANDS),
-    stressedSurplusBand: readOneOf(stress.stressedSurplusBand, AFFORDABILITY_BANDS),
-    grossIncomePerApplicantAnnualEur:
-      perApplicant && perApplicant.length > 0 && perApplicant.every((amount) => amount !== null)
-        ? (perApplicant as number[])
-        : null,
+    surplusMonthlyEur: readNumber(breakdown.surplusMonthlyEur),
+    stressedSurplusMonthlyEur: readNumber(breakdown.stressedSurplusMonthlyEur),
+    dtiBand: readOneOf(breakdown.dtiBand, AFFORDABILITY_BANDS),
+    surplusBand: readOneOf(breakdown.surplusBand, AFFORDABILITY_BANDS),
   };
 }
 
@@ -215,7 +215,9 @@ export function toLoanFileReview(data: DocumentData): LoanFileReview {
     riskTier: readOneOf(data.riskTier, RISK_TIERS),
     dtiBreakdown: {
       incomeMonthlyEur: readAmount(breakdown.incomeMonthlyEur),
+      takeHomeMonthlyEur: readAmount(breakdown.takeHomeMonthlyEur),
       existingDebtsMonthlyEur: readAmount(breakdown.existingDebtsMonthlyEur),
+      livingCostsMonthlyEur: readAmount(breakdown.livingCostsMonthlyEur),
       newRepaymentMonthlyEur: readAmount(breakdown.newRepaymentMonthlyEur),
     },
     stressTest: readStressTest(data),

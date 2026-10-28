@@ -1,5 +1,5 @@
 import {
-  DEFAULT_STRESS_MARGIN_POINTS,
+  DEFAULT_STRESS_MARGIN_PCT,
   type LoanFileApplication,
   type LoanFileReview,
   type StressTest,
@@ -32,8 +32,21 @@ function percent(value: number | null) {
 
 const points = new Intl.NumberFormat('en-IE', { maximumFractionDigits: 2 });
 
-function stressMarginLabel(marginPoints: number) {
-  return `+${points.format(marginPoints)} points`;
+function stressMarginLabel(marginPct: number) {
+  return `+${points.format(marginPct)} points`;
+}
+
+const monthFormat = new Intl.DateTimeFormat('en-IE', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+// A stored YYYY-MM month, shown as "September 2026".
+function month(value: string | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const [year, monthNumber] = value.split('-').map(Number);
+
+  return monthFormat.format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
 function hasStressResults(stress: StressTest | null) {
@@ -45,9 +58,7 @@ function hasStressResults(stress: StressTest | null) {
       stress.surplusMonthlyEur,
       stress.stressedSurplusMonthlyEur,
       stress.dtiBand,
-      stress.stressedDtiBand,
       stress.surplusBand,
-      stress.stressedSurplusBand,
     ].some((value) => value !== null)
   );
 }
@@ -79,21 +90,24 @@ function Row({ label, unit, offered, stressed, mono = true }: RowProps) {
 
 interface SharedRowProps {
   label: string;
-  unit: string;
+  unit?: string;
   value: string | null;
+  note?: string;
+  mono?: boolean;
 }
 
-// Income and existing debts do not depend on the interest rate, so one figure covers both columns.
-function SharedRow({ label, unit, value }: SharedRowProps) {
+// Income, debts and living costs do not depend on the interest rate, and each band is set once,
+// on the stressed figures, so one value covers both columns.
+function SharedRow({ label, unit, value, note = 'Same at both rates', mono = true }: SharedRowProps) {
   return (
     <tr className="border-t border-line">
       <th className={labelCellClass} scope="row">
         {label}
-        <span className="block text-xs text-muted">{unit}</span>
+        {unit ? <span className="block text-xs text-muted">{unit}</span> : null}
       </th>
       <td className={cellClass} colSpan={2}>
-        <Figure value={value} />
-        <span className="ml-3 text-xs text-muted">Same at both rates</span>
+        <Figure mono={mono} value={value} />
+        <span className="ml-3 text-xs text-muted">{note}</span>
       </td>
     </tr>
   );
@@ -106,8 +120,8 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
   const loading = review.state === 'pending';
   const breakdown = available?.dtiBreakdown ?? null;
   const stress = available?.stressTest ?? null;
-  const marginPoints = stress?.marginPoints ?? DEFAULT_STRESS_MARGIN_POINTS;
-  const stressedHeading = `Stressed (${stressMarginLabel(marginPoints)})`;
+  const marginPct = stress?.stressMarginPct ?? DEFAULT_STRESS_MARGIN_PCT;
+  const stressedHeading = `Stressed (${stressMarginLabel(marginPct)})`;
   // While the review loads its cells say so; once it has answered a missing figure is Unavailable.
   const fromReview = (value: string | null) => (loading ? 'Loading' : value);
 
@@ -160,9 +174,19 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
               value={fromReview(euro(breakdown?.incomeMonthlyEur ?? null))}
             />
             <SharedRow
+              label="Take-home pay"
+              unit="per month, after tax"
+              value={fromReview(euro(breakdown?.takeHomeMonthlyEur ?? null))}
+            />
+            <SharedRow
               label="Existing debt repayments"
               unit="per month"
               value={fromReview(euro(breakdown?.existingDebtsMonthlyEur ?? null))}
+            />
+            <SharedRow
+              label="Living costs"
+              unit="per month"
+              value={fromReview(euro(breakdown?.livingCostsMonthlyEur ?? null))}
             />
             <Row
               label="New loan repayment"
@@ -176,11 +200,11 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
               stressed={fromReview(percent(stress?.stressedDtiPct ?? null))}
               unit="of gross monthly income"
             />
-            <Row
+            <SharedRow
               label="DTI band"
               mono={false}
-              offered={fromReview(stress?.dtiBand ?? null)}
-              stressed={fromReview(stress?.stressedDtiBand ?? null)}
+              note="Set on the stressed figures"
+              value={fromReview(stress?.dtiBand ?? null)}
             />
             <Row
               label="Surplus after debts and living costs"
@@ -188,11 +212,11 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
               stressed={fromReview(euro(stress?.stressedSurplusMonthlyEur ?? null))}
               unit="per month"
             />
-            <Row
+            <SharedRow
               label="Surplus band"
               mono={false}
-              offered={fromReview(stress?.surplusBand ?? null)}
-              stressed={fromReview(stress?.stressedSurplusBand ?? null)}
+              note="Set on the stressed figures"
+              value={fromReview(stress?.surplusBand ?? null)}
             />
           </tbody>
         </table>
@@ -206,10 +230,16 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
           </dd>
         </div>
         <div>
+          <dt className="text-muted">Benchmark rate from</dt>
+          <dd className="mt-1">
+            <Figure mono={false} value={fromReview(month(stress?.rateDate ?? null))} />
+          </dd>
+        </div>
+        <div>
           <dt className="text-muted">Stress margin</dt>
           <dd className="mt-1">
-            <span className="font-mono">{stressMarginLabel(marginPoints)}</span>
-            {stress?.marginPoints == null ? (
+            <span className="font-mono">{stressMarginLabel(marginPct)}</span>
+            {stress?.stressMarginPct == null ? (
               <span className="ml-2 text-xs text-muted">agreed default, not yet stored</span>
             ) : null}
           </dd>
