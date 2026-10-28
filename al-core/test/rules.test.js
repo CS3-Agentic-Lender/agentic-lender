@@ -51,6 +51,11 @@ beforeEach(async () => {
       borrowerId: 'borrower2', brokerId: 'broker2', status: 'AI Deliberated',
       ltvBand: 'over_90', riskTier: 'D', submittedAt: new Date('2026-10-03T09:00:00Z'),
     });
+    await set('applications/app3', {
+      borrowerId: 'borrower1', brokerId: 'broker1', status: 'Draft', submittedAt: new Date('2026-10-04T09:00:00Z'),
+    });
+    await set('applications/app3/audit/record', { applicationId: 'app3', auditHash: 'def' });
+    await set('applications/app3/messages/msg3', { senderId: 'borrower1', text: 'Draft note', read: false });
     await set('applications/app1/review/underwriting', { applicationId: 'app1', brokerId: 'broker1', riskTier: 'B' });
     await set('applications/app2/review/underwriting', { applicationId: 'app2', brokerId: 'broker2', riskTier: 'D' });
     await set('applications/app1/audit/record', { applicationId: 'app1', auditHash: 'abc' });
@@ -119,6 +124,46 @@ describe('users/{uid}/saved_checks', () => {
     assertFails(borrower1().collection('users/borrower1/saved_checks').add({ estimatedValueEur: 1 })));
 });
 
+// Brokers don't read Drafts (AL-263). A broker's query must exclude them, or Firestore refuses it.
+describe('applications: brokers and Drafts', () => {
+  const brokerQuery = (db) => db.collection('applications').where('brokerId', '==', 'broker1');
+
+  test("a broker can't read their client's Draft", () =>
+    assertFails(broker1().doc('applications/app3').get()));
+  for (const status of ['Applied', 'AI Deliberated', 'Underwriter Approved', 'Declined', 'Funded', 'Closed']) {
+    test(`a broker can read their client's ${status} application`, async () => {
+      await testEnv.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('applications/app3').update({ status }));
+      await assertSucceeds(broker1().doc('applications/app3').get());
+    });
+  }
+  test('a broker query for brokerId == uid and status != Draft succeeds and leaves the Draft out', async () => {
+    const snap = await assertSucceeds(brokerQuery(broker1()).where('status', '!=', 'Draft').get());
+    expect(snap.docs.map((d) => d.id)).toEqual(['app1']);
+  });
+  test("a broker query without the status filter is refused, because it could return a Draft", () =>
+    assertFails(brokerQuery(broker1()).get()));
+  test("a broker can't read the audit record under a Draft", () =>
+    assertFails(broker1().doc('applications/app3/audit/record').get()));
+  test("a broker can't read the messages under a Draft", () =>
+    assertFails(broker1().doc('applications/app3/messages/msg3').get()));
+  test('the audit record and messages open to the broker once the application is Applied', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('applications/app3').update({ status: 'Applied' }));
+    await assertSucceeds(broker1().doc('applications/app3/audit/record').get());
+    await assertSucceeds(broker1().doc('applications/app3/messages/msg3').get());
+  });
+  test('a borrower can still read their own Draft and its messages', async () => {
+    await assertSucceeds(borrower1().doc('applications/app3').get());
+    await assertSucceeds(borrower1().doc('applications/app3/messages/msg3').get());
+  });
+  test('an underwriter can still read a Draft, its audit record and its messages', async () => {
+    await assertSucceeds(underwriter().doc('applications/app3').get());
+    await assertSucceeds(underwriter().doc('applications/app3/audit/record').get());
+    await assertSucceeds(underwriter().doc('applications/app3/messages/msg3').get());
+  });
+  test("a broker still can't read another broker's client's application", () =>
+    assertFails(broker2().doc('applications/app3').get()));
+});
+
 describe('applications', () => {
   test('a borrower can read their own application', () =>
     assertSucceeds(borrower1().doc('applications/app1').get()));
@@ -174,13 +219,15 @@ describe('pipeline queue', () => {
   test("a borrower can't run the whole queue", () => assertFails(queue(borrower1(), 'riskTier', 'B')));
 });
 
-test('firestore.indexes.json has an index for every queue query', () => {
+test('firestore.indexes.json has an index for every queue and broker query', () => {
   const { indexes } = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../firestore.indexes.json'), 'utf8'));
   const shapes = indexes.map((i) => `${i.collectionGroup}:${i.fields.map((f) => `${f.fieldPath} ${f.order}`).join(',')}`);
   expect(shapes).toEqual([
     'applications:status ASCENDING,submittedAt DESCENDING',
     'applications:status ASCENDING,ltvBand ASCENDING,submittedAt DESCENDING',
     'applications:status ASCENDING,riskTier ASCENDING,submittedAt DESCENDING',
+    // The broker's application query: brokerId == uid and status != 'Draft' (AL-263).
+    'applications:brokerId ASCENDING,status ASCENDING',
   ]);
 });
 

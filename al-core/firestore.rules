@@ -20,9 +20,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/applications/$(appId)).data;
     }
 
+    // A broker doesn't read Drafts: a Draft is the borrower's working copy and there is nothing for a
+    // broker to act on. Because a Draft closes the document to brokers, a broker's application query
+    // must also exclude Drafts (where status != 'Draft'), or Firestore refuses it.
+    function brokerOwns(brokerId, status) {
+      return isRole('broker') && brokerId == request.auth.uid && status != 'Draft';
+    }
+
     function canReadApplication(appId) {
       return isRole('underwriter')
-        || (isRole('broker') && application(appId).brokerId == request.auth.uid)
+        || brokerOwns(application(appId).brokerId, application(appId).status)
         || (isRole('borrower') && application(appId).borrowerId == request.auth.uid);
     }
 
@@ -45,13 +52,13 @@ service cloud.firestore {
 
     match /applications/{appId} {
       allow read: if isRole('underwriter')
-        || (isRole('broker') && resource.data.brokerId == request.auth.uid)
+        || brokerOwns(resource.data.brokerId, resource.data.status)
         || (isRole('borrower') && resource.data.borrowerId == request.auth.uid);
 
       // Written once at mint. Not readable by the borrower.
       match /audit/{docId} {
         allow read: if isRole('underwriter')
-          || (isRole('broker') && application(appId).brokerId == request.auth.uid);
+          || brokerOwns(application(appId).brokerId, application(appId).status);
       }
 
       match /messages/{messageId} {
