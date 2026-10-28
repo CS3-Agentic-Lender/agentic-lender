@@ -250,6 +250,14 @@ describe('applications/{id}/review/underwriting', () => {
     assertFails(borrower1().collectionGroup('review').where('brokerId', '==', 'broker1').get()));
   test("an underwriter can't write a review directly", () =>
     assertFails(underwriter().doc('applications/app1/review/underwriting').set({ riskTier: 'A' })));
+  // The DTI breakdown is written by the API only (al-ai, with the Admin SDK): no client can change a figure in it.
+  for (const [who, db] of [['borrower', borrower1], ['broker', broker1], ['underwriter', underwriter]]) {
+    test(`a ${who} can't write the DTI breakdown`, async () => {
+      const review = db().doc('applications/app1/review/underwriting');
+      await assertFails(review.update({ 'dtiBreakdown.stressedDtiPct': 20 }));
+      await assertFails(review.set({ dtiBreakdown: { dtiBand: 'Comfortable' } }, { merge: true }));
+    });
+  }
 });
 
 describe('applications/{id}/audit/record', () => {
