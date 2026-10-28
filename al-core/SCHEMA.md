@@ -27,6 +27,8 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `reviews/{uid}` | That user, underwriters | al-core | One review per user |
 | `users/{uid}/saved_checks/{checkId}` | That user | al-core (`POST` and `DELETE /core/saved-checks`) | A borrower's saved property checks |
 
+**Brokers don't read Drafts.** A Draft is the borrower's working copy, so the rules close `applications/{id}` and its `audit` and `messages` subcollections to a broker while the status is `Draft`. Applied and every later status stay readable to the assigned broker. Borrowers and underwriters are unaffected. Because Firestore rules don't filter results, a broker's application query must exclude Drafts (`where('brokerId', '==', uid).where('status', '!=', 'Draft')`), or Firestore refuses it. That query needs the `brokerId` + `status` index in `firestore.indexes.json`.
+
 ## users/{uid}
 
 | Field | Type | Required | Notes |
@@ -100,8 +102,8 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 |---|---|---|---|
 | `estimatedValueEur` | number | no | From `POST /ai/valuation` |
 | `ltvPct` | number | no | Loan to value: (loanAmountEur / estimatedValueEur) * 100 for a mortgage, and (existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur * 100 (combined LTV) for a HELOC. Whether to use the lower of the valuation and the asking price is an open question |
-| `dtiPct` | number | no | Debt to income |
-| `aprPct` | number | no | Rate offered |
+| `dtiPct` | number | no | Debt to income at the benchmark rate, to one decimal place. The stressed figure and every other part are in `review/underwriting.dtiBreakdown` |
+| `aprPct` | number | no | Rate offered. Until pricing exists it is the benchmark rate used (`dtiBreakdown.benchmarkRatePct`) |
 | `approvalLikelihoodPct` | number | no | From the AI committee |
 | `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the purchase-price LTV: `loanAmountEur / property.askingPriceEur` for a mortgage, `(existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur` for a HELOC (it has no asking price, so the valuation estimate is the home's value). Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
 | `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai after each run, with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
@@ -123,15 +125,40 @@ Underwriter-only details, kept in a separate document so borrowers can't read th
 | `applicationId` | string | The parent application's id |
 | `brokerId` | string | Copied from the application, so a collection-group query and its rule can check broker access |
 | `riskTier` | string | `A`, `B`, `C` or `D` |
-| `dtiBreakdown` | map | `incomeMonthlyEur`, `existingDebtsMonthlyEur`, `newRepaymentMonthlyEur` |
+| `dtiBreakdown` | map | Every part of the debt-to-income calculation, at the benchmark rate and at the stressed rate. See below |
 | `valuationDetail` | map | `baselineEur`, `contributions` (feature name to euro effect), `estimatedValueEur` |
 | `updatedAt` | timestamp | |
+
+### dtiBreakdown
+
+Written only by the API (al-ai, after each run, with the Admin SDK). No client can write it: the rules have no write access anywhere, and a rules test checks it. The figures come from al-ai's affordability module (`assess()` in `al-ai/app/affordability.py`). Money is euro to the cent, never cents, and percentages are plain numbers (`4.0` means 4%). The bands follow the stressed figures.
+
+| Field | Type | Notes |
+|---|---|---|
+| `incomeMonthlyEur` | number | Gross income per month, **combined** for a joint application. The form collects one household figure, so there is no per-applicant income |
+| `takeHomeMonthlyEur` | number | Net monthly pay, from the application's `monthlyTakeHomeEur` |
+| `existingDebtsMonthlyEur` | number | From the application's `monthlyDebtsEur` |
+| `livingCostsMonthlyEur` | number | From the application's `monthlyLivingCostsEur` |
+| `newRepaymentMonthlyEur` | number | The new loan's monthly repayment at the benchmark rate |
+| `stressedRepaymentMonthlyEur` | number | The same at the stressed rate |
+| `benchmarkRatePct` | number | The benchmark mortgage rate used |
+| `stressMarginPct` | number | The stress margin, 2.0 (Central Bank rule) |
+| `stressedRatePct` | number | `benchmarkRatePct` plus `stressMarginPct` |
+| `rateDate` | string | The month the benchmark rate is from, `YYYY-MM` |
+| `dtiPct` | number | (existing debts + new repayment) / gross monthly income, at the benchmark rate. The application's own `dtiPct` is the same figure to one decimal place |
+| `stressedDtiPct` | number | The same at the stressed rate |
+| `surplusMonthlyEur` | number | Take-home pay minus living costs, existing debts and the new repayment, at the benchmark rate |
+| `stressedSurplusMonthlyEur` | number | The same at the stressed rate |
+| `dtiBand` | string | `Comfortable` (stressed DTI up to 40%), `Caution` (up to 50%) or `Adverse` |
+| `surplusBand` | string | `Comfortable` (stressed surplus 500 or more), `Caution` (0 or more) or `Adverse` |
+
+`al-core/test/dti-reference-cases.json` holds al-ai's output for the two affordability reference cases, and the seed's port of the module is tested against it.
 
 ## applications/{id}/audit/record
 
 Written once at mint. Declined applications have none. The audit hash is the SHA-256 of the record **without** its `auditHash` field, serialised with `json.dumps(record, sort_keys=True, separators=(",", ":"))`. To verify a loan, remove `auditHash` from the stored record, hash the rest the same way, and compare with the on-chain value.
 
-The one function that does this is `audit_hash(record)` in `al-core/app/audit.py` (`utc_iso` there formats times). al-ai uses the same rules for the per-call hashes. The shared examples are in `al-core/test/audit-hash-vectors.json`: each is a record and its expected hash, built from the hashes `scripts/seed.js` writes (the audit records and the `ai_calls` documents they list). Rebuild the file with `node scripts/audit-vectors.js --write` after the seed's audit records change; a Jest test fails if it is out of date.
+The one function that does this is `audit_hash(record)` in `al-core/app/audit.py` (`utc_iso` there formats times). al-ai uses the same rules for the per-call hashes. The shared examples are in `al-core/test/audit-hash-vectors.json`: each is a record and its expected hash, built from the hashes `scripts/seed.js` writes (the audit records and the `ai_calls` documents they list). Rebuild the file with `node scripts/audit-vectors.js --write` after the seed's audit records change; a Jest test fails if it is out of date. Non-ASCII text is escaped as Python's `json.dumps` does it (an accented e is hashed as backslash, u, 0, 0, e, 9, never as the raw character), and one vector (`non-ascii:...`) checks it, so al-ai must escape the same way.
 
 | Field | Type | Notes |
 |---|---|---|

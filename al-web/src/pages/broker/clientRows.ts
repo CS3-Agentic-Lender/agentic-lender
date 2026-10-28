@@ -1,4 +1,4 @@
-import type { BrokerApplication, BrokerClient } from '../../services/clientsService';
+import { clientName, type BrokerApplication, type BrokerClient } from '../../services/clientsService';
 
 export interface ClientRow {
   client: BrokerClient;
@@ -33,7 +33,7 @@ export function filterClientRows(rows: readonly ClientRow[], filters: ClientRowF
       return true;
     }
 
-    return [client.profile?.fullName, client.id, application?.id].some((value) =>
+    return [clientName(client), client.id, application?.id].some((value) =>
       value?.toLowerCase().includes(search),
     );
   });

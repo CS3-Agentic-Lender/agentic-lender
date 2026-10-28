@@ -99,14 +99,29 @@ in this web ticket.
 ## Broker client list
 
 `src/services/clientsService.ts` holds two live Firestore queries, both filtered to the signed-in
-broker's uid: `applications` where `brokerId` matches, and `users` where `brokerId` matches. A client
-is a borrower in either result. The Firestore rules are the access boundary: an unfiltered query is
-refused, and the client file page only looks inside the broker's own list.
+broker's uid: `applications` where `brokerId` matches and `status` is not `Draft`, and `users` where
+`brokerId` matches. A client is a borrower in either result. The Firestore rules are the access
+boundary: an unfiltered query is refused, and the client file page only looks inside the broker's own
+list.
+
+Brokers do not see Drafts, in the list or on the client file, and the rules refuse a broker query
+that could return one. A borrower whose only application is a Draft still appears, from the `users`
+query, with no application listed. The underwriter queue still shows Drafts.
 
 Applications appear as soon as their query answers, even while profiles are pending. Pending
 names show as "Loading name" alongside the client ID, without an unavailable-names notice.
 Names update live when profiles arrive; a refused or failed profiles query keeps applications
-visible by client ID and shows the notice.
+visible and shows the notice, and logs the error code once (`console.warn`) so a rules
+regression is visible.
+
+A client's name is their profile's `fullName`. Without a readable profile (for example after the
+borrower moved to another broker, who now owns the profile) it is the `borrowerName` stored on
+their newest application, and with neither it is "Name unavailable". Search and sorting use the
+same name.
+
+If neither query answers within 15 seconds (`CLIENTS_LOAD_TIMEOUT_MS`), for example with
+Firestore unreachable, the page leaves "Loading your clients" for "Client files could not be
+loaded". A late answer still replaces the error.
 
 The rules on `main` (`al-core/firestore.rules`) let a broker read `users` where `brokerId` is their
 own uid, so the `users` query is allowed and names load. If it is refused or fails anyway, clients

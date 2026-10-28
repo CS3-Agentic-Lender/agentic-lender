@@ -31,12 +31,67 @@ const STATUS = {
 const at = (iso) => new Date(iso);
 
 const round1 = (n) => Math.round(n * 10) / 10;
+const round2 = (n) => Math.round(n * 100) / 100;
 
-// Monthly repayment on an amortising loan.
-function monthlyRepaymentEur(principalEur, aprPct, termYears) {
-  const r = aprPct / 100 / 12;
-  const n = termYears * 12;
-  return Math.round((principalEur * r) / (1 - Math.pow(1 + r, -n)));
+// ---------- DTI breakdown (AL-65) ----------
+
+// A port of assess() in al-ai/app/affordability.py, the one place the affordability figures are worked out.
+// Nothing is rounded here; the seed rounds when it stores. test/dti-reference-cases.json holds al-ai's own
+// output for two reference cases, and test/dti-breakdown.test.js checks this port against it.
+const STRESS_MARGIN_PCT = 2.0; // Central Bank stress rule: +2 percentage points
+const repaymentFactor = (annualRate, years) => {
+  const n = years * 12;
+  const r = annualRate / 12;
+  return r === 0 ? 1 / n : r / (1 - (1 + r) ** -n);
+};
+const dtiBand = (v) => (v <= 0.4 ? 'Comfortable' : v <= 0.5 ? 'Caution' : 'Adverse'); // on stressed values
+const surplusBand = (v) => (v >= 500 ? 'Comfortable' : v >= 0 ? 'Caution' : 'Adverse');
+
+function assess({ loanEur, termYears, benchmarkRatePct, grossAnnualIncomeEur, takeHomeMonthlyEur, existingDebtsMonthlyEur, livingCostsMonthlyEur }) {
+  const repayment = loanEur * repaymentFactor(benchmarkRatePct / 100, termYears);
+  const stressedRepayment = loanEur * repaymentFactor((benchmarkRatePct + STRESS_MARGIN_PCT) / 100, termYears);
+  const grossMonthly = grossAnnualIncomeEur / 12;
+  const stressedDti = (existingDebtsMonthlyEur + stressedRepayment) / grossMonthly;
+  const stressedSurplus = takeHomeMonthlyEur - livingCostsMonthlyEur - existingDebtsMonthlyEur - stressedRepayment;
+  return {
+    repayment,
+    stressedRepayment,
+    dti: (existingDebtsMonthlyEur + repayment) / grossMonthly,
+    stressedDti,
+    surplus: takeHomeMonthlyEur - livingCostsMonthlyEur - existingDebtsMonthlyEur - repayment,
+    stressedSurplus,
+    dtiBand: dtiBand(stressedDti),
+    surplusBand: surplusBand(stressedSurplus),
+  };
+}
+
+// The stored breakdown: euro to the cent, percentages to two places. The bands come from the unrounded figures.
+function dtiBreakdown(app, benchmarkRatePct, rateDate) {
+  const a = assess({
+    loanEur: app.loanAmountEur, termYears: app.termYears, benchmarkRatePct, grossAnnualIncomeEur: app.grossIncomeEur,
+    takeHomeMonthlyEur: app.monthlyTakeHomeEur, existingDebtsMonthlyEur: app.monthlyDebtsEur, livingCostsMonthlyEur: app.monthlyLivingCostsEur,
+  });
+  return {
+    assessment: a,
+    breakdown: {
+      incomeMonthlyEur: round2(app.grossIncomeEur / 12),
+      takeHomeMonthlyEur: app.monthlyTakeHomeEur,
+      existingDebtsMonthlyEur: app.monthlyDebtsEur,
+      livingCostsMonthlyEur: app.monthlyLivingCostsEur,
+      newRepaymentMonthlyEur: round2(a.repayment),
+      stressedRepaymentMonthlyEur: round2(a.stressedRepayment),
+      benchmarkRatePct,
+      stressMarginPct: STRESS_MARGIN_PCT,
+      stressedRatePct: round2(benchmarkRatePct + STRESS_MARGIN_PCT),
+      rateDate,
+      dtiPct: round2(a.dti * 100),
+      stressedDtiPct: round2(a.stressedDti * 100),
+      surplusMonthlyEur: round2(a.surplus),
+      stressedSurplusMonthlyEur: round2(a.stressedSurplus),
+      dtiBand: a.dtiBand,
+      surplusBand: a.surplusBand,
+    },
+  };
 }
 
 // Same text as Python's json.dumps(record, sort_keys=True, separators=(",", ":"))
@@ -140,9 +195,9 @@ function valuation(estimatedValueEur) {
 // Builds the shared fields for an application at a given stage.
 function application(spec) {
   const {
-    id, borrowerId, brokerId, status, loanType = 'mortgage', grossIncomeEur, monthlyDebtsEur,
+    id, borrowerId, brokerId, status, loanType = 'mortgage', grossIncomeEur, monthlyDebtsEur, monthlyTakeHomeEur, monthlyLivingCostsEur,
     depositEur, firstTimeBuyer, existingMortgageBalanceEur, loanAmountEur, termYears, askingPriceEur, estimatedValueEur,
-    aprPct = 4.0, createdAt, submittedAt, updatedAt,
+    aprPct = 4.0, rateDate = '2026-09', createdAt, submittedAt, updatedAt,
   } = spec;
 
   // The API copies the borrower's name onto the application when it is created; the seed does the same.
@@ -150,7 +205,7 @@ function application(spec) {
   if (!borrower) throw new Error(`Application ${id}: no seeded user with uid ${borrowerId}`);
 
   const doc = {
-    borrowerId, borrowerName: borrower.fullName, brokerId, status, loanType, grossIncomeEur, monthlyDebtsEur, loanAmountEur, termYears,
+    borrowerId, borrowerName: borrower.fullName, brokerId, status, loanType, grossIncomeEur, monthlyDebtsEur, monthlyTakeHomeEur, monthlyLivingCostsEur, loanAmountEur, termYears,
     // A HELOC has no asking price: the home's value comes from the valuation (estimatedValueEur).
     property: loanType === 'heloc' ? { ...baseProperty } : { ...baseProperty, askingPriceEur },
     createdAt: at(createdAt), updatedAt: at(updatedAt),
@@ -163,17 +218,18 @@ function application(spec) {
   const reviewed = ![STATUS.DRAFT, STATUS.APPLIED].includes(status);
   let review = null;
   if (reviewed) {
+    // The stressed DTI and surplus bands come from the breakdown below, as al-ai's run reports them.
+    const { assessment, breakdown } = dtiBreakdown(spec, aprPct, rateDate);
+    const findings = { stressedDti: assessment.dtiBand, surplus: assessment.surplusBand };
     // al-ai sets both after its run; the queue filters on them next to status.
     const valueEur = loanType === 'heloc' ? estimatedValueEur : askingPriceEur; // what the LTV is measured against
-    spec.riskTier = riskTier({ ...spec, loanType, askingPriceEur: valueEur }, spec.findings);
-    const repayment = monthlyRepaymentEur(loanAmountEur, aprPct, termYears);
-    const incomeMonthly = Math.round(grossIncomeEur / 12);
+    spec.riskTier = riskTier({ ...spec, loanType, askingPriceEur: valueEur }, findings);
     Object.assign(doc, {
       aiRunStatus: 'complete',
       estimatedValueEur,
       // On the valuation, as SCHEMA.md says; combined (with the existing mortgage) for a HELOC.
       ltvPct: round1(((loanAmountEur + (loanType === 'heloc' ? existingMortgageBalanceEur : 0)) / estimatedValueEur) * 100),
-      dtiPct: round1(((monthlyDebtsEur + repayment) / incomeMonthly) * 100),
+      dtiPct: round1(assessment.dti * 100),
       aprPct,
       approvalLikelihoodPct: spec.approvalLikelihoodPct,
       ltvBand: ltvBand(purchasePriceLtvPct({ ...spec, loanType, askingPriceEur: valueEur })),
@@ -183,11 +239,7 @@ function application(spec) {
       applicationId: id,
       brokerId,
       riskTier: spec.riskTier,
-      dtiBreakdown: {
-        incomeMonthlyEur: incomeMonthly,
-        existingDebtsMonthlyEur: monthlyDebtsEur,
-        newRepaymentMonthlyEur: repayment,
-      },
+      dtiBreakdown: breakdown,
       valuationDetail: valuation(estimatedValueEur),
       updatedAt: at(updatedAt),
     };
@@ -198,57 +250,54 @@ function application(spec) {
 const applications = [
   application({
     id: 'app-draft', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.DRAFT,
-    grossIncomeEur: 58000, monthlyDebtsEur: 250, depositEur: 30000, firstTimeBuyer: true,
+    grossIncomeEur: 58000, monthlyDebtsEur: 250, monthlyTakeHomeEur: 3500, monthlyLivingCostsEur: 1500, depositEur: 30000, firstTimeBuyer: true,
     loanAmountEur: 230000, termYears: 30, askingPriceEur: 260000,
     createdAt: '2026-10-05T10:00:00Z', updatedAt: '2026-10-05T10:20:00Z',
   }),
   application({
     id: 'app-applied', borrowerId: 'borrower1', brokerId: 'broker1', status: STATUS.APPLIED,
-    grossIncomeEur: 75000, monthlyDebtsEur: 300, depositEur: 35000, firstTimeBuyer: true,
+    grossIncomeEur: 75000, monthlyDebtsEur: 300, monthlyTakeHomeEur: 4300, monthlyLivingCostsEur: 1600, depositEur: 35000, firstTimeBuyer: true,
     loanAmountEur: 270000, termYears: 30, askingPriceEur: 315000,
     createdAt: '2026-10-02T10:00:00Z', submittedAt: '2026-10-03T09:00:00Z', updatedAt: '2026-10-03T09:00:00Z',
   }),
   application({
     id: 'app-deliberated', borrowerId: 'borrower1', brokerId: 'broker1', status: STATUS.AI_DELIBERATED,
-    grossIncomeEur: 75000, monthlyDebtsEur: 300, depositEur: 40000, firstTimeBuyer: true,
+    grossIncomeEur: 75000, monthlyDebtsEur: 1000, monthlyTakeHomeEur: 4300, monthlyLivingCostsEur: 1200, depositEur: 40000, firstTimeBuyer: true,
     loanAmountEur: 265000, termYears: 30, askingPriceEur: 310000, estimatedValueEur: 306000,
     approvalLikelihoodPct: 78,
-    findings: { stressedDti: 'Caution', surplus: 'Comfortable' },
     createdAt: '2026-09-28T10:00:00Z', submittedAt: '2026-09-29T09:00:00Z', updatedAt: '2026-09-29T09:06:00Z',
   }),
   application({
     id: 'app-approved', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.UNDERWRITER_APPROVED,
-    loanType: 'heloc', grossIncomeEur: 92000, monthlyDebtsEur: 1100, existingMortgageBalanceEur: 180000,
+    loanType: 'heloc', grossIncomeEur: 92000, monthlyDebtsEur: 1100, monthlyTakeHomeEur: 5100, monthlyLivingCostsEur: 1800, existingMortgageBalanceEur: 180000,
     loanAmountEur: 60000, termYears: 15, estimatedValueEur: 415000,
     approvalLikelihoodPct: 84,
-    findings: { stressedDti: 'Comfortable', surplus: 'Comfortable' },
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-30T14:00:00Z', reason: 'Low LTV and DTI within limits' },
     createdAt: '2026-09-25T10:00:00Z', submittedAt: '2026-09-26T09:00:00Z', updatedAt: '2026-09-30T14:00:00Z',
   }),
   application({
     id: 'app-declined', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.DECLINED,
-    grossIncomeEur: 41000, monthlyDebtsEur: 650, depositEur: 15000, firstTimeBuyer: true,
+    grossIncomeEur: 41000, monthlyDebtsEur: 650, monthlyTakeHomeEur: 2850, monthlyLivingCostsEur: 750, depositEur: 15000, firstTimeBuyer: true,
     loanAmountEur: 245000, termYears: 35, askingPriceEur: 270000, estimatedValueEur: 258000,
     approvalLikelihoodPct: 22,
-    findings: { stressedDti: 'Adverse', surplus: 'Caution' },
     decision: { outcome: 'declined', underwriterId: 'underwriter1', decidedAt: '2026-09-24T15:00:00Z', reason: 'Loan above income limit and LTV over 90%' },
     createdAt: '2026-09-20T10:00:00Z', submittedAt: '2026-09-21T09:00:00Z', updatedAt: '2026-09-24T15:00:00Z',
   }),
   application({
     id: 'app-funded', borrowerId: 'borrower1', brokerId: 'broker1', status: STATUS.FUNDED,
-    grossIncomeEur: 88000, monthlyDebtsEur: 200, depositEur: 60000, firstTimeBuyer: false,
+    grossIncomeEur: 88000, monthlyDebtsEur: 200, monthlyTakeHomeEur: 4900, monthlyLivingCostsEur: 1800, depositEur: 60000, firstTimeBuyer: false,
     loanAmountEur: 290000, termYears: 30, askingPriceEur: 365000, estimatedValueEur: 366000,
     approvalLikelihoodPct: 91,
-    findings: { stressedDti: 'Comfortable', surplus: 'Comfortable' }, funded: true,
+    funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-18T11:00:00Z', reason: 'Strong affordability' },
     createdAt: '2026-09-10T10:00:00Z', submittedAt: '2026-09-11T09:00:00Z', updatedAt: '2026-09-18T11:30:00Z',
   }),
   application({
     id: 'app-closed', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.CLOSED,
-    grossIncomeEur: 70000, monthlyDebtsEur: 150, depositEur: 50000, firstTimeBuyer: false,
+    grossIncomeEur: 70000, monthlyDebtsEur: 150, monthlyTakeHomeEur: 3950, monthlyLivingCostsEur: 2000, depositEur: 50000, firstTimeBuyer: false,
     loanAmountEur: 240000, termYears: 25, askingPriceEur: 300000, estimatedValueEur: 302000,
     approvalLikelihoodPct: 88,
-    findings: { stressedDti: 'Comfortable', surplus: 'Caution' }, funded: true,
+    funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-08T11:00:00Z', reason: 'Within lending rules' },
     createdAt: '2026-09-01T10:00:00Z', submittedAt: '2026-09-02T09:00:00Z', updatedAt: '2026-09-15T10:00:00Z',
   }),
@@ -427,7 +476,7 @@ async function seed() {
 }
 
 // The rules are exported for the tests (test/risk-tier.test.js); running the file seeds.
-module.exports = { purchasePriceLtvPct, ltvBand, riskTier, build, checkCoverage };
+module.exports = { purchasePriceLtvPct, ltvBand, riskTier, assess, dtiBreakdown, build, checkCoverage };
 
 if (require.main === module) {
   seed().then(() => process.exit(0)).catch((err) => {

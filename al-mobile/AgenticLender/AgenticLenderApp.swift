@@ -32,6 +32,8 @@ struct AgenticLenderApp: App {
                     case .affordability:
                         let service = APIAffordabilityService.live()
                         LoanTypeChoiceView(affordabilityService: service, helocService: service)
+                    case .propertyCheck:
+                        PropertyCheckFormView(service: APIValuationService.live())
                     }
                 }
             }

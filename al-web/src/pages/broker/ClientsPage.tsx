@@ -3,16 +3,19 @@ import { Link } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useBrokerClients } from '../../context/BrokerClientsContext';
-import { APPLICATION_STATUSES, type BrokerClientsSnapshot } from '../../services/clientsService';
+import { APPLICATION_STATUSES, clientName, type BrokerClientsSnapshot } from '../../services/clientsService';
 import { formatDate, formatEuro, formatPercent } from '../../utils/formatters';
 import { BrokerClientsStatus } from './BrokerClientsStatus';
 import { ALL_STATUSES, filterClientRows, toClientRows, type ClientRow } from './clientRows';
+
+// Brokers never see Drafts (the query leaves them out), so the filter doesn't offer one.
+const BROKER_STATUSES = APPLICATION_STATUSES.filter((status) => status !== 'Draft');
 
 const headerCellClass = 'px-4 py-3 text-left text-xs font-semibold tracking-wide text-muted uppercase';
 const cellClass = 'px-4 py-4 align-middle';
 
 function ClientTableRow({ client, application, profilesState }: ClientRow & Pick<BrokerClientsSnapshot, 'profilesState'>) {
-  const displayName = client.profile?.fullName ?? (profilesState === 'pending' ? 'Loading name' : 'Name unavailable');
+  const displayName = clientName(client) ?? (profilesState === 'pending' ? 'Loading name' : 'Name unavailable');
 
   return (
     <tr className="border-t border-line">
@@ -38,7 +41,7 @@ function ClientTableRow({ client, application, profilesState }: ClientRow & Pick
         </>
       ) : (
         <td className={`${cellClass} text-sm text-muted`} colSpan={5}>
-          No application yet
+          No submitted application yet
         </td>
       )}
     </tr>
@@ -113,7 +116,7 @@ export function ClientsPage() {
                     value={status}
                   >
                     <option value={ALL_STATUSES}>All statuses</option>
-                    {APPLICATION_STATUSES.map((option) => (
+                    {BROKER_STATUSES.map((option) => (
                       <option key={option} value={option}>
                         {option}
                       </option>
@@ -127,7 +130,7 @@ export function ClientsPage() {
 
               {state.profilesState === 'unavailable' ? (
                 <p className="mt-6 rounded-lg border border-line bg-tint p-3 text-sm text-ink">
-                  Client names are not available yet, so clients are listed by ID.
+                  Client names are not available yet, so a client shows the name stored on their application, or their ID.
                 </p>
               ) : null}
 

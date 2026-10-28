@@ -20,9 +20,11 @@ struct PickerFieldLabel: View {
     }
 }
 
-/// A menu of the BER grades. `onPick` runs after each choice, so the form can mark the field as left.
+/// A menu of the BER grades, in titled groups. `onPick` runs after each choice, so the form can
+/// mark the field as left. F and G are on both scales, so in the property check they show twice.
 struct BERMenu: View {
     @Binding var selection: BERRating?
+    var groups = BERRating.affordabilityGroups
     var onPick: () -> Void = {}
 
     var body: some View {
@@ -31,8 +33,14 @@ struct BERMenu: View {
                 get: { selection },
                 set: { selection = $0; onPick() }
             )) {
-                ForEach(BERRating.allCases) { rating in
-                    Text(rating.title).tag(Optional(rating))
+                ForEach(groups, id: \.self) { group in
+                    Section {
+                        ForEach(group.ratings) { rating in
+                            Text(rating.title).tag(Optional(rating))
+                        }
+                    } header: {
+                        if let title = group.title { Text(title) }
+                    }
                 }
             }
         } label: {

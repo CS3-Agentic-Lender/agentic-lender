@@ -1,5 +1,5 @@
 import { onSnapshot } from 'firebase/firestore';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { firestoreClientsService } from './clientsService';
 
 // The query builders are replaced by recorders so that a test can read the query a listener
@@ -68,15 +68,25 @@ function subscribe() {
   };
 }
 
-beforeEach(() => vi.mocked(onSnapshot).mockReset());
+let warn: MockInstance<typeof console.warn>;
+
+beforeEach(() => {
+  vi.mocked(onSnapshot).mockReset();
+  warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+afterEach(() => warn.mockRestore());
 
 describe('broker clients queries', () => {
-  it('reads applications where brokerId is the signed-in broker', () => {
+  it('reads applications where brokerId is the signed-in broker and the status is not Draft', () => {
     const subscription = subscribe();
     expect(subscription.applicationsQuery).toEqual({
       kind: 'query',
       source: { kind: 'collection', path: 'applications' },
-      constraints: [{ kind: 'where', field: 'brokerId', op: '==', value: 'broker-1' }],
+      constraints: [
+        { kind: 'where', field: 'brokerId', op: '==', value: 'broker-1' },
+        { kind: 'where', field: 'status', op: '!=', value: 'Draft' },
+      ],
     });
   });
 
@@ -93,12 +103,31 @@ describe('broker clients queries', () => {
     vi.mocked(onSnapshot).mockReturnValue(vi.fn());
     firestoreClientsService.subscribeToBrokerClients('broker-2', vi.fn(), vi.fn());
     const queries = vi.mocked(onSnapshot).mock.calls.map(([source]) => source) as unknown as Array<{
-      constraints: Array<{ value: string }>;
+      constraints: Array<{ field: string; value: string }>;
     }>;
-    expect(queries.map(({ constraints }) => constraints.map(({ value }) => value))).toEqual([
-      ['broker-2'],
-      ['broker-2'],
-    ]);
+    const brokerIds = queries.map(({ constraints }) =>
+      constraints.filter(({ field }) => field === 'brokerId').map(({ value }) => value),
+    );
+    expect(brokerIds).toEqual([['broker-2'], ['broker-2']]);
+  });
+});
+
+describe('broker clients without Drafts', () => {
+  // The Draft is filtered out by the query, so the server answers without it.
+  const draftOnlyProfile = snapshotOf([{ id: 'borrower-2', data: () => ({ fullName: 'Ben Walsh' }) }]);
+
+  it('keeps a borrower whose only application is a Draft as a client with no applications', () => {
+    const subscription = subscribe();
+    subscription.applicationsNext(serverEmpty);
+    subscription.profilesNext(draftOnlyProfile);
+    expect(subscription.listener).toHaveBeenLastCalledWith({
+      clients: [{
+        id: 'borrower-2',
+        profile: expect.objectContaining({ fullName: 'Ben Walsh' }),
+        applications: [],
+      }],
+      profilesState: 'available',
+    });
   });
 });
 
@@ -186,6 +215,20 @@ describe('broker clients subscription', () => {
     const subscription = subscribe();
     expect(subscription.applicationsOptions).toEqual({ includeMetadataChanges: true });
     expect(subscription.profilesOptions).toEqual({ includeMetadataChanges: true });
+  });
+
+  it.each(['permission-denied', 'unavailable'])('logs the profiles %s error code once', (code) => {
+    const subscription = subscribe();
+    subscription.applicationsNext(applications);
+    subscription.profilesError({ code });
+    expect(warn).toHaveBeenCalledExactlyOnceWith(`Client profiles could not be read: ${code}`);
+  });
+
+  it('logs nothing while profiles answer', () => {
+    const subscription = subscribe();
+    subscription.applicationsNext(applications);
+    subscription.profilesNext(profiles);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it.each(['permission-denied', 'unavailable'])('handles profiles %s before applications answer', (code) => {
