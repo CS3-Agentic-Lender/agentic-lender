@@ -19,6 +19,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 borrowCard
+                propertyCheckCard
                 brokerCard
             }
             .padding(Theme.screenPadding)
@@ -54,6 +55,14 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("home.affordability")
+    }
+
+    private var propertyCheckCard: some View {
+        NavigationLink(value: Route.propertyCheck) {
+            card(title: "Check a property", detail: "See if an asking price is fair, from the home's details.")
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("home.propertyCheck")
     }
 
     private var brokerCard: some View {
