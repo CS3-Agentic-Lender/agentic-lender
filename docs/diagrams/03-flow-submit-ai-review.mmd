@@ -13,7 +13,7 @@ sequenceDiagram
   AI->>FS: claim the application in a transaction (runs once)
   AI->>FS: LTV, DTI and approval likelihood
   loop each committee step
-    AI->>X: valuation model, ECB, Serper, Gemini, Mistral, Ollama
+    AI->>X: valuation model, ECB, Serper, Gemini, Groq, Ollama
     X-->>AI: reply (checked against our schema)
     AI->>FS: log the call in ai_calls
   end

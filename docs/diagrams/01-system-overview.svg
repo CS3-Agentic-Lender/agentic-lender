@@ -82,7 +82,7 @@
   </g>
   <g fill="#0F172A" text-anchor="middle">
     <text x="170" y="534" font-size="16" font-weight="700">LLM providers</text>
-    <text x="170" y="556" font-size="13" fill="#475569">Gemini · Mistral · Ollama or Bedrock</text>
+    <text x="170" y="556" font-size="13" fill="#475569">Gemini · Groq · Ollama or Bedrock</text>
     <text x="170" y="578" font-size="13" fill="#475569">ECB rates · Serper search</text>
     <text x="1030" y="534" font-size="16" font-weight="700">Ledger and payments</text>
     <text x="1030" y="556" font-size="13" fill="#475569">loan note and audit contracts</text>
