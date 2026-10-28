@@ -339,7 +339,10 @@ def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(requi
         changes["loanType"] = loan_type
         for api in MORTGAGE_ONLY if loan_type == "heloc" else HELOC_ONLY:
             changes[INPUTS[api]] = DELETE_FIELD
-        if loan_type == "heloc":
+        # Not when the whole property is being cleared in this update: a map and one of its own fields can't be
+        # written together (the real Firestore client refuses it), and clearing the map already drops the price.
+        clearing_property = "property" in sent and sent["property"] is None
+        if loan_type == "heloc" and not clearing_property:
             for api in MORTGAGE_ONLY_PROPERTY:
                 if (doc.get("property") or {}).get(PROPERTY[api]) is not None:
                     changes[f"property.{PROPERTY[api]}"] = DELETE_FIELD

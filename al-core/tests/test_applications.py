@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from google.api_core.exceptions import FailedPrecondition
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
+from google.cloud.firestore_v1 import _helpers
 
 from app import applications, auth
 from app.main import app
@@ -70,6 +71,9 @@ class FakeDoc:
     def update(self, changes, option=None):
         """Like Firestore: dotted keys reach into maps, DELETE_FIELD removes, SERVER_TIMESTAMP is LATER,
         and a last_update_time option refuses the write if the document changed since that read."""
+        # The real client refuses overlapping field paths in one update (a map and one of its own fields), which this
+        # fake would otherwise let through, so every update in these tests is checked the way Firestore checks it.
+        _helpers.pbs_for_update(f"projects/test/databases/(default)/documents/{self.path}", dict(changes), None)
         if option is not None and option != self.db.versions.get(self.path):
             raise FailedPrecondition("document changed since it was read")
         self.db.versions[self.path] = self.db.versions.get(self.path, 0) + 1
@@ -542,6 +546,25 @@ def test_changing_to_a_heloc_drops_the_asking_price_but_keeps_the_rest_of_the_pr
     assert r.status_code == 200 and r.json()["property"]["asking_price_eur"] is None
     assert "askingPriceEur" not in stored(fake)["property"]
     assert stored(fake)["property"]["county"] == "Cork" and stored(fake)["property"]["eircode"] == "P31 X2Y3"
+
+
+def test_switching_to_a_heloc_while_clearing_the_whole_property_is_one_valid_update(fake):
+    # Dropping the asking price and clearing the property in the same update would put a map and one of its fields
+    # in one write, which the real Firestore client rejects (a 500). The whole property is cleared, so that is enough.
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = edit(app_id, {"loan_type": "heloc", "existing_mortgage_balance_eur": 120000, "property": None})
+    assert r.status_code == 200, r.json()
+    assert r.json()["loan_type"] == "heloc" and r.json()["property"] is None
+    assert "property" not in stored(fake) and stored(fake)["existingMortgageBalanceEur"] == 120000
+
+
+def test_the_fake_refuses_overlapping_paths_like_the_real_client():
+    # Guards the guard: the check the fake runs on every update does reject the conflict that caused the bug.
+    with pytest.raises(ValueError, match="Conflicting field path"):
+        _helpers.pbs_for_update(
+            "projects/test/databases/(default)/documents/applications/a1",
+            {"property.askingPriceEur": DELETE_FIELD, "property": DELETE_FIELD}, None,
+        )
 
 
 def test_a_heloc_can_clear_the_asking_price_with_null_but_not_set_one(fake):

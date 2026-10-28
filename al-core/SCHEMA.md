@@ -105,7 +105,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `dtiPct` | number | no | Debt to income at the benchmark rate, to one decimal place. The stressed figure and every other part are in `review/underwriting.dtiBreakdown` |
 | `aprPct` | number | no | Rate offered. Until pricing exists it is the benchmark rate used (`dtiBreakdown.benchmarkRatePct`) |
 | `approvalLikelihoodPct` | number | no | From the AI committee |
-| `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the purchase-price LTV: `loanAmountEur / property.askingPriceEur` for a mortgage, `(existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur` for a HELOC (it has no asking price, so the valuation estimate is the home's value). Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
+| `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the LTV the underwriter judges the loan on: against the asking price for a mortgage (`loanAmountEur / property.askingPriceEur`), and against the valuation estimate for a HELOC (`(existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur`, because a HELOC has no asking price). Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
 | `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai after each run, with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
 | `decision` | map | no | Set by the underwriter. See below |
 | `loanNote` | map | no | Set at mint. See below |
@@ -249,7 +249,7 @@ A borrower's saved property checks. Who reads it: that user. Written by al-core 
 3. **Stress-test results:** stored, or calculated on demand by `/ai/portfolio/*`?
 4. **Custom feature:** extra fields once the team chooses it.
 5. **Risk tier rule:** resolved on AL-64, see below.
-6. **LTV basis:** resolved on AL-64 for the band and tier: the purchase-price LTV (asking price). `ltvPct` stays the valuation-based figure.
+6. **LTV basis:** resolved on AL-64 for the band and tier: the LTV against the asking price for a mortgage and against the valuation estimate for a HELOC (it has no asking price). `ltvPct` stays the valuation-based figure.
 
 ## Risk tier rule
 
@@ -257,7 +257,7 @@ Worked out by al-ai from the stressed values after each committee run (and again
 
 1. the stressed DTI is in the Caution band
 2. the surplus is in the Caution band
-3. the purchase-price LTV is over 80%
+3. that LTV (the one the band uses) is over 80%
 4. the price is flagged "price needs review", or the model support is low
 
 Then, checking D first:
