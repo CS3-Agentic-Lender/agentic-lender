@@ -322,3 +322,31 @@ def test_a_dead_network_is_retried_like_any_provider_error():
     sleeps = []
     result = va.run(facts(), agent=GROQ, run_id="r", transport=dead, env=ENV, sleep=sleeps.append)
     assert not result.ok and len(calls) == 3 and sleeps == [1.0, 2.0]
+
+
+# ---- digits inside text facts are not invented figures (found in review: "D24" and "C1" were rejected) ---------------------
+
+def test_digits_in_the_eircode_area_and_the_ber_are_not_invented_figures():
+    f = facts(routing_key="D24", ber="C1")
+    reply = {**GOOD, "conditions": [], "explanation": "The home is in the D24 Eircode area. It has a C1 energy rating."}
+    assert va.check_reply(reply, f)["explanation"] == reply["explanation"]
+
+
+def test_a_figure_that_is_in_no_fact_is_still_rejected_next_to_those_digits():
+    f = facts(routing_key="D24", ber="C1")
+    with pytest.raises(va.ReplyRejected, match="25"):
+        va.check_reply({**GOOD, "explanation": "The home is in the D25 Eircode area."}, f)
+
+
+@pytest.mark.parametrize("area,ber", [("T12", "B"), ("D6W", "A2"), ("V94", "E1"), ("A65", "Unknown")])
+def test_every_kind_of_eircode_area_and_ber_can_be_mentioned_by_name(area, ber):
+    f = facts(routing_key=area, ber=ber)
+    reply = {**GOOD, "conditions": [], "explanation": f"The home is in the {area} Eircode area and has BER {ber}."}
+    assert va.check_reply(reply, f)["recommendation"] == "Conditionally Approve"
+
+
+def test_the_demo_application_style_reply_survives_a_retry_free_run():
+    f = facts(routing_key="D24", ber="C1")
+    net = Net((200, {**GOOD, "conditions": [], "explanation": "The D24 home with a C1 rating is priced above the estimate."}))
+    result = run(net, f=f)
+    assert result.ok and len(net.calls) == 1

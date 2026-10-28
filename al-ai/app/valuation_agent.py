@@ -109,8 +109,11 @@ def _allowed_numbers(facts: dict) -> set[float]:
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             # _numbers() drops the sign, so compare sizes. A rounded form is fine too ("100.6" for 100.59).
             allowed |= {abs(float(value)), round(abs(value), 0), round(abs(value), 1)}
-    for text in [facts["estimate_basis"], *facts["support_warnings"]]:
-        allowed |= set(_numbers(text))
+    # Digits inside a text fact are given too: the Eircode area "D24" and the BER "C1" are in DATA, so "D24" and "C1" are not invented figures.
+    for value in facts.values():
+        for text in value if isinstance(value, list) else [value]:
+            if isinstance(text, str):
+                allowed |= set(_numbers(text))
     return allowed
 
 
