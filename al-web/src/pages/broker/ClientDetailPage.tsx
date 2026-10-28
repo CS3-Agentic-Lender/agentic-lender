@@ -80,7 +80,7 @@ export function ClientDetailPage() {
               <section className="mt-10 rounded-2xl border border-line bg-surface p-8">
                 <h2 className="text-xl font-semibold">Applications</h2>
                 {client.applications.length === 0 ? (
-                  <p className="mt-3 leading-7 text-muted">This client has not started an application yet.</p>
+                  <p className="mt-3 leading-7 text-muted">This client has no submitted application yet.</p>
                 ) : (
                   <ul className="mt-4 divide-y divide-line">
                     {client.applications.map((application) => (

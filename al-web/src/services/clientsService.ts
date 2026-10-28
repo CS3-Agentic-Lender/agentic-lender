@@ -211,10 +211,16 @@ export const firestoreClientsService: ClientsService = {
     };
 
     // Both queries filter on brokerId, which is what the Firestore rules check: an unfiltered
-    // list is refused for a broker.
+    // list is refused for a broker. Brokers do not see Drafts, and the rules refuse a broker query
+    // that could return one, so the applications query also excludes them. A borrower whose only
+    // application is a Draft still comes through the users query, with no applications listed.
     unsubscribers.push(
       onSnapshot(
-        query(collection(db, 'applications'), where('brokerId', '==', brokerUid)),
+        query(
+          collection(db, 'applications'),
+          where('brokerId', '==', brokerUid),
+          where('status', '!=', 'Draft'),
+        ),
         LISTEN_OPTIONS,
         (snapshot) => {
           if (isUnconfirmedEmpty(snapshot)) {
