@@ -111,6 +111,28 @@ final class PropertyCheckViewModelTests: XCTestCase {
         XCTAssertNil(model.checkError)
     }
 
+    /// The result screen is shown from the summary, built from what was sent and what came back.
+    func testTheSummaryDescribesTheHomeThatWasChecked() async {
+        let model = filledModel()
+        XCTAssertNil(model.summary)
+
+        await model.check()
+
+        XCTAssertEqual(model.summary?.estimate, "€372,000")
+        XCTAssertEqual(model.summary?.title, "Cork semi-detached")
+    }
+
+    /// Going back to edit (closing the result screen) clears it, so the next check shows afresh.
+    func testClosingTheResultClearsTheSummary() async {
+        let model = filledModel()
+        await model.check()
+
+        model.summary = nil
+
+        XCTAssertNil(model.summary)
+        XCTAssertNil(model.result)
+    }
+
     /// Figma 10c Valuing: the button shows it's working and a second tap sends nothing.
     func testWhileValuingASecondCheckDoesNothing() async {
         let service = FakeValuationService()
