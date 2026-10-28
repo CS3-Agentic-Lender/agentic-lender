@@ -44,11 +44,11 @@ beforeEach(async () => {
     await set('users/borrower1/saved_checks/check1', { estimatedValueEur: 310000 });
 
     await set('applications/app1', {
-      borrowerId: 'borrower1', brokerId: 'broker1', status: 'AI Deliberated',
+      borrowerId: 'borrower1', brokerId: 'broker1', status: 'AI Deliberated', loanType: 'mortgage',
       ltvBand: '80_to_90', riskTier: 'B', submittedAt: new Date('2026-10-02T09:00:00Z'),
     });
     await set('applications/app2', {
-      borrowerId: 'borrower2', brokerId: 'broker2', status: 'AI Deliberated',
+      borrowerId: 'borrower2', brokerId: 'broker2', status: 'AI Deliberated', loanType: 'heloc',
       ltvBand: 'over_90', riskTier: 'D', submittedAt: new Date('2026-10-03T09:00:00Z'),
     });
     await set('applications/app1/review/underwriting', { applicationId: 'app1', brokerId: 'broker1', riskTier: 'B' });
@@ -157,6 +157,10 @@ describe('pipeline queue', () => {
     const snap = await assertSucceeds(queue(underwriter(), 'riskTier', 'B'));
     expect(snap.docs.map((d) => d.id)).toEqual(['app1']);
   });
+  test('an underwriter can filter by status and loan type', async () => {
+    const snap = await assertSucceeds(queue(underwriter(), 'loanType', 'heloc'));
+    expect(snap.docs.map((d) => d.id)).toEqual(['app2']);
+  });
   test('the queue is newest first', async () => {
     const snap = await assertSucceeds(
       underwriter().collection('applications').where('status', '==', 'AI Deliberated').orderBy('submittedAt', 'desc').get(),
@@ -180,6 +184,7 @@ test('firestore.indexes.json has an index for every queue query', () => {
   expect(shapes).toEqual([
     'applications:status ASCENDING,submittedAt DESCENDING',
     'applications:status ASCENDING,ltvBand ASCENDING,submittedAt DESCENDING',
+    'applications:status ASCENDING,loanType ASCENDING,submittedAt DESCENDING',
     'applications:status ASCENDING,riskTier ASCENDING,submittedAt DESCENDING',
   ]);
 });

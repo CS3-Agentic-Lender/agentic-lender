@@ -92,7 +92,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `bedrooms` | number | Needed to submit (the valuation uses it); `0` counts |
 | `floorAreaSqm` | number | Needed to submit (the valuation uses it) |
 | `berRating` | string | From `GET /ai/valuation/options`. Needed to submit (the valuation uses it) |
-| `askingPriceEur` | number | Needed to submit (the LTV is worked out from it) |
+| `askingPriceEur` | number | Mortgage only: needed to submit a mortgage (the purchase-price LTV is worked out from it). A HELOC has none, because it is borrowed against a home the borrower already owns; its value is the valuation estimate, and the API refuses an asking price on a HELOC |
 
 ### Results and decision
 
@@ -103,7 +103,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `dtiPct` | number | no | Debt to income |
 | `aprPct` | number | no | Rate offered |
 | `approvalLikelihoodPct` | number | no | From the AI committee |
-| `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the purchase-price LTV: `loanAmountEur / property.askingPriceEur` for a mortgage, `(existingMortgageBalanceEur + loanAmountEur) / property.askingPriceEur` for a HELOC. Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
+| `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the purchase-price LTV: `loanAmountEur / property.askingPriceEur` for a mortgage, `(existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur` for a HELOC (it has no asking price, so the valuation estimate is the home's value). Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
 | `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai after each run, with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
 | `decision` | map | no | Set by the underwriter. See below |
 | `loanNote` | map | no | Set at mint. See below |
@@ -260,6 +260,6 @@ Then, checking D first:
 | LTV exactly 90% | FTB mortgage €270,000, income €75,000, price €300,000 | DTI Comfortable, surplus Comfortable | **B** | 90% is not over the cap, but it is over 80% |
 | First-time buyer over 4x income | FTB mortgage €300,001, income €75,000, price €400,000 | DTI Comfortable, surplus Comfortable | **D** | 300,001 > 4 x 75,000 |
 | Second-time buyer exactly 3.5x income | non-FTB mortgage €262,500, income €75,000, price €400,000 | DTI Comfortable, surplus Comfortable | **A** | 262,500 = 3.5 x 75,000: not over |
-| HELOC over 3.5x counting the existing mortgage | HELOC €40,000 + €250,000 existing, income €80,000, price €500,000 | DTI Comfortable, surplus Comfortable | **D** | 40,000 + 250,000 = 290,000 > 280,000 |
-| HELOC exactly 3.5x counting the existing mortgage | HELOC €40,000 + €240,000 existing, income €80,000, price €500,000 | DTI Comfortable, surplus Comfortable | **A** | 40,000 + 240,000 = 280,000; 56% combined LTV |
+| HELOC over 3.5x counting the existing mortgage | HELOC €40,000 + €250,000 existing, income €80,000, home value €500,000 | DTI Comfortable, surplus Comfortable | **D** | 40,000 + 250,000 = 290,000 > 280,000 |
+| HELOC exactly 3.5x counting the existing mortgage | HELOC €40,000 + €240,000 existing, income €80,000, home value €500,000 | DTI Comfortable, surplus Comfortable | **A** | 40,000 + 240,000 = 280,000; 56% combined LTV |
 

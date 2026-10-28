@@ -166,6 +166,9 @@ PROPERTY = {
 FINISHED = {"Declined", "Closed"}
 MORTGAGE_ONLY = ("deposit_eur", "first_time_buyer")
 HELOC_ONLY = ("existing_mortgage_balance_eur",)
+# A HELOC is borrowed against a home the borrower already owns, so there is no asking price: its value
+# comes from the valuation model (AL-197).
+MORTGAGE_ONLY_PROPERTY = ("asking_price_eur",)
 
 # Needed to submit, checked in this order so the first missing one is named (AL-245).
 REQUIRED_TO_SUBMIT = (
@@ -203,6 +206,11 @@ def _check_loan_type_fields(loan_type: str, sent: dict) -> None:
         if sent.get(field) is not None:
             other = "mortgage" if loan_type == "heloc" else "HELOC"
             raise _invalid(field, f"only applies to a {other}")
+    if loan_type == "heloc":
+        prop = sent.get("property") or {}
+        for field in MORTGAGE_ONLY_PROPERTY:
+            if prop.get(field) is not None:
+                raise _invalid(f"property.{field}", "only applies to a mortgage")
 
 
 def _own_application(application_id: str, uid: str):
@@ -331,6 +339,10 @@ def edit_draft(application_id: str, body: DraftPatch, user: dict = Depends(requi
         changes["loanType"] = loan_type
         for api in MORTGAGE_ONLY if loan_type == "heloc" else HELOC_ONLY:
             changes[INPUTS[api]] = DELETE_FIELD
+        if loan_type == "heloc":
+            for api in MORTGAGE_ONLY_PROPERTY:
+                if (doc.get("property") or {}).get(PROPERTY[api]) is not None:
+                    changes[f"property.{PROPERTY[api]}"] = DELETE_FIELD
     for api, fs in INPUTS.items():
         if api in sent:
             changes[fs] = DELETE_FIELD if sent[api] is None else sent[api]
@@ -355,6 +367,8 @@ def _first_missing(doc: dict) -> str | None:
             return api
     prop = doc.get("property") or {}
     for api in PROPERTY_REQUIRED_TO_SUBMIT:
+        if loan_type == "heloc" and api in MORTGAGE_ONLY_PROPERTY:
+            continue
         if prop.get(PROPERTY[api]) is None:
             return f"property.{api}"
     return None

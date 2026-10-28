@@ -387,6 +387,7 @@ def test_both_endpoints_need_a_token():
         ({"loan_type": "mortgage", "existing_mortgage_balance_eur": 100000}, "existing_mortgage_balance_eur"),
         ({"loan_type": "heloc", "deposit_eur": 20000}, "deposit_eur"),
         ({"loan_type": "heloc", "first_time_buyer": True}, "first_time_buyer"),
+        ({"loan_type": "heloc", "property": {"asking_price_eur": 300000}}, "property.asking_price_eur"),
     ],
 )
 def test_invalid_input_is_422_naming_the_field(fake, body, field):
@@ -534,6 +535,21 @@ def test_changing_to_a_heloc_drops_the_mortgage_only_fields(fake):
     assert "depositEur" not in stored(fake) and "firstTimeBuyer" not in stored(fake)
 
 
+def test_changing_to_a_heloc_drops_the_asking_price_but_keeps_the_rest_of_the_property(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    assert stored(fake)["property"]["askingPriceEur"] == 315000
+    r = edit(app_id, {"loan_type": "heloc", "existing_mortgage_balance_eur": 120000})
+    assert r.status_code == 200 and r.json()["property"]["asking_price_eur"] is None
+    assert "askingPriceEur" not in stored(fake)["property"]
+    assert stored(fake)["property"]["county"] == "Cork" and stored(fake)["property"]["eircode"] == "P31 X2Y3"
+
+
+def test_a_heloc_can_clear_the_asking_price_with_null_but_not_set_one(fake):
+    app_id = create({"loan_type": "heloc"}).json()["id"]
+    assert edit(app_id, {"property": {"asking_price_eur": None}}).status_code == 200
+    assert edit(app_id, {"property": {"asking_price_eur": 1}}).status_code == 422
+
+
 def test_changing_to_a_mortgage_drops_the_existing_balance(fake):
     app_id = create({"loan_type": "heloc", "existing_mortgage_balance_eur": 120000}).json()["id"]
     r = edit(app_id, {"loan_type": "mortgage"})
@@ -603,6 +619,7 @@ def test_edit_needs_a_token():
         ({"property": {"address_line_1": "x" * 201}}, "property.address_line_1"),
         ({"existing_mortgage_balance_eur": 100000}, "existing_mortgage_balance_eur"),
         ({"loan_type": "heloc", "deposit_eur": 20000}, "deposit_eur"),
+        ({"loan_type": "heloc", "property": {"asking_price_eur": 300000}}, "property.asking_price_eur"),
     ],
 )
 def test_invalid_edit_is_422_naming_the_field_and_nothing_changes(fake, body, field):
@@ -627,8 +644,10 @@ def test_openapi_lists_the_patch_with_its_model():
 
 # POST /core/applications/{id}/submit (AL-245)
 
+# A HELOC has no deposit, no first-time-buyer answer and no asking price: the home's value comes from the valuation.
 FULL_HELOC = {
     **{k: v for k, v in FULL_MORTGAGE.items() if k not in ("deposit_eur", "first_time_buyer")},
+    "property": {k: v for k, v in FULL_MORTGAGE["property"].items() if k != "asking_price_eur"},
     "loan_type": "heloc",
     "existing_mortgage_balance_eur": 120000,
     "loan_amount_eur": 60000,
@@ -720,6 +739,36 @@ def test_a_heloc_missing_a_field_is_422_naming_it(fake, field):
     edit(app_id, {field: None})
     r = submit(app_id)
     assert r.status_code == 422 and r.json()["error"]["field"] == field
+
+
+def test_a_heloc_does_not_need_an_asking_price_to_submit(fake):
+    app_id = create(FULL_HELOC).json()["id"]
+    assert "askingPriceEur" not in stored(fake)["property"]
+    r = submit(app_id)
+    assert r.status_code == 200 and r.json()["status"] == "Applied"
+    assert r.json()["property"]["asking_price_eur"] is None
+
+
+@pytest.mark.parametrize("field", ["address_line_1", "county", "eircode", "property_type", "bedrooms", "floor_area_sqm", "ber_rating"])
+def test_a_heloc_still_needs_the_rest_of_the_property(fake, field):
+    app_id = create(FULL_HELOC).json()["id"]
+    edit(app_id, {"property": {field: None}})
+    r = submit(app_id)
+    assert r.status_code == 422 and r.json()["error"]["field"] == f"property.{field}"
+
+
+def test_a_mortgage_still_needs_an_asking_price_to_submit(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    edit(app_id, {"property": {"asking_price_eur": None}})
+    r = submit(app_id)
+    assert r.status_code == 422 and r.json()["error"]["field"] == "property.asking_price_eur"
+
+
+def test_a_draft_switched_back_to_a_mortgage_needs_an_asking_price_again(fake):
+    app_id = create(FULL_HELOC).json()["id"]
+    edit(app_id, {"loan_type": "mortgage", "deposit_eur": 35000, "first_time_buyer": True})
+    r = submit(app_id)
+    assert r.status_code == 422 and r.json()["error"]["field"] == "property.asking_price_eur"
 
 
 def test_a_heloc_does_not_need_the_deposit_fields(fake):
