@@ -5,7 +5,7 @@ import inspect
 import pytest
 
 from app import policy_gate as gate
-from app.policy_gate import LTI_CAP, LTV_CAP, apply_policy_gate, heloc_breaches, purchase_breaches
+from app.policy_gate import CLTV_CAP, LTI_CAP, LTV_CAP, apply_policy_gate, heloc_breaches, purchase_breaches
 
 EXCEPTION = "Requires lender exception review"
 
@@ -56,11 +56,17 @@ def test_a_zero_negative_or_non_finite_amount_is_refused(bad):
 
 def test_a_heloc_is_checked_on_combined_ltv_against_80_percent_and_has_no_lti_rule():
     assert heloc_breaches(existing_balance=100_000, line=140_000, home_value=300_000) == ()  # exactly 80%
-    assert heloc_breaches(existing_balance=100_000, line=140_001, home_value=300_000) == (LTV_CAP,)
+    assert heloc_breaches(existing_balance=100_000, line=140_001, home_value=300_000) == (CLTV_CAP,)
 
 
 def test_a_heloc_with_no_line_but_a_balance_over_the_limit_is_still_a_breach():
-    assert heloc_breaches(existing_balance=250_000, line=0, home_value=300_000) == (LTV_CAP,)
+    assert heloc_breaches(existing_balance=250_000, line=0, home_value=300_000) == (CLTV_CAP,)
+
+
+def test_the_heloc_rule_has_its_own_id_so_it_is_never_confused_with_the_purchase_ltv_cap():
+    assert CLTV_CAP == "CLTV_CAP" and CLTV_CAP != LTV_CAP
+    r = apply_policy_gate("Approve", [], (CLTV_CAP,))
+    assert r.effective == "Conditionally Approve" and r.conditions == (f"{EXCEPTION} ({CLTV_CAP})",)
 
 
 # ---- applying the gate: all three starting recommendations, with and without a breach ------

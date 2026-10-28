@@ -11,8 +11,9 @@ from dataclasses import dataclass
 from app import affordability as aff
 
 LTI_CAP = "LTI_CAP"  # rule IDs, saved with the run so the underwriter sees which limit was broken
-LTV_CAP = "LTV_CAP"
-RULE_IDS = (LTI_CAP, LTV_CAP)
+LTV_CAP = "LTV_CAP"  # a purchase: loan over 90% of the asking price
+CLTV_CAP = "CLTV_CAP"  # a HELOC: owed plus the line over 80% of the home's value
+RULE_IDS = (LTI_CAP, LTV_CAP, CLTV_CAP)
 
 EXCEPTION_CONDITION = "Requires lender exception review"
 
@@ -51,7 +52,7 @@ def purchase_breaches(*, loan: float, gross_annual_income: float, first_time_buy
 def heloc_breaches(*, existing_balance: float, line: float, home_value: float) -> tuple[str, ...]:
     """A HELOC has no income rule here and no asking price: what is owed plus the line, over the home's value, against 80%."""
     if aff.combined_ltv(existing_balance, line, home_value) > aff.HELOC_LTV_CAP:
-        return (LTV_CAP,)
+        return (CLTV_CAP,)
     return ()
 
 
