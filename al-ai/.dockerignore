@@ -5,4 +5,3 @@ tests
 data
 ml/reports
 ml/artifacts
-models/valuation/background-sample.csv
