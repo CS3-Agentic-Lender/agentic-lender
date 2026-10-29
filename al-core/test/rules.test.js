@@ -444,4 +444,29 @@ describe('listening to an application status', () => {
       l.unsubscribe();
     }
   });
+
+  // AL-59 criterion 1: each state reached carries a timestamp. The API writes it as a statusHistory
+  // entry (app/status.py), shaped here the same way.
+  test('the borrower hears each move arrive with its timestamp, who made it and the new status', async () => {
+    const entry = (from, to, actor, actorId, at) => ({ from, to, actor, actorId, at: new Date(at) });
+    const first = entry('AI Deliberated', 'Underwriter Approved', 'underwriter', 'underwriter1', '2026-10-29T10:00:00Z');
+    const second = entry('Underwriter Approved', 'Funded', 'mint', 'al-core', '2026-10-29T10:05:00Z');
+    const l = listen(borrower1().doc('applications/app1'));
+    try {
+      expect((await l.next()).data().statusHistory).toBeUndefined();
+      await apiWrite({ status: 'Underwriter Approved', statusHistory: [first] });
+      const afterFirst = (await l.next()).data();
+      expect(afterFirst.status).toBe('Underwriter Approved');
+      expect(afterFirst.statusHistory.map((e) => e.to)).toEqual(['Underwriter Approved']);
+      await apiWrite({ status: 'Funded', statusHistory: [first, second] });
+      const afterSecond = (await l.next()).data();
+      expect(afterSecond.statusHistory.map((e) => e.to)).toEqual(['Underwriter Approved', 'Funded']);
+      expect(afterSecond.statusHistory.map((e) => e.at.toDate().toISOString())).toEqual([
+        '2026-10-29T10:00:00.000Z', '2026-10-29T10:05:00.000Z',
+      ]);
+      expect(afterSecond.statusHistory[1]).toMatchObject({ from: 'Underwriter Approved', actor: 'mint', actorId: 'al-core' });
+    } finally {
+      l.unsubscribe();
+    }
+  });
 });
