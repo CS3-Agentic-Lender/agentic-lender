@@ -63,6 +63,9 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `createdAt` | timestamp | yes | |
 | `submittedAt` | timestamp | no | Set when the status moves from `Draft` to `Applied` |
 | `updatedAt` | timestamp | yes | |
+| `statusHistory` | array of maps | no | One entry per status move, oldest first: `from`, `to`, `actor`, `actorId`, `at`. Written only by the API (`app/status.py`), never edited. `actor` is `borrower`, `committee`, `underwriter` or `mint`; `actorId` is the person's uid, or the service name (for example `al-ai`) for the committee and the mint. `at` is a UTC timestamp. Absent on an application that has never moved (a Draft) and on seeded applications. The app's timeline reads it |
+
+The only moves, and the actor each belongs to (a move by anyone else is refused, and any other move is refused whoever asks): `Draft` to `Applied` (borrower), `Applied` to `AI Deliberated` (committee), `AI Deliberated` to `Underwriter Approved` or `Declined` (underwriter), `Underwriter Approved` to `Funded` (mint), `Funded` or `Declined` to `Closed` (underwriter). The table lives in `app/status.py`; every endpoint that changes `status` builds its write with `plan_move`.
 
 ### Borrower inputs
 
@@ -232,15 +235,21 @@ One per user, so `PUT /core/reviews/me` can replace it. Who reads it: that user,
 | `comment` | string | Optional |
 | `updatedAt` | timestamp | |
 
-## users/{uid}/saved_checks/{checkId} (proposal, from the API design doc's endpoints)
+## users/{uid}/saved_checks/{checkId}
 
-A borrower's saved property checks. Who reads it: that user. Written by al-core (`POST` and `DELETE /core/saved-checks`).
+A property check the borrower ran and kept. Who reads it: only that user, directly from Firestore, so there is no list endpoint. Written by al-core only (`POST` and `DELETE /core/saved-checks`), never by a client. A borrower keeps at most 20; the 21st is refused with `409`. Every save is its own snapshot, with no de-duplication.
+
+The client sends the valuation result it already has and the API validates and stores it; it does not call al-ai again. The API body is snake_case with the application's property names, so picking a check fills the application's `property` with no renaming.
 
 | Field | Type | Notes |
 |---|---|---|
-| `property` | map | Same shape as the application's property map, without the address fields (`addressLine1`, `addressLine2`, `eircode`): a saved check is about the kind of home, not a particular one |
+| `property` | map | `county`, `eircode` (the full Eircode), `propertyType`, `bedrooms`, `floorAreaSqm`, `berRating`, and `askingPriceEur` when one was given. The same names and limits as the application's property map, so a saved check can always fill an application. No address lines: a saved check is about the kind of home, not a particular one. The full Eircode is stored because re-running the check and filling the application need it |
 | `estimatedValueEur` | number | From `POST /ai/valuation` |
-| `createdAt` | timestamp | |
+| `askingPriceGap` | number | Asking price / estimate - 1. Null without an asking price |
+| `priceNeedsReview` | boolean | The valuation's flag, shown as Fair or Over-priced. Null without an asking price |
+| `supportWarnings` | array | Plain-English reasons the estimate is less reliable. Empty when there are none |
+| `modelVersion` | string | The valuation model's version, for example `v2` |
+| `createdAt` | timestamp | Set by the API |
 
 ## Open questions
 
