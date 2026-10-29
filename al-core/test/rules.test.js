@@ -330,3 +330,101 @@ describe('reviews', () => {
   test("a borrower can't write their review directly", () =>
     assertFails(borrower1().doc('reviews/borrower1').set({ userId: 'borrower1', rating: 1 })));
 });
+
+// Real-time status (AL-59): clients listen to the application and see each status change as it is
+// written. The change is written with rules disabled, standing in for the API's Admin SDK write.
+describe('listening to an application status', () => {
+  // Collects every snapshot a listener gets; next() waits for the one after the ones already taken.
+  const listen = (target) => {
+    const seen = [];
+    let waiting = null;
+    let failure = null;
+    const unsubscribe = target.onSnapshot(
+      (snap) => {
+        seen.push(snap);
+        if (waiting) { waiting.resolve(); waiting = null; }
+      },
+      (err) => {
+        failure = err;
+        if (waiting) { waiting.reject(err); waiting = null; }
+      },
+    );
+    let taken = 0;
+    const next = () => new Promise((resolve, reject) => {
+      const take = () => resolve(seen[taken++]);
+      if (taken < seen.length) return take();
+      if (failure) return reject(failure);
+      waiting = { resolve: take, reject };
+    });
+    return { next, unsubscribe };
+  };
+
+  const apiWrite = (data) =>
+    testEnv.withSecurityRulesDisabled((context) => context.firestore().doc('applications/app1').update(data));
+
+  const hears = async (db) => {
+    const l = listen(db.doc('applications/app1'));
+    try {
+      expect((await l.next()).data().status).toBe('AI Deliberated');
+      await apiWrite({ status: 'Underwriter Approved' });
+      expect((await l.next()).data().status).toBe('Underwriter Approved');
+    } finally {
+      l.unsubscribe();
+    }
+  };
+
+  const refused = async (db, path = 'applications/app1') => {
+    const l = listen(db.doc(path));
+    try {
+      await expect(l.next()).rejects.toMatchObject({ code: 'permission-denied' });
+    } finally {
+      l.unsubscribe();
+    }
+  };
+
+  test('the borrower hears their own application change', () => hears(borrower1()));
+  test('the assigned broker hears their client\'s application change', () => hears(broker1()));
+  test('an underwriter hears any application change', () => hears(underwriter()));
+
+  test("another borrower can't listen to it", () => refused(borrower2()));
+  test("another broker can't listen to it", () => refused(broker2()));
+  test("a signed-out user can't listen to it", () => refused(signedOut()));
+  test("a broker can't listen to their client's Draft", () => refused(broker1(), 'applications/app3'));
+
+  test("a borrower's list listener hears a status change on their application", async () => {
+    const l = listen(borrower1().collection('applications').where('borrowerId', '==', 'borrower1'));
+    try {
+      const first = await l.next();
+      expect(first.docs.map((d) => d.id).sort()).toEqual(['app1', 'app3']);
+      await apiWrite({ status: 'Declined' });
+      const second = await l.next();
+      expect(second.docs.find((d) => d.id === 'app1').data().status).toBe('Declined');
+    } finally {
+      l.unsubscribe();
+    }
+  });
+
+  test("a broker's list listener hears a change and still leaves out Drafts", async () => {
+    const l = listen(broker1().collection('applications').where('brokerId', '==', 'broker1').where('status', '!=', 'Draft'));
+    try {
+      const first = await l.next();
+      expect(first.docs.map((d) => d.id)).toEqual(['app1']);
+      await apiWrite({ status: 'Funded' });
+      expect((await l.next()).docs[0].data().status).toBe('Funded');
+    } finally {
+      l.unsubscribe();
+    }
+  });
+
+  test("a broker's list listener gains a Draft once it is submitted", async () => {
+    const l = listen(broker1().collection('applications').where('brokerId', '==', 'broker1').where('status', '!=', 'Draft'));
+    try {
+      expect((await l.next()).docs.map((d) => d.id)).toEqual(['app1']);
+      await testEnv.withSecurityRulesDisabled((context) =>
+        context.firestore().doc('applications/app3').update({ status: 'Applied' }));
+      expect((await l.next()).docs.map((d) => d.id).sort()).toEqual(['app1', 'app3']);
+    } finally {
+      l.unsubscribe();
+    }
+  });
+});
