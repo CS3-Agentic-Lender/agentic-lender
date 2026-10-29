@@ -25,7 +25,8 @@ def test_a_preflight_from_the_portal_with_an_authorization_header_succeeds():
     assert "POST" in r.headers["access-control-allow-methods"]
 
 
-def test_a_preflight_from_any_other_origin_gets_no_cors_headers():
+def test_a_preflight_from_any_other_origin_gets_no_allow_origin_so_the_browser_blocks_it():
+    # Starlette still sends allow-methods and allow-headers here; without allow-origin the browser refuses anyway
     r = preflight(OTHER)
     assert "access-control-allow-origin" not in r.headers
     assert r.status_code != 200
