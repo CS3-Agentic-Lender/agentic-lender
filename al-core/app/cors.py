@@ -30,7 +30,9 @@ def allowed_origins(env: dict | None = None) -> list[str]:
 
 
 def install(app: FastAPI, env: dict | None = None) -> None:
-    """Add the CORS middleware last, so it is outermost and even an error answer carries the header."""
+    """Add the CORS middleware last, so it is outermost and an answer the app builds, such as a 401 or a 422,
+    carries the header. An unhandled 500 is built outside the middleware by the server's own error handler,
+    so it does not, and the browser then reports a CORS error instead of the 500."""
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins(env),

@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app import cors
+from app import cors, errors
 from app.main import app
 
 client = TestClient(app)
@@ -43,7 +43,7 @@ def test_the_preflight_works_for_every_route_not_just_one(path):
 # ---- any other origin gets nothing (acceptance criterion 3) -----------------------------------------------
 
 
-def test_a_preflight_from_any_other_origin_gets_no_cors_headers():
+def test_a_preflight_from_any_other_origin_gets_no_allow_origin_header():
     r = preflight(OTHER)
     assert "access-control-allow-origin" not in r.headers
     assert r.status_code != 200
@@ -57,7 +57,7 @@ def test_the_portal_over_https_is_a_different_origin_and_is_refused():
     assert "access-control-allow-origin" not in preflight("https://localhost:5173").headers
 
 
-def test_a_request_from_any_other_origin_gets_no_cors_headers_so_the_browser_blocks_it():
+def test_a_request_from_any_other_origin_gets_no_allow_origin_so_the_browser_blocks_it():
     r = client.get("/core/health", headers={"Origin": OTHER})
     assert r.status_code == 200 and "access-control-allow-origin" not in r.headers
 
@@ -128,3 +128,17 @@ def test_a_blank_setting_falls_back_to_the_local_portal():
 def test_a_wildcard_or_something_that_is_not_an_origin_is_refused(bad):
     with pytest.raises(ValueError):
         cors.allowed_origins({"CORS_ALLOWED_ORIGINS": bad})
+
+
+def test_an_unhandled_500_carries_no_allow_origin_header_which_the_readme_warns_about():
+    """The server builds a 500 outside the CORS middleware, so the browser reports CORS instead of the 500."""
+    boom = FastAPI()
+    errors.install(boom)
+    cors.install(boom)
+
+    @boom.get("/boom")
+    def explode():
+        raise RuntimeError("unhandled")
+
+    r = TestClient(boom, raise_server_exceptions=False).get("/boom", headers={"Origin": PORTAL})
+    assert r.status_code == 500 and "access-control-allow-origin" not in r.headers

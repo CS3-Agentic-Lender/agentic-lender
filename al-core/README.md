@@ -226,6 +226,8 @@ Only the portal's origin may call al-core from a browser (API design doc, sectio
 - **Refused:** `*`, and anything that is not an origin (a path, a query or no scheme), so al-core won't start with a bad value.
 - **Behaviour:** a browser preflight (`OPTIONS`) from an allowed origin with an `Authorization` header gets `200`. Another origin gets no `access-control-allow-origin`, so the browser blocks the call. Cookies are not allowed (tokens travel in the header). A request with no `Origin` header, such as the iOS app or another service, is not affected.
 
+An unhandled `500` is built outside the CORS middleware, so it carries no `access-control-allow-origin` even for the portal. The browser then shows a CORS error instead of the `500`: when a portal call fails that way, check the al-core log for the real error.
+
 The gateway forwards every method, `OPTIONS` included, so al-core answers the preflight itself and the gateway needs no change. The local compose file passes no CORS setting, so the default (the local portal) applies. To add another origin locally, set `CORS_ALLOWED_ORIGINS` in the `al-core` service's `environment`.
 
 ## Blockchain: the loan note and audit registry contracts (`chain/`)
