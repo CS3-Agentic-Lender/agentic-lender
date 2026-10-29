@@ -1,9 +1,10 @@
 from fastapi import APIRouter, FastAPI
 
-from app import affordability_endpoint, errors, valuation_endpoint
+from app import affordability_endpoint, cors, errors, valuation_endpoint
 
 app = FastAPI(title="al-ai", docs_url="/ai/docs", openapi_url="/ai/openapi.json", redoc_url=None)
 errors.install(app)
+cors.install(app)
 
 router = APIRouter(prefix="/ai")
 

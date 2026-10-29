@@ -164,7 +164,8 @@ private struct PreviewValuationService: ValuationService {
     func value(_ request: ValuationRequest) async throws -> ValuationResult {
         ValuationResult(
             estimateEur: 371_800, displayEstimateEur: 372_000, basis: "2024 asking-price estimate",
-            supportWarnings: [], askingPriceGap: 0.0221, priceNeedsReview: false, modelVersion: "v2"
+            supportWarnings: [], askingPriceGap: 0.0221, priceNeedsReview: false, modelVersion: "v2",
+            baselineEur: nil, contributions: nil
         )
     }
 }

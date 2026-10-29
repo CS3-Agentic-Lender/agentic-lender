@@ -25,7 +25,8 @@ final class APISavedCheckClientTests: XCTestCase {
         )))
         let result = ValuationResult(
             estimateEur: 345_000, displayEstimateEur: 345_000, basis: "2024 asking-price estimate",
-            supportWarnings: [], askingPriceGap: nil, priceNeedsReview: nil, modelVersion: "v2"
+            supportWarnings: [], askingPriceGap: nil, priceNeedsReview: nil, modelVersion: "v2",
+            baselineEur: nil, contributions: nil
         )
         return SavedCheckDraft(request: request, result: result)
     }

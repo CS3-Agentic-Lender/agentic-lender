@@ -14,7 +14,8 @@ final class SavedCheckDraftTests: XCTestCase {
         ValuationResult(
             estimateEur: 345_210.5, displayEstimateEur: 345_000, basis: "2024 asking-price estimate",
             supportWarnings: ["Few homes like this one were in the data."], askingPriceGap: gap,
-            priceNeedsReview: needsReview, modelVersion: "v2"
+            priceNeedsReview: needsReview, modelVersion: "v2",
+            baselineEur: nil, contributions: nil
         )
     }
 
