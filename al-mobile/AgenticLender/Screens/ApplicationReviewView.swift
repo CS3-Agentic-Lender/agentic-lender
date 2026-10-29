@@ -22,7 +22,7 @@ struct ApplicationReviewView: View {
     var body: some View {
         Group {
             if let reference = model.reference {
-                ApplicationSubmittedView(reference: reference, onBackToHome: onBackToHome)
+                ApplicationSubmittedView(reference: reference, applicationID: model.applicationID, onBackToHome: onBackToHome)
             } else {
                 review
             }
@@ -125,11 +125,12 @@ private struct ReviewCard: View {
     }
 }
 
-/// "Application submitted" (Figma 13b) with its reference. The status screen arrives with the status
-/// timeline ticket, so for now the button goes back home.
+/// "Application submitted" (Figma 13b) with its reference, and the way to its status timeline.
 private struct ApplicationSubmittedView: View {
     let reference: ApplicationReference
+    let applicationID: String
     let onBackToHome: () -> Void
+    @State private var isShowingStatus = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -163,9 +164,16 @@ private struct ApplicationSubmittedView: View {
         .padding(Theme.screenPadding)
         .frame(maxWidth: .infinity)
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: "Back to home", action: onBackToHome)
-                .accessibilityIdentifier("submitted.backToHome")
-                .padding(Theme.screenPadding)
+            VStack(spacing: 12) {
+                PrimaryButton(title: "View status") { isShowingStatus = true }
+                    .accessibilityIdentifier("submitted.viewStatus")
+                SecondaryButton(title: "Back to home", action: onBackToHome)
+                    .accessibilityIdentifier("submitted.backToHome")
+            }
+            .padding(Theme.screenPadding)
+        }
+        .navigationDestination(isPresented: $isShowingStatus) {
+            ApplicationStatusView(applicationID: applicationID, service: FirestoreApplicationStatusService())
         }
     }
 }
