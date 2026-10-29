@@ -1,10 +1,10 @@
-/// Checks the property check form. It only stops what `POST /ai/valuation` would refuse: a size the
-/// model wasn't trained on still gets an estimate, with a warning from the endpoint.
-/// Returns one message per field that is wrong.
+/// Checks the property check form. The limits are the application's (al-core), so every check can be
+/// saved and can fill an application. Inside them, a size the model wasn't trained on still gets an
+/// estimate, with a warning from the endpoint. Returns one message per field that is wrong.
 enum PropertyCheckValidator {
-    static let floorAreaRange = 1...100_000
-    static let bedroomsRange = 0...30
-    static let askingPriceRange = 1...1_000_000_000
+    static let floorAreaRange = 1...10_000
+    static let bedroomsRange = ApplicationProperty.bedroomsRange
+    static let askingPriceRange = 1...100_000_000
 
     private static let floorAreaInvalid =
         "Enter a size in whole m², from \(floorAreaRange.lowerBound) to \(EuroAmount.format(floorAreaRange.upperBound))"

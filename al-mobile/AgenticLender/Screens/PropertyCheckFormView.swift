@@ -8,8 +8,11 @@ struct PropertyCheckFormView: View {
     @State private var isCountySheetShown = false
     @FocusState private var focused: PropertyCheckField?
 
-    init(service: ValuationService) {
+    private let savedChecks: SavedCheckService?
+
+    init(service: ValuationService, savedChecks: SavedCheckService? = nil) {
         _model = State(initialValue: PropertyCheckViewModel(service: service))
+        self.savedChecks = savedChecks
     }
 
     var body: some View {
@@ -63,7 +66,7 @@ struct PropertyCheckFormView: View {
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { footer }
         .navigationDestination(item: $model.summary) { summary in
-            ValuationResultView(summary: summary)
+            ValuationResultView(summary: summary, draft: model.savedCheckDraft, savedChecks: savedChecks)
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
@@ -161,7 +164,8 @@ private struct PreviewValuationService: ValuationService {
     func value(_ request: ValuationRequest) async throws -> ValuationResult {
         ValuationResult(
             estimateEur: 371_800, displayEstimateEur: 372_000, basis: "2024 asking-price estimate",
-            supportWarnings: [], askingPriceGap: 0.0221, priceNeedsReview: false
+            supportWarnings: [], askingPriceGap: 0.0221, priceNeedsReview: false, modelVersion: "v2",
+            baselineEur: nil, contributions: nil
         )
     }
 }
