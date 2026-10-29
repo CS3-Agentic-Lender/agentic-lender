@@ -154,6 +154,54 @@ function group(name: string) {
 afterEach(cleanup);
 
 describe('underwriter pipeline queue', () => {
+  it('shows stored loan types and composes type and status filters without changing grouping', async () => {
+    const rows = withRiskTiers([
+      toApplicationSummary('mortgage', { loanType: 'mortgage', status: 'Applied', riskTier: 'A' }),
+      toApplicationSummary('heloc-applied', { loanType: 'heloc', status: 'Applied', riskTier: 'A' }),
+      toApplicationSummary('heloc-draft', { loanType: 'heloc', status: 'Draft', riskTier: 'B' }),
+      toApplicationSummary('legacy', { status: 'Applied', riskTier: 'A' }),
+    ], new Map());
+    renderQueue(new FakePipelineService(queue(rows)));
+    await screen.findByRole('table');
+    const user = userEvent.setup();
+    const typeFilter = screen.getByLabelText('Loan type filter');
+    const statusFilter = screen.getByLabelText('Status filter');
+    const row = (id: string) => screen.getByRole('rowheader', { name: id }).closest('tr')!;
+    expect(screen.getByRole('columnheader', { name: 'Type' })).toBeInTheDocument();
+    expect(within(typeFilter).getAllByRole('option').map((option) => option.textContent)).toEqual(['All', 'Mortgage', 'HELOC']);
+    expect(within(row('mortgage')).getByText('Mortgage')).toBeInTheDocument();
+    expect(within(row('heloc-applied')).getByText('HELOC')).toBeInTheDocument();
+    expect(within(row('legacy')).getByText('Unavailable')).toHaveClass('text-muted');
+    expect(row('mortgage').children).toHaveLength(8);
+    expect(within(group('Applied')).getByRole('rowheader', { name: /Applied\s*3 applications/ })).toHaveAttribute('colspan', '8');
+
+    await user.selectOptions(typeFilter, 'mortgage');
+    expect(screen.getByText(/Showing 1 of 4 applications, filtered to Mortgage loan type\./)).toBeInTheDocument();
+    expect(screen.queryByRole('rowheader', { name: 'legacy' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('rowheader', { name: 'heloc-applied' })).not.toBeInTheDocument();
+
+    await user.selectOptions(typeFilter, 'heloc');
+    expect(screen.getByText(/Showing 2 of 4 applications, filtered to HELOC loan type\./)).toBeInTheDocument();
+    expect(row('heloc-draft')).toBeInTheDocument();
+    await user.selectOptions(statusFilter, 'Applied');
+    expect(screen.getByText(/Showing 1 of 4 applications, filtered to Applied and HELOC loan type\./)).toBeInTheDocument();
+    expect(row('heloc-applied')).toBeInTheDocument();
+    expect(screen.queryByRole('rowheader', { name: 'heloc-draft' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Risk tier' }));
+    expect(within(group('Tier A')).getByText('1 application')).toBeInTheDocument();
+
+    await user.selectOptions(statusFilter, 'Funded');
+    expect(screen.getByText('No applications match these filters.')).toHaveAttribute('colspan', '8');
+    await user.selectOptions(statusFilter, 'Applied');
+    await user.selectOptions(typeFilter, 'all');
+    expect(screen.getByText(/Showing 3 of 4 applications, filtered to Applied\./)).toBeInTheDocument();
+    expect(row('legacy')).toBeInTheDocument();
+    await user.selectOptions(statusFilter, 'all');
+    expect(screen.getByText('Showing all 4 applications. Group counts are of all applications.')).toBeInTheDocument();
+    expect(within(group('Tier A')).getByText('3 applications')).toBeInTheDocument();
+    expect(within(group('Tier B')).getByText('1 application')).toBeInTheDocument();
+  });
+
   it.each(['', 'unknown', 1, {}])('shows invalid stored fields %j without valuation or review fallback', async (value) => {
     const rows = withRiskTiers([
       toApplicationSummary('invalid-band', { status: 'Applied', ltvBand: value, riskTier: 'D', ltvPct: 75 }),
@@ -191,7 +239,7 @@ describe('underwriter pipeline queue', () => {
 
   it.each(['pending', 'unavailable'] as const)('keeps invalid tiers explicit while review fallback is %s', async (state) => {
     const rows = withRiskTiers([
-      toApplicationSummary('invalid', { status: 'Applied', riskTier: '' }),
+      toApplicationSummary('invalid', { status: 'Applied', riskTier: '', loanType: 'mortgage' }),
     ], new Map([['invalid', 'A']]));
     renderQueue(new FakePipelineService(queue(rows, state, state === 'unavailable' ? 'permission-denied' : null)));
     await screen.findByRole('table');

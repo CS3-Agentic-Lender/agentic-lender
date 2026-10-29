@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { PipelineApplication, RiskTier } from '../../services/pipelineService';
 import {
   ALL_STATUSES,
+  ALL_LOAN_TYPES,
+  filterByLoanType,
   filterByStatus,
   formatLtv,
   groupApplications,
@@ -177,6 +179,31 @@ describe('grouping the pipeline', () => {
 
   it('returns no groups for an empty list', () => {
     expect(groupApplications([], 'ltvBand')).toEqual([]);
+  });
+});
+
+describe('filtering the pipeline by loan type', () => {
+  const rows = [
+    { ...application('mortgage-applied', 'Applied', 72, 'A'), loanType: 'mortgage' },
+    { ...application('heloc-applied', 'Applied', 62.5, 'B'), loanType: 'heloc' },
+    { ...application('heloc-draft', 'Draft', 80, null), loanType: 'heloc' },
+    { ...application('legacy', 'Applied', null, null), loanType: null },
+  ];
+
+  it('keeps missing types only under All and preserves order without mutating the input', () => {
+    const original = [...rows];
+    expect(filterByLoanType(rows, 'mortgage').map(({ id }) => id)).toEqual(['mortgage-applied']);
+    expect(filterByLoanType(rows, 'heloc').map(({ id }) => id)).toEqual(['heloc-applied', 'heloc-draft']);
+    expect(filterByLoanType(rows, ALL_LOAN_TYPES)).toEqual(original);
+    expect(rows).toEqual(original);
+  });
+
+  it('combines with the status filter in either order', () => {
+    const result = filterByLoanType(filterByStatus(rows, 'Applied'), 'heloc');
+    expect(result.map(({ id }) => id)).toEqual(['heloc-applied']);
+    expect(filterByStatus(filterByLoanType(rows, 'heloc'), 'Applied')).toEqual(result);
+    expect(filterByLoanType(filterByStatus(rows, 'Applied'), ALL_LOAN_TYPES)).toHaveLength(3);
+    expect(filterByLoanType(filterByStatus(rows, ALL_STATUSES), ALL_LOAN_TYPES)).toEqual(rows);
   });
 });
 
