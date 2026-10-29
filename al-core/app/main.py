@@ -1,9 +1,10 @@
 from fastapi import APIRouter, FastAPI
 
-from app import applications, errors, me
+from app import applications, cors, errors, me
 
 app = FastAPI(title="al-core", docs_url="/core/docs", openapi_url="/core/openapi.json", redoc_url=None)
 errors.install(app)
+cors.install(app)
 
 router = APIRouter(prefix="/core")
 

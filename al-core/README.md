@@ -208,6 +208,17 @@ End-to-end check against the emulators (API running as above, from `al-core/`):
 uv run python scripts/smoke_me.py
 ```
 
+## Browser origins (CORS)
+
+Only the portal's origin may call al-core from a browser (API design doc, section 5). The allowed origins come from the `CORS_ALLOWED_ORIGINS` setting, comma separated, the same name al-ai uses (`app/cors.py`):
+
+- **Not set:** only `http://localhost:5173`, the local portal.
+- **Sprint 3:** set it to the deployed portal's origin, for example `https://portal.example.ie`, with no code change.
+- **Refused:** `*`, and anything that is not an origin (a path, a query or no scheme), so al-core won't start with a bad value.
+- **Behaviour:** a browser preflight (`OPTIONS`) from an allowed origin with an `Authorization` header gets `200`. Another origin gets no `access-control-allow-origin`, so the browser blocks the call. Cookies are not allowed (tokens travel in the header). A request with no `Origin` header, such as the iOS app or another service, is not affected.
+
+The gateway forwards every method, `OPTIONS` included, so al-core answers the preflight itself and the gateway needs no change. The local compose file passes no CORS setting, so the default (the local portal) applies. To add another origin locally, set `CORS_ALLOWED_ORIGINS` in the `al-core` service's `environment`.
+
 ## Blockchain: the loan note and audit registry contracts (`chain/`)
 
 The blockchain half of al-core is a Hardhat project in `al-core/chain/`, separate from the Firebase tooling so the two test runners never pick up each other's tests.
