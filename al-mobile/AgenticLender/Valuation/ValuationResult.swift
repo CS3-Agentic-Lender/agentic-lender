@@ -16,6 +16,8 @@ struct ValuationResult: Decodable, Hashable {
     let askingPriceGap: Double?
     /// True when the asking price is far enough above the estimate to need a review. Nil with no asking price.
     let priceNeedsReview: Bool?
+    /// The model that made the estimate, such as "v2". Kept with a saved check.
+    let modelVersion: String
 
     static func decode(_ data: Data) throws -> ValuationResult {
         let decoder = JSONDecoder()

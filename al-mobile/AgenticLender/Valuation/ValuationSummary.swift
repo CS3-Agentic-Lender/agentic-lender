@@ -30,7 +30,7 @@ struct ValuationSummary: Hashable {
     let warnings: [String]
 
     init(request: ValuationRequest, result: ValuationResult) {
-        title = "\(request.county.name) \(request.propertyType.title.lowercased())"
+        title = Self.title(county: request.county, propertyType: request.propertyType)
         let ber = request.berRating == .unknown ? "BER not known" : "BER \(request.berRating.rawValue)"
         details = [
             request.propertyType.title,
@@ -50,6 +50,11 @@ struct ValuationSummary: Hashable {
         verdict = flagged ? .overPriced : .fair
         askingPrice = Self.euro(asking)
         comparison = Self.comparison(asking: asking, estimate: result.displayEstimateEur, gap: gap, flagged: flagged)
+    }
+
+    /// "Cork semi-detached": the result screen's heading and a saved check's name.
+    static func title(county: County, propertyType: PropertyType) -> String {
+        "\(county.name) \(propertyType.title.lowercased())"
     }
 
     /// How far the asking price is from the shown estimate, in euro and as the endpoint's gap.
