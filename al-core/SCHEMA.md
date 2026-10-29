@@ -115,7 +115,7 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | `feeStatus` | string | no | `unpaid` or `paid` (EUR 150 appraisal fee) |
 | `feeIntentId` | string | no | Stripe payment intent id |
 
-`decision` map: `outcome` (`approved` or `declined`), `underwriterId`, `decidedAt`, `reason` (optional).
+`decision` map: `outcome` (`approved` or `declined`), `underwriterId`, `decidedAt`, `reason` (optional, left out when none is given). Written only by `POST /core/applications/{id}/decision`, in the same write that moves the status to `Underwriter Approved` or `Declined`, and never changed afterwards.
 
 `loanNote` map: `tokenId`, `contractAddress`, `txHash`, `auditHash`, `mintedAt`. No personal data goes on chain.
 
