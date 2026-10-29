@@ -112,6 +112,11 @@ def test_decline_with_a_breach_stays_decline_and_the_breach_is_recorded():
     assert r.conditions == ()  # a declined loan carries no conditions
 
 
+def test_a_decline_that_loses_the_strategists_conditions_counts_as_changed():
+    r = apply_policy_gate("Decline", ["Independent valuation"], ())
+    assert r.conditions == () and r.changed is True
+
+
 def test_a_condition_the_strategist_already_wrote_is_not_added_twice():
     already = f"{EXCEPTION} ({LTI_CAP})"
     r = apply_policy_gate("Conditionally Approve", [already], (LTI_CAP,))

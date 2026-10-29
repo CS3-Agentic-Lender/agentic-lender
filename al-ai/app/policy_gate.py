@@ -67,7 +67,7 @@ def apply_policy_gate(recommendation: str, conditions, breaches) -> GateResult:
     kept = tuple(conditions)
 
     if recommendation == DECLINE:
-        return GateResult(recommendation, DECLINE, (), breaches, changed=False)  # a declined loan carries no conditions
+        return GateResult(recommendation, DECLINE, (), breaches, changed=bool(kept))  # a declined loan carries no conditions
 
     effective = recommendation
     added = tuple(
