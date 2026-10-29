@@ -42,7 +42,7 @@ def test_the_prompt_is_a_versioned_file_with_the_five_parts_in_order():
     parts = re.findall(r"^## (\w+)", text, re.M)
     assert parts == ["Role", "Task", "Rules", "Data", "Output"]
     assert "{data}" in text
-    assert va.PROMPT_VERSION == "valuation-agent-v1" and va.PROMPT_PATH.name == "valuation_agent_v1.md"
+    assert va.PROMPT_VERSION == "valuation-agent-v2" and va.PROMPT_PATH.name == "valuation_agent_v2.md"
 
 
 def test_the_prompt_carries_the_facts_and_the_output_rules():
@@ -128,6 +128,74 @@ def test_approve_is_allowed_when_the_numbers_are_clean():
     assert va.check_reply({**GOOD, "rating": "strong", "recommendation": "Approve", "conditions": [], "explanation": "In line."}, f)["recommendation"] == "Approve"
 
 
+# ---- a HELOC: no asking price, judged on combined LTV ----------------------------------------------------------------
+
+def heloc_facts(**changes):
+    base = dict(**HOME, loan_type="heloc", asking_price_eur=None, existing_mortgage_balance_eur=200_000.0, loan_eur=60_000.0,
+                estimate_eur=400_000.0, review_threshold=0.3567, support_warnings=())
+    return va.build_facts(**{**base, **changes})
+
+
+def test_a_heloc_gets_its_combined_ltv_and_none_of_the_purchase_figures():
+    f = heloc_facts()
+    assert f["loan_type"] == "heloc" and f["combined_ltv_pct"] == 65.0  # (200,000 + 60,000) / 400,000
+    assert f["combined_ltv_within_limit"] is True and f["combined_ltv_limit_pct"] == 80.0
+    assert f["existing_mortgage_balance_eur"] == 200_000.0 and f["line_eur"] == 60_000.0
+    for gone in ("asking_price_eur", "price_gap_pct", "price_needs_review", "purchase_ltv_pct", "model_ltv_pct", "loan_eur"):
+        assert gone not in f
+
+
+def test_a_purchase_is_labelled_and_keeps_its_figures():
+    f = facts()
+    assert f["loan_type"] == "mortgage" and "combined_ltv_pct" not in f and f["purchase_ltv_pct"] is not None
+
+
+def test_a_heloc_combined_ltv_exactly_at_80_percent_is_within_the_limit_and_just_over_is_not():
+    assert heloc_facts(loan_eur=120_000.0)["combined_ltv_within_limit"] is True
+    assert heloc_facts(loan_eur=120_004.0)["combined_ltv_within_limit"] is False
+
+
+def test_a_heloc_never_takes_an_asking_price_and_needs_the_balance():
+    with pytest.raises(ValueError):
+        heloc_facts(asking_price_eur=450_000.0)
+    with pytest.raises(ValueError):
+        heloc_facts(existing_mortgage_balance_eur=None)
+    with pytest.raises(ValueError):
+        facts(existing_mortgage_balance_eur=100_000.0)  # a purchase has no existing balance
+    with pytest.raises(ValueError):
+        facts(loan_type="bridging")
+
+
+HELOC_GOOD = {
+    "rating": "adequate", "recommendation": "Conditionally Approve", "conditions": [],
+    "explanation": "The combined loan to value is 65.0 against the 80 limit. The estimate is only an indicative 2024 asking-price estimate.",
+}
+
+
+def test_a_good_heloc_reply_quoting_the_combined_ltv_passes():
+    assert va.check_reply(HELOC_GOOD, heloc_facts()) == HELOC_GOOD
+
+
+def test_a_heloc_reply_cannot_recommend_approve_over_the_combined_ltv_limit():
+    f = heloc_facts(loan_eur=130_000.0)
+    with pytest.raises(va.ReplyRejected, match="Approve"):
+        va.check_reply({**HELOC_GOOD, "recommendation": "Approve", "explanation": "Fine."}, f)
+
+
+def test_a_heloc_reply_may_approve_within_the_limit():
+    reply = {**HELOC_GOOD, "rating": "strong", "recommendation": "Approve", "explanation": "Within the limit."}
+    assert va.check_reply(reply, heloc_facts())["recommendation"] == "Approve"
+
+
+def test_the_prompt_tells_the_agent_how_to_judge_a_heloc():
+    prompt = va.build_prompt(heloc_facts())
+    assert '"loan_type": "heloc"' in prompt and "combined_ltv_within_limit" in va.PROMPT and "HELOC" in va.PROMPT
+
+
+def test_the_v1_prompt_is_kept_so_the_saved_runs_still_name_a_real_file():
+    assert (va.PROMPT_PATH.parent / "valuation_agent_v1.md").exists()
+
+
 # ---- running the step with a fake network ------------------------------------------------------------------------
 
 class Net:
@@ -158,7 +226,7 @@ def test_a_good_reply_on_the_first_try_is_returned_and_logged_in_full(caplog):
     assert result.ok and result.reply == GOOD and result.failure_reason is None and len(net.calls) == 1
     a = result.attempts[0]
     assert a["run_id"] == "run-1" and a["attempt"] == 1 and a["provider"] == "groq" and a["model"] == "openai/gpt-oss-120b"
-    assert a["prompt_version"] == "valuation-agent-v1" and a["outcome"] == "ok" and a["error"] is None
+    assert a["prompt_version"] == "valuation-agent-v2" and a["outcome"] == "ok" and a["error"] is None
     assert a["raw_reply"] == json.dumps(GOOD) and a["parsed_reply"] == GOOD and a["request_id"] == "req-1" and a["duration_s"] >= 0
     assert a["input_tokens"] == 100 and a["output_tokens"] == 30
     assert json.loads(caplog.records[-1].getMessage())["request_id"] == "req-1"
@@ -166,7 +234,7 @@ def test_a_good_reply_on_the_first_try_is_returned_and_logged_in_full(caplog):
 
 def test_the_prompt_version_is_saved_with_every_attempt():
     result = run(Net((200, {**GOOD, "explanation": "It is 777."}), (200, GOOD)))
-    assert [a["prompt_version"] for a in result.attempts] == ["valuation-agent-v1"] * 2
+    assert [a["prompt_version"] for a in result.attempts] == ["valuation-agent-v2"] * 2
 
 
 def test_a_bad_reply_is_retried_once_with_the_error_shown_to_the_model():
@@ -293,7 +361,7 @@ def test_live_the_configured_valuation_agent_answers_a_made_up_application():
         pytest.skip(f"{key} is not set")
     result = va.run(facts(), agent=agent, run_id="live-test", env=env)
     assert result.ok, result.failure_reason
-    assert result.attempts[-1]["prompt_version"] == "valuation-agent-v1"
+    assert result.attempts[-1]["prompt_version"] == "valuation-agent-v2"
 
 
 # ---- which provider errors are worth retrying -------------------------------------------------------------------------

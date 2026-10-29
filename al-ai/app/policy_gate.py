@@ -16,6 +16,9 @@ CLTV_CAP = "CLTV_CAP"  # a HELOC: owed plus the line over 80% of the home's valu
 RULE_IDS = (LTI_CAP, LTV_CAP, CLTV_CAP)
 
 EXCEPTION_CONDITION = "Requires lender exception review"
+# Every HELOC: the home is already owned, so our model's estimate is the only value until a surveyor sees it. Policy, not a breach.
+SURVEYOR_CONDITION = "Requires an independent surveyor's valuation (HELOC)"
+LOAN_TYPES = ("mortgage", "heloc")
 
 APPROVE = "Approve"
 CONDITIONAL = "Conditionally Approve"
@@ -27,7 +30,7 @@ RECOMMENDATIONS = (APPROVE, CONDITIONAL, DECLINE)
 class GateResult:
     original: str  # what the strategist recommended
     effective: str  # what the underwriter is shown as the recommendation
-    conditions: tuple[str, ...]  # the strategist's conditions plus one per breach (none for a Decline)
+    conditions: tuple[str, ...]  # the strategist's conditions plus one per breach and the surveyor one for a HELOC (none for a Decline)
     breaches: tuple[str, ...]  # rule IDs, always recorded, even for a Decline
     changed: bool  # the recommendation or its conditions differ from what the strategist wrote
 
@@ -64,10 +67,13 @@ def heloc_breaches(*, existing_balance: float, line: float, home_value: float, g
     return tuple(found)
 
 
-def apply_policy_gate(recommendation: str, conditions, breaches) -> GateResult:
-    """Approve with a breach becomes Conditionally Approve. Every breach adds a condition. Decline stays Decline."""
+def apply_policy_gate(recommendation: str, conditions, breaches, *, loan_type: str = "mortgage") -> GateResult:
+    """Every breach adds a condition and a HELOC always gets the surveyor condition. An Approve that has to carry any of
+    them becomes Conditionally Approve. Decline stays Decline, with no conditions."""
     if recommendation not in RECOMMENDATIONS:
         raise ValueError(f"recommendation must be one of {list(RECOMMENDATIONS)}")
+    if loan_type not in LOAN_TYPES:
+        raise ValueError(f"loan_type must be one of {list(LOAN_TYPES)}")
     unknown = [rule for rule in breaches if rule not in RULE_IDS]
     if unknown:
         raise ValueError(f"unknown rule ID {unknown[0]!r}, expected one of {list(RULE_IDS)}")
@@ -78,9 +84,8 @@ def apply_policy_gate(recommendation: str, conditions, breaches) -> GateResult:
         return GateResult(recommendation, DECLINE, (), breaches, changed=bool(kept))  # a declined loan carries no conditions
 
     effective = recommendation
-    added = tuple(
-        text for text in (f"{EXCEPTION_CONDITION} ({rule})" for rule in breaches) if text not in kept
-    )
-    if breaches and recommendation == APPROVE:
+    required = tuple(f"{EXCEPTION_CONDITION} ({rule})" for rule in breaches) + ((SURVEYOR_CONDITION,) if loan_type == "heloc" else ())
+    added = tuple(text for text in required if text not in kept)
+    if required and recommendation == APPROVE:  # an approval that carries a condition is conditional
         effective = CONDITIONAL
     return GateResult(recommendation, effective, kept + added, breaches, changed=effective != recommendation or bool(added))
