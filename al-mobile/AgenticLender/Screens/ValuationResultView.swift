@@ -25,6 +25,9 @@ struct ValuationResultView: View {
                 ForEach(summary.warnings, id: \.self) { warning in
                     warningNote(warning)
                 }
+                if let breakdown = summary.breakdown {
+                    BreakdownCard(breakdown: breakdown)
+                }
             }
             .padding(Theme.screenPadding)
         }
@@ -110,6 +113,67 @@ struct ValuationResultView: View {
     }
 }
 
+/// "Compared with a typical listing" (AL-136, Figma 11e): the typical listing, how far each detail
+/// moved the estimate (largest first), then the estimate. Hidden when the answer has no breakdown.
+private struct BreakdownCard: View {
+    let breakdown: ValuationBreakdown
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(ValuationBreakdown.title)
+                .font(.headline)
+                .foregroundStyle(Theme.text)
+                .accessibilityAddTraits(.isHeader)
+            Text(ValuationBreakdown.explanation)
+                .font(.footnote)
+                .foregroundStyle(Theme.mutedText)
+
+            line("Typical listing", breakdown.typicalListing, color: Theme.mutedText, labelColor: Theme.mutedText)
+            Divider().overlay(Theme.line)
+            ForEach(breakdown.rows, id: \.label) { row in
+                line(row.label, row.amount, color: color(for: row.change))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(row.spoken)
+                    .accessibilityIdentifier("valuationBreakdown.row")
+            }
+            Divider().overlay(Theme.line)
+            line("Estimate", breakdown.estimate, color: Theme.text, bold: true)
+        }
+        .padding(Theme.screenPadding)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.6))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.6).stroke(Theme.line))
+        .accessibilityIdentifier("valuationBreakdown")
+    }
+
+    /// One row: the label on the left, the amount on the right. The label wraps at large text sizes;
+    /// the amount never does.
+    private func line(
+        _ label: String, _ amount: String, color: Color, labelColor: Color = Theme.text, bold: Bool = false
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .foregroundStyle(labelColor)
+            Spacer(minLength: 12)
+            Text(amount)
+                .font(.system(.body, design: .monospaced).weight(bold ? .bold : .regular))
+                .foregroundStyle(color)
+                .fixedSize()
+        }
+        .font(bold ? .body.bold() : .body)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Green for what added to the estimate, red for what took off. The + and − signs say the same.
+    private func color(for change: ValuationBreakdown.Change) -> Color {
+        switch change {
+        case .up: Theme.success
+        case .down: Theme.error
+        case .none: Theme.text
+        }
+    }
+}
+
 /// Fair (green, tick) or Over-priced (red, up arrow), as on Figma 11 and 11a.
 private struct VerdictBadge: View {
     let verdict: ValuationSummary.Verdict
@@ -138,7 +202,16 @@ private struct VerdictBadge: View {
             result: ValuationResult(
                 estimateEur: 345_000, displayEstimateEur: 345_000, basis: "2024 asking-price estimate",
                 supportWarnings: ["BER A0 is not a grade the model was trained on, so it is valued as an unknown rating."],
-                askingPriceGap: 0.0986, priceNeedsReview: true
+                askingPriceGap: 0.0986, priceNeedsReview: true,
+                baselineEur: 310_000,
+                contributions: [
+                    ValuationContribution(feature: "county", eur: 22_000),
+                    ValuationContribution(feature: "floor_area", eur: 15_000),
+                    ValuationContribution(feature: "property_type", eur: 6_000),
+                    ValuationContribution(feature: "bedrooms", eur: -5_000),
+                    ValuationContribution(feature: "ber", eur: -3_000),
+                    ValuationContribution(feature: "eircode_area", eur: 0),
+                ]
             )
         ))
     }
