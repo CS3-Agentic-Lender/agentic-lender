@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { usePipeline } from '../../context/PipelineContext';
@@ -43,11 +44,35 @@ interface PipelineTableRowProps {
   riskTierState: RiskTierState;
 }
 
+export function loanFilePath(applicationId: string) {
+  return `/underwriter/applications/${encodeURIComponent(applicationId)}`;
+}
+
 function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps) {
+  const navigate = useNavigate();
+  const path = loanFilePath(application.id);
+
+  // The application ID is the keyboard and screen-reader route to the loan file; a click anywhere
+  // else on the row goes to the same place. Selecting text in the row does not navigate.
+  const openFromRow = (event: MouseEvent<HTMLTableRowElement>) => {
+    const target = event.target as HTMLElement;
+
+    if (target.closest('a') || window.getSelection()?.toString()) {
+      return;
+    }
+
+    navigate(path);
+  };
+
   return (
-    <tr className="border-t border-line">
+    <tr className="cursor-pointer border-t border-line transition-colors hover:bg-oat" onClick={openFromRow}>
       <th className={`${cellClass} text-left font-mono text-sm font-normal`} scope="row">
-        {application.id}
+        <Link
+          className="inline-flex min-h-11 items-center font-medium text-pine underline underline-offset-4 hover:no-underline"
+          to={path}
+        >
+          {application.id}
+        </Link>
       </th>
       <td className={`${cellClass} text-sm`}>
         {application.borrowerName ?? <span className="text-muted">—</span>}

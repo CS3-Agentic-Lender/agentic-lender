@@ -53,8 +53,8 @@ npm test
 npm run build
 ```
 
-`npm test` runs the Vitest auth, trusted-claim, route-guard, broker client list, and pipeline queue
-tests.
+`npm test` runs the Vitest auth, trusted-claim, route-guard, broker client list, pipeline queue and
+loan file tests.
 `npm run build` type-checks the project and creates a production bundle in `dist/`.
 
 With the seeded Auth emulator running, verify all three real custom claims without printing tokens:
@@ -82,8 +82,10 @@ A broker missing from the seed is reported as `SKIP`, not as a pass.
 - `/broker` — broker-only placeholder
 - `/broker/clients` — the signed-in broker's referred clients and their applications, live
 - `/broker/clients/:clientId` — one client's file; any ID outside the broker's own list is "not found"
+- `/broker/applications/:applicationId` — the loan file for one of the broker's own clients' applications
 - `/underwriter` — underwriter-only placeholder
 - `/underwriter/pipeline` — the underwriter's pipeline queue, live, grouped by LTV band, risk tier or status
+- `/underwriter/applications/:applicationId` — the loan file for one application, live
 - `/forbidden` — explicit refused-access state
 - any other path — not-found page
 
@@ -184,6 +186,44 @@ client list, with the badge colours from `docs/infrastructure.md`: Draft, Applie
 Neutral; AI Deliberated is Tint; Underwriter Approved and Funded are Success; Declined is Danger. A
 status outside the agreed list stays Neutral and is grouped as "Unrecognised status". Every badge
 shows the status as text.
+
+## Loan file
+
+The loan file (`src/pages/shared/LoanFilePage.tsx`) puts one application in one place: the
+borrower, the loan, the property, and the debt-to-income breakdown
+(`src/components/lending/DtiBreakdown.tsx`). Underwriters open it by clicking a row in the
+pipeline queue (the application ID is the link for keyboard users); brokers open it from an
+application on the client file. Brokers see the same file. Neither role has decision or stress
+controls on it.
+
+`src/services/loanFileService.ts` keeps two live listeners: `applications/{id}` and
+`applications/{id}/review/underwriting`. The file appears as soon as the application answers.
+The review's figures say "Loading" until it answers, and "Unavailable" with a notice if it does
+not exist yet or cannot be read. Both listeners stop when the page is left and are replaced when
+the application ID in the URL changes; a late answer for the previous application is never shown.
+A missing application from an empty cache is not treated as "not found" until the server answers.
+
+States: loading, not found, refused, and failed. The rules refuse a broker both for another
+broker's application and for one that does not exist (and, once Drafts are hidden from brokers,
+for a Draft), so the broker's message is "Application not available" and does not say which. An
+application whose `brokerId` is not the signed-in broker is refused in the browser too.
+
+Figures come from storage only and are never worked out in the browser. A missing, negative or
+non-numeric figure shows "Unavailable", never 0 or a dash; a stored 0 shows as 0. Gross income is
+labelled "per year" (`grossIncomeEur`); the DTI table's figures are "per month"
+(`dtiBreakdown.incomeMonthlyEur`, `existingDebtsMonthlyEur`, `newRepaymentMonthlyEur`). Debt to
+income at the offered rate is the application's `dtiPct`.
+
+The stressed figures are stored flat in the same `dtiBreakdown` map (al-core `SCHEMA.md`) and read
+in one function, `readStressTest`: `stressMarginPct`, `benchmarkRatePct`, `stressedRatePct`,
+`rateDate`, `stressedRepaymentMonthlyEur`, `stressedDtiPct`, `surplusMonthlyEur`,
+`stressedSurplusMonthlyEur`, `dtiBand` and `surplusBand`. The stressed column is headed with the
+stored margin, "Stressed (+2 points)"; with no stored margin it uses the agreed default of 2 points
+and says so. There is one DTI band and one surplus band, both set on the stressed figures, so each
+spans both columns. Take-home pay and living costs come from the breakdown too. Income is combined
+for a joint application; there is no per-applicant figure.
+
+Collateral and the valuation breakdown are labelled placeholders with no figures.
 
 The `/broker` and `/underwriter` placeholders use the Pine & Oat token set from `src/styles.css` and
 contain no lending-decision functionality.

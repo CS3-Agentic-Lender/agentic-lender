@@ -6,6 +6,7 @@ import { ForbiddenPage } from './pages/ForbiddenPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { PortalPage } from './pages/PortalPage';
+import { LoanFilePage } from './pages/shared/LoanFilePage';
 import { ClientDetailPage } from './pages/broker/ClientDetailPage';
 import { ClientsPage } from './pages/broker/ClientsPage';
 import { PipelinePage } from './pages/underwriter/PipelinePage';
@@ -29,6 +30,7 @@ export const appRoutes: RouteObject[] = [
           { path: '/broker/clients/:clientId', element: <ClientDetailPage /> },
         ],
       },
+      { path: '/broker/applications/:applicationId', element: <LoanFilePage viewer="broker" /> },
     ],
   },
   {
@@ -43,6 +45,7 @@ export const appRoutes: RouteObject[] = [
           </PipelineProvider>
         ),
       },
+      { path: '/underwriter/applications/:applicationId', element: <LoanFilePage viewer="underwriter" /> },
     ],
   },
   { path: '*', element: <NotFoundPage /> },
