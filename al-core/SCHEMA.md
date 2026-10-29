@@ -232,15 +232,21 @@ One per user, so `PUT /core/reviews/me` can replace it. Who reads it: that user,
 | `comment` | string | Optional |
 | `updatedAt` | timestamp | |
 
-## users/{uid}/saved_checks/{checkId} (proposal, from the API design doc's endpoints)
+## users/{uid}/saved_checks/{checkId}
 
-A borrower's saved property checks. Who reads it: that user. Written by al-core (`POST` and `DELETE /core/saved-checks`).
+A property check the borrower ran and kept. Who reads it: only that user, directly from Firestore, so there is no list endpoint. Written by al-core only (`POST` and `DELETE /core/saved-checks`), never by a client. A borrower keeps at most 20; the 21st is refused with `409`. Every save is its own snapshot, with no de-duplication.
+
+The client sends the valuation result it already has and the API validates and stores it; it does not call al-ai again. The API body is snake_case with the application's property names, so picking a check fills the application's `property` with no renaming.
 
 | Field | Type | Notes |
 |---|---|---|
-| `property` | map | Same shape as the application's property map, without the address fields (`addressLine1`, `addressLine2`, `eircode`): a saved check is about the kind of home, not a particular one |
+| `property` | map | `county`, `eircode` (the full Eircode), `propertyType`, `bedrooms`, `floorAreaSqm`, `berRating`, and `askingPriceEur` when one was given. The same names and limits as the application's property map, so a saved check can always fill an application. No address lines: a saved check is about the kind of home, not a particular one. The full Eircode is stored because re-running the check and filling the application need it |
 | `estimatedValueEur` | number | From `POST /ai/valuation` |
-| `createdAt` | timestamp | |
+| `askingPriceGap` | number | Asking price / estimate - 1. Null without an asking price |
+| `priceNeedsReview` | boolean | The valuation's flag, shown as Fair or Over-priced. Null without an asking price |
+| `supportWarnings` | array | Plain-English reasons the estimate is less reliable. Empty when there are none |
+| `modelVersion` | string | The valuation model's version, for example `v2` |
+| `createdAt` | timestamp | Set by the API |
 
 ## Open questions
 

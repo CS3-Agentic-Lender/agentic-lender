@@ -122,6 +122,23 @@ describe('users/{uid}/saved_checks', () => {
     assertFails(broker1().doc('users/borrower1/saved_checks/check1').get()));
   test("a borrower can't add a saved check directly", () =>
     assertFails(borrower1().collection('users/borrower1/saved_checks').add({ estimatedValueEur: 1 })));
+  // Only the owner reads a saved check, and only the API (the Admin SDK) writes one (AL-272).
+  test("a borrower can't read another borrower's saved check", () =>
+    assertFails(borrower2().doc('users/borrower1/saved_checks/check1').get()));
+  test("an underwriter can't read a borrower's saved check", () =>
+    assertFails(underwriter().doc('users/borrower1/saved_checks/check1').get()));
+  test("a signed-out user can't read a saved check", () =>
+    assertFails(signedOut().doc('users/borrower1/saved_checks/check1').get()));
+  test("a borrower can't change or delete their own saved check directly", async () => {
+    const own = borrower1().doc('users/borrower1/saved_checks/check1');
+    await assertFails(own.update({ estimatedValueEur: 1 }));
+    await assertFails(own.set({ estimatedValueEur: 1, property: { eircode: 'T12 X8Y2' } }));
+    await assertFails(own.delete());
+  });
+  test("a staff member can't add a saved check to a borrower", async () => {
+    await assertFails(broker1().collection('users/borrower1/saved_checks').add({ estimatedValueEur: 1 }));
+    await assertFails(underwriter().collection('users/borrower1/saved_checks').add({ estimatedValueEur: 1 }));
+  });
 });
 
 // Brokers don't read Drafts (AL-263). A broker's query must exclude them, or Firestore refuses it.
