@@ -1,0 +1,147 @@
+{
+ "what": "Real runs of the valuation agent step on one made-up application. No keys are stored here.",
+ "facts": {
+  "county": "Cork",
+  "property_type": "Semi-D",
+  "bedrooms": 3,
+  "floor_area_m2": 111.0,
+  "ber": "B",
+  "eircode_area": "T12",
+  "estimate_basis": "2024 asking-price estimate",
+  "estimate_eur": 423174.57,
+  "asking_price_eur": 474000.0,
+  "loan_eur": 402000.0,
+  "price_gap_pct": 12.01,
+  "review_threshold_pct": 35.67,
+  "price_needs_review": false,
+  "purchase_ltv_pct": 84.81,
+  "purchase_ltv_within_limit": true,
+  "model_ltv_pct": 95.0,
+  "model_ltv_within_limit": false,
+  "ltv_limit_pct": 90.0,
+  "support_warnings": []
+ },
+ "runs": [
+  {
+   "provider": "groq",
+   "model": "openai/gpt-oss-120b",
+   "ok": true,
+   "failure_reason": null,
+   "reply": {
+    "rating": "adequate",
+    "recommendation": "Conditionally Approve",
+    "conditions": [
+     "Obtain an independent surveyor's valuation.",
+     "Reduce the loan amount to bring model LTV within the 90% limit."
+    ],
+    "explanation": "The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, but below the review threshold of 35.67%. The model LTV of 95.0% exceeds the 90% limit, increasing risk. The estimate is indicative only and not a formal valuation. With additional verification the loan could be approved."
+   },
+   "attempts": [
+    {
+     "run_id": "demo-groq",
+     "attempt": 1,
+     "provider": "groq",
+     "model": "openai/gpt-oss-120b",
+     "prompt_version": "valuation-agent-v1",
+     "started_at": "2026-10-27T21:16:35.767638+00:00",
+     "raw_reply": "{\"rating\":\"adequate\",\"recommendation\":\"Conditionally Approve\",\"conditions\":[\"Obtain an independent surveyor's valuation.\",\"Reduce the loan amount to bring model LTV within the 90% limit.\"],\"explanation\":\"The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, but below the review threshold of 35.67%. The model LTV of 95.0% exceeds the 90% limit, increasing risk. The estimate is indicative only and not a formal valuation. With additional verification the loan could be approved.\"}",
+     "parsed_reply": {
+      "rating": "adequate",
+      "recommendation": "Conditionally Approve",
+      "conditions": [
+       "Obtain an independent surveyor's valuation.",
+       "Reduce the loan amount to bring model LTV within the 90% limit."
+      ],
+      "explanation": "The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, but below the review threshold of 35.67%. The model LTV of 95.0% exceeds the 90% limit, increasing risk. The estimate is indicative only and not a formal valuation. With additional verification the loan could be approved."
+     },
+     "request_id": "req_01m5zkhqmwe7p8sgagfwv97d5m",
+     "input_tokens": 862,
+     "output_tokens": 713,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 2.153
+    }
+   ]
+  },
+  {
+   "provider": "gemini",
+   "model": "gemini-3.1-flash-lite",
+   "ok": true,
+   "failure_reason": null,
+   "reply": {
+    "rating": "weak",
+    "recommendation": "Decline",
+    "conditions": [
+     "Obtain an independent surveyor's valuation."
+    ],
+    "explanation": "The asking price of 474000.0 is higher than the 2024 asking-price estimate of 423174.57. The model LTV of 95.0 percent exceeds the limit of 90.0 percent. This estimate is indicative and not a surveyor's valuation."
+   },
+   "attempts": [
+    {
+     "run_id": "demo-gemini",
+     "attempt": 1,
+     "provider": "gemini",
+     "model": "gemini-3.1-flash-lite",
+     "prompt_version": "valuation-agent-v1",
+     "started_at": "2026-10-27T21:16:37.920584+00:00",
+     "raw_reply": "{\n  \"rating\": \"weak\",\n  \"recommendation\": \"Decline\",\n  \"conditions\": [\n    \"Obtain an independent surveyor's valuation.\"\n  ],\n  \"explanation\": \"The asking price of 474000.0 is higher than the 2024 asking-price estimate of 423174.57. The model LTV of 95.0 percent exceeds the limit of 90.0 percent. This estimate is indicative and not a surveyor's valuation.\"\n}",
+     "parsed_reply": {
+      "rating": "weak",
+      "recommendation": "Decline",
+      "conditions": [
+       "Obtain an independent surveyor's valuation."
+      ],
+      "explanation": "The asking price of 474000.0 is higher than the 2024 asking-price estimate of 423174.57. The model LTV of 95.0 percent exceeds the limit of 90.0 percent. This estimate is indicative and not a surveyor's valuation."
+     },
+     "request_id": "thThatbKCN_PvdIPzNyrQA",
+     "input_tokens": 732,
+     "output_tokens": 120,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 1.359
+    }
+   ]
+  },
+  {
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "ok": true,
+   "failure_reason": null,
+   "reply": {
+    "rating": "weak",
+    "recommendation": "Conditionally Approve",
+    "conditions": [
+     "Request an independent surveyor's valuation to confirm the property value.",
+     "Verify that the model LTV of 95.0% is acceptable given it exceeds the 90.0% limit."
+    ],
+    "explanation": "The asking price of 474000.0 is within the review threshold, but the model LTV of 95.0% exceeds the 90.0% limit. The estimate is based on 2024 asking prices and is not a surveyor's valuation. An independent surveyor's valuation is required to confirm the value."
+   },
+   "attempts": [
+    {
+     "run_id": "demo-ollama",
+     "attempt": 1,
+     "provider": "ollama",
+     "model": "qwen3.5:9b",
+     "prompt_version": "valuation-agent-v1",
+     "started_at": "2026-10-27T21:16:39.279332+00:00",
+     "raw_reply": "{\n  \"rating\": \"weak\",\n  \"recommendation\": \"Conditionally Approve\",\n  \"conditions\": [\n    \"Request an independent surveyor's valuation to confirm the property value.\",\n    \"Verify that the model LTV of 95.0% is acceptable given it exceeds the 90.0% limit.\"\n  ],\n  \"explanation\": \"The asking price of 474000.0 is within the review threshold, but the model LTV of 95.0% exceeds the 90.0% limit. The estimate is based on 2024 asking prices and is not a surveyor's valuation. An independent surveyor's valuation is required to confirm the value.\"\n}",
+     "parsed_reply": {
+      "rating": "weak",
+      "recommendation": "Conditionally Approve",
+      "conditions": [
+       "Request an independent surveyor's valuation to confirm the property value.",
+       "Verify that the model LTV of 95.0% is acceptable given it exceeds the 90.0% limit."
+      ],
+      "explanation": "The asking price of 474000.0 is within the review threshold, but the model LTV of 95.0% exceeds the 90.0% limit. The estimate is based on 2024 asking prices and is not a surveyor's valuation. An independent surveyor's valuation is required to confirm the value."
+     },
+     "request_id": null,
+     "input_tokens": 724,
+     "output_tokens": 160,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 6.908
+    }
+   ]
+  }
+ ]
+}
