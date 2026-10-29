@@ -75,6 +75,19 @@ def _strings(value):
             yield from _strings(v)
 
 
+def _allowed_numbers(value) -> set[float]:
+    """Every figure anywhere in the facts, in the forms a memo may quote it. All of it is our own reports or the market summary,
+    which the market step already checked, so none of it is raw search text."""
+    if isinstance(value, bool) or value is None:
+        return set()
+    if isinstance(value, (int, float)):
+        return {abs(float(value)), round(abs(value), 0), round(abs(value), 1)}
+    if isinstance(value, str):
+        return set(ma._numbers(value))
+    items = value.values() if isinstance(value, dict) else value if isinstance(value, list) else ()
+    return set().union(*(_allowed_numbers(v) for v in items))
+
+
 def _vote(report, name: str) -> str:
     if not isinstance(report, dict) or report.get("recommendation") not in RECOMMENDATIONS:
         raise ValueError(f"the {name} report must carry a recommendation of {list(RECOMMENDATIONS)}")
@@ -131,7 +144,7 @@ def check_reply(reply, facts: dict) -> dict:
         text = memo["disagreements"].lower()
         if "affordability" not in text or "valuation" not in text:
             raise ReplyRejected('the agents disagree, so the "disagreements" section must name the Affordability agent and the Valuation agent')
-    allowed = ma._allowed_numbers(facts)
+    allowed = _allowed_numbers(facts)
     for text in [*conditions, *memo.values()]:
         if re.search(r"https?://|www\.", text):
             raise ReplyRejected(f'"{text}" has a link, and the memo may not carry any')
