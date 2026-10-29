@@ -49,11 +49,19 @@ def purchase_breaches(*, loan: float, gross_annual_income: float, first_time_buy
     return tuple(found)
 
 
-def heloc_breaches(*, existing_balance: float, line: float, home_value: float) -> tuple[str, ...]:
-    """A HELOC has no income rule here and no asking price: what is owed plus the line, over the home's value, against 80%."""
+def heloc_breaches(*, existing_balance: float, line: float, home_value: float, gross_annual_income: float) -> tuple[str, ...]:
+    """Rule IDs a HELOC breaks: what is owed plus the line over 3.5x income, then over 80% of the home's value. Exactly on a limit is fine.
+
+    The income cap is always 3.5x and counts the existing mortgage, the same way the risk tier rule in al-core/SCHEMA.md does,
+    so a HELOC the gate passes is never tier D for an income breach.
+    """
+    _positive(gross_annual_income, "gross_annual_income")
+    found = []
+    if aff.exceeds_lti_cap(existing_balance + line, gross_annual_income, False):
+        found.append(LTI_CAP)
     if aff.combined_ltv(existing_balance, line, home_value) > aff.HELOC_LTV_CAP:
-        return (CLTV_CAP,)
-    return ()
+        found.append(CLTV_CAP)
+    return tuple(found)
 
 
 def apply_policy_gate(recommendation: str, conditions, breaches) -> GateResult:

@@ -54,13 +54,37 @@ def test_a_zero_negative_or_non_finite_amount_is_refused(bad):
 
 # ---- finding the breaches (HELOC) ----------------------------------------------------------
 
-def test_a_heloc_is_checked_on_combined_ltv_against_80_percent_and_has_no_lti_rule():
-    assert heloc_breaches(existing_balance=100_000, line=140_000, home_value=300_000) == ()  # exactly 80%
-    assert heloc_breaches(existing_balance=100_000, line=140_001, home_value=300_000) == (CLTV_CAP,)
+def heloc(existing=100_000, line=40_000, value=500_000, income=200_000):
+    return heloc_breaches(existing_balance=existing, line=line, home_value=value, gross_annual_income=income)
+
+
+def test_a_heloc_is_checked_on_combined_ltv_against_80_percent():
+    assert heloc(line=140_000, value=300_000) == ()  # exactly 80%
+    assert heloc(line=140_001, value=300_000) == (CLTV_CAP,)
 
 
 def test_a_heloc_with_no_line_but_a_balance_over_the_limit_is_still_a_breach():
-    assert heloc_breaches(existing_balance=250_000, line=0, home_value=300_000) == (CLTV_CAP,)
+    assert heloc(existing=250_000, line=0, value=300_000) == (CLTV_CAP,)
+
+
+def test_a_heloc_over_3_5x_income_counting_the_existing_mortgage_breaks_the_lti_cap():
+    # the risk tier rule's reference cases in al-core/SCHEMA.md: a HELOC always uses 3.5x, on the balance plus the line
+    assert heloc(existing=240_000, line=40_000, income=80_000) == ()  # exactly 3.5x: not over
+    assert heloc(existing=250_000, line=40_000, income=80_000) == (LTI_CAP,)
+
+
+def test_a_heloc_at_70_percent_combined_ltv_but_over_the_income_cap_is_still_a_breach():
+    assert heloc(existing=210_000, line=10_000, value=314_286, income=60_000) == (LTI_CAP,)  # Solomon's case
+
+
+def test_a_heloc_can_break_both_limits():
+    assert heloc(existing=250_000, line=40_000, value=300_000, income=80_000) == (LTI_CAP, CLTV_CAP)
+
+
+@pytest.mark.parametrize("income", [0, -1, float("nan"), float("inf")])
+def test_a_heloc_income_that_is_not_a_positive_number_is_refused(income):
+    with pytest.raises(ValueError):
+        heloc(income=income)
 
 
 def test_the_heloc_rule_has_its_own_id_so_it_is_never_confused_with_the_purchase_ltv_cap():
