@@ -94,6 +94,69 @@ final class MessageInboxTests: XCTestCase {
         XCTAssertEqual(service.stopped, 1)
     }
 
+    func testLettingGoOfTheInboxStopsItsListener() async {
+        // Signing out rebuilds the screens, which lets go of Home's inbox without calling stop().
+        let service = FakeMessageService()
+        var inbox: MessageInbox? = MessageInbox(service: service)
+        await inbox?.start()
+
+        inbox = nil
+
+        XCTAssertNil(inbox)
+        XCTAssertEqual(service.stopped, 1)
+    }
+
+    func testStoppingThenLettingGoStopsTheListenerOnce() async {
+        let service = FakeMessageService()
+        var inbox: MessageInbox? = MessageInbox(service: service)
+        await inbox?.start()
+
+        inbox?.stop()
+        inbox = nil
+
+        XCTAssertEqual(service.stopped, 1)
+    }
+
+    // MARK: - Read on this phone until the mark-read endpoint exists
+
+    func testLeavingTheThreadClearsTheBadgeAndTheDivider() async {
+        let service = FakeMessageService()
+        let inbox = MessageInbox(service: service)
+        await inbox.start()
+        service.push(.success([reply]))
+        XCTAssertEqual(inbox.unreadCount, 1)
+        XCTAssertTrue(inbox.thread?.rows.contains(.newMessages) ?? false)
+
+        inbox.markThreadRead()
+
+        XCTAssertEqual(inbox.unreadCount, 0)
+        XCTAssertFalse(inbox.thread?.rows.contains(.newMessages) ?? true)
+    }
+
+    func testAReplyThatArrivesAfterLeavingTheThreadIsStillNew() async {
+        let service = FakeMessageService()
+        let inbox = MessageInbox(service: service)
+        await inbox.start()
+        service.push(.success([reply]))
+        inbox.markThreadRead()
+        let later = Message(id: "m3", senderID: "bob", senderRole: .broker, text: "One more thing", sentAt: .now, read: false)
+
+        service.push(.success([reply, later]))
+
+        XCTAssertEqual(inbox.unreadCount, 1)
+    }
+
+    func testMarkingReadBeforeAnyMessagesHaveArrivedDoesNothing() async {
+        let service = FakeMessageService()
+        let inbox = MessageInbox(service: service)
+        await inbox.start()
+
+        inbox.markThreadRead()
+        service.push(.success([reply]))
+
+        XCTAssertEqual(inbox.unreadCount, 1)
+    }
+
     func testTheThreadIsBuiltForTheSignedInBorrower() async {
         let service = FakeMessageService()
         let inbox = MessageInbox(service: service)

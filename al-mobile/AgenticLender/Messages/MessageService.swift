@@ -8,15 +8,24 @@ enum MessageError: Error, Equatable {
 }
 
 /// Stops a live listener. Firestore's own registration in the app, a closure in tests.
-struct MessageListener {
-    private let stopListening: () -> Void
+///
+/// It also stops when it's let go of, so a listener never outlives the inbox holding it: signing
+/// out rebuilds the screens and lets go of Home's inbox without anyone calling `stop()`.
+final class MessageListener {
+    private var stopListening: (() -> Void)?
 
     init(_ stop: @escaping () -> Void) {
         stopListening = stop
     }
 
+    /// Stops listening. Calling it again does nothing.
     func stop() {
-        stopListening()
+        stopListening?()
+        stopListening = nil
+    }
+
+    deinit {
+        stop()
     }
 }
 

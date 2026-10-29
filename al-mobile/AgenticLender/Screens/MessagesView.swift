@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The borrower's thread with their broker (AL-147, Figma 15, 15a and 15e). It shows the messages live
-/// from Firestore. Writing a message waits for al-core's send endpoint.
+/// from Firestore. Writing a message waits for al-core's send endpoint, and replies count as read on
+/// this phone only until its mark-read endpoint exists.
 struct MessagesView: View {
     let inbox: MessageInbox
     let brokerName: String?
@@ -17,6 +18,8 @@ struct MessagesView: View {
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .task { await inbox.start() }
+        // The "New messages" divider shows while they read, then the badge and divider clear.
+        .onDisappear { inbox.markThreadRead() }
     }
 
     private var header: some View {
@@ -106,8 +109,8 @@ private struct ThreadList: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(thread.rows.enumerated()), id: \.offset) { _, row in
-                        rowView(row)
+                    ForEach(thread.identifiedRows, id: \.id) { item in
+                        rowView(item.row)
                     }
                     Color.clear.frame(height: 1).id(Self.bottom)
                 }

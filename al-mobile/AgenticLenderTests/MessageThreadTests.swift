@@ -117,6 +117,22 @@ final class MessageThreadTests: XCTestCase {
         XCTAssertEqual(t.unreadCount, 0)
     }
 
+    func testEveryRowKeepsTheSameIDAsNewMessagesArrive() {
+        let first = thread([
+            message("1", from: "bob", "Hi", at: "28T16:05"),
+            message("2", from: "bob", "Any questions?", at: "29T09:40", read: false),
+        ])
+        let later = thread([
+            message("1", from: "bob", "Hi", at: "28T16:05"),
+            message("2", from: "bob", "Any questions?", at: "29T09:40", read: false),
+            message("3", from: "me", "One", at: "29T09:52"),
+        ])
+
+        XCTAssertEqual(first.identifiedRows.map(\.id), ["day-1", "1", "day-2", "new-2", "2"])
+        XCTAssertEqual(later.identifiedRows.map(\.id), ["day-1", "1", "day-2", "new-2", "2", "3"])
+        XCTAssertEqual(later.identifiedRows.map(\.row), later.rows)
+    }
+
     func testAnEmptyThreadHasNoRows() {
         XCTAssertEqual(thread([]).rows, [])
         XCTAssertTrue(thread([]).isEmpty)

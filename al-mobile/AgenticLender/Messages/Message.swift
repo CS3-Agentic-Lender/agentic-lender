@@ -28,6 +28,11 @@ struct Message: Equatable, Identifiable, Sendable {
         self.read = read
     }
 
+    /// This message, read.
+    var markedRead: Message {
+        Message(id: id, senderID: senderID, senderRole: senderRole, text: text, sentAt: sentAt, read: true)
+    }
+
     /// From Firestore fields with timestamps already converted to `Date`. Nil without a sender, text
     /// or time, since such a message can't be placed in the thread.
     init?(id: String, fields: [String: Any]) {

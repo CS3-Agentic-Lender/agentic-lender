@@ -19,6 +19,9 @@ final class MessageInbox {
     private let service: MessageService
     private var listener: MessageListener?
     private var isStarting = false
+    /// Messages the borrower has seen in the thread. They count as read on this phone only, until
+    /// al-core's mark-read endpoint exists to set `read` in Firestore; a relaunch forgets them.
+    private var seenIDs: Set<String> = []
     private let logger = Logger(category: "Messages")
 
     init(service: MessageService) {
@@ -28,7 +31,8 @@ final class MessageInbox {
     /// The thread laid out for the signed-in borrower, once messages have arrived.
     var thread: MessageThread? {
         guard case .ready(let messages) = state, let myID = service.myID else { return nil }
-        return MessageThread(messages: messages, myID: myID)
+        let shown = messages.map { seenIDs.contains($0.id) ? $0.markedRead : $0 }
+        return MessageThread(messages: shown, myID: myID)
     }
 
     var unreadCount: Int { thread?.unreadCount ?? 0 }
@@ -54,6 +58,13 @@ final class MessageInbox {
             logger.error("Unexpected error finding the application to message on: \(error.localizedDescription, privacy: .public)")
             state = .failed(Self.message(for: .unavailable))
         }
+    }
+
+    /// Called when the borrower leaves the thread, so the Home badge and the "New messages" divider
+    /// clear. Replies that arrive afterwards are still new.
+    func markThreadRead() {
+        guard case .ready(let messages) = state else { return }
+        seenIDs = seenIDs.union(messages.map(\.id))
     }
 
     func stop() {

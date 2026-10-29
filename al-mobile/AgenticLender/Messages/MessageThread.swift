@@ -27,6 +27,24 @@ struct MessageThread: Equatable {
 
     var isEmpty: Bool { rows.isEmpty }
 
+    /// Each row with an id that stays the same as messages arrive, so the list keeps its place: a
+    /// bubble's message id, and for a day label or the divider, the id of the message after it.
+    var identifiedRows: [(id: String, row: Row)] {
+        var nextMessageID = ""
+        let backwards = rows.reversed().map { row -> (id: String, row: Row) in
+            switch row {
+            case .bubble(let bubble):
+                nextMessageID = bubble.id
+                return (bubble.id, row)
+            case .day:
+                return ("day-\(nextMessageID)", row)
+            case .newMessages:
+                return ("new-\(nextMessageID)", row)
+            }
+        }
+        return backwards.reversed()
+    }
+
     init(messages: [Message], myID: String, now: Date = .now, timeZone: TimeZone = .current) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
