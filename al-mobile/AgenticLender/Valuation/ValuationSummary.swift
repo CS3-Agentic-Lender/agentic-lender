@@ -28,6 +28,8 @@ struct ValuationSummary: Hashable {
     let comparison: String?
     /// Why the estimate is less reliable, as the endpoint words it (Figma 11b).
     let warnings: [String]
+    /// The breakdown section (AL-136, Figma 11e). Nil when the answer has no breakdown.
+    let breakdown: ValuationBreakdown?
 
     init(request: ValuationRequest, result: ValuationResult) {
         title = "\(request.county.name) \(request.propertyType.title.lowercased())"
@@ -40,6 +42,7 @@ struct ValuationSummary: Hashable {
         ].joined(separator: " · ")
         estimate = Self.euro(result.displayEstimateEur)
         warnings = result.supportWarnings
+        breakdown = ValuationBreakdown(request: request, result: result)
 
         guard let asking = request.askingPriceEur, let flagged = result.priceNeedsReview, let gap = result.askingPriceGap else {
             verdict = nil
