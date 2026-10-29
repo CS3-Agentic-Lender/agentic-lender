@@ -123,7 +123,7 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 | Endpoint | Who | What it does |
 |---|---|---|
 | `GET /ai/valuation/options` | Any signed-in role | List supported counties, property types and BER values |
-| `POST /ai/valuation` | Any signed-in role | Estimate a house value, compare an optional asking price and show each feature's effect |
+| `POST /ai/valuation` | Any signed-in role | Estimate a house value, compare an optional asking price and show each feature's effect. With `loan_type: "heloc"` plus `existing_mortgage_balance_eur` and `loan_amount_eur` (the credit limit), it also returns `combined_ltv` (what is owed plus the limit, over the estimate) and takes no asking price. The home value always comes from the model, never from the request |
 | `POST /ai/affordability` | Any signed-in role | Calculate the maximum mortgage and price plus repayments from income, debts and deposit. With `loan_type: "heloc"`, the largest credit line against a home the borrower owns (80% of the model's value of the home, minus what is still owed), with the line fully drawn repaid at the benchmark rate and at +2 points. The home value comes from the model, never from the request |
 | `POST /ai/committee/runs` | Underwriter | Start another AI review |
 | `POST /ai/portfolio/rate-shock` | Underwriter | Measure an interest rate shock across the active portfolio |
@@ -167,6 +167,7 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
   "schema_version": "1",
   "asking_price_gap": 0.0221,
   "price_needs_review": false,
+  "combined_ltv": null,
   "baseline_eur": 312000,
   "contributions": [
     { "feature": "floor_area", "value": 98, "eur": 31200 },
