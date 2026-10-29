@@ -2,14 +2,28 @@ import SwiftUI
 
 /// The property check result (Figma 11 Over-priced, 11a Fair, 11b Low-support warning, 11c No asking
 /// price): the estimate to the nearest €1,000, Fair or Over-priced against the asking price, and any
-/// warnings. Saving the check and starting an application from it come in later work.
+/// warnings, and Save this property (11d). Starting an application from it comes in later work.
 struct ValuationResultView: View {
     let summary: ValuationSummary
+    /// Nil where there's nothing to save to, such as a preview.
+    @State private var save: SaveCheckModel?
     @Environment(\.dismiss) private var dismiss
+
+    init(summary: ValuationSummary, draft: SavedCheckDraft? = nil, savedChecks: SavedCheckService? = nil) {
+        self.summary = summary
+        if let draft, let savedChecks {
+            _save = State(initialValue: SaveCheckModel(draft: draft, service: savedChecks))
+        } else {
+            _save = State(initialValue: nil)
+        }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if save?.state == .saved {
+                    savedBanner
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(summary.title)
                         .font(.largeTitle.bold())
@@ -33,6 +47,42 @@ struct ValuationResultView: View {
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            if let save { saveFooter(save) }
+        }
+    }
+
+    /// Figma 11d: "Saved to your properties". The list is one step back, on Properties.
+    private var savedBanner: some View {
+        Label("Saved to your properties", systemImage: "checkmark")
+            .font(.subheadline)
+            .foregroundStyle(Theme.success)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Theme.success.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
+            .accessibilityIdentifier("valuationResult.saved")
+    }
+
+    private func saveFooter(_ save: SaveCheckModel) -> some View {
+        VStack(spacing: 8) {
+            if case .failed(let message) = save.state {
+                Label(message, systemImage: "exclamationmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.error)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("valuationResult.saveError")
+            }
+            PrimaryButton(
+                title: save.state == .saved ? "Saved" : "Save this property",
+                isLoading: save.state == .saving,
+                isEnabled: save.canSave
+            ) {
+                Task { await save.save() }
+            }
+            .accessibilityIdentifier("valuationResult.save")
+        }
+        .padding(Theme.screenPadding)
+        .background(Theme.oat)
     }
 
     private var estimateCard: some View {
@@ -180,8 +230,8 @@ private struct BreakdownCard: View {
     }
 }
 
-/// Fair (green, tick) or Over-priced (red, up arrow), as on Figma 11 and 11a.
-private struct VerdictBadge: View {
+/// Fair (green, tick) or Over-priced (red, up arrow), as on Figma 11 and 11a, and on a saved check's row (09).
+struct VerdictBadge: View {
     let verdict: ValuationSummary.Verdict
 
     var body: some View {
@@ -208,7 +258,7 @@ private struct VerdictBadge: View {
             result: ValuationResult(
                 estimateEur: 345_000, displayEstimateEur: 345_000, basis: "2024 asking-price estimate",
                 supportWarnings: ["BER A0 is not a grade the model was trained on, so it is valued as an unknown rating."],
-                askingPriceGap: 0.0986, priceNeedsReview: true,
+                askingPriceGap: 0.0986, priceNeedsReview: true, modelVersion: "v2",
                 baselineEur: 310_000,
                 contributions: [
                     ValuationContribution(feature: "county", eur: 22_000),

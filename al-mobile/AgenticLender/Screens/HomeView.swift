@@ -84,8 +84,8 @@ struct HomeView: View {
     }
 
     private var propertyCheckCard: some View {
-        NavigationLink(value: Route.propertyCheck) {
-            card(title: "Check a property", detail: "See if an asking price is fair, from the home's details.")
+        NavigationLink(value: Route.properties) {
+            card(title: "Check a property", detail: "See if an asking price is fair, and keep the homes you check.")
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("home.propertyCheck")

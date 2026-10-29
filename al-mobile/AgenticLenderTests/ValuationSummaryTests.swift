@@ -19,7 +19,7 @@ final class ValuationSummaryTests: XCTestCase {
     ) -> ValuationResult {
         ValuationResult(
             estimateEur: estimate, displayEstimateEur: display, basis: "2024 asking-price estimate",
-            supportWarnings: warnings, askingPriceGap: gap, priceNeedsReview: flagged,
+            supportWarnings: warnings, askingPriceGap: gap, priceNeedsReview: flagged, modelVersion: "v2",
             baselineEur: baseline, contributions: contributions
         )
     }

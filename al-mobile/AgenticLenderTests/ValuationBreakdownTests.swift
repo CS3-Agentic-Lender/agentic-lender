@@ -18,7 +18,7 @@ final class ValuationBreakdownTests: XCTestCase {
     ) -> ValuationResult {
         ValuationResult(
             estimateEur: estimate, displayEstimateEur: display, basis: "2024 asking-price estimate",
-            supportWarnings: [], askingPriceGap: nil, priceNeedsReview: nil,
+            supportWarnings: [], askingPriceGap: nil, priceNeedsReview: nil, modelVersion: "v2",
             baselineEur: baseline,
             contributions: pieces?.map { ValuationContribution(feature: $0.0, eur: $0.1) }
         )

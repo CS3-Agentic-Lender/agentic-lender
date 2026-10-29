@@ -59,23 +59,23 @@ final class PropertyCheckValidatorTests: XCTestCase {
 
     // MARK: - Size
 
-    /// The endpoint takes any size above 0 and warns outside 15 to 1,000 m², so the form only stops
-    /// what the endpoint would refuse.
-    func testSizeMustBeWholeSquareMetresFromOneToOneHundredThousand() {
-        for text in ["0", "-20", "100,001", "85.5", "big"] {
+    /// The application's limits, so every check can be saved and can fill an application (al-core saved checks).
+    /// The model still warns outside 15 to 1,000 m².
+    func testSizeMustBeWholeSquareMetresFromOneToTenThousand() {
+        for text in ["0", "-20", "10,001", "85.5", "big"] {
             var form = validForm()
             form.floorArea = text
 
             XCTAssertEqual(
                 PropertyCheckValidator.errors(for: form)[.floorArea],
-                "Enter a size in whole m², from 1 to 100,000",
+                "Enter a size in whole m², from 1 to 10,000",
                 "size \(text)"
             )
         }
     }
 
     func testSizeAcceptsSmallAndLargeHomesTheModelWillWarnAbout() {
-        for text in ["1", "12", "4,500", "100,000"] {
+        for text in ["1", "12", "4,500", "10,000"] {
             var form = validForm()
             form.floorArea = text
 
@@ -85,8 +85,8 @@ final class PropertyCheckValidatorTests: XCTestCase {
 
     // MARK: - Bedrooms
 
-    func testBedroomsFromZeroToThirtyAreAccepted() {
-        for count in [0, 30] {
+    func testBedroomsFromZeroToTwentyAreAccepted() {
+        for count in [0, 20] {
             var form = validForm()
             form.bedrooms = count
 
@@ -94,12 +94,12 @@ final class PropertyCheckValidatorTests: XCTestCase {
         }
     }
 
-    func testBedroomsOutsideZeroToThirtyAreRejected() {
-        for count in [-1, 31] {
+    func testBedroomsOutsideZeroToTwentyAreRejected() {
+        for count in [-1, 21] {
             var form = validForm()
             form.bedrooms = count
 
-            XCTAssertEqual(PropertyCheckValidator.errors(for: form)[.bedrooms], "Choose from 0 to 30 bedrooms", "bedrooms \(count)")
+            XCTAssertEqual(PropertyCheckValidator.errors(for: form)[.bedrooms], "Choose from 0 to 20 bedrooms", "bedrooms \(count)")
         }
     }
 
@@ -113,13 +113,13 @@ final class PropertyCheckValidatorTests: XCTestCase {
     }
 
     func testAnAskingPriceMustBeWholeEuroAboveZero() {
-        for text in ["0", "-5", "379,000.50", "lots", "1,000,000,001"] {
+        for text in ["0", "-5", "379,000.50", "lots", "100,000,001"] {
             var form = validForm()
             form.askingPrice = text
 
             XCTAssertEqual(
                 PropertyCheckValidator.errors(for: form)[.askingPrice],
-                "Enter an asking price in whole euro, from €1 to €1,000,000,000",
+                "Enter an asking price in whole euro, from €1 to €100,000,000",
                 "asking price \(text)"
             )
         }
