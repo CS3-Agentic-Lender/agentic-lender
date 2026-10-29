@@ -63,6 +63,9 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `createdAt` | timestamp | yes | |
 | `submittedAt` | timestamp | no | Set when the status moves from `Draft` to `Applied` |
 | `updatedAt` | timestamp | yes | |
+| `statusHistory` | array of maps | no | One entry per status move, oldest first: `from`, `to`, `actor`, `actorId`, `at`. Written only by the API (`app/status.py`), never edited. `actor` is `borrower`, `committee`, `underwriter` or `mint`; `actorId` is the person's uid, or the service name (for example `al-ai`) for the committee and the mint. `at` is a UTC timestamp. Absent on an application that has never moved (a Draft) and on seeded applications. The app's timeline reads it |
+
+The only moves, and the actor each belongs to (a move by anyone else is refused, and any other move is refused whoever asks): `Draft` to `Applied` (borrower), `Applied` to `AI Deliberated` (committee), `AI Deliberated` to `Underwriter Approved` or `Declined` (underwriter), `Underwriter Approved` to `Funded` (mint), `Funded` or `Declined` to `Closed` (underwriter). The table lives in `app/status.py`; every endpoint that changes `status` builds its write with `plan_move`.
 
 ### Borrower inputs
 
