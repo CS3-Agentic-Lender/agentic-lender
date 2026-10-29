@@ -86,6 +86,16 @@ export interface StressTest {
   surplusBand: AffordabilityBand | null;
 }
 
+export type ValuationDetail =
+  | { state: 'missing' }
+  | {
+      state: 'available';
+      baselineEur: number;
+      estimatedValueEur: number | null;
+      contributions: { feature: string; eur: number }[];
+      discrepancyEur: number | null;
+    };
+
 export type LoanFileReview =
   | { state: 'pending' }
   | {
@@ -93,6 +103,7 @@ export type LoanFileReview =
       riskTier: RiskTier | null;
       dtiBreakdown: DtiBreakdown;
       stressTest: StressTest;
+      valuation: ValuationDetail;
     }
   // The underwriter's read answered and there is no review document yet.
   | { state: 'absent' }
@@ -207,6 +218,40 @@ export function readStressTest(review: DocumentData): StressTest {
   };
 }
 
+function readValuationDetail(review: DocumentData): ValuationDetail {
+  const detail = readMap(review.valuationDetail);
+  const baselineEur = readNumber(detail.baselineEur);
+  const entries = Object.entries(readMap(detail.contributions));
+
+  if (baselineEur === null || entries.length === 0) {
+    return { state: 'missing' };
+  }
+
+  const contributions: { feature: string; eur: number }[] = [];
+
+  for (const [feature, value] of entries) {
+    // Effects can be negative. One unusable piece makes the whole breakdown unavailable.
+    const eur = readNumber(value);
+    if (eur === null) {
+      return { state: 'missing' };
+    }
+    contributions.push({ feature, eur });
+  }
+
+  const estimatedValueEur = readNumber(detail.estimatedValueEur);
+  const total = baselineEur + contributions.reduce((sum, { eur }) => sum + eur, 0);
+
+  return {
+    state: 'available',
+    baselineEur,
+    estimatedValueEur,
+    // Stable sorting keeps the stored order when two effects have the same magnitude.
+    contributions: contributions.sort((a, b) => Math.abs(b.eur) - Math.abs(a.eur)),
+    // Report a difference without changing any stored figure.
+    discrepancyEur: estimatedValueEur === null ? null : estimatedValueEur - total,
+  };
+}
+
 export function toLoanFileReview(data: DocumentData): LoanFileReview {
   const breakdown = readMap(data.dtiBreakdown);
 
@@ -221,6 +266,7 @@ export function toLoanFileReview(data: DocumentData): LoanFileReview {
       newRepaymentMonthlyEur: readAmount(breakdown.newRepaymentMonthlyEur),
     },
     stressTest: readStressTest(data),
+    valuation: readValuationDetail(data),
   };
 }
 

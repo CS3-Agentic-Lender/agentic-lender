@@ -127,6 +127,11 @@ const seededApplication = {
 
 const seededReview = {
   riskTier: 'B',
+  valuationDetail: {
+    baselineEur: 250000,
+    contributions: { county: 18500, floor_area: 31200, ber: -1300 },
+    estimatedValueEur: 298400,
+  },
   dtiBreakdown: { incomeMonthlyEur: 6250, existingDebtsMonthlyEur: 300, newRepaymentMonthlyEur: 1265.13 },
 };
 
@@ -291,7 +296,7 @@ describe('loan file page', () => {
     expect(screen.getByText('Benchmark rate').nextElementSibling).toHaveTextContent('4%');
     expect(screen.getByText('Benchmark rate from').nextElementSibling).toHaveTextContent('September 2026');
     expect(screen.getByText('Stress margin').nextElementSibling).toHaveTextContent('+2 points');
-    expect(screen.queryByText(/not stored with this application yet/)).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Debt to income' })).queryByText(/not stored with this application yet/)).not.toBeInTheDocument();
     expect(screen.queryByText('agreed default, not yet stored')).not.toBeInTheDocument();
   });
 
@@ -322,15 +327,22 @@ describe('loan file page', () => {
     expect(screen.getByText('AI Deliberated')).toBeInTheDocument();
   });
 
-  it('keeps collateral and valuation as labelled placeholders with no figures', async () => {
+  it('shows the stored valuation breakdown and keeps collateral as a placeholder', async () => {
     renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile() }));
     await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
 
-    for (const name of ['Collateral', 'Valuation']) {
-      const region = screen.getByRole('region', { name });
-      expect(within(region).getByRole('heading', { name })).toBeInTheDocument();
-      expect(region).not.toHaveTextContent(/€|\d/);
-    }
+    const collateral = screen.getByRole('region', { name: 'Collateral' });
+    expect(within(collateral).getByRole('heading', { name: 'Collateral' })).toBeInTheDocument();
+    expect(collateral).not.toHaveTextContent(/€|\d/);
+
+    const valuation = screen.getByRole('region', { name: 'Valuation' });
+    expect(within(valuation).getByText(/compared with a typical listing/)).toBeInTheDocument();
+    expect(within(valuation).getByText('€250,000')).toBeInTheDocument();
+    expect(within(valuation).getByText('€298,400')).toBeInTheDocument();
+    const rows = within(valuation).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('Floor area98 m²+€31,200');
+    expect(rows[1]).toHaveTextContent('CountyCork+€18,500');
+    expect(rows[2]).toHaveTextContent('BER ratingC2−€1,300');
   });
 
   it('shows Unavailable for every missing figure, never 0 or a dash', async () => {
@@ -483,6 +495,7 @@ describe('broker loan file', () => {
 
     expect(dtiRow('Debt to income')[1]).toHaveTextContent('33.4%');
     expect(within(dtiTable()).getByRole('columnheader', { name: 'Stressed (+2 points)' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Valuation' })).getByText('+€31,200')).toBeInTheDocument();
     const main = screen.getByRole('main');
     expect(within(main).queryAllByRole('button')).toHaveLength(0);
     for (const role of ['textbox', 'spinbutton', 'combobox', 'radio', 'checkbox', 'slider'] as const) {
