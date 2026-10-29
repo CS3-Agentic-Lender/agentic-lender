@@ -15,6 +15,12 @@ enum Theme {
     static let success = Color(hex: 0x166534)
     static let error = Color(hex: 0x991B1B)
 
+    /// Status badge backgrounds and text (palette A, docs/infrastructure.md). Tint and Success text
+    /// use `tint`/`pine` and `success` above.
+    static let neutralBadgeText = Color(hex: 0x3F4A44)
+    static let successBadge = Color(hex: 0xDCFCE7)
+    static let dangerBadge = Color(hex: 0xFEE2E2)
+
     static let cornerRadius: CGFloat = 10
     static let fieldHeight: CGFloat = 50
     static let screenPadding: CGFloat = 16

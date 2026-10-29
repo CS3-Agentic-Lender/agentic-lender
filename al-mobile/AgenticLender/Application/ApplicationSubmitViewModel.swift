@@ -15,7 +15,8 @@ final class ApplicationSubmitViewModel {
     /// Set once al-core has the application as Applied.
     private(set) var reference: ApplicationReference?
 
-    private let applicationID: String
+    /// The Draft being submitted; the submitted screen opens its status timeline.
+    let applicationID: String
     private let service: ApplicationService
     private let logger = Logger(category: "Application")
 
