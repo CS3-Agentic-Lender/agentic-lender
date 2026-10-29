@@ -27,7 +27,7 @@ HITS = [
 GOOD = {
     "outlook": "stable",
     "summary": "The ECB held its main rate at 2.15 and signalled a pause, and Irish lenders kept fixed rates steady.",
-    "sources": [{"url": "https://ecb.example/hold", "date": "Oct 23, 2026"}, {"url": "https://news.example/ie-rates", "date": "undated"}],
+    "sources": [{"url": "https://ecb.example/hold", "date": "2026-10-23"}, {"url": "https://news.example/ie-rates", "date": "undated"}],
 }
 
 
@@ -108,6 +108,23 @@ def test_a_link_that_two_searches_both_return_is_listed_once():
     assert len(ma.build_facts(OFFICIAL, twice, today=TODAY)["search_results"]) == 2
 
 
+@pytest.mark.parametrize("given,saved", [
+    ("Oct 23, 2026", "2026-10-23"), ("Sep 3, 2026", "2026-09-03"),
+    ("5 hours ago", "2026-10-28"), ("1 day ago", "2026-10-27"), ("2 days ago", "2026-10-26"),
+    ("3 weeks ago", "2026-10-07"), ("1 month ago", "2026-09-28"), ("2 months ago", "2026-08-28"),
+    (None, "undated"), ("last spring", "last spring"),
+])
+def test_a_source_date_is_saved_as_a_real_date_worked_out_from_today(given, saved):
+    """A relative date like "2 days ago" means nothing once the report is reused, so it is turned into a date. A form we don't know is kept as it came."""
+    hit = {"title": "t", "link": "https://a.example", "snippet": "s", "date": given}
+    assert facts([hit])["search_results"][0]["date"] == saved
+
+
+def test_a_month_back_from_the_31st_lands_on_the_last_day_of_the_shorter_month():
+    hit = {"title": "t", "link": "https://a.example", "snippet": "s", "date": "1 month ago"}
+    assert ma.build_facts(OFFICIAL, results([hit]), today="2026-10-31")["search_results"][0]["date"] == "2026-09-30"
+
+
 # ---- checking a reply -----------------------------------------------------------------------------------------
 
 def test_a_good_reply_passes():
@@ -116,8 +133,9 @@ def test_a_good_reply_passes():
 
 @pytest.mark.parametrize("change", [
     {"outlook": "soaring"}, {"summary": ""}, {"summary": "x" * 1000}, {"summary": 7}, {"sources": []}, {"sources": "link"},
-    {"sources": [{"url": "https://ecb.example/hold", "date": "Oct 23, 2026"}] * 2},
-    {"sources": [{"url": "https://evil.example/x", "date": "Oct 23, 2026"}]},
+    {"sources": [{"url": "https://ecb.example/hold", "date": "2026-10-23"}] * 2},
+    {"sources": [{"url": "https://evil.example/x", "date": "2026-10-23"}]},
+    {"sources": [{"url": "https://ecb.example/hold", "date": "Oct 23, 2026"}]},  # Serper's own form, not the date in DATA
     {"sources": [{"url": "https://ecb.example/hold", "date": "yesterday"}]},
     {"sources": [{"url": "https://ecb.example/hold"}]},
 ])
@@ -137,8 +155,31 @@ def test_a_summary_that_quotes_a_figure_it_was_not_given_is_rejected():
         ma.check_reply({**GOOD, "summary": "Rates will hit 777 percent."}, facts())
 
 
-def test_figures_from_the_official_data_and_from_a_snippet_are_allowed():
+def test_figures_from_the_official_data_and_from_a_cited_snippet_are_allowed():
     assert ma.check_reply({**GOOD, "summary": "The 2.15 and 3.9 official figures agree with the 2.15% in the news."}, facts())
+
+
+CITED_ELSEWHERE = {"title": "Bank outlook", "link": "https://bank.example/view", "snippet": "Analysts expect 7 cuts by 2027.", "date": "Oct 20, 2026"}
+
+
+def test_a_figure_from_a_snippet_the_reply_does_not_cite_is_rejected():
+    reply = {**GOOD, "summary": "Analysts expect 7 cuts."}  # the 7 is only in a source GOOD does not list
+    with pytest.raises(ma.ReplyRejected, match="not in DATA"):
+        ma.check_reply(reply, facts(HITS + [CITED_ELSEWHERE]))
+    cited = {**reply, "sources": GOOD["sources"] + [{"url": "https://bank.example/view", "date": "2026-10-20"}]}
+    assert ma.check_reply(cited, facts(HITS + [CITED_ELSEWHERE]))
+
+
+def test_a_figure_planted_in_an_uncited_snippet_is_rejected_even_with_real_sources():
+    """Ibrahima's case on the PR: the injected 0.01 with only genuine sources cited."""
+    with pytest.raises(ma.ReplyRejected, match="0.01"):
+        ma.check_reply({**GOOD, "summary": "The ECB held at 2.15 and rates will hit 0.01."}, facts(HITS + [INJECTED]))
+
+
+def test_the_digits_in_a_cited_link_are_not_read_as_figures():
+    dated = {"title": "t", "link": "https://news.example/2026/10/ecb-77", "snippet": "The ECB held.", "date": "Oct 23, 2026"}
+    reply = {**GOOD, "summary": "See https://news.example/2026/10/ecb-77 for more.", "sources": [{"url": dated["link"], "date": "2026-10-23"}]}
+    assert ma.check_reply(reply, facts([dated]))
 
 
 def test_a_summary_with_a_link_that_is_not_in_the_data_is_rejected():
@@ -281,6 +322,7 @@ def test_every_model_call_is_logged_with_prompt_version_links_duration_and_outco
     assert attempts[1]["search_links"] == ["https://ecb.example/hold", "https://news.example/ie-rates"] and "duration_s" in attempts[1]
     assert attempts[1]["request_id"] == "resp-1" and attempts[0]["raw_reply"]
     assert [s["search"] for s in searches] == list(ma.QUERIES) and all(s["outcome"] == "ok" for s in searches)
+    assert all(s["run_id"] == "run-1" and s["prompt_version"] == "market-agent-v1" for s in searches)  # criterion 4: a search ties to its run
     assert KEY not in caplog.text
 
 

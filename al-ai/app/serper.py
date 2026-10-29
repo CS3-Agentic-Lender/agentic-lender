@@ -1,6 +1,6 @@
 """Serper web search for the market agent: one small client, urllib only, like the model clients in app.llm.
 
-Every query is logged with its outcome, its duration and the links it returned. The key is read from SERPER_API_KEY, goes only
+Every query is logged with the run and prompt version that asked for it, its outcome, its duration and the links it returned. The key is read from SERPER_API_KEY, goes only
 in a request header, is never logged and is scrubbed from any error in case the provider echoes it back. There is no retry here:
 the market agent decides what to do when a search fails.
 """
@@ -56,6 +56,8 @@ def _hits(body: dict) -> tuple[Hit, ...]:
 def search(
     query: str,
     *,
+    run_id: str | None = None,
+    prompt_version: str | None = None,
     num: int = 5,
     country: str = "ie",
     period: str = "m",
@@ -63,12 +65,15 @@ def search(
     env: dict | None = None,
     timeout: float = TIMEOUT_S,
 ) -> SearchResult:
-    """One Serper search. `period` is Google's recency filter: d day, w week, m month, y year. Raises clients.LlmError if it fails."""
+    """One Serper search. `period` is Google's recency filter: d day, w week, m month, y year. Raises clients.LlmError if it fails.
+
+    `run_id` and `prompt_version` are only logged, so a search can be tied to the run and the prompt that used it.
+    """
     env = os.environ if env is None else env
     key = env.get(KEY_NAME, "")
     if not key:
         raise clients.MissingKey(f"{KEY_NAME} is not set")
-    entry = {"search": query, "outcome": None, "links": []}
+    entry = {"search": query, "run_id": run_id, "prompt_version": prompt_version, "outcome": None, "links": []}
     started = time.monotonic()
     try:
         headers = {"X-API-KEY": key, "Content-Type": "application/json", "User-Agent": clients.USER_AGENT}

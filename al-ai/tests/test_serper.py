@@ -93,3 +93,12 @@ def test_every_query_is_logged_with_its_outcome_and_links_and_never_the_key(capl
     assert ok["search"] == "ecb rates" and ok["outcome"] == "ok" and ok["links"] == ["https://example.ie/rates"] and "duration_s" in ok
     assert bad["outcome"] == "error"
     assert KEY not in caplog.text
+
+
+def test_a_query_is_logged_with_the_run_and_prompt_version_that_asked_for_it(caplog):
+    with caplog.at_level(logging.INFO, logger="al-ai.serper"):
+        serper.search("ecb rates", run_id="run-7", prompt_version="market-agent-v1", transport=Net(), env=ENV)
+        serper.search("no run", transport=Net(), env=ENV)
+    tied, loose = (json.loads(r.message) for r in caplog.records)
+    assert tied["run_id"] == "run-7" and tied["prompt_version"] == "market-agent-v1"
+    assert loose["run_id"] is None and loose["prompt_version"] is None

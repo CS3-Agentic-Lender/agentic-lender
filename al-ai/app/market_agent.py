@@ -2,14 +2,16 @@
 
 The agent gets two things and nothing else: the official rate figures (fetched and cached by another ticket, passed in here)
 and a few Serper search results. No borrower data goes in. Search results are untrusted text: the prompt says to treat them as
-data, they are put in the DATA block as JSON and never joined to the instructions, and the reply is checked so that an
-injected instruction cannot get a made-up figure or link through.
+data, they are put in the DATA block as JSON and never joined to the instructions, and the reply is checked: every link must
+be a search result, and every figure must come from the official figures or a source the reply cites (see _allowed_numbers
+for what that does and does not stop).
 
 A report is reused for the rest of the day unless the official figures change. Each run records the ID of the report it
 reused. A bad reply gets one retry and a provider error that may clear gets up to two, like the valuation step. There is no
 other model to fall back to, and nothing is made up when a search fails: the step fails with the reason.
 """
 
+import calendar
 import hashlib
 import json
 import logging
@@ -17,7 +19,7 @@ import math
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -85,6 +87,37 @@ class OfficialFigures:
         return hashlib.sha256(json.dumps({"as_of": self.as_of, **self.figures}, sort_keys=True).encode()).hexdigest()[:12]
 
 
+RELATIVE_DATE = re.compile(r"^(\d+) (minute|hour|day|week|month)s? ago$")
+
+
+def _months_back(day: date, months: int) -> date:
+    """The same day `months` earlier, or the last day of that month when it is shorter (31 Oct back one month is 30 Sep)."""
+    year, month = divmod(day.year * 12 + day.month - 1 - months, 12)
+    return date(year, month + 1, min(day.day, calendar.monthrange(year, month + 1)[1]))
+
+
+def source_date(given: str | None, today: str) -> str:
+    """Serper's date for a hit as an ISO date, so a source stays checkable after the day it was found.
+
+    "2 days ago" is worked out from `today`, and "Oct 23, 2026" is rewritten. A form we don't know is kept as it came, and no
+    date at all is "undated": a date is never guessed.
+    """
+    if not given:
+        return UNDATED
+    day = date.fromisoformat(today)
+    if found := RELATIVE_DATE.match(given):
+        count, unit = int(found[1]), found[2]
+        if unit in ("minute", "hour"):
+            return today
+        if unit == "month":
+            return _months_back(day, count).isoformat()
+        return (day - timedelta(days=count * (7 if unit == "week" else 1))).isoformat()
+    try:
+        return datetime.strptime(given, "%b %d, %Y").date().isoformat()
+    except ValueError:
+        return given
+
+
 def build_facts(official: OfficialFigures, results: list[serper.SearchResult], *, today: str) -> dict:
     """The only things the agent sees. Search results are numbered and kept as plain data, never joined to the instructions."""
     seen, found = set(), []
@@ -92,7 +125,7 @@ def build_facts(official: OfficialFigures, results: list[serper.SearchResult], *
         for hit in result.hits:
             if hit.link not in seen:
                 seen.add(hit.link)
-                found.append({"id": f"S{len(found) + 1}", "title": hit.title, "snippet": hit.snippet, "date": hit.date or UNDATED, "url": hit.link})
+                found.append({"id": f"S{len(found) + 1}", "title": hit.title, "snippet": hit.snippet, "date": source_date(hit.date, today), "url": hit.link})
     return {
         "today": today,
         "official_figures": {"as_of": official.as_of, **{k: v for k, v in sorted(official.figures.items())}},
@@ -109,8 +142,14 @@ def _numbers(text: str) -> list[float]:
     return [float(n.replace(",", "")) for n in re.findall(r"\d+(?:,\d{3})*(?:\.\d+)?", text)]
 
 
-def _allowed_numbers(facts) -> set[float]:
-    """Every figure that appears anywhere in DATA, including the digits inside a snippet or a date: quoting those is fine."""
+def _allowed_numbers(facts: dict, cited: set[str]) -> set[float]:
+    """The figures a summary may quote: the official figures, today's date, and the title, snippet and date of the sources the
+    reply cites. A number that is only in a result the reply doesn't cite is not allowed, so a figure planted in some other
+    snippet can't be passed off behind genuine sources.
+
+    What this does not stop: a poisoned snippet that the reply cites itself. Its figures are then shown next to their source,
+    where the reader can see where they came from.
+    """
     allowed: set[float] = set()
 
     def walk(value):
@@ -127,7 +166,9 @@ def _allowed_numbers(facts) -> set[float]:
             for v in value:
                 walk(v)
 
-    walk(facts)
+    walk(facts["today"])
+    walk(facts["official_figures"])
+    walk([[r["title"], r["snippet"], r["date"]] for r in facts["search_results"] if r["url"] in cited])
     return allowed
 
 
@@ -154,13 +195,14 @@ def check_reply(reply, facts: dict) -> dict:
             raise ReplyRejected(f'the date for "{source["url"]}" must be exactly "{dates[source["url"]]}"')
     if len({s["url"] for s in sources}) != len(sources):
         raise ReplyRejected("each source may be listed once")
-    for link in re.findall(r"https?://\S+", summary):
+    links = re.compile(r"https?://\S+")
+    for link in links.findall(summary):
         if link.rstrip(".,;)") not in dates:
             raise ReplyRejected(f'the summary has the link "{link}", which is not in DATA')
-    allowed = _allowed_numbers(facts)
-    for n in _numbers(summary):
+    allowed = _allowed_numbers(facts, {s["url"] for s in sources})
+    for n in _numbers(links.sub(" ", summary)):  # the links are checked above, so the digits in a path are not figures
         if n not in allowed:
-            raise ReplyRejected(f'"summary" quotes {n:g}, which is not in DATA')
+            raise ReplyRejected(f'"summary" quotes {n:g}, which is not in DATA: use only the official figures or the sources you cite')
     return reply
 
 
@@ -241,7 +283,7 @@ def get_report(
     results, searches = [], []
     for query in QUERIES:
         try:
-            results.append(search(query, num=RESULTS_PER_QUERY, transport=transport, env=env))
+            results.append(search(query, run_id=run_id, prompt_version=PROMPT_VERSION, num=RESULTS_PER_QUERY, transport=transport, env=env))
             searches.append({"query": query, "outcome": "ok", "links": [h.link for h in results[-1].hits]})
         except clients.LlmError as exc:  # no search means no report: nothing is made up
             searches.append({"query": query, "outcome": "error", "error": str(exc)})
