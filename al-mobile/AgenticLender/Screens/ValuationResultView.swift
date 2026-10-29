@@ -113,8 +113,8 @@ struct ValuationResultView: View {
     }
 }
 
-/// "Compared with a typical listing" (AL-136, Figma 11e): the typical listing, how far each detail
-/// moved the estimate (largest first), then the estimate. Hidden when the answer has no breakdown.
+/// The breakdown (AL-136, Figma 11e): the starting point, how far each detail moved the estimate
+/// (largest first), then the estimate. Hidden when the answer has no breakdown.
 private struct BreakdownCard: View {
     let breakdown: ValuationBreakdown
 
@@ -128,7 +128,13 @@ private struct BreakdownCard: View {
                 .font(.footnote)
                 .foregroundStyle(Theme.mutedText)
 
-            line("Typical listing", breakdown.typicalListing, color: Theme.mutedText, labelColor: Theme.mutedText)
+            VStack(alignment: .leading, spacing: 2) {
+                line(ValuationBreakdown.startingPointLabel, breakdown.startingPoint, color: Theme.mutedText, labelColor: Theme.mutedText)
+                Text(ValuationBreakdown.startingPointNote)
+                    .font(.caption)
+                    .foregroundStyle(Theme.mutedText)
+            }
+            .accessibilityElement(children: .combine)
             Divider().overlay(Theme.line)
             ForEach(breakdown.rows, id: \.label) { row in
                 line(row.label, row.amount, color: color(for: row.change))

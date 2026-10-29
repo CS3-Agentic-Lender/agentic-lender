@@ -28,7 +28,7 @@ struct ValuationSummary: Hashable {
     let comparison: String?
     /// Why the estimate is less reliable, as the endpoint words it (Figma 11b).
     let warnings: [String]
-    /// "Compared with a typical listing" (AL-136, Figma 11e). Nil when the answer has no breakdown.
+    /// The breakdown section (AL-136, Figma 11e). Nil when the answer has no breakdown.
     let breakdown: ValuationBreakdown?
 
     init(request: ValuationRequest, result: ValuationResult) {

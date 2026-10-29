@@ -1,7 +1,7 @@
 import XCTest
 @testable import AgenticLender
 
-/// The "Compared with a typical listing" section on the property result (AL-136, Figma 11e).
+/// The breakdown section on the property result (AL-136, Figma 11e).
 final class ValuationBreakdownTests: XCTestCase {
     private func request(
         type: PropertyType = .semiDetached, bedrooms: Int = 3, floorArea: String = "110",
@@ -33,20 +33,34 @@ final class ValuationBreakdownTests: XCTestCase {
     }
 
     private func sumOfShownRows(_ breakdown: ValuationBreakdown) -> Int {
-        breakdown.rows.map(\.thousands).reduce(0, +) + breakdown.typicalListingThousands
+        breakdown.rows.map(\.thousands).reduce(0, +) + breakdown.startingPointThousands
     }
 
     // MARK: - Criterion 1: the baseline, each detail largest first with a sign, then the estimate
 
-    func testListsTheTypicalListingEachDetailLargestFirstAndTheEstimate() throws {
+    func testListsTheStartingPointEachDetailLargestFirstAndTheEstimate() throws {
         let breakdown = try XCTUnwrap(ValuationBreakdown(request: try request(), result: try ValuationResult.decode(ValuationRequestTests.referenceResponse)))
 
-        XCTAssertEqual(breakdown.typicalListing, "€312,000")
+        XCTAssertEqual(breakdown.startingPoint, "€312,000")
         XCTAssertEqual(breakdown.rows.map(\.label), [
             "Floor area: 110 m²", "County: Cork", "Bedrooms: 3", "Eircode area: T12", "Type: Semi-detached", "BER: B3",
         ])
         XCTAssertEqual(breakdown.rows.map(\.amount), ["+€31,000", "+€19,000", "+€10,000", "+€6,000", "−€5,000", "−€1,000"])
         XCTAssertEqual(breakdown.estimate, "€372,000")
+    }
+
+    func testTheBaselineIsCalledTheStartingPointNeverATypicalPrice() {
+        // AL-132 criterion 2: the baseline (about €577,000) is the average of the model's sample homes,
+        // well above the middle home (about €396,000), so calling it typical would mislead.
+        XCTAssertEqual(ValuationBreakdown.title, "How each detail moved the estimate")
+        XCTAssertEqual(ValuationBreakdown.startingPointLabel, "Starting point")
+        XCTAssertEqual(ValuationBreakdown.startingPointNote, "average of the model's sample homes")
+        XCTAssertEqual(
+            ValuationBreakdown.explanation,
+            "Starts from the average of the model's sample homes, not a typical price. It doesn't say what changing the house would do."
+        )
+        let shown = [ValuationBreakdown.title, ValuationBreakdown.startingPointLabel, ValuationBreakdown.startingPointNote]
+        XCTAssertFalse(shown.contains { $0.localizedCaseInsensitiveContains("typical") || $0.localizedCaseInsensitiveContains("listing") })
     }
 
     func testTheLargestDetailComesFirstWhateverOrderTheyArriveIn() throws {
@@ -99,7 +113,7 @@ final class ValuationBreakdownTests: XCTestCase {
         // Rounded on their own these rows come to €420,000, but the headline is €419,000.
         let breakdown = try XCTUnwrap(ValuationBreakdown(request: try request(), result: corkResult))
 
-        XCTAssertEqual(breakdown.typicalListing, "€577,000")
+        XCTAssertEqual(breakdown.startingPoint, "€577,000")
         XCTAssertEqual(breakdown.rows.map(\.amount), ["−€108,000", "−€92,000", "+€75,000", "−€28,000", "−€16,000", "+€11,000"])
         XCTAssertEqual(sumOfShownRows(breakdown), 419)
         XCTAssertEqual(breakdown.estimate, "€419,000")

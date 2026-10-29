@@ -1,8 +1,9 @@
 import Foundation
 
-/// The "Compared with a typical listing" section of the property result (AL-136, Figma 11e).
+/// The breakdown section of the property result (AL-136, Figma 11e).
 ///
-/// It starts at the model's typical listing, lists how far each detail moved this home's estimate
+/// It starts at the starting point (the average of the model's sample homes, never called a typical
+/// price: AL-132 criterion 2), lists how far each detail moved this home's estimate
 /// (largest first) and ends at the estimate. Every figure is to the nearest €1,000, like the
 /// headline. Rounding each row on its own can miss the headline by a thousand or two, so the rows
 /// nearest to rounding the other way are moved by €1,000 until the section adds up exactly.
@@ -43,18 +44,20 @@ struct ValuationBreakdown: Hashable {
         }
     }
 
-    static let title = "Compared with a typical listing"
-    static let explanation = "How far each detail moved this estimate from the average listing. It doesn't say what changing the house would do."
+    static let title = "How each detail moved the estimate"
+    static let explanation = "Starts from the average of the model's sample homes, not a typical price. It doesn't say what changing the house would do."
+    static let startingPointLabel = "Starting point"
+    static let startingPointNote = "average of the model's sample homes"
 
     /// al-ai rounds the baseline and each piece to the cent, so their sum can be a few cents off the estimate.
     private static let addUpToleranceEur = 1.0
 
-    let typicalListingThousands: Int
+    let startingPointThousands: Int
     let rows: [Row]
     let estimate: String
 
-    var typicalListing: String {
-        Self.euro(typicalListingThousands)
+    var startingPoint: String {
+        Self.euro(startingPointThousands)
     }
 
     /// Nil when the answer has no breakdown, or one that doesn't add up to the estimate: the rest of
@@ -66,12 +69,12 @@ struct ValuationBreakdown: Hashable {
         else { return nil }
 
         let largestFirst = pieces.sorted { abs($0.eur) > abs($1.eur) }
-        let typical = Int((baseline / 1000).rounded())
-        let rowsTotal = result.displayEstimateEur / 1000 - typical
+        let baselineThousands = Int((baseline / 1000).rounded())
+        let rowsTotal = result.displayEstimateEur / 1000 - baselineThousands
         let shown = Self.thousands(largestFirst.map(\.eur), addingUpTo: rowsTotal)
         guard shown.reduce(0, +) == rowsTotal else { return nil }
 
-        typicalListingThousands = typical
+        startingPointThousands = baselineThousands
         rows = zip(largestFirst, shown).map { piece, thousands in
             Row(label: Self.label(for: piece.feature, of: request), thousands: thousands)
         }
