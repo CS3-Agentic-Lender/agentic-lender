@@ -182,7 +182,9 @@ The one function that does this is `audit_hash(record)` in `al-core/app/audit.py
 | `senderRole` | string | `borrower`, `broker` or `underwriter` |
 | `text` | string | |
 | `sentAt` | timestamp | |
-| `read` | boolean | Whether the recipient has read it. Set through POST /core/applications/{id}/messages/read |
+| `read` | boolean | Whether the recipient has read it. Starts `false`. Set only through `POST /core/applications/{id}/messages/read`, which marks the unread messages someone else sent. It is one flag per message, so the broker and an underwriter clear a message together; per-person unread state is a later ticket |
+
+Written only by the API: `POST /core/applications/{id}/messages` sets `senderId` and `senderRole` from the token and `sentAt` on the server, and there is no way to edit or delete a message. A thread opens when the application is submitted, because a broker can't see a Draft.
 
 ## ai_runs/{runId} (Nic to confirm)
 
