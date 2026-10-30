@@ -1,20 +1,24 @@
 import SwiftUI
 
-/// Where a borrower lands once they have a broker (Figma Home, Sprint 1 content only):
-/// a greeting, "What can I borrow?", Messages, their broker and Sign out. The application card joins it in Sprint 2.
+/// Where a borrower lands once they have a broker (Figma Home): a greeting, their application card
+/// (AL-104), "What can I borrow?", "Check a property", Messages, their broker and Sign out.
 struct HomeView: View {
     @Environment(AppSession.self) private var session
     @State private var model: HomeViewModel
     @State private var inbox: MessageInbox
+    @State private var applicationCard: HomeApplicationCardModel
+    /// The application whose status is open; the status screen is pushed while this is set.
+    @State private var statusApplicationID: String?
     @State private var isChangingBroker = false
     @State private var isShowingMessages = false
     private let service: ProfileService
 
     /// `profile` is the one the gate loaded; `service` saves a change of broker; `messages` reads the
     /// thread with the broker, which Home keeps listening to for the unread count.
-    init(profile: CoreProfile, service: ProfileService, messages: MessageService) {
+    init(profile: CoreProfile, service: ProfileService, messages: MessageService, applications: HomeApplicationService) {
         _model = State(initialValue: HomeViewModel(profile: profile))
         _inbox = State(initialValue: MessageInbox(service: messages))
+        _applicationCard = State(initialValue: HomeApplicationCardModel(service: applications))
         self.service = service
     }
 
@@ -22,6 +26,11 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
+                HomeApplicationCard(model: applicationCard) { statusApplicationID = $0 }
+                Text("Get started")
+                    .font(.title3.bold())
+                    .foregroundStyle(Theme.text)
+                    .accessibilityAddTraits(.isHeader)
                 borrowCard
                 propertyCheckCard
                 messagesCard
@@ -39,6 +48,9 @@ struct HomeView: View {
                 model.brokerChanged(profile)
                 isChangingBroker = false
             }
+        }
+        .navigationDestination(item: $statusApplicationID) { applicationID in
+            ApplicationStatusView(applicationID: applicationID, service: FirestoreApplicationStatusService())
         }
         .navigationDestination(isPresented: $isShowingMessages) {
             MessagesView(inbox: inbox, brokerName: model.brokerName, brokerFirm: model.brokerFirm)
@@ -172,10 +184,21 @@ struct PreviewSignedInState: SignedInState {
         HomeView(
             profile: CoreProfile(fullName: "Aoife Byrne", brokerID: "broker1", brokerName: "Bob Murphy", brokerFirm: "Murphy Mortgages"),
             service: PreviewProfileService(),
-            messages: PreviewMessageService()
+            messages: PreviewMessageService(),
+            applications: PreviewHomeApplicationService()
         )
     }
     .environment(AppSession(state: PreviewSignedInState()))
+}
+
+/// An application in AI review, for previews of Home.
+struct PreviewHomeApplicationService: HomeApplicationService {
+    func listen(onChange: @escaping (Result<HomeApplication?, ApplicationStatusError>) -> Void) -> LiveListener {
+        onChange(.success(HomeApplication(id: "app1", fields: [
+            "status": "AI Deliberated", "loanType": "mortgage", "loanAmountEur": 210_000.0, "termYears": 30,
+        ])))
+        return LiveListener {}
+    }
 }
 
 /// A thread with one unread reply, for previews of Home and Messages.
