@@ -39,7 +39,7 @@ final class ApplicationSubmitViewModelTests: XCTestCase {
         await model.confirmSubmit()
 
         XCTAssertEqual(service.submitted, ["7f3k9qx2abcd"])
-        XCTAssertEqual(model.reference?.text, "7F3K9QX2")
+        XCTAssertEqual(model.reference?.text, "7f3k9qx2")
         XCTAssertFalse(model.isConfirming)
         XCTAssertNil(model.submitError)
     }
@@ -122,7 +122,7 @@ final class ApplicationSubmitViewModelTests: XCTestCase {
         await first.value
 
         XCTAssertEqual(service.submitted, ["7f3k9qx2abcd"])
-        XCTAssertEqual(model.reference?.text, "7F3K9QX2")
+        XCTAssertEqual(model.reference?.text, "7f3k9qx2")
     }
 }
 

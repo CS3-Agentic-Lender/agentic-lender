@@ -8,7 +8,7 @@ final class ApplicationStatusViewModel {
     private(set) var timeline: StatusTimeline?
     private(set) var loadError: String?
     private(set) var isLoading = true
-    /// "Ref 7F3K9QX2", the reference the borrower saw when they submitted.
+    /// "Ref 7f3k9qx2", the reference the borrower saw when they submitted, kept as stored.
     let reference: String
 
     private let applicationID: String

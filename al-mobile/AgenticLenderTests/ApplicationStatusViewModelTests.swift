@@ -28,7 +28,7 @@ final class ApplicationStatusViewModelTests: XCTestCase {
 
         XCTAssertEqual(model.timeline, StatusTimeline(record: applied))
         XCTAssertNil(model.loadError)
-        XCTAssertEqual(model.reference, "Ref APP-7F3K")
+        XCTAssertEqual(model.reference, "Ref app-7f3k", "kept as stored, like the submitted screen")
         let requested = await service.requested
         XCTAssertEqual(requested, ["app-7f3k9qx2"])
     }
