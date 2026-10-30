@@ -82,15 +82,15 @@ export interface ClientsService {
   ): () => void;
 }
 
-function readString(value: unknown) {
+export function readString(value: unknown) {
   return typeof value === 'string' && value !== '' ? value : null;
 }
 
-function readNumber(value: unknown) {
+export function readNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function readDate(value: unknown) {
+export function readDate(value: unknown) {
   return value instanceof Timestamp ? value.toDate() : null;
 }
 

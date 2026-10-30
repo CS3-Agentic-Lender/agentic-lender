@@ -99,7 +99,9 @@ describe('seed data', () => {
 
   test('each band matches the application it is on', () => {
     for (const a of apps.filter((x) => x.ltvBand)) {
-      expect(a.ltvBand).toBe(ltvBand(purchasePriceLtvPct({ ...a, askingPriceEur: a.property.askingPriceEur })));
+      // A HELOC has no asking price, so its band is measured against the valuation estimate.
+      const valueEur = a.loanType === 'heloc' ? a.estimatedValueEur : a.property.askingPriceEur;
+      expect(a.ltvBand).toBe(ltvBand(purchasePriceLtvPct({ ...a, askingPriceEur: valueEur })));
     }
   });
 });

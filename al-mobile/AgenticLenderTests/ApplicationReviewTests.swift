@@ -87,8 +87,9 @@ final class ApplicationReviewTests: XCTestCase {
         XCTAssertEqual(ApplicationReview.Section.home.formAnchor, .home)
     }
 
-    func testTheReferenceIsTheFirstEightCharactersOfTheIDInCapitals() {
-        XCTAssertEqual(ApplicationReference(applicationID: "7f3k9qx2abCDEfgh1234").text, "7F3K9QX2")
-        XCTAssertEqual(ApplicationReference(applicationID: "app42").text, "APP42")
+    /// Kept as stored, so it reads the same as the id the broker and underwriter see (Nikoloz on #98).
+    func testTheReferenceIsTheFirstEightCharactersOfTheIDAsStored() {
+        XCTAssertEqual(ApplicationReference(applicationID: "mr6HHYdWWwpeZvv14HM5").text, "mr6HHYdW")
+        XCTAssertEqual(ApplicationReference(applicationID: "app42").text, "app42")
     }
 }

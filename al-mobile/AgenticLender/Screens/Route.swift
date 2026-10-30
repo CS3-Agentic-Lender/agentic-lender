@@ -4,5 +4,7 @@ enum Route: Hashable {
     case signUp
     case affordability
     case propertyCheck
+    /// The saved property checks (Figma 09).
+    case properties
     case resetPassword(email: String)
 }

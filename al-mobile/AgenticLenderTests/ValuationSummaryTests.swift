@@ -14,11 +14,13 @@ final class ValuationSummaryTests: XCTestCase {
     }
 
     private func result(
-        estimate: Double = 345_000, display: Int = 345_000, gap: Double? = 0.0986, flagged: Bool? = true, warnings: [String] = []
+        estimate: Double = 345_000, display: Int = 345_000, gap: Double? = 0.0986, flagged: Bool? = true, warnings: [String] = [],
+        baseline: Double? = nil, contributions: [ValuationContribution]? = nil
     ) -> ValuationResult {
         ValuationResult(
             estimateEur: estimate, displayEstimateEur: display, basis: "2024 asking-price estimate",
-            supportWarnings: warnings, askingPriceGap: gap, priceNeedsReview: flagged
+            supportWarnings: warnings, askingPriceGap: gap, priceNeedsReview: flagged, modelVersion: "v2",
+            baselineEur: baseline, contributions: contributions
         )
     }
 
@@ -97,6 +99,24 @@ final class ValuationSummaryTests: XCTestCase {
         let text = ValuationSummary(request: try request(ber: .a0), result: result(warnings: [warning]))
 
         XCTAssertEqual(text.warnings, [warning])
+    }
+
+    // MARK: - Breakdown (AL-136)
+
+    func testTheSummaryCarriesTheBreakdownWhenTheAnswerHasOne() throws {
+        let pieces = [ValuationContribution(feature: "county", eur: 22_000), ValuationContribution(feature: "ber", eur: 13_000)]
+
+        let text = ValuationSummary(request: try request(), result: result(baseline: 310_000, contributions: pieces))
+
+        XCTAssertEqual(text.breakdown?.rows.map(\.amount), ["+€22,000", "+€13,000"])
+    }
+
+    func testWithoutABreakdownTheRestOfTheResultIsUnchanged() throws {
+        let text = ValuationSummary(request: try request(), result: result())
+
+        XCTAssertNil(text.breakdown)
+        XCTAssertEqual(text.estimate, "€345,000")
+        XCTAssertEqual(text.verdict, .overPriced)
     }
 
     // MARK: - Verdict labels

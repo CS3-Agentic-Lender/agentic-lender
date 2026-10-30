@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { usePipeline } from '../../context/PipelineContext';
@@ -8,16 +9,19 @@ import { formatDate, formatEuro } from '../../utils/formatters';
 import { PipelineStatus } from './PipelineStatus';
 import {
   ALL_STATUSES,
+  ALL_LOAN_TYPES,
+  LOAN_TYPE_OPTIONS,
   GROUP_BY_OPTIONS,
   INVALID_RISK_TIER,
   applicationLtvBand,
   filterByStatus,
+  filterByLoanType,
   formatLtv,
   groupApplications,
   type GroupBy,
 } from './pipelineGroups';
 
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 8;
 const headerCellClass = 'px-4 py-3 text-left text-xs font-semibold tracking-wide text-muted uppercase';
 const cellClass = 'px-4 py-4 align-middle';
 const groupOptionClass = [
@@ -43,14 +47,43 @@ interface PipelineTableRowProps {
   riskTierState: RiskTierState;
 }
 
+export function loanFilePath(applicationId: string) {
+  return `/underwriter/applications/${encodeURIComponent(applicationId)}`;
+}
+
 function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps) {
+  const navigate = useNavigate();
+  const path = loanFilePath(application.id);
+
+  // The application ID is the keyboard and screen-reader route to the loan file; a click anywhere
+  // else on the row goes to the same place. Selecting text in the row does not navigate.
+  const openFromRow = (event: MouseEvent<HTMLTableRowElement>) => {
+    const target = event.target as HTMLElement;
+
+    if (target.closest('a') || window.getSelection()?.toString()) {
+      return;
+    }
+
+    navigate(path);
+  };
+
   return (
-    <tr className="border-t border-line">
+    <tr className="cursor-pointer border-t border-line transition-colors hover:bg-oat" onClick={openFromRow}>
       <th className={`${cellClass} text-left font-mono text-sm font-normal`} scope="row">
-        {application.id}
+        <Link
+          className="inline-flex min-h-11 items-center font-medium text-pine underline underline-offset-4 hover:no-underline"
+          to={path}
+        >
+          {application.id}
+        </Link>
       </th>
       <td className={`${cellClass} text-sm`}>
         {application.borrowerName ?? <span className="text-muted">—</span>}
+      </td>
+      <td className={`${cellClass} text-sm`}>
+        {application.loanType === 'mortgage' ? 'Mortgage' : application.loanType === 'heloc' ? 'HELOC' : (
+          <span className="text-muted">Unavailable</span>
+        )}
       </td>
       <td className={`${cellClass} font-mono text-sm`}>{formatEuro(application.loanAmountEur)}</td>
       <td className={`${cellClass} text-sm`}>
@@ -86,10 +119,18 @@ export function PipelinePage() {
   const state = usePipeline();
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [status, setStatus] = useState(ALL_STATUSES);
+  const [loanType, setLoanType] = useState<string>(ALL_LOAN_TYPES);
 
   const applications = state.status === 'ready' ? state.applications : null;
   const riskTierState = state.status === 'ready' ? state.riskTierState : 'pending';
-  const visible = useMemo(() => filterByStatus(applications ?? [], status), [applications, status]);
+  const visible = useMemo(
+    () => filterByLoanType(filterByStatus(applications ?? [], status), loanType),
+    [applications, status, loanType],
+  );
+  const activeFilters = [
+    ...(status === ALL_STATUSES ? [] : [status]),
+    ...(loanType === ALL_LOAN_TYPES ? [] : [`${LOAN_TYPE_OPTIONS.find((option) => option.value === loanType)?.label} loan type`]),
+  ];
   const needsFallbackTier = visible.some((application) => application.storedRiskTier == null);
   const riskTierNotice =
     needsFallbackTier && state.status === 'ready' && riskTierState === 'unavailable'
@@ -163,10 +204,27 @@ export function PipelinePage() {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold" htmlFor="pipeline-loan-type">
+                    Loan type filter
+                  </label>
+                  <select
+                    className="min-h-11 cursor-pointer rounded-lg border border-line bg-surface px-4 text-ink"
+                    id="pipeline-loan-type"
+                    onChange={(event) => setLoanType(event.target.value)}
+                    value={loanType}
+                  >
+                    {LOAN_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <p className="ml-auto max-w-sm text-sm text-muted" role="status">
-                  {status === ALL_STATUSES
+                  {activeFilters.length === 0
                     ? `Showing all ${countLabel(state.applications.length)}. Group counts are of all applications.`
-                    : `Showing ${visible.length} of ${countLabel(state.applications.length)}, filtered to ${status}. Group counts are of the filtered applications only.`}
+                    : `Showing ${visible.length} of ${countLabel(state.applications.length)}, filtered to ${activeFilters.join(' and ')}. Group counts are of the filtered applications only.`}
                 </p>
               </div>
 
@@ -194,6 +252,9 @@ export function PipelinePage() {
                         Borrower
                       </th>
                       <th className={headerCellClass} scope="col">
+                        Type
+                      </th>
+                      <th className={headerCellClass} scope="col">
                         Requested
                       </th>
                       <th className={headerCellClass} scope="col">
@@ -214,7 +275,7 @@ export function PipelinePage() {
                     <tbody>
                       <tr className="border-t border-line">
                         <td className={`${cellClass} text-muted`} colSpan={COLUMN_COUNT}>
-                          No applications match this status.
+                          {loanType === ALL_LOAN_TYPES ? 'No applications match this status.' : 'No applications match these filters.'}
                         </td>
                       </tr>
                     </tbody>

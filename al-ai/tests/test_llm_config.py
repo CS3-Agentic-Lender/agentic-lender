@@ -35,8 +35,19 @@ def test_no_model_in_the_real_config_is_a_moving_alias():
         assert "latest" not in agent.model.lower()
 
 
-def test_each_provider_has_one_model_to_smoke_test():
-    assert set(config.load().smoke_models()) == {"gemini", "mistral", "groq", "ollama"}
+def test_each_provider_in_use_has_one_model_to_smoke_test():
+    assert set(config.load().smoke_models()) == {"gemini", "groq", "ollama"}  # Mistral was dropped from the plan: it has no free API
+
+
+def test_the_valuation_agent_runs_on_groq_and_its_manual_backup_is_gemini_flash_lite():
+    cfg = config.load()
+    assert cfg.agent("valuation") == config.AgentModel("groq", "openai/gpt-oss-120b")
+    assert cfg.backup["valuation"] == config.AgentModel("gemini", "gemini-3.1-flash-lite")
+    assert cfg.backup["valuation"] != cfg.agent("valuation")  # a backup is another model, switched by hand and never automatically
+
+
+def test_mistral_is_not_named_anywhere_in_the_agents_config():
+    assert "mistral" not in config.DEFAULT_PATH.read_text().lower()
 
 
 def test_a_config_is_read_from_a_file(tmp_path):

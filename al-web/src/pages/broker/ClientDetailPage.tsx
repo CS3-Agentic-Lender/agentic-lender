@@ -86,7 +86,12 @@ export function ClientDetailPage() {
                   <ul className="mt-4 divide-y divide-line">
                     {client.applications.map((application) => (
                       <li className="flex flex-wrap items-center gap-x-8 gap-y-2 py-4" key={application.id}>
-                        <span className="font-mono text-sm">{application.id}</span>
+                        <Link
+                          className="inline-flex min-h-11 items-center font-mono text-sm font-medium text-pine underline underline-offset-4 hover:no-underline"
+                          to={`/broker/applications/${encodeURIComponent(application.id)}`}
+                        >
+                          {application.id}
+                        </Link>
                         <StatusBadge status={application.status} />
                         <span className="text-sm text-muted">
                           Requested{' '}

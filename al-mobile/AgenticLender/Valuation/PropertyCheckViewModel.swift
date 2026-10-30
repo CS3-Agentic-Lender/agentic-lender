@@ -11,9 +11,16 @@ final class PropertyCheckViewModel {
     var form = PropertyCheckForm()
     /// The estimate from the last check.
     private(set) var result: ValuationResult?
-    /// The result screen's text; the screen is pushed while this is set. Closing it clears both.
+    /// What "Save this property" sends for the last check.
+    private(set) var savedCheckDraft: SavedCheckDraft?
+    /// The result screen's text; the screen is pushed while this is set. Closing it clears all three.
     var summary: ValuationSummary? {
-        didSet { if summary == nil { result = nil } }
+        didSet {
+            if summary == nil {
+                result = nil
+                savedCheckDraft = nil
+            }
+        }
     }
     private(set) var isValuing = false
     private(set) var checkError: String?
@@ -79,6 +86,7 @@ final class PropertyCheckViewModel {
         do {
             let answer = try await service.value(request)
             result = answer
+            savedCheckDraft = SavedCheckDraft(request: request, result: answer)
             summary = ValuationSummary(request: request, result: answer)
         } catch let error as APIError {
             fail(with: Self.message(for: error))

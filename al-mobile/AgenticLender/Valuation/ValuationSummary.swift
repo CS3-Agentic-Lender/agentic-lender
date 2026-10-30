@@ -28,9 +28,11 @@ struct ValuationSummary: Hashable {
     let comparison: String?
     /// Why the estimate is less reliable, as the endpoint words it (Figma 11b).
     let warnings: [String]
+    /// The breakdown section (AL-136, Figma 11e). Nil when the answer has no breakdown.
+    let breakdown: ValuationBreakdown?
 
     init(request: ValuationRequest, result: ValuationResult) {
-        title = "\(request.county.name) \(request.propertyType.title.lowercased())"
+        title = Self.title(county: request.county, propertyType: request.propertyType)
         let ber = request.berRating == .unknown ? "BER not known" : "BER \(request.berRating.rawValue)"
         details = [
             request.propertyType.title,
@@ -40,6 +42,7 @@ struct ValuationSummary: Hashable {
         ].joined(separator: " · ")
         estimate = Self.euro(result.displayEstimateEur)
         warnings = result.supportWarnings
+        breakdown = ValuationBreakdown(request: request, result: result)
 
         guard let asking = request.askingPriceEur, let flagged = result.priceNeedsReview, let gap = result.askingPriceGap else {
             verdict = nil
@@ -50,6 +53,11 @@ struct ValuationSummary: Hashable {
         verdict = flagged ? .overPriced : .fair
         askingPrice = Self.euro(asking)
         comparison = Self.comparison(asking: asking, estimate: result.displayEstimateEur, gap: gap, flagged: flagged)
+    }
+
+    /// "Cork semi-detached": the result screen's heading and a saved check's name.
+    static func title(county: County, propertyType: PropertyType) -> String {
+        "\(county.name) \(propertyType.title.lowercased())"
     }
 
     /// How far the asking price is from the shown estimate, in euro and as the endpoint's gap.

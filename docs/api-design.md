@@ -30,7 +30,7 @@ The backend is **two Python FastAPI services** behind one host. al-ai runs valua
 | Owner | Nic | Nic and Dumi |
 | Does | Values property, checks affordability, runs the AI committee and portfolio stress tests | Manages users, applications, decisions, the ledger, payments and messages |
 | Heavy work | Saved ML model and LLM calls, which can take minutes | Calls to contracts and Stripe |
-| Calls out to | ECB, Serper, Gemini, Mistral, Groq, Ollama (local) or Bedrock (AWS) | Stripe and the smart contracts |
+| Calls out to | ECB, Serper, Gemini, Groq, Ollama (local) or Bedrock (AWS) | Stripe and the smart contracts |
 
 Both services use the Admin SDK to read and write Firestore.
 
