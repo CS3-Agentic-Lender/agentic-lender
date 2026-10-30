@@ -91,4 +91,62 @@ final class AffordabilitySummaryTests: XCTestCase {
 
         XCTAssertTrue(summary.rateNote.contains("rate, August: 4.0%"))
     }
+
+    // MARK: - AL-237: a maximum loan of €0
+
+    /// AL-237 criterion 1: €60,000 income, €5,000 monthly debts, €40,000 deposit, 30 years.
+    func testDebtsThatUseTheWholeBudgetSayWhyTheBorrowerCantBorrow() {
+        let summary = AffordabilitySummary(
+            result: result(maxLoan: 0, price: 40_000, repayment: 0, stressed: 0, limitedBy: .debts),
+            termYears: 30, isFirstTimeBuyer: true
+        )
+
+        XCTAssertEqual(summary.cantBorrow, AffordabilitySummary.CantBorrow(
+            title: "You can't borrow yet",
+            reason: "Your monthly debts already use up the 40% of income that can go on repayments, so there's nothing left for a mortgage.",
+            whatWouldChange: "Paying down your debts, or a higher income, would change this."
+        ))
+    }
+
+    /// AL-237 criterion 2: a €0 deposit, otherwise reference case 1.
+    func testNoDepositSaysAMortgageNeedsTenPercentDown() {
+        let summary = AffordabilitySummary(
+            result: result(maxLoan: 0, price: 0, repayment: 0, stressed: 0, limitedBy: .deposit),
+            termYears: 30, isFirstTimeBuyer: true
+        )
+
+        XCTAssertEqual(summary.cantBorrow?.reason, "A mortgage needs a deposit of at least 10% of the price (90% LTV), so with no deposit there's nothing to lend.")
+        XCTAssertEqual(summary.cantBorrow?.whatWouldChange, "Saving a deposit would change this.")
+    }
+
+    func testNoIncomeToBorrowAgainstSaysSo() {
+        let summary = AffordabilitySummary(
+            result: result(maxLoan: 0, price: 40_000, repayment: 0, stressed: 0, limitedBy: .income),
+            termYears: 30, isFirstTimeBuyer: true
+        )
+
+        XCTAssertEqual(summary.cantBorrow?.reason, "Lenders can lend up to 4× your income, and this income doesn't allow a loan.")
+        XCTAssertEqual(summary.cantBorrow?.whatWouldChange, "A higher income would change this.")
+    }
+
+    /// Anything that shows as €0 counts, not only an exact zero.
+    func testALoanThatRoundsToZeroEurosCantBeBorrowedEither() {
+        let summary = AffordabilitySummary(
+            result: result(maxLoan: 0.4, price: 40_000.4, repayment: 0, stressed: 0, limitedBy: .debts),
+            termYears: 30, isFirstTimeBuyer: true
+        )
+
+        XCTAssertNotNil(summary.cantBorrow)
+    }
+
+    /// AL-237 criterion 5: results above €0 look exactly as before.
+    func testAnyLoanAboveZeroHasNoCantBorrowMessage() {
+        for (loan, limit) in [(240_000.0, AffordabilityResult.Limit.income), (270_000, .deposit), (166_791.61, .debts), (1, .debts)] {
+            let summary = AffordabilitySummary(
+                result: result(maxLoan: loan, price: loan + 40_000, repayment: 100, stressed: 120, limitedBy: limit),
+                termYears: 30, isFirstTimeBuyer: true
+            )
+            XCTAssertNil(summary.cantBorrow, "\(loan)")
+        }
+    }
 }

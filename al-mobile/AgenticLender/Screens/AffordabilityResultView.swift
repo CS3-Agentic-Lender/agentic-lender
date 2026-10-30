@@ -2,11 +2,12 @@ import SwiftUI
 
 /// "You could borrow" (Figma frames "Affordability result" and 08a Limited by deposit).
 ///
-/// "Start application" opens the application form. "Check a property" arrives with the
-/// property checker in Sprint 2.
+/// "Start application" opens the application form. A maximum of €0 shows why the borrower
+/// can't borrow and what would change it instead, with a way back to their answers (AL-237).
 struct AffordabilityResultView: View {
     let outcome: AffordabilityOutcome
     @Environment(AppSession.self) private var session
+    @Environment(\.dismiss) private var dismiss
     @State private var isApplying = false
 
     private var summary: AffordabilitySummary { outcome.summary }
@@ -14,22 +15,33 @@ struct AffordabilityResultView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("You could borrow")
+                Text(summary.cantBorrow?.title ?? "You could borrow")
                     .font(.largeTitle.bold())
                     .foregroundStyle(Theme.text)
                     .accessibilityAddTraits(.isHeader)
 
-                maximumLoanCard
-                figures
-                rateNote
+                if let cantBorrow = summary.cantBorrow {
+                    cantBorrowCard(cantBorrow)
+                } else {
+                    maximumLoanCard
+                    figures
+                    rateNote
+                }
             }
             .padding(Theme.screenPadding)
         }
         .safeAreaInset(edge: .bottom) {
-            SecondaryButton(title: "Start application") { isApplying = true }
-                .accessibilityIdentifier("affordabilityResult.startApplication")
-                .padding(Theme.screenPadding)
-                .background(Theme.oat)
+            Group {
+                if outcome.canApply {
+                    SecondaryButton(title: "Start application") { isApplying = true }
+                        .accessibilityIdentifier("affordabilityResult.startApplication")
+                } else {
+                    PrimaryButton(title: "Change my answers") { dismiss() }
+                        .accessibilityIdentifier("affordabilityResult.changeAnswers")
+                }
+            }
+            .padding(Theme.screenPadding)
+            .background(Theme.oat)
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
@@ -56,6 +68,26 @@ struct AffordabilityResultView: View {
         .padding(Theme.screenPadding)
         .background(Theme.pine)
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.6))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func cantBorrowCard(_ cantBorrow: AffordabilitySummary.CantBorrow) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text(cantBorrow.reason)
+                    .accessibilityIdentifier("affordabilityResult.cantBorrowReason")
+            } icon: {
+                Image(systemName: "exclamationmark.circle")
+            }
+            Text(cantBorrow.whatWouldChange)
+                .accessibilityIdentifier("affordabilityResult.whatWouldChange")
+        }
+        .foregroundStyle(Theme.text)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.screenPadding)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.6))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.6).stroke(Theme.line))
         .accessibilityElement(children: .combine)
     }
 

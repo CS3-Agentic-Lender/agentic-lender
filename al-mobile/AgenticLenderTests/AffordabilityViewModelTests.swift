@@ -97,6 +97,7 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertEqual(outcome.result.maxLoanEur, 240_000)
         XCTAssertEqual(outcome.summary.limit, "Limited by income (4× income)")
         XCTAssertEqual(outcome.request, service.requests.first, "the application form starts from these answers")
+        XCTAssertTrue(outcome.canApply)
         XCTAssertFalse(model.isCalculating)
         XCTAssertNil(model.calculationError)
     }
@@ -184,6 +185,23 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertNil(model.outcome)
         XCTAssertNotNil(model.calculationError)
         XCTAssertEqual(model.form.income, "60,000")
+    }
+
+    /// AL-237 criterion 3: there is nothing to apply for with a maximum of €0.
+    func testAZeroMaximumOffersNoApplication() async throws {
+        let service = FakeAffordabilityService()
+        service.result = .success(AffordabilityResult(
+            maxLoanEur: 0, maxPropertyPriceEur: 40_000, monthlyRepaymentEur: 0, stressedRepaymentEur: 0,
+            limitedBy: .debts, benchmarkRatePct: 4.0, stressedRatePct: 6.0, rateDate: "2026-08"
+        ))
+        let model = makeModel(service)
+        fill(model)
+
+        await model.calculate()
+
+        let outcome = try XCTUnwrap(model.outcome)
+        XCTAssertFalse(outcome.canApply)
+        XCTAssertEqual(outcome.summary.cantBorrow?.title, "You can't borrow yet")
     }
 
     func testTheChosenLoanTypeIsCarriedIntoTheApplication() async throws {
