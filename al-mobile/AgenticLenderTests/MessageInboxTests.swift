@@ -23,6 +23,27 @@ private final class FakeMessageService: MessageService {
     func push(_ result: Result<[Message], MessageError>) {
         onChange?(result)
     }
+
+    /// What each send answers, in order; the last one repeats. A server id, or an error.
+    var sendResults: [Result<String, MessageError>] = [.success("srv1")]
+    /// When set, a send waits here until the test opens it.
+    var sendGate: CallGate?
+    private(set) var sent: [(text: String, applicationID: String)] = []
+
+    func send(_ text: String, on applicationID: String) async throws -> String {
+        sent.append((text, applicationID))
+        let result = sendResults.count > 1 ? sendResults.removeFirst() : sendResults[0]
+        if let sendGate { await sendGate.pass() }
+        return try result.get()
+    }
+
+    var markReadResult: Result<Void, MessageError> = .success(())
+    private(set) var markedRead: [String] = []
+
+    func markRead(on applicationID: String) async throws {
+        markedRead.append(applicationID)
+        try markReadResult.get()
+    }
 }
 
 /// The borrower's messages, as the Home card and the thread screen share them (AL-147).
@@ -117,7 +138,147 @@ final class MessageInboxTests: XCTestCase {
         XCTAssertEqual(service.stopped, 1)
     }
 
-    // MARK: - Read on this phone until the mark-read endpoint exists
+    // MARK: - Criterion 2: sending, and "Not sent. Tap to try again"
+
+    private func started(_ service: FakeMessageService, with messages: [Message] = []) async -> MessageInbox {
+        let inbox = MessageInbox(service: service)
+        await inbox.start()
+        service.push(.success(messages))
+        return inbox
+    }
+
+    private func myBubbles(_ inbox: MessageInbox) -> [MessageThread.Bubble] {
+        (inbox.thread?.rows ?? []).compactMap { row in
+            if case .bubble(let bubble) = row, bubble.isMine { return bubble }
+            return nil
+        }
+    }
+
+    func testASentMessageShowsStraightAwayWhileItSends() async {
+        let service = FakeMessageService()
+        let gate = CallGate()
+        service.sendGate = gate
+        let inbox = await started(service, with: [reply])
+
+        let sending = Task { await inbox.send("  Do you need my P60?  ") }
+        await gate.waitForCall()
+
+        XCTAssertEqual(service.sent.map(\.text), ["Do you need my P60?"], "trimmed")
+        XCTAssertEqual(service.sent.map(\.applicationID), ["app1"])
+        XCTAssertEqual(myBubbles(inbox).map(\.text), ["Do you need my P60?"])
+        XCTAssertEqual(myBubbles(inbox).map(\.delivery), [.sending])
+        gate.open()
+        await sending.value
+    }
+
+    func testOnceFirestoreHasTheMessageItShowsOnce() async {
+        let service = FakeMessageService()
+        let inbox = await started(service, with: [reply])
+
+        await inbox.send("Do you need my P60?")
+        XCTAssertEqual(myBubbles(inbox).map(\.delivery), [.sending], "sent, but not in the thread yet")
+
+        let saved = Message(id: "srv1", senderID: "me", senderRole: .borrower, text: "Do you need my P60?", sentAt: .now, read: false)
+        service.push(.success([reply, saved]))
+
+        XCTAssertEqual(myBubbles(inbox).map(\.text), ["Do you need my P60?"])
+        XCTAssertEqual(myBubbles(inbox).map(\.delivery), [.sent])
+    }
+
+    func testAFailedSendIsMarkedNotSentAndTappingSendsItAgain() async throws {
+        let service = FakeMessageService()
+        service.sendResults = [.failure(.network), .success("srv2")]
+        let inbox = await started(service)
+
+        await inbox.send("Do you need my P60?")
+        XCTAssertEqual(myBubbles(inbox).map(\.delivery), [.notSent])
+
+        let failed = try XCTUnwrap(myBubbles(inbox).first)
+        await inbox.retry(failed.id)
+
+        XCTAssertEqual(service.sent.map(\.text), ["Do you need my P60?", "Do you need my P60?"])
+        XCTAssertEqual(myBubbles(inbox).map(\.delivery), [.sending])
+        XCTAssertEqual(myBubbles(inbox).count, 1, "the retry doesn't add a second bubble")
+    }
+
+    func testRetryingAMessageThatIsntFailedDoesNothing() async throws {
+        let service = FakeMessageService()
+        let inbox = await started(service)
+        await inbox.send("Hi")
+        let bubble = try XCTUnwrap(myBubbles(inbox).first)
+
+        await inbox.retry(bubble.id)
+
+        XCTAssertEqual(service.sent.count, 1)
+    }
+
+    func testBlankOrOverlongTextSendsNothing() async {
+        let service = FakeMessageService()
+        let inbox = await started(service)
+
+        await inbox.send("   \n ")
+        await inbox.send(String(repeating: "a", count: MessageInbox.maxLength + 1))
+
+        XCTAssertTrue(service.sent.isEmpty)
+        XCTAssertTrue(myBubbles(inbox).isEmpty)
+        XCTAssertFalse(MessageInbox.canSend("   "))
+        XCTAssertTrue(MessageInbox.canSend(String(repeating: "a", count: MessageInbox.maxLength)))
+        XCTAssertFalse(MessageInbox.canSend(String(repeating: "a", count: MessageInbox.maxLength + 1)))
+    }
+
+    func testNothingSendsBeforeTheThreadIsOpen() async {
+        let service = FakeMessageService()
+        service.application = .success(nil)
+        let inbox = MessageInbox(service: service)
+        await inbox.start()
+
+        await inbox.send("Hi")
+
+        XCTAssertTrue(service.sent.isEmpty)
+    }
+
+    func testMyPendingMessagesDontCountAsUnread() async {
+        let service = FakeMessageService()
+        service.sendResults = [.failure(.network)]
+        let inbox = await started(service)
+
+        await inbox.send("Hi")
+
+        XCTAssertEqual(inbox.unreadCount, 0)
+    }
+
+    // MARK: - Criterion 3: the badge clears once the thread is opened
+
+    func testLeavingTheThreadMarksTheRepliesReadInFirestore() async {
+        let service = FakeMessageService()
+        let inbox = await started(service, with: [reply])
+
+        await inbox.markThreadRead()
+
+        XCTAssertEqual(service.markedRead, ["app1"])
+        XCTAssertEqual(inbox.unreadCount, 0)
+    }
+
+    func testWithNothingUnreadNothingIsMarked() async {
+        let service = FakeMessageService()
+        let inbox = await started(service, with: [reply.markedRead])
+
+        await inbox.markThreadRead()
+
+        XCTAssertTrue(service.markedRead.isEmpty)
+    }
+
+    func testIfMarkingReadFailsTheBadgeStillClearsOnThisPhone() async {
+        let service = FakeMessageService()
+        service.markReadResult = .failure(.network)
+        let inbox = await started(service, with: [reply])
+
+        await inbox.markThreadRead()
+
+        XCTAssertEqual(inbox.unreadCount, 0, "the borrower has seen them; Firestore catches up next time")
+    }
+
+    // MARK: - Read on this phone straight away, before Firestore answers
 
     func testLeavingTheThreadClearsTheBadgeAndTheDivider() async {
         let service = FakeMessageService()
@@ -127,7 +288,7 @@ final class MessageInboxTests: XCTestCase {
         XCTAssertEqual(inbox.unreadCount, 1)
         XCTAssertTrue(inbox.thread?.rows.contains(.newMessages) ?? false)
 
-        inbox.markThreadRead()
+        await inbox.markThreadRead()
 
         XCTAssertEqual(inbox.unreadCount, 0)
         XCTAssertFalse(inbox.thread?.rows.contains(.newMessages) ?? true)
@@ -138,7 +299,7 @@ final class MessageInboxTests: XCTestCase {
         let inbox = MessageInbox(service: service)
         await inbox.start()
         service.push(.success([reply]))
-        inbox.markThreadRead()
+        await inbox.markThreadRead()
         let later = Message(id: "m3", senderID: "bob", senderRole: .broker, text: "One more thing", sentAt: .now, read: false)
 
         service.push(.success([reply, later]))
@@ -151,7 +312,7 @@ final class MessageInboxTests: XCTestCase {
         let inbox = MessageInbox(service: service)
         await inbox.start()
 
-        inbox.markThreadRead()
+        await inbox.markThreadRead()
         service.push(.success([reply]))
 
         XCTAssertEqual(inbox.unreadCount, 1)

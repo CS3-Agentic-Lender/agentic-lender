@@ -1,6 +1,6 @@
 import Foundation
 
-/// Why the messages couldn't be read.
+/// Why the messages couldn't be read, or a message couldn't be sent or marked read.
 enum MessageError: Error, Equatable {
     case network
     case signedOut
@@ -30,7 +30,7 @@ final class MessageListener {
 }
 
 /// Reads the borrower's message thread straight from Firestore, which the rules allow. Sending and
-/// marking messages read go through al-core's message endpoints once they exist.
+/// marking messages read go through al-core's message endpoints, the only writers (AL-147).
 @MainActor
 protocol MessageService: AnyObject {
     /// The signed-in borrower's uid, to tell their messages from their broker's.
@@ -40,4 +40,8 @@ protocol MessageService: AnyObject {
     func currentApplicationID() async throws -> String?
     /// Calls `onChange` with the whole thread now and after every change, until stopped.
     func listen(to applicationID: String, onChange: @escaping (Result<[Message], MessageError>) -> Void) -> MessageListener
+    /// Sends a message on the application's thread and returns its id in Firestore.
+    func send(_ text: String, on applicationID: String) async throws -> String
+    /// Marks the replies the borrower has read: the messages the broker and underwriters sent.
+    func markRead(on applicationID: String) async throws
 }

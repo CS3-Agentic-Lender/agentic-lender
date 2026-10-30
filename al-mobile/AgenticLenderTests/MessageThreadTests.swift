@@ -133,6 +133,37 @@ final class MessageThreadTests: XCTestCase {
         XCTAssertEqual(later.identifiedRows.map(\.row), later.rows)
     }
 
+    // MARK: - Criterion 2: messages still sending, or not sent
+
+    func testAPendingMessageShowsAfterTheThreadWithItsStateAndNoTime() {
+        let laidOut = MessageThread(
+            messages: [message("1", from: "bob", "Hi Alice", at: "29T09:40")],
+            pending: [
+                PendingMessage(id: "local1", text: "Do you need my P60?", sentAt: at("29T09:50"), state: .sending),
+                PendingMessage(id: "local2", text: "And my payslips?", sentAt: at("29T09:51"), state: .notSent),
+            ],
+            myID: "me", now: now, timeZone: utc
+        )
+
+        XCTAssertEqual(describe(laidOut.rows), ["day Today", "them Hi Alice @09:40", "me Do you need my P60?", "me And my payslips?"])
+        let bubbles = laidOut.rows.compactMap { row -> MessageThread.Bubble? in
+            if case .bubble(let bubble) = row { return bubble }
+            return nil
+        }
+        XCTAssertEqual(bubbles.map(\.delivery), [.sent, .sending, .notSent])
+        XCTAssertEqual(laidOut.unreadCount, 0)
+    }
+
+    func testAPendingMessageOnAnEmptyThreadGetsItsDayLabel() {
+        let laidOut = MessageThread(
+            messages: [],
+            pending: [PendingMessage(id: "local1", text: "Hello", sentAt: at("29T09:50"), state: .sending)],
+            myID: "me", now: now, timeZone: utc
+        )
+
+        XCTAssertEqual(describe(laidOut.rows), ["day Today", "me Hello"])
+    }
+
     func testAnEmptyThreadHasNoRows() {
         XCTAssertEqual(thread([]).rows, [])
         XCTAssertTrue(thread([]).isEmpty)

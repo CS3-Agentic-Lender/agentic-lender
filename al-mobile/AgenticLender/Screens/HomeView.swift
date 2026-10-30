@@ -219,5 +219,11 @@ final class PreviewMessageService: MessageService {
         ]))
         return MessageListener {}
     }
+
+    func send(_ text: String, on applicationID: String) async throws -> String {
+        throw MessageError.network // shows the "Not sent" state in previews
+    }
+
+    func markRead(on applicationID: String) async throws {}
 }
 #endif

@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// The borrower's thread with their broker (AL-147, Figma 15, 15a and 15e). It shows the messages live
-/// from Firestore. Writing a message waits for al-core's send endpoint, and replies count as read on
-/// this phone only until its mark-read endpoint exists.
+/// The borrower's thread with their broker (AL-147, Figma 15 to 15c and 15e). It shows the messages
+/// live from Firestore; a new message shows straight away while al-core saves it, and one that
+/// fails is marked "Not sent" to tap and try again. Leaving the thread marks the replies read.
 struct MessagesView: View {
     let inbox: MessageInbox
     let brokerName: String?
     let brokerFirm: String?
+    @State private var draft = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,12 +15,51 @@ struct MessagesView: View {
             Divider().overlay(Theme.line)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if case .ready = inbox.state {
+                Divider().overlay(Theme.line)
+                composer
+            }
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .task { await inbox.start() }
         // The "New messages" divider shows while they read, then the badge and divider clear.
-        .onDisappear { inbox.markThreadRead() }
+        .onDisappear { Task { await inbox.markThreadRead() } }
+    }
+
+    /// Figma 15 and 15b: the field grows to a few lines, and Send is Pine once there's something to send.
+    private var composer: some View {
+        let canSend = MessageInbox.canSend(draft)
+        return HStack(alignment: .bottom, spacing: 8) {
+            TextField("Message \(Self.firstName(of: brokerName) ?? "your broker")", text: $draft, axis: .vertical)
+                .lineLimit(1...5)
+                .font(.body)
+                .foregroundStyle(Theme.text)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .frame(minHeight: Theme.minTapTarget)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 22))
+                .overlay(RoundedRectangle(cornerRadius: 22).stroke(Theme.line))
+                .accessibilityIdentifier("messages.field")
+            Button {
+                let text = draft
+                draft = ""
+                Task { await inbox.send(text) }
+            } label: {
+                Image(systemName: "arrow.up")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(canSend ? Theme.surface : Theme.mutedText)
+                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
+                    .background(canSend ? Theme.pine : Theme.tint, in: Circle())
+            }
+            .disabled(!canSend)
+            .accessibilityLabel("Send")
+            .accessibilityIdentifier("messages.send")
+        }
+        .padding(.horizontal, Theme.screenPadding)
+        .padding(.vertical, 8)
+        .background(Theme.surface)
     }
 
     private var header: some View {
@@ -60,7 +100,7 @@ struct MessagesView: View {
             RetryMessage(message: message) { Task { await inbox.start() } }
         case .ready:
             if let thread = inbox.thread, !thread.isEmpty {
-                ThreadList(thread: thread)
+                ThreadList(thread: thread) { id in Task { await inbox.retry(id) } }
             } else {
                 // Figma 15a.
                 note(
@@ -104,6 +144,8 @@ struct MessagesView: View {
 /// The messages, oldest at the top, kept scrolled to the newest.
 private struct ThreadList: View {
     let thread: MessageThread
+    /// Sends a "Not sent" message again.
+    let retry: (String) -> Void
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -145,14 +187,19 @@ private struct ThreadList: View {
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)
         case .bubble(let bubble):
-            BubbleView(bubble: bubble)
+            BubbleView(bubble: bubble) { retry(bubble.id) }
         }
     }
 }
 
-/// The broker's messages on the left in Surface, the borrower's on the right in Pine (Figma 15).
+/// The broker's messages on the left in Surface, the borrower's on the right in Pine (Figma 15). One
+/// still sending or not sent is a lighter Pine, and a "Not sent" one says so in red (Figma 15c).
 private struct BubbleView: View {
     let bubble: MessageThread.Bubble
+    let retry: () -> Void
+
+    /// Pine at this opacity on Oat is the muted bubble in Figma 15c.
+    private static let pendingOpacity = 0.6
 
     var body: some View {
         VStack(alignment: bubble.isMine ? .trailing : .leading, spacing: 4) {
@@ -161,7 +208,7 @@ private struct BubbleView: View {
                 .foregroundStyle(bubble.isMine ? Theme.surface : Theme.text)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(bubble.isMine ? Theme.pine : Theme.surface)
+                .background(bubble.isMine ? Theme.pine.opacity(bubble.delivery == .sent ? 1 : Self.pendingOpacity) : Theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .overlay {
                     if !bubble.isMine {
@@ -169,15 +216,39 @@ private struct BubbleView: View {
                     }
                 }
                 .textSelection(.enabled)
-            if let time = bubble.time {
-                Text(time)
-                    .font(.system(.caption2, design: .monospaced))
+            switch bubble.delivery {
+            case .sent:
+                if let time = bubble.time {
+                    Text(time)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(Theme.mutedText)
+                }
+            case .sending:
+                Text("Sending")
+                    .font(.caption2)
                     .foregroundStyle(Theme.mutedText)
+            case .notSent:
+                Button(action: retry) {
+                    Label("Not sent. Tap to try again", systemImage: "exclamationmark.circle")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.error)
+                        .frame(minHeight: Theme.minTapTarget)
+                }
+                .accessibilityIdentifier("messages.notSent")
             }
         }
         .frame(maxWidth: .infinity, alignment: bubble.isMine ? .trailing : .leading)
         .padding(bubble.isMine ? .leading : .trailing, 56)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel([bubble.isMine ? "You" : "Your broker", bubble.text, bubble.time].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityElement(children: bubble.delivery == .notSent ? .contain : .combine)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        let status: String? = switch bubble.delivery {
+        case .sent: bubble.time
+        case .sending: "sending"
+        case .notSent: "not sent"
+        }
+        return [bubble.isMine ? "You" : "Your broker", bubble.text, status].compactMap { $0 }.joined(separator: ", ")
     }
 }
