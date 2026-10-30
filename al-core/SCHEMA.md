@@ -104,10 +104,11 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `estimatedValueEur` | number | no | From `POST /ai/valuation` |
-| `ltvPct` | number | no | Loan to value: (loanAmountEur / estimatedValueEur) * 100 for a mortgage, and (existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur * 100 (combined LTV) for a HELOC. Whether to use the lower of the valuation and the asking price is an open question |
+| `ltvPct` | number | no | Loan to value, against the valuation estimate: (loanAmountEur / estimatedValueEur) * 100 for a mortgage, and (existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur * 100 (combined LTV) for a HELOC. **Which figure a card shows:** a purchase reads `purchaseLtvPct`, a HELOC reads `ltvPct`. Whether to use the lower of the valuation and the asking price is an open question |
 | `dtiPct` | number | no | Debt to income at the benchmark rate, to one decimal place. The stressed figure and every other part are in `review/underwriting.dtiBreakdown` |
 | `aprPct` | number | no | Rate offered. Until pricing exists it is the benchmark rate used (`dtiBreakdown.benchmarkRatePct`) |
-| `approvalLikelihoodPct` | number | no | From the AI committee |
+| `purchaseLtvPct` | number | no | Purchases only: (loanAmountEur / property.askingPriceEur) * 100, to one decimal place. Set by al-ai after each run. A HELOC has none, because it has no asking price |
+| `approvalLikelihood` | string | no | What the borrower is shown, never a percentage: `Unknown`, `Low`, `Medium` or `High`. Set by al-ai after each run, by its rule order: incomplete or unsupported inputs give `Unknown`, adverse stressed affordability `Low`, any caution band or limit breach `Medium`, otherwise `High`. Indicative, and separate from the committee's recommendation. Absent until the first run, and the app treats an absent label as `Unknown`. There is no percentage field: al-ai does not write `approvalLikelihoodPct` any more (agreed on the LTV, DTI and approval likelihood ticket, 29 Oct) |
 | `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the LTV the underwriter judges the loan on: against the asking price for a mortgage (`loanAmountEur / property.askingPriceEur`), and against the valuation estimate for a HELOC (`(existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur`, because a HELOC has no asking price). Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
 | `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai after each run, with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
 | `decision` | map | no | Set by the underwriter. See below |
@@ -128,9 +129,22 @@ Underwriter-only details, kept in a separate document so borrowers can't read th
 | `applicationId` | string | The parent application's id |
 | `brokerId` | string | Copied from the application, so a collection-group query and its rule can check broker access |
 | `riskTier` | string | `A`, `B`, `C` or `D` |
+| `policyGate` | map | What the policy gate returned for the run (al-ai `policy_gate.py`), saved exactly as returned. See below |
 | `dtiBreakdown` | map | Every part of the debt-to-income calculation, at the benchmark rate and at the stressed rate. See below |
 | `valuationDetail` | map | `baselineEur`, `contributions` (feature name to euro effect), `estimatedValueEur` |
 | `updatedAt` | timestamp | |
+
+### policyGate
+
+Written by al-ai after each run, with the Admin SDK; no client can write it. The gate is code, not the AI: it stops a plain Approve on a loan that breaks a Central Bank limit, and it never makes a recommendation more favourable. The portal shows these so the underwriter sees which limit was broken.
+
+| Field | Type | Notes |
+|---|---|---|
+| `original` | string | What the strategist recommended: `Approve`, `Conditionally Approve` or `Decline` |
+| `effective` | string | What the underwriter is shown as the recommendation, same three values. `Approve` with a breach becomes `Conditionally Approve`; a `Decline` stays a `Decline` |
+| `conditions` | list of text | The strategist's conditions plus one per breach, such as `Requires lender exception review (LTI_CAP)`. Empty for a `Decline` |
+| `breaches` | list of text | The rule IDs broken, always recorded, even for a `Decline`: `LTI_CAP` (a purchase over 4x income for a first-time buyer, otherwise 3.5x; a HELOC counts the existing mortgage plus the line, always 3.5x), `LTV_CAP` (a purchase over 90% of the asking price) and `CLTV_CAP` (a HELOC over 80% of the home's value, the valuation estimate). Exactly on a limit is not a breach |
+| `changed` | boolean | Whether the recommendation or its conditions differ from what the strategist wrote |
 
 ### dtiBreakdown
 
@@ -195,7 +209,6 @@ The one function that does this is `audit_hash(record)` in `al-core/app/audit.py
 | `startedAt` | timestamp | |
 | `finishedAt` | timestamp | |
 | `recommendation` | string | For example `approve`, `conditional`, `decline` |
-| `approvalLikelihoodPct` | number | |
 | `creditMemo` | string | From the Underwriting Strategist |
 
 ## ai_calls/{callId} (Nic to confirm)
