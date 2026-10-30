@@ -97,7 +97,8 @@ final class MessageInbox {
 
     /// Called when the borrower leaves the thread, so the Home badge and the "New messages" divider
     /// clear, and al-core marks the replies read for good. Replies that arrive afterwards are still
-    /// new. If al-core can't be reached they stay read on this phone, and the next visit tries again.
+    /// new. If al-core can't be reached they stay read on this phone only; they're marked in Firestore
+    /// the next time a reply arrives and the borrower leaves the thread, since al-core marks every unread reply.
     func markThreadRead() async {
         guard case .ready(let messages) = state else { return }
         let hadUnread = unreadCount > 0
