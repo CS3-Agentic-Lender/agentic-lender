@@ -1,7 +1,7 @@
 import Foundation
 
 /// The loan application form (Figma "12 Application form" and 12a Above your maximum),
-/// started from a completed affordability check.
+/// started from a completed affordability check, or for a HELOC from the HELOC check (Figma 12c).
 struct ApplicationForm: Equatable {
     static let yearsInJobRange = 0...50
 
@@ -11,6 +11,10 @@ struct ApplicationForm: Equatable {
     let maxLoanEur: Double
     /// Chosen at the start of the affordability check.
     let loanType: LoanType
+    /// A HELOC's figures from its check: what's still owed and the model's estimate. Nil for a mortgage.
+    let heloc: HELOCDetails?
+    /// From the mortgage check; a HELOC check has no such question, so the HELOC form asks it.
+    var isJoint: Bool
 
     var loanAmount = ""
     var termYears: Int
@@ -25,6 +29,38 @@ struct ApplicationForm: Equatable {
         self.maxLoanEur = maxLoanEur
         self.loanType = loanType
         termYears = affordability.termYears
+        heloc = nil
+        isJoint = affordability.isJoint
+    }
+
+    /// "Start application" from the HELOC check: its money answers, its maximum line as the maximum,
+    /// and the house it valued. The address comes from the profile or is typed (`withHomeAddress`).
+    init(heloc request: HELOCRequest, result: HELOCResult) {
+        affordability = AffordabilityRequest(helocCheck: request)
+        maxLoanEur = result.maxLineEur
+        loanType = .heloc
+        termYears = request.termYears
+        heloc = HELOCDetails(existingMortgageBalanceEur: request.mortgageBalance, homeValueEur: result.homeValueEur)
+        isJoint = false
+        property.county = request.county
+        property.propertyType = request.propertyType
+        property.bedrooms = request.bedrooms
+        property.floorArea = EuroAmount.format(request.floorAreaM2)
+        property.berRating = request.berRating
+    }
+
+    /// The form with the home's address and Eircode filled from the borrower's profile, since a HELOC is
+    /// against the home they live in. Anything already typed stays, and the checked house is unchanged.
+    func withHomeAddress(from profile: CoreProfile) -> ApplicationForm {
+        var filled = self
+        if filled.property.addressLine1.isBlank, let line1 = profile.addressLine1 {
+            filled.property.addressLine1 = line1
+            filled.property.addressLine2 = profile.addressLine2 ?? filled.property.addressLine2
+        }
+        if filled.property.eircode.isBlank, let eircode = profile.eircode {
+            filled.property.eircode = eircode
+        }
+        return filled
     }
 
     /// Employment type, with the values agreed for the applications schema.
@@ -41,6 +77,13 @@ struct ApplicationForm: Equatable {
             }
         }
     }
+}
+
+/// What a HELOC application carries from its check.
+struct HELOCDetails: Equatable {
+    let existingMortgageBalanceEur: Int
+    /// The valuation model's indicative estimate, shown as "estimated value", never "asking price".
+    let homeValueEur: Double
 }
 
 /// Every application field that can show an error.
@@ -67,6 +110,8 @@ struct ApplicationDraft: Encodable, Equatable {
     let monthlyDebtsEur: Int
     let depositEur: Int
     let firstTimeBuyer: Bool
+    /// A HELOC only: what's still owed on the home.
+    let existingMortgageBalanceEur: Int?
     let termYears: Int
     let loanAmountEur: Int
     let employmentType: String
@@ -80,16 +125,17 @@ struct ApplicationDraft: Encodable, Equatable {
               let loan = EuroAmount.parse(form.loanAmount),
               let takeHome = EuroAmount.parse(form.monthlyTakeHome),
               let livingCosts = EuroAmount.parse(form.monthlyLivingCosts),
-              let property = PropertyDraft(property: form.property)
+              let property = PropertyDraft(property: form.property, withAskingPrice: form.loanType == .mortgage)
         else { return nil }
 
         let affordability = form.affordability
         loanType = form.loanType.rawValue
-        applicants = affordability.isJoint ? "joint" : "single"
+        applicants = form.isJoint ? "joint" : "single"
         grossIncomeEur = affordability.householdGrossIncome
         monthlyDebtsEur = affordability.monthlyDebts
         depositEur = affordability.deposit
         firstTimeBuyer = affordability.isFirstTimeBuyer
+        existingMortgageBalanceEur = form.loanType == .heloc ? form.heloc?.existingMortgageBalanceEur : nil
         termYears = form.termYears
         loanAmountEur = loan
         employmentType = form.employment.rawValue
@@ -112,6 +158,7 @@ struct ApplicationDraft: Encodable, Equatable {
         case monthlyDebtsEur = "monthly_debts_eur"
         case depositEur = "deposit_eur"
         case firstTimeBuyer = "first_time_buyer"
+        case existingMortgageBalanceEur = "existing_mortgage_balance_eur"
         case termYears = "term_years"
         case loanAmountEur = "loan_amount_eur"
         case employmentType = "employment_type"
@@ -132,6 +179,7 @@ struct ApplicationDraft: Encodable, Equatable {
             try container.encode(depositEur, forKey: .depositEur)
             try container.encode(firstTimeBuyer, forKey: .firstTimeBuyer)
         }
+        try container.encodeIfPresent(existingMortgageBalanceEur, forKey: .existingMortgageBalanceEur)
         try container.encode(termYears, forKey: .termYears)
         try container.encode(loanAmountEur, forKey: .loanAmountEur)
         try container.encode(employmentType, forKey: .employmentType)

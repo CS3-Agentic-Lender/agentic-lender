@@ -11,6 +11,8 @@ final class HELOCCheckViewModel {
     var form = HELOCCheckForm()
     /// The answer to show; the result screen is pushed while this is set.
     var result: HELOCResult?
+    /// The check the answer is for, so "Start application" carries exactly what was checked (AL-208).
+    private(set) var checkedRequest: HELOCRequest?
     private(set) var isCalculating = false
     private(set) var calculationError: String?
     private var touched: Set<HELOCCheckField> = []
@@ -89,7 +91,9 @@ final class HELOCCheckViewModel {
         isCalculating = true
         defer { isCalculating = false }
         do {
-            result = try await service.checkHELOC(request)
+            let answer = try await service.checkHELOC(request)
+            checkedRequest = request
+            result = answer
         } catch let error as AffordabilityError {
             fail(with: error.message)
         } catch {
@@ -102,5 +106,12 @@ final class HELOCCheckViewModel {
     private func fail(with message: String) {
         result = nil
         calculationError = message
+    }
+
+    /// "Start application": the HELOC form, pre-filled from this check and its answer (Figma 12c).
+    /// Nil before an answer, or when there's no equity to borrow against.
+    func applicationForm() -> ApplicationForm? {
+        guard let result, result.hasEquity, let checkedRequest else { return nil }
+        return ApplicationForm(heloc: checkedRequest, result: result)
     }
 }

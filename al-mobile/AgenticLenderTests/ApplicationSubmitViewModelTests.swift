@@ -192,7 +192,15 @@ final class ApplicationReviewEntryTests: XCTestCase {
         XCTAssertNil(model.reviewTarget)
     }
 
-    func testAHelocDraftIsSubmittedFromItsOwnFormNotThisOne() async {
+    func testAHELOCFromItsCheckCanBeReviewedAndSubmitted() async {
+        let model = await savedModel(HELOCFixtures.filledForm())
+
+        XCTAssertTrue(model.isSaved)
+        XCTAssertNotNil(model.reviewTarget)
+    }
+
+    /// A HELOC needs its check's balance and estimated value, so one without them can't be reviewed.
+    func testAHELOCWithoutItsCheckCantBeReviewed() async {
         let mortgage = TestFixtures.filledApplicationForm()
         var heloc = ApplicationForm(affordability: mortgage.affordability, maxLoanEur: mortgage.maxLoanEur, loanType: .heloc)
         heloc.loanAmount = mortgage.loanAmount

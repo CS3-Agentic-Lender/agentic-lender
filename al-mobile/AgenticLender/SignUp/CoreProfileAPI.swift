@@ -95,6 +95,11 @@ struct CoreProfile: Decodable, Equatable, Sendable {
     let brokerID: String?
     let brokerName: String?
     let brokerFirm: String?
+    /// The borrower's home address, used to pre-fill a HELOC application (AL-208).
+    var addressLine1: String? = nil
+    var addressLine2: String? = nil
+    var county: String? = nil
+    var eircode: String? = nil
 
     /// Whether the borrower still has to choose a broker before home.
     var needsBroker: Bool {
@@ -106,5 +111,8 @@ struct CoreProfile: Decodable, Equatable, Sendable {
         case brokerID = "broker_id"
         case brokerName = "broker_name"
         case brokerFirm = "broker_firm"
+        case addressLine1 = "address_line_1"
+        case addressLine2 = "address_line_2"
+        case county, eircode
     }
 }

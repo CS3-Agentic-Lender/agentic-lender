@@ -67,7 +67,7 @@ struct HELOCCheckFormView: View {
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { footer }
         .navigationDestination(item: $model.result) { result in
-            HELOCResultView(result: result, termYears: model.form.termYears)
+            HELOCResultView(result: result, termYears: model.form.termYears, applicationForm: model.applicationForm())
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)

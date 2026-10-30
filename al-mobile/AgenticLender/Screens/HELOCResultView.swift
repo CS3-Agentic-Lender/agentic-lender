@@ -2,12 +2,17 @@ import SwiftUI
 
 /// "You could borrow" for a HELOC (Figma 07k HELOC result): the most the homeowner can draw,
 /// what limited it, and the repayments with the line fully drawn. A line of €0 says there is
-/// no equity instead. Start application joins with the HELOC application (AL-208).
+/// no equity instead. With equity, Start application opens the HELOC application (AL-208).
 struct HELOCResultView: View {
     let summary: HELOCSummary
+    /// The pre-filled HELOC application; nil with no equity, so there's nothing to apply for.
+    private let applicationForm: ApplicationForm?
+    @Environment(AppSession.self) private var session
+    @State private var isApplying = false
 
-    init(result: HELOCResult, termYears: Int) {
+    init(result: HELOCResult, termYears: Int, applicationForm: ApplicationForm? = nil) {
         summary = HELOCSummary(result: result, termYears: termYears)
+        self.applicationForm = applicationForm
     }
 
     var body: some View {
@@ -27,8 +32,21 @@ struct HELOCResultView: View {
             }
             .padding(Theme.screenPadding)
         }
+        .safeAreaInset(edge: .bottom) {
+            if applicationForm != nil {
+                SecondaryButton(title: "Start application") { isApplying = true }
+                    .accessibilityIdentifier("helocResult.startApplication")
+                    .padding(Theme.screenPadding)
+                    .background(Theme.oat)
+            }
+        }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $isApplying) {
+            if let applicationForm {
+                ApplicationFormView(form: applicationForm, onBackToHome: session.returnHome)
+            }
+        }
     }
 
     private var maximumLineCard: some View {

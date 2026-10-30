@@ -42,9 +42,9 @@ final class ApplicationViewModel {
     var isSaved: Bool { saveMessage != nil }
 
     /// What "Review and submit" opens: the saved Draft, only while the form still matches it
-    /// (any change clears `isSaved`). A HELOC is submitted from its own form (AL-208).
+    /// (any change clears `isSaved`). A HELOC needs its check's figures (AL-208).
     var reviewTarget: (review: ApplicationReview, applicationID: String)? {
-        guard isSaved, !isReadOnly, form.loanType == .mortgage,
+        guard isSaved, !isReadOnly, form.loanType == .mortgage || form.heloc != nil,
               let id = draftIDs.draftID(),
               let review = ApplicationReview(form: form)
         else { return nil }
@@ -123,9 +123,23 @@ final class ApplicationViewModel {
         }
     }
 
-    /// "Single · €60,000 income · €250 debts · €30,000 deposit" (Figma 12, "From your affordability check").
+    /// The heading of the card that sums up the check the form started from.
+    var checkSummaryTitle: String {
+        form.loanType == .heloc ? "From your HELOC check" : "From your affordability check"
+    }
+
+    /// "Single · €60,000 income · €250 debts · €30,000 deposit" (Figma 12), or for a HELOC
+    /// "Cork · 110 m² · €150,000 left on your mortgage · €70,000 income" (Figma 12c).
     var affordabilitySummary: String {
         let answers = form.affordability
+        if form.loanType == .heloc, let heloc = form.heloc {
+            return [
+                form.property.county?.name,
+                form.property.floorArea.isBlank ? nil : "\(form.property.floorArea) m²",
+                "€\(EuroAmount.format(heloc.existingMortgageBalanceEur)) left on your mortgage",
+                "€\(EuroAmount.format(answers.householdGrossIncome)) income",
+            ].compactMap { $0 }.joined(separator: " · ")
+        }
         return [
             answers.isJoint ? "Joint" : "Single",
             "€\(EuroAmount.format(answers.householdGrossIncome)) income",

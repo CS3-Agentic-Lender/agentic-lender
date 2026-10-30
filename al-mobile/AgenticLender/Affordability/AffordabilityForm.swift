@@ -35,6 +35,18 @@ struct AffordabilityRequest: Hashable {
     let termYears: Int
     let isFirstTimeBuyer: Bool
 
+    /// The HELOC check's money answers, in the shape the application form starts from (AL-208). A HELOC
+    /// has no deposit and no first-time buyer, and its income is one household total.
+    init(helocCheck request: HELOCRequest) {
+        isJoint = false
+        grossIncome = request.grossIncome
+        secondGrossIncome = nil
+        monthlyDebts = request.monthlyDebts
+        deposit = 0
+        termYears = request.termYears
+        isFirstTimeBuyer = false
+    }
+
     init?(form: AffordabilityForm) {
         guard AffordabilityValidator.errors(for: form).isEmpty,
               let income = EuroAmount.parse(form.income),
