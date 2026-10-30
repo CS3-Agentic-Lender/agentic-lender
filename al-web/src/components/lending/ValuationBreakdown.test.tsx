@@ -30,7 +30,7 @@ describe('valuation breakdown', () => {
     expect(screen.queryByText(/typical listing/i)).not.toBeInTheDocument();
     expect(screen.getByText('Estimate').nextElementSibling).toHaveTextContent('€304,000');
     expect(screen.getByText(/Starts from the average/)).toHaveTextContent(
-      "Starts from the average of the model's sample homes, not a typical price. It doesn't say what changing the house would do. It is an estimate of a 2024 asking price, not a valuation.",
+      "Starts from the average of the model's sample homes, not a typical price. It doesn't say what changing the house would do. It is an estimate of a 2024 asking price, not a valuation. Amounts are rounded to the nearest euro, so the rows can add up to a euro or two more or less than the estimate.",
     );
 
     const rows = within(screen.getByRole('list', { name: 'Valuation contributions' })).getAllByRole('listitem');
@@ -116,6 +116,24 @@ describe('valuation breakdown', () => {
     if (Math.abs(discrepancy) === 500) {
       expect(screen.getByRole('status')).toHaveTextContent('it is off by €500.');
     }
+  });
+
+  it('rounds cents to whole euros without warning when the rounded rows miss the estimate by a euro', () => {
+    // al-ai sends cents: the rows shown add up to €278,300 while the estimate shows €278,301.
+    renderBreakdown(toLoanFileReview({
+      valuationDetail: {
+        baselineEur: 250000.4,
+        contributions: { county: 18500.4, bedrooms: 9800.4 },
+        estimatedValueEur: 278301.2,
+      },
+    }));
+
+    expect(screen.getByText("average of the model's sample homes").closest('dt')!.nextElementSibling).toHaveTextContent('€250,000');
+    expect(within(screen.getByText('County').closest('li')!).getByText('+€18,500')).toBeVisible();
+    expect(within(screen.getByText('Bedrooms').closest('li')!).getByText('+€9,800')).toBeVisible();
+    expect(screen.getByText('Estimate').nextElementSibling).toHaveTextContent('€278,301');
+    expect(screen.getByText(/Amounts are rounded to the nearest euro/)).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it.each([-1, -0.5, 0, 0.5, 1])('does not warn within the one euro tolerance (%s)', (discrepancy) => {

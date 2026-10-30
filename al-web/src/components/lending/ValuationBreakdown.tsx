@@ -120,6 +120,8 @@ export function ValuationBreakdown({ application, review }: ValuationBreakdownPr
           <p className="mt-4 text-sm leading-6 text-muted">
             Starts from the average of the model's sample homes, not a typical price. It doesn't say what
             changing the house would do. It is an estimate of a 2024 asking price, not a valuation.
+            Amounts are rounded to the nearest euro, so the rows can add up to a euro or two more or less
+            than the estimate.
           </p>
           {breakdown.discrepancyEur !== null && Math.abs(breakdown.discrepancyEur) > 1 ? (
             <p className="mt-4 rounded-lg border border-line bg-danger-soft p-3 text-sm text-error" role="status">
