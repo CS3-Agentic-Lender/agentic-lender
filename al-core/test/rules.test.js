@@ -352,3 +352,126 @@ describe('reviews', () => {
   test("a borrower can't write their review directly", () =>
     assertFails(borrower1().doc('reviews/borrower1').set({ userId: 'borrower1', rating: 1 })));
 });
+
+// Real-time status (AL-59): clients listen to the application and see each status change as it is
+// written. The change is written with rules disabled, standing in for the API's Admin SDK write.
+describe('listening to an application status', () => {
+  // Collects every snapshot a listener gets; next() waits for the one after the ones already taken.
+  const listen = (target) => {
+    const seen = [];
+    let waiting = null;
+    let failure = null;
+    const unsubscribe = target.onSnapshot(
+      (snap) => {
+        seen.push(snap);
+        if (waiting) { waiting.resolve(); waiting = null; }
+      },
+      (err) => {
+        failure = err;
+        if (waiting) { waiting.reject(err); waiting = null; }
+      },
+    );
+    let taken = 0;
+    const next = () => new Promise((resolve, reject) => {
+      const take = () => resolve(seen[taken++]);
+      if (taken < seen.length) return take();
+      if (failure) return reject(failure);
+      waiting = { resolve: take, reject };
+    });
+    return { next, unsubscribe };
+  };
+
+  const apiWrite = (data) =>
+    testEnv.withSecurityRulesDisabled((context) => context.firestore().doc('applications/app1').update(data));
+
+  const hears = async (db) => {
+    const l = listen(db.doc('applications/app1'));
+    try {
+      expect((await l.next()).data().status).toBe('AI Deliberated');
+      await apiWrite({ status: 'Underwriter Approved' });
+      expect((await l.next()).data().status).toBe('Underwriter Approved');
+    } finally {
+      l.unsubscribe();
+    }
+  };
+
+  const refused = async (db, path = 'applications/app1') => {
+    const l = listen(db.doc(path));
+    try {
+      await expect(l.next()).rejects.toMatchObject({ code: 'permission-denied' });
+    } finally {
+      l.unsubscribe();
+    }
+  };
+
+  test('the borrower hears their own application change', () => hears(borrower1()));
+  test('the assigned broker hears their client\'s application change', () => hears(broker1()));
+  test('an underwriter hears any application change', () => hears(underwriter()));
+
+  test("another borrower can't listen to it", () => refused(borrower2()));
+  test("another broker can't listen to it", () => refused(broker2()));
+  test("a signed-out user can't listen to it", () => refused(signedOut()));
+  test("a broker can't listen to their client's Draft", () => refused(broker1(), 'applications/app3'));
+
+  test("a borrower's list listener hears a status change on their application", async () => {
+    const l = listen(borrower1().collection('applications').where('borrowerId', '==', 'borrower1'));
+    try {
+      const first = await l.next();
+      expect(first.docs.map((d) => d.id).sort()).toEqual(['app1', 'app3']);
+      await apiWrite({ status: 'Declined' });
+      const second = await l.next();
+      expect(second.docs.find((d) => d.id === 'app1').data().status).toBe('Declined');
+    } finally {
+      l.unsubscribe();
+    }
+  });
+
+  test("a broker's list listener hears a change and still leaves out Drafts", async () => {
+    const l = listen(broker1().collection('applications').where('brokerId', '==', 'broker1').where('status', '!=', 'Draft'));
+    try {
+      const first = await l.next();
+      expect(first.docs.map((d) => d.id)).toEqual(['app1']);
+      await apiWrite({ status: 'Funded' });
+      expect((await l.next()).docs[0].data().status).toBe('Funded');
+    } finally {
+      l.unsubscribe();
+    }
+  });
+
+  test("a broker's list listener gains a Draft once it is submitted", async () => {
+    const l = listen(broker1().collection('applications').where('brokerId', '==', 'broker1').where('status', '!=', 'Draft'));
+    try {
+      expect((await l.next()).docs.map((d) => d.id)).toEqual(['app1']);
+      await testEnv.withSecurityRulesDisabled((context) =>
+        context.firestore().doc('applications/app3').update({ status: 'Applied' }));
+      expect((await l.next()).docs.map((d) => d.id).sort()).toEqual(['app1', 'app3']);
+    } finally {
+      l.unsubscribe();
+    }
+  });
+
+  // AL-59 criterion 1: each state reached carries a timestamp. The API writes it as a statusHistory
+  // entry (app/status.py), shaped here the same way.
+  test('the borrower hears each move arrive with its timestamp, who made it and the new status', async () => {
+    const entry = (from, to, actor, actorId, at) => ({ from, to, actor, actorId, at: new Date(at) });
+    const first = entry('AI Deliberated', 'Underwriter Approved', 'underwriter', 'underwriter1', '2026-10-29T10:00:00Z');
+    const second = entry('Underwriter Approved', 'Funded', 'mint', 'al-core', '2026-10-29T10:05:00Z');
+    const l = listen(borrower1().doc('applications/app1'));
+    try {
+      expect((await l.next()).data().statusHistory).toBeUndefined();
+      await apiWrite({ status: 'Underwriter Approved', statusHistory: [first] });
+      const afterFirst = (await l.next()).data();
+      expect(afterFirst.status).toBe('Underwriter Approved');
+      expect(afterFirst.statusHistory.map((e) => e.to)).toEqual(['Underwriter Approved']);
+      await apiWrite({ status: 'Funded', statusHistory: [first, second] });
+      const afterSecond = (await l.next()).data();
+      expect(afterSecond.statusHistory.map((e) => e.to)).toEqual(['Underwriter Approved', 'Funded']);
+      expect(afterSecond.statusHistory.map((e) => e.at.toDate().toISOString())).toEqual([
+        '2026-10-29T10:00:00.000Z', '2026-10-29T10:05:00.000Z',
+      ]);
+      expect(afterSecond.statusHistory[1]).toMatchObject({ from: 'Underwriter Approved', actor: 'mint', actorId: 'al-core' });
+    } finally {
+      l.unsubscribe();
+    }
+  });
+});
