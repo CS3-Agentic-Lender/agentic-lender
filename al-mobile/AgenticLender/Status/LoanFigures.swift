@@ -57,14 +57,13 @@ struct LoanFigures: Equatable, Sendable {
         likelihood = (fields["approvalLikelihood"] as? String).flatMap(ApprovalLikelihood.init(rawValue:)) ?? .unknown
     }
 
-    /// Whether the AI review has written any of them yet.
-    var hasAny: Bool { ltvPct != nil || dtiPct != nil || likelihood != .unknown }
+    private var ltvLimitPct: Int { loanType == .heloc ? Self.helocLtvLimitPct : Self.purchaseLtvLimitPct }
 
     var ltv: Tile {
         Tile(
             title: loanType == .heloc ? "Combined LTV" : "LTV",
-            value: Self.percent(ltvPct),
-            note: "limit \(loanType == .heloc ? Self.helocLtvLimitPct : Self.purchaseLtvLimitPct)%"
+            value: Self.percent(ltvPct, limit: Double(ltvLimitPct)),
+            note: "limit \(ltvLimitPct)%"
         )
     }
 
@@ -92,11 +91,12 @@ struct LoanFigures: Equatable, Sendable {
 
     private static let locale = Locale(identifier: "en_IE")
 
-    /// "87.6%", one decimal and rounded down, so a figure just under its limit never shows as
-    /// the limit (89.96 is "89.9%", not "90.0%"); "—" before the AI review has worked it out.
-    private static func percent(_ value: Double?) -> String {
+    /// "87.6%", to one decimal, rounded away from its limit so a figure never reads as at the limit
+    /// when it isn't: 89.96 is "89.9%" and 90.04 is "90.1%" against 90. "—" before the AI review.
+    private static func percent(_ value: Double?, limit: Double = .infinity) -> String {
         guard let value else { return "—" }
-        return value.formatted(.number.precision(.fractionLength(1)).rounded(rule: .down).locale(locale)) + "%"
+        let rule: FloatingPointRoundingRule = value > limit ? .up : .down
+        return value.formatted(.number.precision(.fractionLength(1)).rounded(rule: rule).locale(locale)) + "%"
     }
 
     private static func number(_ value: Any?) -> Double? {

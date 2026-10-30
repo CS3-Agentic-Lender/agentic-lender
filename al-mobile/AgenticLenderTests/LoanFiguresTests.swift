@@ -35,6 +35,19 @@ final class LoanFiguresTests: XCTestCase {
         XCTAssertEqual(figures.dti.value, "30.0%")
     }
 
+    func testAFigureJustOverTheLimitIsNotShownAtTheLimit() throws {
+        let purchase = try record(["loanType": "mortgage", "purchaseLtvPct": 90.04]).figures
+        let heloc = try record(["loanType": "heloc", "ltvPct": 80.01]).figures
+
+        XCTAssertEqual(purchase.ltv.value, "90.1%", "never rounded down to the 90% limit")
+        XCTAssertEqual(heloc.ltv.value, "80.1%", "never rounded down to the 80% limit")
+    }
+
+    func testAFigureExactlyAtTheLimitIsShownAtTheLimit() throws {
+        XCTAssertEqual(try record(["loanType": "mortgage", "purchaseLtvPct": 90]).figures.ltv.value, "90.0%")
+        XCTAssertEqual(try record(["loanType": "heloc", "ltvPct": 80]).figures.ltv.value, "80.0%")
+    }
+
     func testEveryLikelihoodLabelIsRead() throws {
         for (label, likelihood) in [("High", ApprovalLikelihood.high), ("Medium", .medium), ("Low", .low), ("Unknown", .unknown)] {
             XCTAssertEqual(try record(["approvalLikelihood": label]).figures.likelihood, likelihood, label)
@@ -47,7 +60,6 @@ final class LoanFiguresTests: XCTestCase {
         XCTAssertEqual(figures.ltv.value, "—")
         XCTAssertEqual(figures.dti.value, "—")
         XCTAssertEqual(figures.likelihood, .unknown, "Unknown before the first run, as agreed")
-        XCTAssertFalse(figures.hasAny)
     }
 
     func testAPercentageForLikelihoodIsNeverShown() throws {
