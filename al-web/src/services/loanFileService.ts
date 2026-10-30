@@ -55,6 +55,7 @@ export interface LoanFileApplication extends ApplicationSummary {
   aprPct: number | null;
   dtiPct: number | null;
   existingMortgageBalanceEur: number | null;
+  estimatedValueEur: number | null;
   property: LoanFileProperty;
   createdAt: Date | null;
   submittedAt: Date | null;
@@ -163,6 +164,7 @@ export function toLoanFileApplication(id: string, data: DocumentData): LoanFileA
     aprPct: readAmount(data.aprPct),
     dtiPct: readAmount(data.dtiPct),
     existingMortgageBalanceEur: readAmount(data.existingMortgageBalanceEur),
+    estimatedValueEur: readAmount(data.estimatedValueEur),
     property: {
       addressLine1: readString(property.addressLine1),
       addressLine2: readString(property.addressLine2),

@@ -37,6 +37,10 @@ const seeded = {
 };
 
 describe('loan file application parser', () => {
+  it('reads the stored HELOC estimate without deriving it from other figures', () => {
+    expect(toLoanFileApplication('heloc', { estimatedValueEur: 400000 }).estimatedValueEur).toBe(400000);
+    expect(toLoanFileApplication('heloc', { estimatedValueEur: 0 }).estimatedValueEur).toBe(0);
+  });
   it('reads every seeded field with its unit', () => {
     const application = toLoanFileApplication('LN-1001', seeded);
 
@@ -83,6 +87,7 @@ describe('loan file application parser', () => {
       monthlyTakeHomeEur: null,
       monthlyLivingCostsEur: null,
       loanAmountEur: null,
+      estimatedValueEur: null,
       termYears: null,
       aprPct: null,
       dtiPct: null,
@@ -111,6 +116,7 @@ describe('loan file application parser', () => {
       dtiPct: value,
       aprPct: value,
       loanAmountEur: value,
+      estimatedValueEur: value,
       ltvPct: value,
       property: { bedrooms: value, askingPriceEur: value },
     });
@@ -120,6 +126,7 @@ describe('loan file application parser', () => {
     expect(application.dtiPct).toBeNull();
     expect(application.aprPct).toBeNull();
     expect(application.loanAmountEur).toBeNull();
+    expect(application.estimatedValueEur).toBeNull();
     expect(application.ltvPct).toBeNull();
     expect(application.property.bedrooms).toBeNull();
     expect(application.property.askingPriceEur).toBeNull();
