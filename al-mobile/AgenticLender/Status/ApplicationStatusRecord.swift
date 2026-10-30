@@ -29,13 +29,19 @@ struct ApplicationStatusRecord: Equatable, Sendable {
     let decision: Decision?
     /// Oldest first. Empty for applications moved before `statusHistory` existed, such as the seed.
     let history: [Move]
+    /// LTV, DTI and approval likelihood, once the AI review has written them (AL-145).
+    let figures: LoanFigures
 
-    init(status: ApplicationStatus, createdAt: Date?, submittedAt: Date?, decision: Decision?, history: [Move]) {
+    init(
+        status: ApplicationStatus, createdAt: Date?, submittedAt: Date?, decision: Decision?, history: [Move],
+        figures: LoanFigures = LoanFigures(fields: [:])
+    ) {
         self.status = status
         self.createdAt = createdAt
         self.submittedAt = submittedAt
         self.decision = decision
         self.history = history
+        self.figures = figures
     }
 
     /// Nil when the document has no status the app knows, since nothing sensible can be shown then.
@@ -46,7 +52,8 @@ struct ApplicationStatusRecord: Equatable, Sendable {
             createdAt: Self.date(fields["createdAt"]),
             submittedAt: Self.date(fields["submittedAt"]),
             decision: (fields["decision"] as? [String: Any]).flatMap(Self.decision),
-            history: (fields["statusHistory"] as? [Any] ?? []).compactMap(Self.move)
+            history: (fields["statusHistory"] as? [Any] ?? []).compactMap(Self.move),
+            figures: LoanFigures(fields: fields)
         )
     }
 
