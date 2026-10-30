@@ -112,6 +112,7 @@ const sha256 = (text) => crypto.createHash('sha256').update(text, 'utf8').digest
 // ---------- LTV band and risk tier (AL-64) ----------
 
 // Purchase-price LTV: the loan over the asking price, plus the existing mortgage for a HELOC (combined LTV).
+// A HELOC has no asking price: its `askingPriceEur` argument is the home's value, the valuation estimate.
 function purchasePriceLtvPct({ loanType, loanAmountEur, existingMortgageBalanceEur = 0, askingPriceEur }) {
   const borrowed = loanType === 'heloc' ? loanAmountEur + existingMortgageBalanceEur : loanAmountEur;
   return (borrowed / askingPriceEur) * 100;
@@ -205,7 +206,8 @@ function application(spec) {
 
   const doc = {
     borrowerId, borrowerName: borrower.fullName, brokerId, status, loanType, grossIncomeEur, monthlyDebtsEur, monthlyTakeHomeEur, monthlyLivingCostsEur, loanAmountEur, termYears,
-    property: { ...baseProperty, askingPriceEur },
+    // A HELOC has no asking price: the home's value comes from the valuation (estimatedValueEur).
+    property: loanType === 'heloc' ? { ...baseProperty } : { ...baseProperty, askingPriceEur },
     createdAt: at(createdAt), updatedAt: at(updatedAt),
   };
   if (loanType === 'mortgage') Object.assign(doc, { depositEur, firstTimeBuyer });
@@ -220,7 +222,8 @@ function application(spec) {
     const { assessment, breakdown } = dtiBreakdown(spec, aprPct, rateDate);
     const findings = { stressedDti: assessment.dtiBand, surplus: assessment.surplusBand };
     // al-ai sets both after its run; the queue filters on them next to status.
-    spec.riskTier = riskTier({ ...spec, loanType }, findings);
+    const valueEur = loanType === 'heloc' ? estimatedValueEur : askingPriceEur; // what the LTV is measured against
+    spec.riskTier = riskTier({ ...spec, loanType, askingPriceEur: valueEur }, findings);
     Object.assign(doc, {
       aiRunStatus: 'complete',
       estimatedValueEur,
@@ -229,7 +232,7 @@ function application(spec) {
       dtiPct: round1(assessment.dti * 100),
       aprPct,
       approvalLikelihoodPct: spec.approvalLikelihoodPct,
-      ltvBand: ltvBand(purchasePriceLtvPct({ ...spec, loanType })),
+      ltvBand: ltvBand(purchasePriceLtvPct({ ...spec, loanType, askingPriceEur: valueEur })),
       riskTier: spec.riskTier,
     });
     review = {
@@ -267,7 +270,7 @@ const applications = [
   application({
     id: 'app-approved', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.UNDERWRITER_APPROVED,
     loanType: 'heloc', grossIncomeEur: 92000, monthlyDebtsEur: 1100, monthlyTakeHomeEur: 5100, monthlyLivingCostsEur: 1800, existingMortgageBalanceEur: 180000,
-    loanAmountEur: 60000, termYears: 15, askingPriceEur: 420000, estimatedValueEur: 415000,
+    loanAmountEur: 60000, termYears: 15, estimatedValueEur: 415000,
     approvalLikelihoodPct: 84,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-30T14:00:00Z', reason: 'Low LTV and DTI within limits' },
     createdAt: '2026-09-25T10:00:00Z', submittedAt: '2026-09-26T09:00:00Z', updatedAt: '2026-09-30T14:00:00Z',

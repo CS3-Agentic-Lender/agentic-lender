@@ -109,6 +109,15 @@ describe("LoanNote", function () {
       expect((await note.noteOf(1)).loanType).to.equal(HELOC);
     });
 
+    it("mints one of each loan type and each note keeps its own type", async function () {
+      const { note, minter } = await loadFixture(deploy);
+      await mint(note, minter, { ...LOAN, loanType: MORTGAGE });
+      await mint(note, minter, { ...LOAN, app: applicationRef("app-approved"), loanType: HELOC });
+      expect((await note.noteOf(1)).loanType).to.equal(MORTGAGE);
+      expect((await note.noteOf(2)).loanType).to.equal(HELOC);
+      await expect(mint(note, minter, { ...LOAN, app: applicationRef("app-third"), loanType: 2 })).to.be.reverted;
+    });
+
     it("numbers notes from 1 upwards", async function () {
       const { note, minter, bank } = await loadFixture(deployAndMint);
       await mint(note, minter, { ...LOAN, app: applicationRef("app-second") });

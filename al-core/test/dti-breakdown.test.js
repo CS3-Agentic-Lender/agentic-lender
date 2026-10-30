@@ -83,7 +83,10 @@ describe('the breakdown on each reviewed application', () => {
     expect(app.aprPct).toBe(b.benchmarkRatePct);
     expect(review.riskTier).toBe(app.riskTier);
     const findings = { stressedDti: b.dtiBand, surplus: b.surplusBand };
-    expect(riskTier({ ...app, askingPriceEur: app.property.askingPriceEur }, findings)).toBe(app.riskTier);
+    // A HELOC has no asking price: its LTV is measured against the valuation estimate.
+    const value = app.loanType === 'heloc' ? app.estimatedValueEur : app.property.askingPriceEur;
+    expect(Number.isFinite(value)).toBe(true);
+    expect(riskTier({ ...app, askingPriceEur: value }, findings)).toBe(app.riskTier);
   });
 
   test('every seeded application, even a Draft, holds take-home pay and living costs', () => {
