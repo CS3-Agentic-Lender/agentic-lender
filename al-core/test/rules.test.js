@@ -308,6 +308,35 @@ describe('applications/{id}/messages', () => {
     assertSucceeds(underwriter().collection('applications/app1/messages').get()));
   test("a borrower can't send a message directly", () =>
     assertFails(borrower1().collection('applications/app1/messages').add({ senderId: 'borrower1', text: 'Hi' })));
+
+  // Every write goes through the API (AL-70): no role can send, edit, mark read or delete from a client.
+  const note = { senderId: 'x', senderRole: 'broker', text: 'Hi', read: false };
+  test("a broker can't send a message directly", () =>
+    assertFails(broker1().collection('applications/app1/messages').add({ ...note, senderId: 'broker1' })));
+  test("an underwriter can't send a message directly", () =>
+    assertFails(underwriter().collection('applications/app1/messages').add({ ...note, senderRole: 'underwriter' })));
+  test("a signed-out user can't send or read a message", async () => {
+    await assertFails(signedOut().collection('applications/app1/messages').add(note));
+    await assertFails(signedOut().collection('applications/app1/messages').get());
+  });
+  test("nobody can mark a message read from a client", async () => {
+    await assertFails(borrower1().doc('applications/app1/messages/msg1').update({ read: true }));
+    await assertFails(broker1().doc('applications/app1/messages/msg1').update({ read: true }));
+    await assertFails(underwriter().doc('applications/app1/messages/msg1').update({ read: true }));
+  });
+  test("nobody can edit a message's text from a client, even the one who sent it", async () => {
+    await assertFails(broker1().doc('applications/app1/messages/msg1').update({ text: 'changed' }));
+    await assertFails(broker1().doc('applications/app1/messages/msg1').set({ ...note, senderId: 'broker1', text: 'changed' }));
+  });
+  test("nobody can delete a message from a client", async () => {
+    await assertFails(broker1().doc('applications/app1/messages/msg1').delete());
+    await assertFails(borrower1().doc('applications/app1/messages/msg1').delete());
+    await assertFails(underwriter().doc('applications/app1/messages/msg1').delete());
+  });
+  test('the message is untouched after all of that', async () => {
+    const snap = await assertSucceeds(broker1().doc('applications/app1/messages/msg1').get());
+    expect(snap.data()).toMatchObject({ senderId: 'broker1', text: 'Hi', read: false });
+  });
 });
 
 describe('ai_runs and ai_calls', () => {

@@ -182,7 +182,9 @@ The one function that does this is `audit_hash(record)` in `al-core/app/audit.py
 | `senderRole` | string | `borrower`, `broker` or `underwriter` |
 | `text` | string | |
 | `sentAt` | timestamp | |
-| `read` | boolean | Whether the recipient has read it. Set through POST /core/applications/{id}/messages/read |
+| `read` | boolean | Whether the other side has read it: a message from the borrower is read when a broker or an underwriter opens the thread, and a message from the broker or an underwriter is read when the borrower does. Starts `false`. Set only through `POST /core/applications/{id}/messages/read`. Messages between the broker and an underwriter are not cleared by it; per-person unread state is a later ticket |
+
+Written only by the API: `POST /core/applications/{id}/messages` sets `senderId` and `senderRole` from the token and `sentAt` on the server, and there is no way to edit or delete a message. A thread opens when the application is submitted, because a broker can't see a Draft.
 
 ## ai_runs/{runId} (Nic to confirm)
 
