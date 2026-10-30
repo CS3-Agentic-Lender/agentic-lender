@@ -5,6 +5,7 @@ import SwiftUI
 /// banner (Figma 14d).
 struct ApplicationStatusView: View {
     @State private var model: ApplicationStatusViewModel
+    @State private var isExplaining = false
 
     init(applicationID: String, service: ApplicationStatusService, network: NetworkMonitor = PathNetworkMonitor()) {
         _model = State(initialValue: ApplicationStatusViewModel(applicationID: applicationID, service: service, network: network))
@@ -40,6 +41,15 @@ struct ApplicationStatusView: View {
     @ViewBuilder
     private var content: some View {
         if let timeline = model.timeline {
+            if let figures = model.figures {
+                FigureTiles(figures: figures)
+                Button("What do these mean?") { isExplaining = true }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.text)
+                    .frame(minHeight: Theme.minTapTarget)
+                    .accessibilityIdentifier("status.whatTheyMean")
+                    .sheet(isPresented: $isExplaining) { FigureExplanations(figures: figures) }
+            }
             TimelineCard(timeline: timeline)
         } else if let error = model.loadError {
             RetryMessage(message: error) { model.retry() }
@@ -48,6 +58,102 @@ struct ApplicationStatusView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 40)
         }
+    }
+}
+
+/// Figma 14: LTV, DTI and approval likelihood in three tiles (AL-145). The figures are the backend's;
+/// before the AI review they show "—" and likelihood Unknown.
+private struct FigureTiles: View {
+    let figures: LoanFigures
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            tile(figures.ltv.title, figures.ltv.value, note: figures.ltv.note)
+            tile(figures.dti.title, figures.dti.value, note: figures.dti.note)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Approval likelihood")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.text)
+                StatusBadge(text: figures.likelihood.label, tone: figures.likelihood.tone)
+                Text(LoanFigures.likelihoodNote)
+                    .font(.caption)
+                    .foregroundStyle(Theme.mutedText)
+            }
+            .tileStyle()
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Approval likelihood \(figures.likelihood.label), indicative")
+        }
+        .accessibilityIdentifier("status.figures")
+    }
+
+    private func tile(_ title: String, _ value: String, note: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.text)
+            Text(value)
+                .font(.system(.title2, design: .monospaced).bold())
+                .foregroundStyle(Theme.text)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+            Text(note)
+                .font(.caption)
+                .foregroundStyle(Theme.mutedText)
+        }
+        .tileStyle()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private extension View {
+    func tileStyle() -> some View {
+        frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+            .padding(12)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.4))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.4).stroke(Theme.line))
+    }
+}
+
+/// Figma 14e "What do these mean?": one plain explanation per figure.
+private struct FigureExplanations: View {
+    let figures: LoanFigures
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(figures.explanations, id: \.title) { explanation in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(explanation.title).font(.headline)
+                                Spacer()
+                                if let value = explanation.value {
+                                    Text(value).font(.system(.body, design: .monospaced))
+                                }
+                            }
+                            .foregroundStyle(Theme.text)
+                            Text(explanation.text)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.mutedText)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(Theme.screenPadding)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.4))
+                        .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.4).stroke(Theme.line))
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .padding(Theme.screenPadding)
+            }
+            .background(Theme.oat.ignoresSafeArea())
+            .navigationTitle("What do these mean?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 

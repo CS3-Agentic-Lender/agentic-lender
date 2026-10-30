@@ -9,6 +9,8 @@ final class ApplicationStatusViewModel {
     static let offlineBanner = "Offline. Showing your last saved status."
 
     private(set) var timeline: StatusTimeline?
+    /// LTV, DTI and approval likelihood (AL-145); live like the timeline.
+    private(set) var figures: LoanFigures?
     private(set) var loadError: String?
     private(set) var isLoading = true
     /// Show the "Offline" banner: Firestore's last answer came from the phone's cache (or its connection
@@ -62,6 +64,7 @@ final class ApplicationStatusViewModel {
         switch result {
         case .success(let update):
             timeline = StatusTimeline(record: update.record)
+            figures = update.record.status == .draft ? nil : update.record.figures
             isServedFromCache = update.isFromCache
             if !update.isFromCache {
                 // A fresh answer from the server can only come over a working connection, even if the

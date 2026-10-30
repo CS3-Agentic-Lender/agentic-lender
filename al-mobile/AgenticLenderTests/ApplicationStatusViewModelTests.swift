@@ -215,6 +215,35 @@ final class ApplicationStatusViewModelTests: XCTestCase {
         XCTAssertEqual(network.stopped, 1)
     }
 
+    // MARK: - LTV, DTI and approval likelihood (AL-145)
+
+    func testTheFiguresUpdateLiveWithTheRecord() throws {
+        let service = FakeStatusService()
+        let model = ApplicationStatusViewModel(applicationID: "a1", service: service, network: network)
+        model.start()
+        let before = try XCTUnwrap(ApplicationStatusRecord(fields: ["status": "Applied"]))
+        let after = try XCTUnwrap(ApplicationStatusRecord(fields: [
+            "status": "AI Deliberated", "purchaseLtvPct": 88.0, "dtiPct": 25.0, "approvalLikelihood": "High",
+        ]))
+
+        service.push(fresh(before))
+        XCTAssertEqual(model.figures?.ltv.value, "—")
+
+        service.push(fresh(after))
+        XCTAssertEqual(model.figures?.ltv.value, "88.0%")
+        XCTAssertEqual(model.figures?.likelihood, .high)
+    }
+
+    func testADraftHasNoFiguresToShow() throws {
+        let service = FakeStatusService()
+        let model = ApplicationStatusViewModel(applicationID: "a1", service: service, network: network)
+        model.start()
+
+        service.push(fresh(try XCTUnwrap(ApplicationStatusRecord(fields: ["status": "Draft"]))))
+
+        XCTAssertNil(model.figures)
+    }
+
     // MARK: - Failures and Retry
 
     func testAnApplicationThatCantBeReadShowsItsMessageAndRetryListensAgain() {
