@@ -63,13 +63,33 @@ class Collection:
         return Query()
 
 
+class Batch:
+    """Writes land together on commit, or not at all if the commit fails."""
+
+    def __init__(self, db):
+        self.db, self.pending = db, []
+
+    def update(self, ref, changes):
+        self.pending.append((ref.path, changes))
+
+    def commit(self):
+        if self.db.fail_commit:
+            raise RuntimeError("commit failed")
+        self.db.commits.append(len(self.pending))
+        for path, changes in self.pending:
+            Doc(self.db, path).update(changes)
+
+
 class FakeDB:
     def __init__(self):
-        self.store, self.writes = {}, []
+        self.store, self.writes, self.commits, self.fail_commit = {}, [], [], False
         self.ids = (f"msg{n}" for n in itertools.count(1))
 
     def collection(self, name):
         return Collection(self, name)
+
+    def batch(self):
+        return Batch(self)
 
 
 @pytest.fixture
@@ -184,6 +204,52 @@ def test_each_side_clears_what_the_other_sent(world):
     sign_in(world, "borrower1", "borrower")
     assert mark().json() == {"marked": 1}  # the broker's "old" message
     assert all(m["read"] for m in thread(world).values())
+
+
+def test_a_broker_opening_the_thread_does_not_clear_the_underwriters_message_to_the_borrower(world):
+    sign_in(world, "underwriter1", "underwriter")
+    note = send("We need one more document").json()["id"]
+    sign_in(world, "broker1", "broker")
+    assert mark().json() == {"marked": 0}
+    assert thread(world)[note]["read"] is False and thread(world)["old"]["read"] is False
+    sign_in(world, "borrower1", "borrower")
+    assert mark().json() == {"marked": 2}  # the broker's and the underwriter's, now that the borrower has seen them
+    assert thread(world)[note]["read"] is True
+
+
+def test_the_borrowers_message_is_cleared_by_a_broker_or_an_underwriter_for_both(world):
+    note = send("My payslips").json()["id"]
+    sign_in(world, "underwriter1", "underwriter")
+    assert mark().json() == {"marked": 1}
+    assert thread(world)[note]["read"] is True
+
+
+def test_staff_messages_to_each_other_are_left_for_the_later_unread_ticket(world):
+    sign_in(world, "underwriter1", "underwriter")
+    note = send("Broker, can you confirm the income?").json()["id"]
+    sign_in(world, "broker1", "broker")
+    assert mark().json() == {"marked": 0}
+    sign_in(world, "underwriter1", "underwriter")
+    assert mark().json() == {"marked": 0}
+    assert thread(world)[note]["read"] is False
+
+
+def test_the_messages_are_marked_together_or_not_at_all(world):
+    send("one"), send("two")
+    sign_in(world, "broker1", "broker")
+    world["db"].fail_commit = True
+    with pytest.raises(RuntimeError):
+        mark()
+    assert [m["read"] for p, m in world["db"].store.items() if p.startswith(THREAD + "/") and m["senderRole"] == "borrower"] == [False, False]
+
+
+def test_a_large_thread_is_marked_in_batches_within_the_firestore_limit(world, monkeypatch):
+    monkeypatch.setattr(messages, "BATCH", 3)
+    for n in range(7):
+        send(f"message {n}")
+    sign_in(world, "underwriter1", "underwriter")
+    assert mark().json() == {"marked": 7}
+    assert world["db"].commits == [3, 3, 1]
 
 
 def test_marking_read_again_changes_nothing(world):

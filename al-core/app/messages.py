@@ -91,18 +91,32 @@ def send_message(application_id: str, body: MessageIn, user: dict = Depends(requ
     return _out(application_id, message.id, message.get().to_dict())
 
 
+# A thread has two sides: the borrower, and the bank's staff (the broker and the underwriters). `read` is one flag on a message
+# and means "the other side has read it", so a message from staff is cleared only by the borrower and a message from the
+# borrower only by staff. Staff messages to each other are never cleared here: per-person unread state is a later ticket.
+STAFF = ("broker", "underwriter")
+BATCH = 450  # Firestore allows 500 writes in one batch
+
+
+def _senders_for(role: str) -> tuple[str, ...]:
+    return ("borrower",) if role in STAFF else STAFF
+
+
 @router.post("/applications/{application_id}/messages/read", response_model=ReadOut)
 def mark_read(application_id: str, user: dict = Depends(require_role("borrower", "broker", "underwriter"))):
-    """Mark the caller's unread messages as read: every unread message on the thread that someone else sent. Messages the
-    caller sent are never marked by the caller, since they are for the other side. Safe to repeat.
-
-    `read` is one flag on the message, so a message for the bank's staff is cleared for the broker and the underwriter
-    together; per-person unread counts are a later ticket."""
+    """Mark the unread messages sent to the caller's side as read: the borrower clears what the bank's staff sent, and a broker
+    or an underwriter clears what the borrower sent. A broker opening the thread never clears the underwriter's message to the
+    borrower, so the borrower's unread count stays right. The messages are updated together (all or none, up to 450 at a
+    time). Safe to repeat."""
     ref = _thread(application_id, user)
-    marked = 0
-    for snap in ref.collection("messages").where(filter=FieldFilter("read", "==", False)).stream():
-        if snap.to_dict().get("senderId") == user["uid"]:
-            continue
-        snap.reference.update({"read": True})
-        marked += 1
-    return {"marked": marked}
+    wanted = _senders_for(user["role"])
+    unread = [
+        snap for snap in ref.collection("messages").where(filter=FieldFilter("read", "==", False)).stream()
+        if snap.to_dict().get("senderRole") in wanted
+    ]
+    for start in range(0, len(unread), BATCH):
+        batch = db().batch()
+        for snap in unread[start:start + BATCH]:
+            batch.update(snap.reference, {"read": True})
+        batch.commit()
+    return {"marked": len(unread)}
