@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "al-ai/**"
+      - "al-core/test/risk-tier-examples.json"  # al-ai's risk tier tests check the same worked cases
       - ".github/workflows/ai.yml"
 
 permissions:
