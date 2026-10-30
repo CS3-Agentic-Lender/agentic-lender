@@ -8,7 +8,16 @@ enum ApplicationStatusError: Error, Equatable {
     case unavailable
 }
 
-/// Reads an application's status straight from Firestore, which the rules allow for its borrower.
-protocol ApplicationStatusService: Sendable {
-    func status(of applicationID: String) async throws -> ApplicationStatusRecord
+/// One live answer: the status as stored, and whether it came from the phone's cache because the
+/// network is down (AL-103).
+struct StatusUpdate: Equatable {
+    let record: ApplicationStatusRecord
+    let isFromCache: Bool
+}
+
+/// Listens to an application's status straight from Firestore, which the rules allow for its borrower.
+@MainActor
+protocol ApplicationStatusService {
+    /// Calls `onChange` now and after every change, until stopped.
+    func listen(to applicationID: String, onChange: @escaping (Result<StatusUpdate, ApplicationStatusError>) -> Void) -> LiveListener
 }
