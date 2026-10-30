@@ -109,11 +109,15 @@ class AuditRegistry:
         ref = bytes.fromhex(application_ref(application_id))
         try:
             tx = self.contract.functions.store(ref, value).build_transaction(
-                {"from": self.account.address, "nonce": self.w3.eth.get_transaction_count(self.account.address)}
+                # "pending" counts transactions still waiting to be mined, so two writes close together get different nonces
+                {"from": self.account.address, "nonce": self.w3.eth.get_transaction_count(self.account.address, "pending")}
             )
             signed = self.account.sign_transaction(tx)
             tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=RECEIPT_TIMEOUT_S)
+        except ContractLogicError as exc:  # the contract said no, and the reason helps: a missing role, a hash already stored
+            reason = str(getattr(exc, "message", None) or exc)[:200]
+            raise ChainError(f"the chain refused the audit hash: {reason}") from None
         except (Web3Exception, OSError) as exc:
             raise ChainError(f"the audit hash could not be stored: {type(exc).__name__}") from None
         if receipt["status"] != 1:

@@ -15,6 +15,8 @@ KEY = "0x" + "11" * 32
 
 
 class Call:
+    revert = None  # set to make the next build_transaction fail the way a reverting contract does
+
     def __init__(self, fn):
         self.fn = fn
 
@@ -22,6 +24,8 @@ class Call:
         return self.fn()
 
     def build_transaction(self, params):
+        if Call.revert:
+            raise ContractLogicError(Call.revert)
         return {"to": "registry", **params, "args": self.fn}
 
 
@@ -56,7 +60,8 @@ class FakeEth:
     def __init__(self, status=1, fail=None):
         self.status, self.fail, self.sent = status, fail, []
 
-    def get_transaction_count(self, address):
+    def get_transaction_count(self, address, block="latest"):
+        self.counted = block
         return 7
 
     def send_raw_transaction(self, raw):
@@ -120,6 +125,31 @@ def test_a_different_hash_for_an_application_that_has_one_is_an_error_and_sends_
     with pytest.raises(ChainError, match="different audit hash"):
         reg.store("app-funded", OTHER)
     assert reg.w3.eth.sent == []
+
+
+def test_the_nonce_counts_pending_transactions_so_two_close_writes_do_not_collide():
+    reg = registry()
+    reg.store("app-funded", HASH)
+    assert reg.w3.eth.counted == "pending"
+
+
+def test_a_revert_keeps_its_reason_so_the_caller_can_tell_a_missing_role_from_a_second_write():
+    Call.revert = "execution reverted: AccessControlUnauthorizedAccount"
+    try:
+        with pytest.raises(ChainError, match="refused the audit hash: .*AccessControlUnauthorizedAccount"):
+            registry().store("app-funded", HASH)
+    finally:
+        Call.revert = None
+
+
+def test_a_very_long_revert_reason_is_cut_short():
+    Call.revert = "execution reverted: " + "x" * 1000
+    try:
+        with pytest.raises(ChainError) as e:
+            registry().store("app-funded", HASH)
+        assert len(str(e.value)) < 300
+    finally:
+        Call.revert = None
 
 
 def test_a_rejected_transaction_is_an_error():
