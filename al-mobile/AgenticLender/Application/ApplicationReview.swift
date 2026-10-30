@@ -45,7 +45,7 @@ struct ApplicationReview: Equatable {
         cards = [
             Card(section: .you, rows: Self.you(form)),
             Card(section: .money, rows: Self.money(draft)),
-            Card(section: .loan, rows: Self.loan(draft)),
+            Card(section: .loan, rows: Self.loan(draft, isHELOC: form.loanType == .heloc)),
             Card(section: .home, rows: Self.home(form, draft.property)),
         ]
     }
@@ -53,17 +53,17 @@ struct ApplicationReview: Equatable {
     private static func you(_ form: ApplicationForm) -> [Row] {
         let years = form.yearsInCurrentJob == 1 ? "1 year" : "\(form.yearsInCurrentJob) years"
         return [
-            Row(label: "Applying", value: form.affordability.isJoint ? "Joint" : "Single"),
+            Row(label: "Applying", value: form.isJoint ? "Joint" : "Single"),
             Row(label: "Employment", value: "\(form.employment.title) · \(years)"),
         ]
     }
 
-    /// Deposit and first-time buyer only belong to a mortgage, so a HELOC leaves them out.
+    /// Deposit and first-time buyer only belong to a mortgage; a HELOC shows what's still owed instead.
     private static func money(_ draft: ApplicationDraft) -> [Row] {
         let mortgageOnly = draft.loanType == LoanType.mortgage.rawValue ? [
             Row(label: "Deposit", value: euro(draft.depositEur)),
             Row(label: "First-time buyer", value: draft.firstTimeBuyer ? "Yes" : "No"),
-        ] : []
+        ] : draft.existingMortgageBalanceEur.map { [Row(label: "Left on your mortgage", value: euro($0))] } ?? []
         return [
             Row(label: "Gross yearly income", value: euro(draft.grossIncomeEur)),
             Row(label: "Monthly debts", value: euro(draft.monthlyDebtsEur)),
@@ -73,9 +73,10 @@ struct ApplicationReview: Equatable {
         ]
     }
 
-    private static func loan(_ draft: ApplicationDraft) -> [Row] {
+    /// A HELOC's loan is the credit line the homeowner asked for.
+    private static func loan(_ draft: ApplicationDraft, isHELOC: Bool) -> [Row] {
         [
-            Row(label: "Loan amount", value: euro(draft.loanAmountEur)),
+            Row(label: isHELOC ? "Credit line" : "Loan amount", value: euro(draft.loanAmountEur)),
             Row(label: "Term", value: "\(draft.termYears) years"),
         ]
     }
@@ -87,12 +88,20 @@ struct ApplicationReview: Equatable {
             Row(label: "Address", value: address),
             Row(label: "Eircode", value: property.eircode),
             Row(label: "County", value: form.property.county?.name ?? property.county),
-            Row(label: "Asking price", value: euro(property.askingPriceEur)),
+            priceRow(form, property),
             Row(label: "Property type", value: form.property.propertyType?.title ?? property.propertyType),
             Row(label: "Size", value: "\(EuroAmount.format(property.floorAreaSqm)) m²"),
             Row(label: "Bedrooms", value: "\(property.bedrooms)"),
             Row(label: "BER rating", value: form.property.berRating?.title ?? property.berRating),
         ]
+    }
+
+    /// A purchase shows its asking price; a HELOC shows the model's estimate, never called an asking price.
+    private static func priceRow(_ form: ApplicationForm, _ property: PropertyDraft) -> Row {
+        if let heloc = form.heloc, form.loanType == .heloc {
+            return Row(label: "Estimated value", value: euro(Int(heloc.homeValueEur.rounded())))
+        }
+        return Row(label: "Asking price", value: property.askingPriceEur.map(euro) ?? "Not given")
     }
 
     private static func euro(_ amount: Int) -> String {

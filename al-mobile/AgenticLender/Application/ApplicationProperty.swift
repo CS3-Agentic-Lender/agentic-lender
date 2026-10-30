@@ -40,20 +40,23 @@ struct PropertyDraft: Encodable, Equatable {
     let addressLine2: String?
     let eircode: String
     let county: String
-    let askingPriceEur: Int
+    /// Nil for a HELOC: the home is already owned, so there's nothing to compare.
+    let askingPriceEur: Int?
     let propertyType: String
     let bedrooms: Int
     let floorAreaSqm: Int
     let berRating: String
 
-    /// Nil when any property field is missing or wrong; the validator says which.
-    init?(property: ApplicationProperty) {
+    /// Nil when any property field is missing or wrong; the validator says which. A HELOC sends no
+    /// asking price (al-core refuses one), so it isn't needed then.
+    init?(property: ApplicationProperty, withAskingPrice: Bool = true) {
+        let askingPrice = EuroAmount.parse(property.askingPrice)
         guard let eircode = SignUpValidator.normalizedEircode(property.eircode),
               let county = property.county,
               let propertyType = property.propertyType,
               let bedrooms = property.bedrooms,
               let berRating = property.berRating,
-              let askingPrice = EuroAmount.parse(property.askingPrice),
+              !withAskingPrice || askingPrice != nil,
               let floorArea = EuroAmount.parse(property.floorArea),
               !property.addressLine1.isBlank
         else { return nil }
@@ -62,7 +65,7 @@ struct PropertyDraft: Encodable, Equatable {
         addressLine2 = property.addressLine2.isBlank ? nil : property.addressLine2.trimmed
         self.eircode = eircode
         self.county = county.rawValue
-        askingPriceEur = askingPrice
+        askingPriceEur = withAskingPrice ? askingPrice : nil
         self.propertyType = propertyType.rawValue
         self.bedrooms = bedrooms
         floorAreaSqm = floorArea
@@ -89,7 +92,7 @@ struct PropertyDraft: Encodable, Equatable {
         try container.encode(addressLine2, forKey: .addressLine2)
         try container.encode(eircode, forKey: .eircode)
         try container.encode(county, forKey: .county)
-        try container.encode(askingPriceEur, forKey: .askingPriceEur)
+        try container.encodeIfPresent(askingPriceEur, forKey: .askingPriceEur)
         try container.encode(propertyType, forKey: .propertyType)
         try container.encode(bedrooms, forKey: .bedrooms)
         try container.encode(floorAreaSqm, forKey: .floorAreaSqm)

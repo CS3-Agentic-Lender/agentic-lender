@@ -126,6 +126,22 @@ final class HELOCCheckViewModelTests: XCTestCase {
         XCTAssertFalse(model.isCalculating)
     }
 
+    func testTheAnswerKeepsTheCheckItCameFromForStartApplication() async throws {
+        let model = HELOCCheckViewModel(service: FakeHELOCService())
+        model.form = HELOCRequestTests.referenceForm
+
+        await model.calculate()
+
+        let start = try XCTUnwrap(model.applicationForm())
+        XCTAssertEqual(start.loanType, .heloc)
+        XCTAssertEqual(start.maxLoanEur, 59_882.97)
+        XCTAssertEqual(start.property.county, HELOCRequestTests.referenceForm.county)
+    }
+
+    func testThereIsNoApplicationToStartWithoutAnAnswer() {
+        XCTAssertNil(HELOCCheckViewModel(service: FakeHELOCService()).applicationForm())
+    }
+
     func testANoEquityAnswerIsStillAResult() async throws {
         let service = FakeHELOCService()
         service.result = .success(try HELOCResult.decode(HELOCRequestTests.noEquityResponse))

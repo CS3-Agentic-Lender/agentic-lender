@@ -30,7 +30,8 @@ enum ApplicationValidator {
         case .county:
             form.property.county == nil ? "Choose the county" : nil
         case .askingPrice:
-            askingPriceError(form.property.askingPrice)
+            // A HELOC is on a home already owned, so there's no asking price (al-core refuses one).
+            form.loanType == .heloc ? nil : askingPriceError(form.property.askingPrice)
         case .propertyType:
             form.property.propertyType == nil ? "Choose the property type" : nil
         case .bedrooms:

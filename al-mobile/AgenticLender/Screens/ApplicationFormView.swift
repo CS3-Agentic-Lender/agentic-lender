@@ -14,6 +14,8 @@ struct ApplicationFormView: View {
     /// Where the review's Edit link asked to land, scrolled to once the review has closed.
     @State private var editAnchor: ApplicationFormAnchor?
     @State private var savedChecks: SavedChecksStore
+    /// Nil means the live one, made on the main actor when it's needed.
+    private let profiles: ProfileService?
     private let service: ApplicationService
     private let onBackToHome: () -> Void
 
@@ -22,8 +24,10 @@ struct ApplicationFormView: View {
         service: ApplicationService = APIApplicationService.live(),
         draftIDs: DraftIDStore = liveDraftIDStore(),
         savedChecks: SavedCheckService = LiveSavedCheckService.live(),
+        profiles: ProfileService? = nil,
         onBackToHome: @escaping () -> Void = {}
     ) {
+        self.profiles = profiles
         _model = State(initialValue: ApplicationViewModel(form: form, service: service, draftIDs: draftIDs))
         _savedChecks = State(initialValue: SavedChecksStore(service: savedChecks))
         self.service = service
@@ -70,6 +74,16 @@ struct ApplicationFormView: View {
                     .foregroundStyle(Theme.text)
                     .accessibilityAddTraits(.isHeader)
 
+                if let note = model.draftNote {
+                    Label(note, systemImage: "info.circle")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Theme.neutral, in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                        .accessibilityIdentifier("application.draftNote")
+                }
+
                 affordabilityCard
                     .id(ApplicationFormAnchor.money)
 
@@ -78,7 +92,8 @@ struct ApplicationFormView: View {
                     amountField("Monthly living costs", field: .monthlyLivingCosts, placeholder: "1,400")
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    amountField("Loan amount", field: .loanAmount, placeholder: "210,000")
+                    amountField(isHELOC ? "Credit line you want" : "Loan amount", field: .loanAmount,
+                                placeholder: isHELOC ? "90,000" : "210,000")
                     if let warning = model.loanWarning {
                         LoanWarning(message: warning)
                     }
@@ -94,6 +109,14 @@ struct ApplicationFormView: View {
                     decrease: model.decreaseTerm,
                     increase: model.increaseTerm
                 )
+                if isHELOC {
+                    // The HELOC check takes one household income, so the form asks this itself.
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Applying").font(.subheadline.weight(.medium)).foregroundStyle(Theme.text)
+                        SegmentedPicker(selection: $model.form.isJoint, options: [(false, "Single"), (true, "Joint")])
+                            .accessibilityIdentifier("application.applicants")
+                    }
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Employment").font(.subheadline.weight(.medium)).foregroundStyle(Theme.text)
                     SegmentedPicker(
@@ -113,13 +136,18 @@ struct ApplicationFormView: View {
                     increase: model.increaseYearsInJob
                 )
 
-                propertySection
-                    .id(ApplicationFormAnchor.home)
+                Group {
+                    if isHELOC { helocHomeSection } else { propertySection }
+                }
+                .id(ApplicationFormAnchor.home)
             }
             .disabled(model.isFormLocked)
             .padding(Theme.screenPadding)
         }
-        .task { await model.loadSavedDraft() }
+        .task {
+            await model.loadSavedDraft()
+            if isHELOC { await fillHomeAddressFromProfile() }
+        }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { footer }
         .background(Theme.oat.ignoresSafeArea())
@@ -206,7 +234,7 @@ struct ApplicationFormView: View {
 
     private var affordabilityCard: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("From your affordability check")
+            Text(model.checkSummaryTitle)
                 .font(.footnote.weight(.semibold))
             Text(model.affordabilitySummary)
                 .font(.system(.footnote, design: .monospaced))
@@ -218,6 +246,65 @@ struct ApplicationFormView: View {
         .background(Theme.tint)
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
         .accessibilityElement(children: .combine)
+    }
+
+    private var isHELOC: Bool { model.form.loanType == .heloc }
+
+    /// A HELOC is against the home they live in, so its address starts as the profile's (AL-208).
+    /// Anything typed or saved already stays; if the profile can't load, the fields stay empty.
+    private func fillHomeAddressFromProfile() async {
+        let service = profiles ?? FirebaseProfileService()
+        guard let profile = try? await service.loadProfile() else { return }
+        model.form = model.form.withHomeAddress(from: profile)
+    }
+
+    /// Figma 12c "Your home": the house the HELOC check valued, then its address. The house details
+    /// come from the check (its Edit link goes back there), so only the address is typed here.
+    private var helocHomeSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Your home")
+                .font(.title3.bold())
+                .foregroundStyle(Theme.text)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, 8)
+
+            if let heloc = model.form.heloc {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(helocHomeTitle)
+                        .font(.headline)
+                        .foregroundStyle(Theme.text)
+                    Text("Estimated value €\(EuroAmount.format(Int(heloc.homeValueEur.rounded())))")
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(Theme.mutedText)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.line))
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("application.helocHome")
+            }
+
+            textField("Address line 1", field: .addressLine1, text: $model.form.property.addressLine1,
+                      placeholder: "4 Quay Street", contentType: .streetAddressLine1)
+            FormField("Address line 2 (optional)", error: nil) {
+                TextField("Area or estate", text: $model.form.property.addressLine2)
+                    .textContentType(.streetAddressLine2)
+                    .accessibilityIdentifier("application.addressLine2")
+            }
+            textField("Eircode", field: .eircode, text: $model.form.property.eircode,
+                      placeholder: "T12 X5R2", contentType: .postalCode)
+                .textInputAutocapitalization(.characters)
+        }
+    }
+
+    /// "Cork semi-detached, 110 m²".
+    private var helocHomeTitle: String {
+        let property = model.form.property
+        let name = property.county.flatMap { county in
+            property.propertyType.map { ValuationSummary.title(county: county, propertyType: $0) }
+        } ?? "Your home"
+        return property.floorArea.isBlank ? name : "\(name), \(property.floorArea) m²"
     }
 
     /// The home being bought: address, Eircode, county, asking price, type, size, bedrooms and BER.

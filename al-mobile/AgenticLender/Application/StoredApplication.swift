@@ -5,6 +5,8 @@ import Foundation
 struct StoredApplication: Decodable, Equatable, Sendable {
     let id: String
     let status: String
+    /// As al-core stored it; nil for a value the app doesn't know or an older application without it.
+    private let loanTypeValue: String?
     let loanAmountEur: Double?
     let termYears: Int?
     let employmentType: String?
@@ -35,6 +37,9 @@ struct StoredApplication: Decodable, Equatable, Sendable {
         }
     }
 
+    /// Mortgage or HELOC. A borrower has one Draft of either type, so the form checks this before filling.
+    var loanType: LoanType? { loanTypeValue.flatMap(LoanType.init(rawValue:)) }
+
     /// Only a Draft can be changed; once submitted it is read-only.
     var isDraft: Bool { status == "Draft" }
 
@@ -52,7 +57,9 @@ struct StoredApplication: Decodable, Equatable, Sendable {
         filled.yearsInCurrentJob = yearsInCurrentJob.map { Int($0.rounded()) } ?? form.yearsInCurrentJob
         filled.monthlyTakeHome = Self.amountText(monthlyTakeHomeEur) ?? form.monthlyTakeHome
         filled.monthlyLivingCosts = Self.amountText(monthlyLivingCostsEur) ?? form.monthlyLivingCosts
-        filled.property = property.map { $0.filling(form.property) } ?? form.property
+        // A HELOC's house is the one its check valued, so only the saved address comes back.
+        filled.property = property.map { form.loanType == .heloc ? $0.fillingAddress(form.property) : $0.filling(form.property) }
+            ?? form.property
         return filled
     }
 
@@ -63,6 +70,7 @@ struct StoredApplication: Decodable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, status, property
+        case loanTypeValue = "loan_type"
         case loanAmountEur = "loan_amount_eur"
         case termYears = "term_years"
         case employmentType = "employment_type"
@@ -73,6 +81,14 @@ struct StoredApplication: Decodable, Equatable, Sendable {
 }
 
 private extension StoredApplication.Property {
+    func fillingAddress(_ property: ApplicationProperty) -> ApplicationProperty {
+        var filled = property
+        filled.addressLine1 = addressLine1 ?? property.addressLine1
+        filled.addressLine2 = addressLine2 ?? property.addressLine2
+        filled.eircode = eircode ?? property.eircode
+        return filled
+    }
+
     func filling(_ property: ApplicationProperty) -> ApplicationProperty {
         var filled = property
         filled.addressLine1 = addressLine1 ?? property.addressLine1
