@@ -60,4 +60,33 @@ final class FirestoreApplicationStatusServiceTests: XCTestCase {
         XCTAssertNil(record?.createdAt)
         XCTAssertEqual(record?.history, [])
     }
+
+    // MARK: - One snapshot of the live listener (AL-103)
+
+    func testASnapshotFromTheServerIsAFreshUpdate() throws {
+        let update = try FirestoreApplicationStatusService.update(from: documentFromFirestore, isFromCache: false).get()
+
+        XCTAssertEqual(update.record.status, .declined)
+        XCTAssertEqual(update.record.createdAt, created)
+        XCTAssertFalse(update.isFromCache)
+    }
+
+    func testASnapshotFromThePhonesCacheSaysSo() throws {
+        let update = try FirestoreApplicationStatusService.update(from: documentFromFirestore, isFromCache: true).get()
+
+        XCTAssertTrue(update.isFromCache)
+    }
+
+    func testNoDocumentFromTheServerMeansNotFound() {
+        XCTAssertEqual(FirestoreApplicationStatusService.update(from: nil, isFromCache: false), .failure(.notFound))
+    }
+
+    func testNoDocumentInTheCacheMeansOfflineNotMissing() {
+        // Offline with nothing cached yet: the application may well exist, so it's a network problem.
+        XCTAssertEqual(FirestoreApplicationStatusService.update(from: nil, isFromCache: true), .failure(.network))
+    }
+
+    func testAStatusTheAppDoesNotKnowIsUnavailable() {
+        XCTAssertEqual(FirestoreApplicationStatusService.update(from: ["status": "Approved"], isFromCache: false), .failure(.unavailable))
+    }
 }

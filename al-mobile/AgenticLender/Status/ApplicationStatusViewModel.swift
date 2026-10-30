@@ -1,37 +1,84 @@
 import Observation
 import os
 
-/// Loads the "My application" timeline (AL-102) once. Live updates come with AL-103.
+/// The "My application" timeline, live (AL-102, AL-103). It listens to the application, so a status
+/// change shows without a refresh, and offline it keeps the last known status with a banner (Figma 14d).
 @MainActor
 @Observable
 final class ApplicationStatusViewModel {
+    static let offlineBanner = "Offline. Showing your last saved status."
+
     private(set) var timeline: StatusTimeline?
     private(set) var loadError: String?
     private(set) var isLoading = true
+    /// Show the "Offline" banner: Firestore's last answer came from the phone's cache (or its connection
+    /// dropped), or the phone has no network at all. Firestore can take a while to decide it's offline,
+    /// so the phone's own connection counts too.
+    var isOffline: Bool { isServedFromCache || !hasNetwork }
+
+    private var isServedFromCache = false
+    private var hasNetwork = true
     /// "Ref 7f3k9qx2", the reference the borrower saw when they submitted, kept as stored.
     let reference: String
 
     private let applicationID: String
     private let service: ApplicationStatusService
+    private let network: NetworkMonitor
+    private var listener: LiveListener?
+    private var networkWatch: LiveListener?
     private let logger = Logger(category: "Status")
 
-    init(applicationID: String, service: ApplicationStatusService) {
+    init(applicationID: String, service: ApplicationStatusService, network: NetworkMonitor) {
         self.applicationID = applicationID
         self.service = service
+        self.network = network
         reference = "Ref \(ApplicationReference(applicationID: applicationID).text)"
     }
 
-    func load() async {
-        isLoading = true
+    /// Starts listening. Does nothing while already listening, so it's safe on every appear.
+    func start() {
+        if networkWatch == nil {
+            networkWatch = network.watch { [weak self] connected in
+                self?.hasNetwork = connected
+            }
+        }
+        guard listener == nil else { return }
+        isLoading = timeline == nil
         loadError = nil
-        defer { isLoading = false }
-        do {
-            timeline = StatusTimeline(record: try await service.status(of: applicationID))
-        } catch let error as ApplicationStatusError {
+        listener = service.listen(to: applicationID) { [weak self] result in
+            self?.received(result)
+        }
+    }
+
+    /// After a failure: listens again from scratch.
+    func retry() {
+        listener?.stop()
+        listener = nil
+        start()
+    }
+
+    private func received(_ result: Result<StatusUpdate, ApplicationStatusError>) {
+        isLoading = false
+        switch result {
+        case .success(let update):
+            timeline = StatusTimeline(record: update.record)
+            isServedFromCache = update.isFromCache
+            if !update.isFromCache {
+                // A fresh answer from the server can only come over a working connection, even if the
+                // network watch hasn't noticed it's back yet.
+                hasNetwork = true
+            }
+            loadError = nil
+        case .failure(.network) where timeline != nil:
+            // Keep what the borrower last saw; Firestore carries on listening and catches up when back.
+            isServedFromCache = true
+        case .failure(.network):
+            loadError = Self.message(for: .network)
+        case .failure(let error):
+            // Firestore ends a listener after a real error, so Retry has to set up a new one.
+            logger.error("The status listener stopped: \(String(describing: error), privacy: .public)")
+            listener = nil
             loadError = Self.message(for: error)
-        } catch {
-            logger.error("Unexpected error loading the application status: \(error.localizedDescription, privacy: .public)")
-            loadError = Self.message(for: .unavailable)
         }
     }
 
