@@ -10,6 +10,14 @@ struct AffordabilitySummary: Hashable {
     let stressedRepayment: String
     let limit: String
     let rateNote: String
+    /// Set only when the maximum loan shows as €0 (AL-237): why, and what would change it.
+    let cantBorrow: CantBorrow?
+
+    struct CantBorrow: Hashable {
+        let title: String
+        let reason: String
+        let whatWouldChange: String
+    }
 
     private static let locale = Locale(identifier: "en_IE")
 
@@ -19,6 +27,9 @@ struct AffordabilitySummary: Hashable {
         monthlyRepayment = Self.euroAndCent(result.monthlyRepaymentEur)
         stressedRepayment = Self.euroAndCent(result.stressedRepaymentEur)
         limit = Self.limitText(result.limitedBy, isFirstTimeBuyer: isFirstTimeBuyer)
+        cantBorrow = result.maxLoanEur.rounded() <= 0
+            ? Self.cantBorrow(result.limitedBy, isFirstTimeBuyer: isFirstTimeBuyer)
+            : nil
         rateNote = "Repayments use the average Irish new mortgage rate, \(Self.month(result.rateDate)): "
             + "\(Self.percent(result.benchmarkRatePct)), over \(termYears) years. Indicative, not an offer."
     }
@@ -29,6 +40,24 @@ struct AffordabilitySummary: Hashable {
         case .deposit: "Limited by deposit (90% LTV)"
         case .debts: "Limited by debts (40% of income)"
         }
+    }
+
+    private static func cantBorrow(_ limit: AffordabilityResult.Limit, isFirstTimeBuyer: Bool) -> CantBorrow {
+        let (reason, whatWouldChange) = switch limit {
+        case .debts: (
+            "Your monthly debts already use up the 40% of income that can go on repayments, so there's nothing left for a mortgage.",
+            "Paying down your debts, or a higher income, would change this."
+        )
+        case .deposit: (
+            "A mortgage needs a deposit of at least 10% of the price (90% LTV), so with no deposit there's nothing to lend.",
+            "Saving a deposit would change this."
+        )
+        case .income: (
+            "Lenders can lend up to \(isFirstTimeBuyer ? "4" : "3.5")× your income, and this income doesn't allow a loan.",
+            "A higher income would change this."
+        )
+        }
+        return CantBorrow(title: "You can't borrow yet", reason: reason, whatWouldChange: whatWouldChange)
     }
 
     static func wholeEuro(_ amount: Double) -> String {
@@ -66,6 +95,9 @@ struct AffordabilityOutcome: Hashable {
     let summary: AffordabilitySummary
     /// Chosen before the check started; the application keeps it.
     let loanType: LoanType
+
+    /// Nothing to apply for when the maximum loan is €0 (AL-237).
+    var canApply: Bool { summary.cantBorrow == nil }
 
     /// "Start application": the form begins from these answers, this maximum and this loan type.
     func applicationForm() -> ApplicationForm {
