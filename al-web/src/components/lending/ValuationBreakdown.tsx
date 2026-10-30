@@ -23,6 +23,13 @@ const reviewNotices = {
   missing: 'A usable baseline and all feature contributions are not stored with this application yet.',
 };
 
+// Only the routing key (the first three characters, e.g. T12) is shown: the full Eircode
+// identifies one address.
+function eircodeArea(eircode: string | null) {
+  const routingKey = eircode?.replace(/\s/g, '').slice(0, 3).toUpperCase() ?? '';
+  return /^([A-Z]\d{2}|D6W)$/.test(routingKey) ? routingKey : null;
+}
+
 function inputValue(feature: string, property: LoanFileProperty) {
   switch (feature) {
     case 'county':
@@ -35,6 +42,8 @@ function inputValue(feature: string, property: LoanFileProperty) {
       return property.floorAreaSqm === null ? null : `${property.floorAreaSqm} m²`;
     case 'ber':
       return property.berRating;
+    case 'eircode_area':
+      return eircodeArea(property.eircode);
     default:
       return null;
   }
@@ -52,7 +61,7 @@ export function ValuationBreakdown({ application, review }: ValuationBreakdownPr
         Valuation
       </h2>
       <p className="mt-2 text-sm leading-6 text-muted">
-        Feature effects compared with a typical listing
+        How each detail moved the estimate
       </p>
 
       {breakdown === null ? (
@@ -65,7 +74,10 @@ export function ValuationBreakdown({ application, review }: ValuationBreakdownPr
       ) : (
         <>
           <dl className="mt-6 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-            <dt className="text-muted">Typical listing</dt>
+            <dt className="text-muted">
+              Starting point
+              <span className="block text-xs">average of the model's sample homes</span>
+            </dt>
             <dd>
               <Figure value={formatEuro(breakdown.baselineEur)} />
             </dd>
@@ -106,8 +118,8 @@ export function ValuationBreakdown({ application, review }: ValuationBreakdownPr
             </dd>
           </dl>
           <p className="mt-4 text-sm leading-6 text-muted">
-            Each bar is how much that feature moved the estimate away from a typical listing. It is an
-            estimate of a 2024 asking price, not a valuation.
+            Starts from the average of the model's sample homes, not a typical price. It doesn't say what
+            changing the house would do. It is an estimate of a 2024 asking price, not a valuation.
           </p>
           {breakdown.discrepancyEur !== null && Math.abs(breakdown.discrepancyEur) > 1 ? (
             <p className="mt-4 rounded-lg border border-line bg-danger-soft p-3 text-sm text-error" role="status">

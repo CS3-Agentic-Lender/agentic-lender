@@ -336,7 +336,7 @@ describe('loan file page', () => {
     expect(collateral).not.toHaveTextContent(/€|\d/);
 
     const valuation = screen.getByRole('region', { name: 'Valuation' });
-    expect(within(valuation).getByText(/compared with a typical listing/)).toBeInTheDocument();
+    expect(within(valuation).getByText('How each detail moved the estimate')).toBeInTheDocument();
     expect(within(valuation).getByText('€250,000')).toBeInTheDocument();
     expect(within(valuation).getByText('€298,400')).toBeInTheDocument();
     const rows = within(valuation).getAllByRole('listitem');

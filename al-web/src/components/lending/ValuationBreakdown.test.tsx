@@ -23,11 +23,14 @@ describe('valuation breakdown', () => {
     renderBreakdown();
 
     expect(screen.getByRole('heading', { name: 'Valuation' })).toBeInTheDocument();
-    expect(screen.getByText(/compared with a typical listing/)).toBeInTheDocument();
-    expect(screen.getByText('Typical listing').nextElementSibling).toHaveTextContent('€250,000');
+    expect(screen.getByText('How each detail moved the estimate')).toBeInTheDocument();
+    const startingPoint = screen.getByText("average of the model's sample homes").closest('dt')!;
+    expect(startingPoint).toHaveTextContent("Starting pointaverage of the model's sample homes");
+    expect(startingPoint.nextElementSibling).toHaveTextContent('€250,000');
+    expect(screen.queryByText(/typical listing/i)).not.toBeInTheDocument();
     expect(screen.getByText('Estimate').nextElementSibling).toHaveTextContent('€304,000');
-    expect(screen.getByText(/Each bar is how much that feature moved/)).toHaveTextContent(
-      'Each bar is how much that feature moved the estimate away from a typical listing. It is an estimate of a 2024 asking price, not a valuation.',
+    expect(screen.getByText(/Starts from the average/)).toHaveTextContent(
+      "Starts from the average of the model's sample homes, not a typical price. It doesn't say what changing the house would do. It is an estimate of a 2024 asking price, not a valuation.",
     );
 
     const rows = within(screen.getByRole('list', { name: 'Valuation contributions' })).getAllByRole('listitem');
@@ -37,7 +40,7 @@ describe('valuation breakdown', () => {
       ['Bedrooms', '3', '+€9,800'],
       ['Property type', 'Semi-D', '−€4,600'],
       ['BER rating', 'C2', '−€1,300'],
-      ['Eircode area', null, '+€800'],
+      ['Eircode area', 'T12', '+€800'],
       ['unknown_feature', null, '−€400'],
     ];
     expect(rows).toHaveLength(expected.length);
@@ -82,6 +85,20 @@ describe('valuation breakdown', () => {
     for (const row of rows) {
       expect(row.querySelector('[aria-hidden="true"]')!.firstElementChild).toHaveStyle({ width: '0%' });
     }
+  });
+
+  it.each([
+    ['d6w 1234', 'D6W'],
+    ['t12abcd', 'T12'],
+    ['XY1 2345', null],
+    [null, null],
+  ])('shows only the routing key of the Eircode %s', (eircode, shown) => {
+    render(<ValuationBreakdown
+      application={toLoanFileApplication('area', { property: { eircode } })}
+      review={toLoanFileReview({ valuationDetail: { baselineEur: 250000, contributions: { eircode_area: 800 } } })}
+    />);
+    const row = screen.getByText('Eircode area').closest('li')!;
+    expect(row).toHaveTextContent(`Eircode area${shown ?? ''}+€800`);
   });
 
   it('keeps a stored zero input', () => {
