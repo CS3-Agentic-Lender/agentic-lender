@@ -132,9 +132,19 @@ export function newestFirst(a: ApplicationSummary, b: ApplicationSummary) {
   return (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0) || a.id.localeCompare(b.id);
 }
 
+// The client's name: their profile's, else the name copied onto their newest application. A broker
+// keeps an application after its borrower moves to another broker, but can no longer read the profile.
+export function clientName(client: BrokerClient): string | null {
+  return (
+    client.profile?.fullName ??
+    client.applications.find((application) => application.borrowerName)?.borrowerName ??
+    null
+  );
+}
+
 function byNameThenId(a: BrokerClient, b: BrokerClient) {
-  const aName = a.profile?.fullName;
-  const bName = b.profile?.fullName;
+  const aName = clientName(a);
+  const bName = clientName(b);
 
   if (aName && bName) {
     return aName.localeCompare(bName) || a.id.localeCompare(b.id);
@@ -256,8 +266,10 @@ export const firestoreClientsService: ClientsService = {
           profilesState = 'available';
           emit();
         },
-        () => {
-          // Client files stay usable without profiles; the page says names are unavailable.
+        (error) => {
+          // Logged so that a rules regression shows up; client files stay usable without
+          // profiles, and the page says names are unavailable.
+          console.warn(`Client profiles could not be read: ${error.code}`);
           profiles = null;
           profilesState = 'unavailable';
           emit();

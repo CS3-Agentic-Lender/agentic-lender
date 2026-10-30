@@ -42,7 +42,7 @@ A request follows these steps:
 2. Each write goes to `api.<domain>` as an API request. Route 53 resolves the name to the load balancer. The WAF is attached to the load balancer and filters floods before requests reach the tasks.
 3. The load balancer routes `/ai/*` requests to al-ai and `/core/*` requests to al-core. Only the load balancer can reach the task security group.
 4. Both services validate the Firebase token and use the Admin SDK to write to Firestore. They get their keys from Secrets Manager, which ECS supplies when a task starts.
-5. For the affordability agent, al-ai calls Bedrock. It also reaches Gemini, Mistral, Groq, Serper and the ECB over the internet. Al-core calls the ledger. Both tasks use public subnets and public IPs, so they can make these outbound calls without a NAT gateway.
+5. For the affordability agent, al-ai calls Bedrock. It also reaches Gemini, Groq, Serper and the ECB over the internet. Al-core calls the ledger. Both tasks use public subnets and public IPs, so they can make these outbound calls without a NAT gateway.
 6. Stripe sends its webhook through the same load balancer to al-core.
 7. GitHub Actions builds the ARM64 images for a release and uploads them to ECR.
 8. A person starts the deploy. Terraform then updates both ECS services to use the new image.
@@ -59,6 +59,15 @@ A typical production setup uses several environments and moves each change betwe
 | Test | Automated tests on every change | A shared test environment | GitHub Actions on every PR |
 | Staging | A full copy of production for final checks | A separate AWS account | Not built (cost) |
 | Production | Real users | Its own AWS account with approvals | One AWS deployment |
+
+Which AI runs each agent, locally and on AWS:
+
+| Agent | Local development and testing | Deployed on AWS |
+|---|---|---|
+| Market & Macro | Gemini API | Gemini API |
+| Affordability | Ollama (`qwen3.5:9b`) | Amazon Bedrock (Qwen3 32B) |
+| Valuation | Groq API (gpt-oss-120b), with Gemini Flash-Lite as the manual backup | Groq API (gpt-oss-120b), with Gemini Flash-Lite as the manual backup |
+| Strategist | Gemini API | Gemini API |
 
 ![Release strategy](diagrams/10-release-strategy.png)
 

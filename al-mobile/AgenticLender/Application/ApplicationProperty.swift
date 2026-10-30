@@ -15,6 +15,24 @@ struct ApplicationProperty: Equatable {
     var berRating: BERRating?
 }
 
+extension ApplicationProperty {
+    /// This property with a saved check's details filled in (AL-144). The address lines stay as typed,
+    /// since a saved check has none, and so does a typed asking price when the check had none.
+    func filled(from check: SavedCheck) -> ApplicationProperty {
+        var filled = self
+        filled.eircode = check.eircode
+        filled.county = check.county
+        filled.propertyType = check.propertyType
+        filled.bedrooms = check.bedrooms
+        filled.floorArea = EuroAmount.format(check.floorAreaM2)
+        filled.berRating = check.berRating
+        if let askingPrice = check.askingPriceEur {
+            filled.askingPrice = EuroAmount.format(askingPrice)
+        }
+        return filled
+    }
+}
+
 /// A checked property in the API field names of `POST /core/applications`: whole euro and m²,
 /// the Eircode in capitals with a space, and no second address line when it was left empty.
 struct PropertyDraft: Encodable, Equatable {

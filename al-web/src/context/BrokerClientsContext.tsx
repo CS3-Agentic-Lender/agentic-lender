@@ -14,6 +14,11 @@ export type BrokerClientsState =
 
 export const ClientsServiceContext = createContext<ClientsService>(firestoreClientsService);
 
+// With Firestore unreachable neither an answer nor an error arrives, so the page would say
+// "Loading" for good. After this long it says the files could not be loaded; a late answer still
+// replaces that.
+export const CLIENTS_LOAD_TIMEOUT_MS = 15_000;
+
 const BrokerClientsContext = createContext<BrokerClientsState | null>(null);
 
 interface BrokerClientsProviderProps {
@@ -34,11 +39,29 @@ export function BrokerClientsProvider({ children }: BrokerClientsProviderProps) 
       return;
     }
 
-    return service.subscribeToBrokerClients(
+    let answered = false;
+    const timeout = setTimeout(() => {
+      if (!answered) {
+        setState({ status: 'error' });
+      }
+    }, CLIENTS_LOAD_TIMEOUT_MS);
+
+    const unsubscribe = service.subscribeToBrokerClients(
       brokerUid,
-      (snapshot) => setState({ status: 'ready', ...snapshot }),
-      (error) => setState({ status: error === 'permission-denied' ? 'denied' : 'error' }),
+      (snapshot) => {
+        answered = true;
+        setState({ status: 'ready', ...snapshot });
+      },
+      (error) => {
+        answered = true;
+        setState({ status: error === 'permission-denied' ? 'denied' : 'error' });
+      },
     );
+
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, [service, brokerUid]);
 
   return <BrokerClientsContext.Provider value={state}>{children}</BrokerClientsContext.Provider>;

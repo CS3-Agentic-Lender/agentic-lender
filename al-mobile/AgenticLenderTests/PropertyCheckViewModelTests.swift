@@ -79,10 +79,10 @@ final class PropertyCheckViewModelTests: XCTestCase {
         XCTAssertEqual(model.form.bedrooms, 0)
         XCTAssertFalse(model.canDecreaseBedrooms)
 
-        model.form.bedrooms = 29
+        model.form.bedrooms = 19
         model.increaseBedrooms()
         model.increaseBedrooms()
-        XCTAssertEqual(model.form.bedrooms, 30)
+        XCTAssertEqual(model.form.bedrooms, 20)
         XCTAssertFalse(model.canIncreaseBedrooms)
     }
 

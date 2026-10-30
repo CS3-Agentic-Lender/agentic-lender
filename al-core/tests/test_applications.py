@@ -6,7 +6,7 @@ import itertools
 import pytest
 from fastapi.testclient import TestClient
 from google.api_core.exceptions import FailedPrecondition
-from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 
 from app import applications, auth
 from app.main import app
@@ -81,6 +81,8 @@ class FakeDoc:
                 target = target.setdefault(part, {})
             if value is DELETE_FIELD:
                 target.pop(last, None)
+            elif isinstance(value, ArrayUnion):
+                target[last] = list(target.get(last, [])) + [v for v in value.values if v not in target.get(last, [])]
             else:
                 target[last] = LATER if value is SERVER_TIMESTAMP else value
 
@@ -746,6 +748,23 @@ def test_after_filling_in_the_missing_field_it_submits(fake):
     assert submit(app_id).status_code == 422
     edit(app_id, {"property": {"eircode": "P31 X2Y3"}})
     assert submit(app_id).json()["status"] == "Applied"
+
+
+def test_submitting_records_who_moved_it_and_when(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    assert "statusHistory" not in stored(fake)
+    assert submit(app_id).status_code == 200
+    (entry,) = stored(fake)["statusHistory"]
+    assert entry["from"] == "Draft" and entry["to"] == "Applied"
+    assert entry["actor"] == "borrower" and entry["actorId"] == "borrower1"
+    assert isinstance(entry["at"], datetime) and entry["at"].tzinfo is not None
+
+
+def test_submitting_again_does_not_add_a_second_history_entry(fake):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    submit(app_id)
+    submit(app_id)
+    assert len(stored(fake)["statusHistory"]) == 1
 
 
 # AC3: submitting again is safe; any later status is 409

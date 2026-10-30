@@ -19,6 +19,7 @@ from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
 from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app import status as status_moves
 from app.auth import current_user, require_role
 from app.firestore import db
 from app.me import EIRCODE
@@ -381,7 +382,8 @@ def submit(application_id: str, user: dict = Depends(require_role("borrower"))):
             [{"loc": ("body", *missing.split(".")), "msg": "is required to submit", "type": "missing"}]
         )
 
-    _update_if_unchanged(ref, {"status": "Applied", "submittedAt": SERVER_TIMESTAMP, "updatedAt": SERVER_TIMESTAMP}, read_at)
+    changes = status_moves.plan_move(doc, "Applied", status_moves.BORROWER, user["uid"], extra={"submittedAt": SERVER_TIMESTAMP})
+    _update_if_unchanged(ref, changes, read_at)
     return _out(ref.id, ref.get().to_dict())
 
 

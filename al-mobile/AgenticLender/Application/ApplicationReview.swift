@@ -109,13 +109,13 @@ enum ApplicationFormAnchor: Hashable {
 }
 
 /// The reference shown once an application is submitted (Figma 13b): the first eight characters of
-/// al-core's application id, in capitals, so a broker or underwriter can find the application from it.
+/// al-core's application id as stored, so it reads the same as the id the broker and underwriter see.
 struct ApplicationReference: Equatable {
     static let length = 8
 
     let text: String
 
     init(applicationID: String) {
-        text = String(applicationID.prefix(Self.length)).uppercased()
+        text = String(applicationID.prefix(Self.length))
     }
 }

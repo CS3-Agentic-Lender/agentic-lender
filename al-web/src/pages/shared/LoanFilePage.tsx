@@ -3,6 +3,7 @@ import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
+import { HelocCollateral } from '../../components/lending/HelocCollateral';
 import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
 import {
@@ -210,8 +211,8 @@ function LoanFile({ application, review }: LoanFileProps) {
             ...(heloc
               ? [{ label: 'Existing mortgage balance', value: euro(application.existingMortgageBalanceEur) }]
               : []),
-            { label: 'Valuation LTV', value: ltvText(application) },
-            { label: 'Stored LTV band', unit: 'asking price', value: ltvBandText(application) },
+            { label: heloc ? 'Combined LTV' : 'Valuation LTV', value: ltvText(application) },
+            ...(heloc ? [] : [{ label: 'Stored LTV band', unit: 'asking price', value: ltvBandText(application) }]),
             { label: 'Risk tier', value: riskTierText(application, review) },
             { label: 'Submitted', value: date(application.submittedAt), mono: false },
             { label: 'Updated', value: date(application.updatedAt), mono: false },
@@ -233,10 +234,14 @@ function LoanFile({ application, review }: LoanFileProps) {
           title="Property"
         />
         <div className="grid gap-6">
-          <Placeholder
-            detail="The collateral record for this property is not shown on the loan file yet."
-            title="Collateral"
-          />
+          {heloc ? (
+            <HelocCollateral application={application} />
+          ) : (
+            <Placeholder
+              detail="The collateral record for this property is not shown on the loan file yet."
+              title="Collateral"
+            />
+          )}
           <ValuationBreakdown application={application} review={review} />
         </div>
       </div>

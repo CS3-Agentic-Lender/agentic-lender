@@ -207,6 +207,80 @@ function fact(section: string, label: string) {
 afterEach(cleanup);
 
 describe('loan file page', () => {
+  it.each([
+    [100000, 62.5, false],
+    [170000, 80, false],
+    [180000, 82.5, true],
+  ])('shows the stored HELOC limit %s and combined LTV %s', async (loanAmountEur, ltvPct, above) => {
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', estimatedValueEur: 400000,
+        existingMortgageBalanceEur: 150000, loanAmountEur, ltvPct,
+      }),
+    }));
+    const collateral = await screen.findByRole('region', { name: 'Collateral (HELOC)' });
+    expect(screen.getByText('HELOC')).toBeInTheDocument();
+    expect(within(collateral).getByText('indicative estimate of a 2024 asking price, not a valuation')).toBeInTheDocument();
+    expect(within(collateral).getByText('€400,000')).toBeInTheDocument();
+    expect(fact('Collateral (HELOC)', 'Existing mortgage balance')).toHaveTextContent('€150,000');
+    expect(fact('Collateral (HELOC)', 'Credit limit requested')).toHaveTextContent(
+      new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(loanAmountEur),
+    );
+    expect(fact('Collateral (HELOC)', 'Combined LTV')).toHaveTextContent(`${ltvPct}%`);
+    expect(fact('Collateral (HELOC)', 'Combined LTV cap')).toHaveTextContent('80%');
+    expect(within(collateral).getByText(`Combined LTV ${ltvPct}% against the 80% cap`)).toBeInTheDocument();
+    expect(collateral.querySelector('[aria-hidden="true"]')).toHaveTextContent('80% cap');
+    expect(Boolean(within(collateral).queryByText('Above the 80% combined LTV cap'))).toBe(above);
+    expect(fact('Loan', 'Combined LTV')).toHaveTextContent(`${ltvPct}%`);
+    expect(screen.getByRole('region', { name: 'Loan' })).not.toHaveTextContent(/asking price|Stored LTV band/i);
+    expect(fact('Property', 'Asking price')).toHaveTextContent('€310,000');
+    expect(screen.getByRole('main')).not.toHaveTextContent(/deposit|price[- ]gap|requires lender exception review/i);
+  });
+
+  it.each([
+    { estimatedValueEur: null, ltvPct: 62.5 },
+    { estimatedValueEur: 400000, ltvPct: null },
+    { estimatedValueEur: null, ltvPct: null },
+  ])('shows missing HELOC figures as Unavailable: %j', async (figures) => {
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', { ...seededApplication, loanType: 'heloc', ...figures, loanAmountEur: null }),
+    }));
+    const collateral = await screen.findByRole('region', { name: 'Collateral (HELOC)' });
+    const estimate = within(collateral).getByText('Estimated value').closest('dt')!.nextElementSibling;
+    expect(estimate).toHaveTextContent(figures.estimatedValueEur === null ? 'Unavailable' : '€400,000');
+    expect(fact('Collateral (HELOC)', 'Combined LTV')).toHaveTextContent(figures.ltvPct === null ? 'Unavailable' : '62.5%');
+    expect(fact('Collateral (HELOC)', 'Existing mortgage balance')).toHaveTextContent('Unavailable');
+    expect(fact('Collateral (HELOC)', 'Credit limit requested')).toHaveTextContent('Unavailable');
+    expect(collateral).not.toHaveTextContent(/€0|Above the 80%/);
+    if (figures.ltvPct === null) {
+      expect(collateral.querySelector('[aria-hidden="true"]')).toBeNull();
+      expect(within(collateral).queryByText(/against the 80% cap/)).not.toBeInTheDocument();
+    }
+  });
+
+  it('uses the stored combined LTV even when the other stored figures would imply a different value', async () => {
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', estimatedValueEur: 400000,
+        existingMortgageBalanceEur: 150000, loanAmountEur: 100000, ltvPct: 82.5,
+      }),
+    }));
+    const collateral = await screen.findByRole('region', { name: 'Collateral (HELOC)' });
+    expect(fact('Collateral (HELOC)', 'Combined LTV')).toHaveTextContent('82.5%');
+    expect(collateral).toHaveTextContent('Above the 80% combined LTV cap');
+    expect(collateral).not.toHaveTextContent('62.5%');
+  });
+
+  it.each(['mortgage', null])('keeps the collateral placeholder and header for loan type %s', async (loanType) => {
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', { ...seededApplication, loanType }),
+    }));
+    const collateral = await screen.findByRole('region', { name: 'Collateral' });
+    expect(collateral).toHaveTextContent('The collateral record for this property is not shown on the loan file yet.');
+    expect(screen.queryByRole('region', { name: 'Collateral (HELOC)' })).not.toBeInTheDocument();
+    expect(screen.getByText(loanType === 'mortgage' ? 'Mortgage' : 'Loan type unavailable')).toBeInTheDocument();
+  });
+
   it('shows each DTI figure from the application and its review', async () => {
     renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile() }));
     await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });

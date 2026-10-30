@@ -6,6 +6,6 @@
     "affordability": {"provider": "ollama", "model": "qwen3.5:9b"}
   },
   "backup": {
-    "valuation": {"provider": "mistral", "model": "mistral-small-2603"}
+    "valuation": {"provider": "gemini", "model": "gemini-3.1-flash-lite"}
   }
 }

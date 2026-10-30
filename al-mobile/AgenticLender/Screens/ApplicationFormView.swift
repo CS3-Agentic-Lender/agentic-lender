@@ -13,6 +13,7 @@ struct ApplicationFormView: View {
     @State private var submitModel: ApplicationSubmitViewModel?
     /// Where the review's Edit link asked to land, scrolled to once the review has closed.
     @State private var editAnchor: ApplicationFormAnchor?
+    @State private var savedChecks: SavedChecksStore
     private let service: ApplicationService
     private let onBackToHome: () -> Void
 
@@ -20,9 +21,11 @@ struct ApplicationFormView: View {
         form: ApplicationForm,
         service: ApplicationService = APIApplicationService.live(),
         draftIDs: DraftIDStore = liveDraftIDStore(),
+        savedChecks: SavedCheckService = LiveSavedCheckService.live(),
         onBackToHome: @escaping () -> Void = {}
     ) {
         _model = State(initialValue: ApplicationViewModel(form: form, service: service, draftIDs: draftIDs))
+        _savedChecks = State(initialValue: SavedChecksStore(service: savedChecks))
         self.service = service
         self.onBackToHome = onBackToHome
     }
@@ -225,6 +228,10 @@ struct ApplicationFormView: View {
                 .foregroundStyle(Theme.text)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, 8)
+
+            SavedCheckPicker(store: savedChecks) { check in
+                model.form.property = model.form.property.filled(from: check)
+            }
 
             textField("Address line 1", field: .addressLine1, text: $model.form.property.addressLine1,
                       placeholder: "12 Model Farm Road", contentType: .streetAddressLine1)

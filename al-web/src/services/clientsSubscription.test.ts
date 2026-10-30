@@ -1,5 +1,5 @@
 import { onSnapshot } from 'firebase/firestore';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { firestoreClientsService } from './clientsService';
 
 // The query builders are replaced by recorders so that a test can read the query a listener
@@ -68,7 +68,14 @@ function subscribe() {
   };
 }
 
-beforeEach(() => vi.mocked(onSnapshot).mockReset());
+let warn: MockInstance<typeof console.warn>;
+
+beforeEach(() => {
+  vi.mocked(onSnapshot).mockReset();
+  warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+afterEach(() => warn.mockRestore());
 
 describe('broker clients queries', () => {
   it('reads applications where brokerId is the signed-in broker and the status is not Draft', () => {
@@ -208,6 +215,20 @@ describe('broker clients subscription', () => {
     const subscription = subscribe();
     expect(subscription.applicationsOptions).toEqual({ includeMetadataChanges: true });
     expect(subscription.profilesOptions).toEqual({ includeMetadataChanges: true });
+  });
+
+  it.each(['permission-denied', 'unavailable'])('logs the profiles %s error code once', (code) => {
+    const subscription = subscribe();
+    subscription.applicationsNext(applications);
+    subscription.profilesError({ code });
+    expect(warn).toHaveBeenCalledExactlyOnceWith(`Client profiles could not be read: ${code}`);
+  });
+
+  it('logs nothing while profiles answer', () => {
+    const subscription = subscribe();
+    subscription.applicationsNext(applications);
+    subscription.profilesNext(profiles);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it.each(['permission-denied', 'unavailable'])('handles profiles %s before applications answer', (code) => {

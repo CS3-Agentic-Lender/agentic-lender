@@ -1,0 +1,49 @@
+{
+  "what": "al-ai's assess() (al-ai/app/affordability.py) called on the two affordability reference cases at a 4.00% test rate, unrounded. al-core's seed has a JavaScript port of it, and test/dti-breakdown.test.js checks the port against these numbers. To rebuild the file, call assess(loan, years, 0.04, gross_annual_income, net_monthly_income, monthly_debts, monthly_living_costs) from al-ai for each case's inputs. al-ai's tests can load this file too.",
+  "cases": [
+    {
+      "name": "single first-time buyer",
+      "inputs": {
+        "loanEur": 240000,
+        "termYears": 30,
+        "grossAnnualIncomeEur": 60000,
+        "takeHomeMonthlyEur": 3700,
+        "existingDebtsMonthlyEur": 0,
+        "livingCostsMonthlyEur": 1500,
+        "benchmarkRatePct": 4
+      },
+      "expected": {
+        "repayment": 1145.7967091170892,
+        "stressedRepayment": 1438.9212603666167,
+        "dti": 0.22915934182341785,
+        "stressedDti": 0.28778425207332337,
+        "surplus": 1054.2032908829108,
+        "stressedSurplus": 761.0787396333833,
+        "dtiBand": "Comfortable",
+        "surplusBand": "Comfortable"
+      }
+    },
+    {
+      "name": "joint movers",
+      "inputs": {
+        "loanEur": 270000,
+        "termYears": 25,
+        "grossAnnualIncomeEur": 90000,
+        "takeHomeMonthlyEur": 5400,
+        "existingDebtsMonthlyEur": 0,
+        "livingCostsMonthlyEur": 2200,
+        "benchmarkRatePct": 4
+      },
+      "expected": {
+        "repayment": 1425.1594688039795,
+        "stressedRepayment": 1739.613784010889,
+        "dti": 0.19002126250719728,
+        "stressedDti": 0.23194850453478522,
+        "surplus": 1774.8405311960205,
+        "stressedSurplus": 1460.386215989111,
+        "dtiBand": "Comfortable",
+        "surplusBand": "Comfortable"
+      }
+    }
+  ]
+}
