@@ -74,6 +74,16 @@ struct ApplicationFormView: View {
                     .foregroundStyle(Theme.text)
                     .accessibilityAddTraits(.isHeader)
 
+                if let note = model.draftNote {
+                    Label(note, systemImage: "info.circle")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(Theme.neutral, in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                        .accessibilityIdentifier("application.draftNote")
+                }
+
                 affordabilityCard
                     .id(ApplicationFormAnchor.money)
 

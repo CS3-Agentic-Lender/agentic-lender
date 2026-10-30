@@ -20,6 +20,17 @@ enum HELOCFixtures {
         )
     }
 
+    /// A saved HELOC Draft as `GET /core/applications/{id}` returns it.
+    static func storedDraft(status: String = "Draft") throws -> StoredApplication {
+        let json = """
+        {"id": "app77", "status": "\(status)", "loan_type": "heloc", "loan_amount_eur": 80000.0, "term_years": 20,
+         "existing_mortgage_balance_eur": 150000.0,
+         "property": {"address_line_1": "4 Quay Street", "eircode": "T12 X5R2", "county": "Cork",
+                      "property_type": "Semi-D", "bedrooms": 3, "floor_area_sqm": 110.0, "ber_rating": "B3"}}
+        """
+        return try JSONDecoder().decode(StoredApplication.self, from: Data(json.utf8))
+    }
+
     static func form() -> ApplicationForm {
         ApplicationForm(heloc: request(), result: result())
     }
@@ -164,11 +175,12 @@ final class HELOCApplicationFormTests: XCTestCase {
     // MARK: - A saved Draft reopens without losing the check's house details
 
     func testReopeningKeepsTheCheckedHouseAndTakesTheSavedAddress() throws {
-        let stored = try TestFixtures.storedApplication(status: "Draft") // a mortgage Draft for a different home
+        let stored = try HELOCFixtures.storedDraft()
 
         let filled = stored.filling(HELOCFixtures.form())
 
-        XCTAssertEqual(filled.property.addressLine1, "12 Model Farm Road")
+        XCTAssertEqual(filled.property.addressLine1, "4 Quay Street")
+        XCTAssertEqual(filled.loanAmount, "80,000")
         XCTAssertEqual(filled.property.floorArea, "110", "the HELOC check's house, not the stored one")
         XCTAssertEqual(filled.property.berRating, .b3)
         XCTAssertEqual(filled.property.askingPrice, "")
@@ -177,6 +189,62 @@ final class HELOCApplicationFormTests: XCTestCase {
 
 @MainActor
 final class HELOCApplicationViewModelTests: XCTestCase {
+    private func loaded(_ form: ApplicationForm, stored: StoredApplication) async -> ApplicationViewModel {
+        let service = FakeApplicationService()
+        service.loadOutcome = .success(stored)
+        let model = ApplicationViewModel(form: form, service: service, draftIDs: FakeDraftIDStore(storedID: stored.id))
+        await model.loadSavedDraft()
+        return model
+    }
+
+    // MARK: - One Draft per borrower, of either loan type
+
+    func testTheSavedDraftsLoanTypeIsRead() throws {
+        XCTAssertEqual(try HELOCFixtures.storedDraft().loanType, .heloc)
+        XCTAssertEqual(try TestFixtures.storedApplication(status: "Draft").loanType, .mortgage)
+    }
+
+    func testAMortgageDraftDoesNotFillAHELOCFormAndTheBorrowerIsTold() async throws {
+        let model = await loaded(HELOCFixtures.form(), stored: try TestFixtures.storedApplication(status: "Draft"))
+
+        XCTAssertEqual(model.form, HELOCFixtures.form(), "the house being bought must not become their home")
+        XCTAssertEqual(model.draftNote, "You have a saved mortgage application. Saving this HELOC replaces it.")
+        XCTAssertFalse(model.isReadOnly)
+    }
+
+    func testAHELOCDraftDoesNotFillAMortgageFormAndTheBorrowerIsTold() async throws {
+        let model = await loaded(TestFixtures.applicationForm(), stored: try HELOCFixtures.storedDraft())
+
+        XCTAssertEqual(model.form, TestFixtures.applicationForm())
+        XCTAssertEqual(model.draftNote, "You have a saved HELOC application. Saving this mortgage replaces it.")
+    }
+
+    func testADraftOfTheSameTypeFillsTheFormWithNoNote() async throws {
+        let model = await loaded(HELOCFixtures.form(), stored: try HELOCFixtures.storedDraft())
+
+        XCTAssertEqual(model.form.loanAmount, "80,000")
+        XCTAssertEqual(model.form.property.addressLine1, "4 Quay Street")
+        XCTAssertNil(model.draftNote)
+    }
+
+    func testASubmittedApplicationOfTheOtherTypeBlocksTheFormWithoutFillingIt() async throws {
+        let model = await loaded(HELOCFixtures.form(), stored: try TestFixtures.storedApplication(status: "Applied"))
+
+        XCTAssertTrue(model.isReadOnly)
+        XCTAssertEqual(model.form, HELOCFixtures.form())
+        XCTAssertEqual(model.draftNote, "You already have a mortgage application in progress, so you can't start a HELOC.")
+    }
+
+    func testADraftWithNoLoanTypeIsTreatedAsTheSameType() async throws {
+        let json = #"{"id": "app9", "status": "Draft", "loan_amount_eur": 70000.0}"#
+        let legacy = try JSONDecoder().decode(StoredApplication.self, from: Data(json.utf8))
+
+        let model = await loaded(HELOCFixtures.form(), stored: legacy)
+
+        XCTAssertEqual(model.form.loanAmount, "70,000")
+        XCTAssertNil(model.draftNote)
+    }
+
     func testTheSummarySaysWhatTheHELOCCheckWasFor() {
         let model = ApplicationViewModel(form: HELOCFixtures.form(), service: FakeApplicationService(), draftIDs: FakeDraftIDStore())
 

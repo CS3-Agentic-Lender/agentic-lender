@@ -5,6 +5,8 @@ import Foundation
 struct StoredApplication: Decodable, Equatable, Sendable {
     let id: String
     let status: String
+    /// As al-core stored it; nil for a value the app doesn't know or an older application without it.
+    private let loanTypeValue: String?
     let loanAmountEur: Double?
     let termYears: Int?
     let employmentType: String?
@@ -34,6 +36,9 @@ struct StoredApplication: Decodable, Equatable, Sendable {
             case askingPriceEur = "asking_price_eur"
         }
     }
+
+    /// Mortgage or HELOC. A borrower has one Draft of either type, so the form checks this before filling.
+    var loanType: LoanType? { loanTypeValue.flatMap(LoanType.init(rawValue:)) }
 
     /// Only a Draft can be changed; once submitted it is read-only.
     var isDraft: Bool { status == "Draft" }
@@ -65,6 +70,7 @@ struct StoredApplication: Decodable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, status, property
+        case loanTypeValue = "loan_type"
         case loanAmountEur = "loan_amount_eur"
         case termYears = "term_years"
         case employmentType = "employment_type"

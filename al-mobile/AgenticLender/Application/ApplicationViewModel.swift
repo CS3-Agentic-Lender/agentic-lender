@@ -28,6 +28,9 @@ final class ApplicationViewModel {
     private(set) var loadError: String?
     /// The application has been submitted: it shows what was sent, and nothing can change.
     private(set) var isReadOnly = false
+    /// The borrower's saved application is the other loan type: saving replaces its Draft, or a
+    /// submitted one blocks a new start. Nil once saved, or when the types match.
+    private(set) var draftNote: String?
 
     private let service: ApplicationService
     private let draftIDs: DraftIDStore
@@ -67,8 +70,13 @@ final class ApplicationViewModel {
         do {
             let stored = try await service.loadApplication(id: id)
             guard !stored.isFinished else { return draftIDs.forget() }
-            form = stored.filling(form)
             isReadOnly = !stored.isDraft
+            // A mortgage Draft must not fill a HELOC form (its house isn't their home), or the reverse.
+            if let saved = stored.loanType, saved != form.loanType {
+                draftNote = Self.otherTypeNote(saved: saved, starting: form.loanType, isDraft: stored.isDraft)
+                return
+            }
+            form = stored.filling(form)
         } catch ApplicationSaveError.draftNotFound {
             draftIDs.forget()
         } catch {
@@ -91,6 +99,7 @@ final class ApplicationViewModel {
             let message = try await store(draft)
             // A change that slipped in during the save isn't in the Draft, so it still needs saving.
             if form == sentForm { saveMessage = message }
+            draftNote = nil  // the saved Draft is this loan type now
         } catch ApplicationSaveError.submitted {
             isReadOnly = true
         } catch let error as ApplicationSaveError {
@@ -121,6 +130,12 @@ final class ApplicationViewModel {
             try await service.editDraft(id: id, draft)
             return Self.existingDraftUpdatedMessage
         }
+    }
+
+    static func otherTypeNote(saved: LoanType, starting: LoanType, isDraft: Bool) -> String {
+        isDraft
+            ? "You have a saved \(saved.name) application. Saving this \(starting.name) replaces it."
+            : "You already have a \(saved.name) application in progress, so you can't start a \(starting.name)."
     }
 
     /// The heading of the card that sums up the check the form started from.

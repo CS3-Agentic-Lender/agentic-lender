@@ -4,6 +4,14 @@ enum LoanType: String, CaseIterable, Hashable {
     case mortgage
     case heloc
 
+    /// How a sentence names it: "a saved mortgage application", "this HELOC".
+    var name: String {
+        switch self {
+        case .mortgage: "mortgage"
+        case .heloc: "HELOC"
+        }
+    }
+
     /// The choice card's heading (Figma 07h).
     var title: String {
         switch self {
