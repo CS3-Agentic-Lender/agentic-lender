@@ -90,9 +90,13 @@ struct LoanFigures: Equatable, Sendable {
         ]
     }
 
-    /// "88%", whole percent like Figma 14; "—" before the AI review has worked it out.
+    private static let locale = Locale(identifier: "en_IE")
+
+    /// "87.6%", one decimal and rounded down, so a figure just under its limit never shows as
+    /// the limit (89.96 is "89.9%", not "90.0%"); "—" before the AI review has worked it out.
     private static func percent(_ value: Double?) -> String {
-        value.map { "\(Int($0.rounded()))%" } ?? "—"
+        guard let value else { return "—" }
+        return value.formatted(.number.precision(.fractionLength(1)).rounded(rule: .down).locale(locale)) + "%"
     }
 
     private static func number(_ value: Any?) -> Double? {

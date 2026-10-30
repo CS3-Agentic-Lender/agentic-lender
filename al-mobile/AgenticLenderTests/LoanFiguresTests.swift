@@ -16,16 +16,23 @@ final class LoanFiguresTests: XCTestCase {
             "loanType": "mortgage", "purchaseLtvPct": 87.6, "ltvPct": 101.2, "dtiPct": 24.6, "approvalLikelihood": "High",
         ]).figures
 
-        XCTAssertEqual(figures.ltv, LoanFigures.Tile(title: "LTV", value: "88%", note: "limit 90%"))
-        XCTAssertEqual(figures.dti, LoanFigures.Tile(title: "DTI", value: "25%", note: "of income"))
+        XCTAssertEqual(figures.ltv, LoanFigures.Tile(title: "LTV", value: "87.6%", note: "limit 90%"))
+        XCTAssertEqual(figures.dti, LoanFigures.Tile(title: "DTI", value: "24.6%", note: "of income"))
         XCTAssertEqual(figures.likelihood, .high)
     }
 
     func testAHELOCReadsItsCombinedLTVAgainstEightyPercent() throws {
         let figures = try record(["loanType": "heloc", "ltvPct": 62.5, "dtiPct": 31.0, "approvalLikelihood": "Medium"]).figures
 
-        XCTAssertEqual(figures.ltv, LoanFigures.Tile(title: "Combined LTV", value: "63%", note: "limit 80%"))
+        XCTAssertEqual(figures.ltv, LoanFigures.Tile(title: "Combined LTV", value: "62.5%", note: "limit 80%"))
         XCTAssertEqual(figures.likelihood, .medium)
+    }
+
+    func testAFigureJustUnderTheLimitIsNotShownAtTheLimit() throws {
+        let figures = try record(["loanType": "mortgage", "purchaseLtvPct": 89.96, "dtiPct": 30]).figures
+
+        XCTAssertEqual(figures.ltv.value, "89.9%", "never rounded up to the 90% limit")
+        XCTAssertEqual(figures.dti.value, "30.0%")
     }
 
     func testEveryLikelihoodLabelIsRead() throws {

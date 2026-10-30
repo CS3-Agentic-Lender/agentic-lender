@@ -230,7 +230,7 @@ final class ApplicationStatusViewModelTests: XCTestCase {
         XCTAssertEqual(model.figures?.ltv.value, "—")
 
         service.push(fresh(after))
-        XCTAssertEqual(model.figures?.ltv.value, "88%")
+        XCTAssertEqual(model.figures?.ltv.value, "88.0%")
         XCTAssertEqual(model.figures?.likelihood, .high)
     }
 
