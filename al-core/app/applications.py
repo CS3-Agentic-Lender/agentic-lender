@@ -107,6 +107,13 @@ class PropertyOut(BaseModel):
     asking_price_eur: float | None = None
 
 
+class DecisionOut(BaseModel):
+    outcome: str
+    underwriter_id: str | None = None
+    decided_at: str | None = None
+    reason: str | None = None
+
+
 class ApplicationOut(BaseModel):
     id: str
     borrower_id: str
@@ -132,6 +139,8 @@ class ApplicationOut(BaseModel):
     # Set by al-ai after each run, never by a client. Null until the first run.
     ltv_band: str | None = None
     risk_tier: str | None = None
+    # Set by the underwriter's sign-off (POST .../decision). Null until then.
+    decision: DecisionOut | None = None
     created_at: str | None = None
     submitted_at: str | None = None
     updated_at: str | None = None
@@ -242,6 +251,17 @@ def _iso(ts) -> str | None:
     return ts.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _decision_out(decision: dict | None) -> dict | None:
+    if not decision:
+        return None
+    return {
+        "outcome": decision.get("outcome"),
+        "underwriter_id": decision.get("underwriterId"),
+        "decided_at": _iso(decision.get("decidedAt")),
+        "reason": decision.get("reason"),
+    }
+
+
 def _out(app_id: str, doc: dict) -> dict:
     """Firestore camelCase to API snake_case."""
     prop = doc.get("property")
@@ -258,6 +278,7 @@ def _out(app_id: str, doc: dict) -> dict:
         "ltv_pct": doc.get("ltvPct"),
         "ltv_band": doc.get("ltvBand"),
         "risk_tier": doc.get("riskTier"),
+        "decision": _decision_out(doc.get("decision")),
         "created_at": _iso(doc.get("createdAt")),
         "submitted_at": _iso(doc.get("submittedAt")),
         "updated_at": _iso(doc.get("updatedAt")),

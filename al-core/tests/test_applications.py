@@ -48,6 +48,15 @@ FULL_MORTGAGE = {
 }
 
 
+def resolve(value):
+    """A server timestamp becomes LATER, including inside a map that is written whole."""
+    if value is SERVER_TIMESTAMP:
+        return LATER
+    if isinstance(value, dict):
+        return {k: resolve(v) for k, v in value.items()}
+    return value
+
+
 class FakeSnap:
     def __init__(self, doc_id, data, update_time=None):
         self.id = doc_id
@@ -88,7 +97,7 @@ class FakeDoc:
             elif isinstance(value, ArrayUnion):
                 target[last] = list(target.get(last, [])) + [v for v in value.values if v not in target.get(last, [])]
             else:
-                target[last] = LATER if value is SERVER_TIMESTAMP else value
+                target[last] = resolve(value)
 
     def get(self):
         return FakeSnap(self.id, self.store.get(self.path), self.db.versions.get(self.path))
