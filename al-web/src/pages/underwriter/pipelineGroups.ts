@@ -29,6 +29,12 @@ export const RISK_TIER_PENDING = 'Checking risk tiers';
 export const RISK_TIER_UNAVAILABLE = 'Risk tier unavailable';
 export const UNRECOGNISED_STATUS = 'Unrecognised status';
 export const ALL_STATUSES = 'all';
+export const ALL_LOAN_TYPES = 'all';
+export const LOAN_TYPE_OPTIONS = [
+  { value: ALL_LOAN_TYPES, label: 'All' },
+  { value: 'mortgage', label: 'Mortgage' },
+  { value: 'heloc', label: 'HELOC' },
+] as const;
 
 export interface PipelineGroup {
   key: string;
@@ -85,6 +91,13 @@ export function filterByStatus(applications: readonly PipelineApplication[], sta
   return status === ALL_STATUSES
     ? [...applications]
     : applications.filter((application) => application.status === status);
+}
+
+// Missing types remain visible under All, without assuming the legacy mortgage default.
+export function filterByLoanType(applications: readonly PipelineApplication[], loanType: string) {
+  return loanType === ALL_LOAN_TYPES
+    ? [...applications]
+    : applications.filter((application) => application.loanType === loanType);
 }
 
 interface Grouping {

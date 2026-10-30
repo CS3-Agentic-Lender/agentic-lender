@@ -1,17 +1,21 @@
 import SwiftUI
 
 /// "My application" (AL-102, Figma 14, 14a and 14b): the application's reference and its status
-/// timeline. It reads the status once when it opens; live updates come with AL-103.
+/// timeline, live (AL-103): a change shows by itself, and offline the last known status stays with a
+/// banner (Figma 14d).
 struct ApplicationStatusView: View {
     @State private var model: ApplicationStatusViewModel
 
-    init(applicationID: String, service: ApplicationStatusService) {
-        _model = State(initialValue: ApplicationStatusViewModel(applicationID: applicationID, service: service))
+    init(applicationID: String, service: ApplicationStatusService, network: NetworkMonitor = PathNetworkMonitor()) {
+        _model = State(initialValue: ApplicationStatusViewModel(applicationID: applicationID, service: service, network: network))
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if model.isOffline && model.timeline != nil {
+                    OfflineBanner(text: ApplicationStatusViewModel.offlineBanner)
+                }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("My application")
                         .font(.largeTitle.bold())
@@ -29,7 +33,8 @@ struct ApplicationStatusView: View {
         }
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
-        .task { await model.load() }
+        .onAppear { model.start() }
+        .animation(.default, value: model.isOffline)
     }
 
     @ViewBuilder
@@ -37,12 +42,27 @@ struct ApplicationStatusView: View {
         if let timeline = model.timeline {
             TimelineCard(timeline: timeline)
         } else if let error = model.loadError {
-            RetryMessage(message: error) { Task { await model.load() } }
+            RetryMessage(message: error) { model.retry() }
         } else {
             ProgressView("Loading your application")
                 .frame(maxWidth: .infinity)
                 .padding(.top, 40)
         }
+    }
+}
+
+/// Figma 14d: the last known status is shown below, so this only says why it may be out of date.
+private struct OfflineBanner: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "wifi.slash")
+            .font(.footnote)
+            .foregroundStyle(Theme.text)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Theme.neutral, in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
+            .accessibilityIdentifier("status.offline")
     }
 }
 
@@ -169,8 +189,12 @@ private struct StepRow: View {
 #if DEBUG
 private struct PreviewStatusService: ApplicationStatusService {
     let record: ApplicationStatusRecord
+    var isFromCache = false
 
-    func status(of applicationID: String) async throws -> ApplicationStatusRecord { record }
+    func listen(to applicationID: String, onChange: @escaping (Result<StatusUpdate, ApplicationStatusError>) -> Void) -> LiveListener {
+        onChange(.success(StatusUpdate(record: record, isFromCache: isFromCache)))
+        return LiveListener {}
+    }
 }
 
 #Preview("Applied") {
@@ -178,6 +202,15 @@ private struct PreviewStatusService: ApplicationStatusService {
         ApplicationStatusView(applicationID: "7f3k9qx2abc", service: PreviewStatusService(record: ApplicationStatusRecord(
             status: .applied, createdAt: .now.addingTimeInterval(-86_400), submittedAt: .now, decision: nil, history: []
         )))
+    }
+}
+
+#Preview("Offline") {
+    NavigationStack {
+        ApplicationStatusView(applicationID: "7f3k9qx2abc", service: PreviewStatusService(record: ApplicationStatusRecord(
+            status: .aiDeliberated, createdAt: .now.addingTimeInterval(-3 * 86_400), submittedAt: .now.addingTimeInterval(-2 * 86_400),
+            decision: nil, history: []
+        ), isFromCache: true))
     }
 }
 
