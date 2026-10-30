@@ -5,18 +5,13 @@ import XCTest
 final class FakeValuationService: ValuationService, @unchecked Sendable {
     var result: Result<ValuationResult, APIError> = .success(try! ValuationResult.decode(ValuationRequestTests.referenceResponse))
     private(set) var requests: [ValuationRequest] = []
-    private var gate: CheckedContinuation<Void, Never>?
-    var holdsAnswer = false
+    /// When set, the call waits here until the test opens the gate.
+    var gate: CallGate?
 
     func value(_ request: ValuationRequest) async throws -> ValuationResult {
         requests.append(request)
-        if holdsAnswer { await withCheckedContinuation { gate = $0 } }
+        if let gate { await gate.pass() }
         return try result.get()
-    }
-
-    func release() {
-        gate?.resume()
-        gate = nil
     }
 }
 
@@ -136,17 +131,18 @@ final class PropertyCheckViewModelTests: XCTestCase {
     /// Figma 10c Valuing: the button shows it's working and a second tap sends nothing.
     func testWhileValuingASecondCheckDoesNothing() async {
         let service = FakeValuationService()
-        service.holdsAnswer = true
+        let gate = CallGate()
+        service.gate = gate
         let model = filledModel(service: service)
 
         let first = Task { await model.check() }
-        while service.requests.isEmpty { await Task.yield() }
+        await gate.waitForCall()
         XCTAssertTrue(model.isValuing)
 
         await model.check()
         XCTAssertEqual(service.requests.count, 1)
 
-        service.release()
+        gate.open()
         await first.value
         XCTAssertFalse(model.isValuing)
     }

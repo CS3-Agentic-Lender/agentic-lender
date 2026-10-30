@@ -234,37 +234,6 @@ final class FakeApplicationService: ApplicationService, @unchecked Sendable {
     }
 }
 
-/// Holds calls open so a test can act while a save or a submit is still running.
-@MainActor
-final class CallGate {
-    private var waiting: [CheckedContinuation<Void, Never>] = []
-    private var callArrived: CheckedContinuation<Void, Never>?
-    private var isOpen = false
-
-    func pass() async {
-        guard !isOpen else { return }
-        await withCheckedContinuation { continuation in
-            waiting.append(continuation)
-            callArrived?.resume()
-            callArrived = nil
-        }
-    }
-
-    /// Returns once a call is waiting at the gate.
-    func waitForCall() async {
-        guard waiting.isEmpty else { return }
-        await withCheckedContinuation { callArrived = $0 }
-    }
-
-    /// Lets every waiting call through, and any later one.
-    func open() {
-        isOpen = true
-        let released = waiting
-        waiting = []
-        released.forEach { $0.resume() }
-    }
-}
-
 /// Keeps the draft id in memory instead of on the phone.
 final class FakeDraftIDStore: DraftIDStore, @unchecked Sendable {
     var storedID: String?
