@@ -5,18 +5,13 @@ import XCTest
 final class FakeHELOCService: HELOCService, @unchecked Sendable {
     var result: Result<HELOCResult, AffordabilityError> = .success(try! HELOCResult.decode(HELOCRequestTests.referenceResponse))
     private(set) var requests: [HELOCRequest] = []
-    private var gate: CheckedContinuation<Void, Never>?
-    var holdsAnswer = false
+    /// When set, the call waits here until the test opens the gate.
+    var gate: CallGate?
 
     func checkHELOC(_ request: HELOCRequest) async throws -> HELOCResult {
         requests.append(request)
-        if holdsAnswer { await withCheckedContinuation { gate = $0 } }
+        if let gate { await gate.pass() }
         return try result.get()
-    }
-
-    func release() {
-        gate?.resume()
-        gate = nil
     }
 }
 
@@ -180,15 +175,16 @@ final class HELOCCheckViewModelTests: XCTestCase {
 
     func testOnlyOneCalculationRunsAtATime() async {
         let service = FakeHELOCService()
-        service.holdsAnswer = true
+        let gate = CallGate()
+        service.gate = gate
         let model = HELOCCheckViewModel(service: service)
         model.form = HELOCRequestTests.referenceForm
 
         let first = Task { await model.calculate() }
-        while service.requests.isEmpty { await Task.yield() }
+        await gate.waitForCall()
         XCTAssertTrue(model.isCalculating)
         await model.calculate()
-        service.release()
+        gate.open()
         await first.value
 
         XCTAssertEqual(service.requests.count, 1)

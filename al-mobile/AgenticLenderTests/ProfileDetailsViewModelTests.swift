@@ -4,18 +4,17 @@ import XCTest
 /// Holds the profile save open until the test releases it, to look at the screen mid-save.
 private final class SlowGoogleSignInService: GoogleSignInService, @unchecked Sendable {
     private(set) var saves = 0
-    private var gate: CheckedContinuation<Void, Never>?
+    let gate: CallGate
+
+    init(gate: CallGate) {
+        self.gate = gate
+    }
 
     func signIn(with token: GoogleToken) async throws -> GoogleSignInOutcome { .signedIn }
 
     func completeProfile(_ profile: BorrowerProfile) async throws {
         saves += 1
-        await withCheckedContinuation { gate = $0 }
-    }
-
-    func release() {
-        gate?.resume()
-        gate = nil
+        await gate.pass()
     }
 }
 
@@ -120,14 +119,15 @@ final class ProfileDetailsViewModelTests: XCTestCase {
     }
 
     func testSignOutIsOffWhileContinueIsSavingTheProfile() async {
-        let service = SlowGoogleSignInService()
+        let gate = CallGate()
+        let service = SlowGoogleSignInService(gate: gate)
         let model = filled(service)
 
         let saving = Task { await model.submit() }
-        while service.saves == 0 { await Task.yield() }
+        await gate.waitForCall()
         XCTAssertFalse(model.canSignOut)
 
-        service.release()
+        gate.open()
         await saving.value
         XCTAssertFalse(model.isSubmitting)
     }
