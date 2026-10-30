@@ -114,6 +114,7 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | `loanNote` | map | no | Set at mint. See below |
 | `feeStatus` | string | no | `unpaid` or `paid` (EUR 150 appraisal fee) |
 | `feeIntentId` | string | no | Stripe payment intent id |
+| `auditTxHash` | string | no | The transaction that wrote the audit hash to the registry, set by `audit_store.anchor`. Kept as first written: a retry that finds the hash already stored leaves it alone. The loan note's own mint transaction is `loanNote.txHash` |
 
 `decision` map: `outcome` (`approved` or `declined`), `underwriterId`, `decidedAt`, `reason` (optional).
 

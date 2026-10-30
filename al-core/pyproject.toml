@@ -7,6 +7,7 @@ dependencies = [
     "fastapi>=0.115",
     "firebase-admin>=6.5",
     "uvicorn>=0.32",
+    "web3>=8.0.0",
 ]
 
 [dependency-groups]
