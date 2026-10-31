@@ -143,10 +143,11 @@ struct PropertyCheckFormView: View {
                 if currency {
                     Text("€").foregroundStyle(Theme.mutedText)
                 }
-                TextField(placeholder, text: Binding(
-                    get: { field == .floorArea ? model.form.floorArea : model.form.askingPrice },
-                    set: { model.updateText(field, to: $0) }
-                ))
+                AmountTextField(
+                    placeholder: placeholder,
+                    text: field == .floorArea ? model.form.floorArea : model.form.askingPrice,
+                    onEdit: { model.updateText(field, to: $0) }
+                )
                 .keyboardType(.numberPad)
                 .focused($focused, equals: field)
                 .accessibilityLabel("\(label), \(accessibilityUnit)")

@@ -397,10 +397,11 @@ struct ApplicationFormView: View {
                 if currency {
                     Text("€").foregroundStyle(Theme.mutedText)
                 }
-                TextField(placeholder, text: Binding(
-                    get: { text(for: field) },
-                    set: { model.updateAmount(field, to: $0) }
-                ))
+                AmountTextField(
+                    placeholder: placeholder,
+                    text: text(for: field),
+                    onEdit: { model.updateAmount(field, to: $0) }
+                )
                 .keyboardType(.numberPad)
                 .focused($focused, equals: field)
                 .accessibilityLabel("\(label), \(currency ? "in euro" : "in square metres")")
