@@ -14,6 +14,10 @@ struct ApplicationFormView: View {
     /// Where the review's Edit link asked to land, scrolled to once the review has closed.
     @State private var editAnchor: ApplicationFormAnchor?
     @State private var savedChecks: SavedChecksStore
+    /// Whether the property check opened from "Check a property" is showing.
+    @State private var isCheckingProperty = false
+    private let savedCheckService: SavedCheckService
+    private let valuation: ValuationService
     /// Nil means the live one, made on the main actor when it's needed.
     private let profiles: ProfileService?
     private let service: ApplicationService
@@ -24,10 +28,13 @@ struct ApplicationFormView: View {
         service: ApplicationService = APIApplicationService.live(),
         draftIDs: DraftIDStore = liveDraftIDStore(),
         savedChecks: SavedCheckService = LiveSavedCheckService.live(),
+        valuation: ValuationService = APIValuationService.live(),
         profiles: ProfileService? = nil,
         onBackToHome: @escaping () -> Void = {}
     ) {
         self.profiles = profiles
+        self.savedCheckService = savedChecks
+        self.valuation = valuation
         _model = State(initialValue: ApplicationViewModel(form: form, service: service, draftIDs: draftIDs))
         _savedChecks = State(initialValue: SavedChecksStore(service: savedChecks))
         self.service = service
@@ -54,6 +61,9 @@ struct ApplicationFormView: View {
                     onBackToHome: onBackToHome
                 )
             }
+        }
+        .navigationDestination(isPresented: $isCheckingProperty) {
+            PropertyCheckFormView(service: valuation, savedChecks: savedCheckService)
         }
     }
 
@@ -316,9 +326,11 @@ struct ApplicationFormView: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, 8)
 
-            SavedCheckPicker(store: savedChecks) { check in
-                model.form.property = model.form.property.filled(from: check)
-            }
+            SavedCheckPicker(
+                store: savedChecks,
+                onPick: { check in model.form.property = model.form.property.filled(from: check) },
+                onCheckProperty: { isCheckingProperty = true }
+            )
 
             textField("Address line 1", field: .addressLine1, text: $model.form.property.addressLine1,
                       placeholder: "12 Model Farm Road", contentType: .streetAddressLine1)

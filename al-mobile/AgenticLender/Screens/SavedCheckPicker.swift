@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// The application form's way in to the saved checks (Figma 12, 12b): "Use a saved property" opens a
-/// sheet of them, and picking one fills the home's details. With none saved, it offers "Check a property".
+/// sheet of them, and picking one fills the home's details. With none saved, it offers "Check a property",
+/// which the form opens with `onCheckProperty`.
 struct SavedCheckPicker: View {
     let store: SavedChecksStore
     let onPick: (SavedCheck) -> Void
+    let onCheckProperty: () -> Void
     @State private var isSheetShown = false
 
     var body: some View {
@@ -49,7 +51,9 @@ struct SavedCheckPicker: View {
             Text("No properties checked yet")
                 .foregroundStyle(Theme.mutedText)
             Spacer()
-            NavigationLink(value: Route.propertyCheck) {
+            // Not a Route link: the form was opened by presentation, and pushing a Route value on top of
+            // it makes SwiftUI drop the form and the screens before it.
+            Button(action: onCheckProperty) {
                 Text("Check a property")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.pine)
