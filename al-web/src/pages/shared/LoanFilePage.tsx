@@ -4,6 +4,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
+import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
 import {
   loanFileRiskTier,
@@ -241,10 +242,7 @@ function LoanFile({ application, review }: LoanFileProps) {
               title="Collateral"
             />
           )}
-          <Placeholder
-            detail="The valuation and its breakdown are not shown on the loan file yet."
-            title="Valuation"
-          />
+          <ValuationBreakdown application={application} review={review} />
         </div>
       </div>
 
