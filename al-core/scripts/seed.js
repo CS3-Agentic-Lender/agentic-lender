@@ -149,6 +149,43 @@ function riskTier(app, findings) {
   return concerns === 1 ? 'B' : 'A';
 }
 
+// The Central Bank limits the policy gate checks (al-ai/app/policy_gate.py). Exactly on a limit is fine.
+// A purchase: loan over 4x income for a first-time buyer, else 3.5x (LTI_CAP), then over 90% of the asking price (LTV_CAP).
+// A HELOC: existing mortgage plus the line over 3.5x income (LTI_CAP), then over 80% of the home's value (CLTV_CAP).
+// `app.askingPriceEur` is the home's value (the valuation estimate) for a HELOC, as for riskTier.
+function policyBreaches(app) {
+  const ltvPct = purchasePriceLtvPct(app);
+  const heloc = app.loanType === 'heloc';
+  const totalEur = heloc ? app.loanAmountEur + (app.existingMortgageBalanceEur || 0) : app.loanAmountEur;
+  const incomeMultiple = !heloc && app.firstTimeBuyer ? 4 : 3.5;
+  const found = [];
+  if (totalEur > incomeMultiple * app.grossIncomeEur) found.push('LTI_CAP');
+  if (heloc ? ltvPct > 80 : ltvPct > 90) found.push(heloc ? 'CLTV_CAP' : 'LTV_CAP');
+  return found;
+}
+
+// What the gate returns for a run (original, effective, conditions, breaches, changed), saved as it is returned.
+// Approve with a breach becomes Conditionally Approve and every breach adds a condition; a Decline stays a Decline.
+const STRATEGIST = { approve: 'Approve', conditional: 'Conditionally Approve', decline: 'Decline' };
+function policyGate(recommendation, breaches) {
+  const original = STRATEGIST[recommendation];
+  if (!original) throw new Error(`Unknown recommendation ${recommendation}`);
+  if (original === 'Decline') return { original, effective: 'Decline', conditions: [], breaches, changed: false };
+  const conditions = breaches.map((rule) => `Requires lender exception review (${rule})`);
+  const effective = breaches.length && original === 'Approve' ? 'Conditionally Approve' : original;
+  return { original, effective, conditions, breaches, changed: effective !== original || conditions.length > 0 };
+}
+
+// The label the borrower sees (AL-63), in al-ai's rule order: adverse stressed affordability is Low, any caution band or
+// limit breach is Medium, otherwise High. Indicative, and separate from the committee's recommendation.
+// (Unknown, for incomplete or unsupported inputs, is never seeded: every reviewed seed application has complete inputs.)
+const APPROVAL_LIKELIHOODS = ['Unknown', 'Low', 'Medium', 'High'];
+function approvalLikelihood(app, findings) {
+  if (findings.stressedDti === 'Adverse' || findings.surplus === 'Adverse') return 'Low';
+  if (findings.stressedDti === 'Caution' || findings.surplus === 'Caution' || policyBreaches(app).length) return 'Medium';
+  return 'High';
+}
+
 // ---------- users ----------
 
 const users = [
@@ -223,7 +260,8 @@ function application(spec) {
     const findings = { stressedDti: assessment.dtiBand, surplus: assessment.surplusBand };
     // al-ai sets both after its run; the queue filters on them next to status.
     const valueEur = loanType === 'heloc' ? estimatedValueEur : askingPriceEur; // what the LTV is measured against
-    spec.riskTier = riskTier({ ...spec, loanType, askingPriceEur: valueEur }, findings);
+    const rated = { ...spec, loanType, askingPriceEur: valueEur };
+    spec.riskTier = riskTier(rated, findings);
     Object.assign(doc, {
       aiRunStatus: 'complete',
       estimatedValueEur,
@@ -231,14 +269,17 @@ function application(spec) {
       ltvPct: round1(((loanAmountEur + (loanType === 'heloc' ? existingMortgageBalanceEur : 0)) / estimatedValueEur) * 100),
       dtiPct: round1(assessment.dti * 100),
       aprPct,
-      approvalLikelihoodPct: spec.approvalLikelihoodPct,
-      ltvBand: ltvBand(purchasePriceLtvPct({ ...spec, loanType, askingPriceEur: valueEur })),
+      approvalLikelihood: approvalLikelihood(rated, findings),
+      ltvBand: ltvBand(purchasePriceLtvPct(rated)),
       riskTier: spec.riskTier,
     });
+    // The purchase-price LTV is a purchase's figure: a HELOC has no asking price, so its card reads ltvPct.
+    if (loanType === 'mortgage') doc.purchaseLtvPct = round1(purchasePriceLtvPct(rated));
     review = {
       applicationId: id,
       brokerId,
       riskTier: spec.riskTier,
+      policyGate: policyGate(spec.recommendation, policyBreaches(rated)),
       dtiBreakdown: breakdown,
       valuationDetail: valuation(estimatedValueEur),
       updatedAt: at(updatedAt),
@@ -264,14 +305,14 @@ const applications = [
     id: 'app-deliberated', borrowerId: 'borrower1', brokerId: 'broker1', status: STATUS.AI_DELIBERATED,
     grossIncomeEur: 75000, monthlyDebtsEur: 1000, monthlyTakeHomeEur: 4300, monthlyLivingCostsEur: 1200, depositEur: 40000, firstTimeBuyer: true,
     loanAmountEur: 265000, termYears: 30, askingPriceEur: 310000, estimatedValueEur: 306000,
-    approvalLikelihoodPct: 78,
+    recommendation: 'approve',
     createdAt: '2026-09-28T10:00:00Z', submittedAt: '2026-09-29T09:00:00Z', updatedAt: '2026-09-29T09:06:00Z',
   }),
   application({
     id: 'app-approved', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.UNDERWRITER_APPROVED,
     loanType: 'heloc', grossIncomeEur: 92000, monthlyDebtsEur: 1100, monthlyTakeHomeEur: 5100, monthlyLivingCostsEur: 1800, existingMortgageBalanceEur: 180000,
     loanAmountEur: 60000, termYears: 15, estimatedValueEur: 415000,
-    approvalLikelihoodPct: 84,
+    recommendation: 'approve',
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-30T14:00:00Z', reason: 'Low LTV and DTI within limits' },
     createdAt: '2026-09-25T10:00:00Z', submittedAt: '2026-09-26T09:00:00Z', updatedAt: '2026-09-30T14:00:00Z',
   }),
@@ -279,7 +320,7 @@ const applications = [
     id: 'app-declined', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.DECLINED,
     grossIncomeEur: 41000, monthlyDebtsEur: 650, monthlyTakeHomeEur: 2850, monthlyLivingCostsEur: 750, depositEur: 15000, firstTimeBuyer: true,
     loanAmountEur: 245000, termYears: 35, askingPriceEur: 270000, estimatedValueEur: 258000,
-    approvalLikelihoodPct: 22,
+    recommendation: 'decline',
     decision: { outcome: 'declined', underwriterId: 'underwriter1', decidedAt: '2026-09-24T15:00:00Z', reason: 'Loan above income limit and LTV over 90%' },
     createdAt: '2026-09-20T10:00:00Z', submittedAt: '2026-09-21T09:00:00Z', updatedAt: '2026-09-24T15:00:00Z',
   }),
@@ -287,7 +328,7 @@ const applications = [
     id: 'app-funded', borrowerId: 'borrower1', brokerId: 'broker1', status: STATUS.FUNDED,
     grossIncomeEur: 88000, monthlyDebtsEur: 200, monthlyTakeHomeEur: 4900, monthlyLivingCostsEur: 1800, depositEur: 60000, firstTimeBuyer: false,
     loanAmountEur: 290000, termYears: 30, askingPriceEur: 365000, estimatedValueEur: 366000,
-    approvalLikelihoodPct: 91,
+    recommendation: 'approve',
     funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-18T11:00:00Z', reason: 'Strong affordability' },
     createdAt: '2026-09-10T10:00:00Z', submittedAt: '2026-09-11T09:00:00Z', updatedAt: '2026-09-18T11:30:00Z',
@@ -296,7 +337,7 @@ const applications = [
     id: 'app-closed', borrowerId: 'borrower2', brokerId: 'broker2', status: STATUS.CLOSED,
     grossIncomeEur: 70000, monthlyDebtsEur: 150, monthlyTakeHomeEur: 3950, monthlyLivingCostsEur: 2000, depositEur: 50000, firstTimeBuyer: false,
     loanAmountEur: 240000, termYears: 25, askingPriceEur: 300000, estimatedValueEur: 302000,
-    approvalLikelihoodPct: 88,
+    recommendation: 'approve',
     funded: true,
     decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt: '2026-09-08T11:00:00Z', reason: 'Within lending rules' },
     createdAt: '2026-09-01T10:00:00Z', submittedAt: '2026-09-02T09:00:00Z', updatedAt: '2026-09-15T10:00:00Z',
@@ -318,7 +359,7 @@ const AGENTS = [
 function aiRun(app) {
   const { spec } = app;
   const runId = `run-${app.id}`;
-  const recommendation = spec.approvalLikelihoodPct >= 70 ? 'approve' : spec.approvalLikelihoodPct >= 40 ? 'conditional' : 'decline';
+  const { recommendation } = spec;
   const creditMemo = `Seeded credit memo for ${app.id}: risk tier ${spec.riskTier}, recommendation ${recommendation}.`;
   const startedAt = at(spec.submittedAt);
   const finishedAt = new Date(startedAt.getTime() + 6 * 60 * 1000);
@@ -335,7 +376,7 @@ function aiRun(app) {
 
   const run = {
     applicationId: app.id, brokerId: app.doc.brokerId, status: 'complete', trigger: 'submit',
-    startedAt, finishedAt, recommendation, approvalLikelihoodPct: spec.approvalLikelihoodPct, creditMemo,
+    startedAt, finishedAt, recommendation, creditMemo,
   };
   return { runId, run, calls, creditMemo };
 }
@@ -476,7 +517,7 @@ async function seed() {
 }
 
 // The rules are exported for the tests (test/risk-tier.test.js); running the file seeds.
-module.exports = { purchasePriceLtvPct, ltvBand, riskTier, assess, dtiBreakdown, build, checkCoverage };
+module.exports = { purchasePriceLtvPct, ltvBand, riskTier, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, assess, dtiBreakdown, build, checkCoverage };
 
 if (require.main === module) {
   seed().then(() => process.exit(0)).catch((err) => {
