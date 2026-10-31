@@ -28,6 +28,14 @@ final class EuroAmountTests: XCTestCase {
         XCTAssertEqual(EuroAmount.regroup(""), "")
     }
 
+    /// AL-250: what a field holds after a digit is deleted from "2,100,000", at the end or in the middle.
+    func testRegroupsWhatIsLeftAfterADeletion() {
+        XCTAssertEqual(EuroAmount.regroup("2,100,00"), "210,000")
+        XCTAssertEqual(EuroAmount.regroup("2,10,000"), "210,000")
+        XCTAssertEqual(EuroAmount.regroup(",100,000"), "100,000")
+        XCTAssertEqual(EuroAmount.regroup("1,000"), "1,000", "already grouped stays as it is")
+    }
+
     func testLeavesTextWithOtherCharactersAloneSoTheErrorCanShow() {
         XCTAssertEqual(EuroAmount.regroup("-5"), "-5")
         XCTAssertEqual(EuroAmount.regroup("12.50"), "12.50")

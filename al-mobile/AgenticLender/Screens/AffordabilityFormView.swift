@@ -91,10 +91,11 @@ struct AffordabilityFormView: View {
         FormField(label, error: model.visibleError(for: field)) {
             HStack(spacing: 8) {
                 Text("€").foregroundStyle(Theme.mutedText)
-                TextField(placeholder, text: Binding(
-                    get: { text(for: field) },
-                    set: { model.updateAmount(field, to: $0) }
-                ))
+                AmountTextField(
+                    placeholder: placeholder,
+                    text: text(for: field),
+                    onEdit: { model.updateAmount(field, to: $0) }
+                )
                 .keyboardType(.numberPad)
                 .focused($focused, equals: field)
                 .accessibilityLabel("\(label), in euro")
