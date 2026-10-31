@@ -19,11 +19,19 @@
 			remoteGlobalIDString = A10000000000000000000501;
 			remoteInfo = AgenticLender;
 		};
+		A10000000000000000000802 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000501;
+			remoteInfo = AgenticLender;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000101 /* AgenticLender.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgenticLender.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000102 /* AgenticLenderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgenticLenderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000103 /* AgenticLenderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgenticLenderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -35,6 +43,11 @@
 		A10000000000000000000202 /* AgenticLenderTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AgenticLenderTests;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000203 /* AgenticLenderUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AgenticLenderUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -56,6 +69,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000407 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -64,6 +84,7 @@
 			children = (
 				A10000000000000000000201 /* AgenticLender */,
 				A10000000000000000000202 /* AgenticLenderTests */,
+				A10000000000000000000203 /* AgenticLenderUITests */,
 				A10000000000000000000012 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -73,6 +94,7 @@
 			children = (
 				A10000000000000000000101 /* AgenticLender.app */,
 				A10000000000000000000102 /* AgenticLenderTests.xctest */,
+				A10000000000000000000103 /* AgenticLenderUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -125,6 +147,27 @@
 			productReference = A10000000000000000000102 /* AgenticLenderTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		A10000000000000000000503 /* AgenticLenderUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000704 /* Build configuration list for PBXNativeTarget "AgenticLenderUITests" */;
+			buildPhases = (
+				A10000000000000000000408 /* Sources */,
+				A10000000000000000000407 /* Frameworks */,
+				A10000000000000000000409 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A10000000000000000000902 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A10000000000000000000203 /* AgenticLenderUITests */,
+			);
+			name = AgenticLenderUITests;
+			productName = AgenticLenderUITests;
+			productReference = A10000000000000000000103 /* AgenticLenderUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -139,6 +182,10 @@
 						CreatedOnToolsVersion = 16.0;
 					};
 					A10000000000000000000502 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A10000000000000000000501;
+					};
+					A10000000000000000000503 = {
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = A10000000000000000000501;
 					};
@@ -163,6 +210,7 @@
 			targets = (
 				A10000000000000000000501 /* AgenticLender */,
 				A10000000000000000000502 /* AgenticLenderTests */,
+				A10000000000000000000503 /* AgenticLenderUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -176,6 +224,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A10000000000000000000406 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000409 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -199,6 +254,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000408 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -206,6 +268,11 @@
 			isa = PBXTargetDependency;
 			target = A10000000000000000000501 /* AgenticLender */;
 			targetProxy = A10000000000000000000801 /* PBXContainerItemProxy */;
+		};
+		A10000000000000000000902 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000501 /* AgenticLender */;
+			targetProxy = A10000000000000000000802 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -344,6 +411,38 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000607 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ie.mtu.agenticlender.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = AgenticLender;
+			};
+			name = Debug;
+		};
+		A10000000000000000000608 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ie.mtu.agenticlender.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = AgenticLender;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -370,6 +469,15 @@
 			buildConfigurations = (
 				A10000000000000000000605 /* Debug */,
 				A10000000000000000000606 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000704 /* Build configuration list for PBXNativeTarget "AgenticLenderUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000607 /* Debug */,
+				A10000000000000000000608 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
