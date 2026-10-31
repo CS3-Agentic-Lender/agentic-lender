@@ -295,6 +295,46 @@ npm run demo:local
 
 `deploy.js` deploys the loan note and the audit registry and saves both addresses to `deployments/localhost.json`, which al-core will read to find the contracts once minting is wired in. `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node: `demo-mint.js` says so if the saved address has no contract behind it.
 
+### The audit record and its hash (`app/audit.py`, `app/audit_store.py`, `app/chain.py`)
+
+When an application is signed off and approved, al-core builds one **audit record** from what is stored, hashes it, saves it at `applications/{id}/audit/record` and writes the hash to the registry. A declined application has none. `audit_store.anchor(application_id, registry)` does all of it and is safe to call again; the mint endpoint calls it.
+
+**The record** has exactly these seven fields. Keys are sorted, so this order is the order they are hashed in:
+
+| Field | Value |
+|---|---|
+| `aiCalls` | one `{"id", "sha256"}` per logged call of the run, oldest first (ties by id). `sha256` is the hash of that `ai_calls` document, in the same way as the record's (the document with its times as UTC strings). The valuation agent's call is in here, so the valuation data is covered by its hash |
+| `applicationId` | the application id |
+| `creditMemo` | the run's credit memo, as text |
+| `decision` | `approved` |
+| `riskTier` | `A`, `B`, `C` or `D` |
+| `signedOffAt` | the sign-off time as UTC with milliseconds and a Z, for example `2026-09-18T11:00:00.000Z` |
+| `underwriterId` | the underwriter's uid |
+
+Which run: the latest **complete** run of the application. Every field is text, so there is no number format to agree.
+
+**The hash** is the SHA-256, in lower-case hex, of `json.dumps(record, sort_keys=True, separators=(",", ":"))` encoded as UTF-8, with the record's own `auditHash` field left out. Non-ASCII text is escaped by `json.dumps` (an accented e is written as backslash, u, 0, 0, e, 9), so the text hashed is pure ASCII. To check a loan by hand, take `record` from the audit pack, remove `auditHash`, and run:
+
+```python
+import hashlib, json
+record.pop("auditHash", None)
+print(hashlib.sha256(json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest())
+```
+
+and compare it with the `auditHash` and with the value in the registry. The shared examples (the seeded records and a non-ASCII one) are in `test/audit-hash-vectors.json`, and al-ai's tests load the same file.
+
+**On the chain:** the registry holds one hash per application. It is keyed by the SHA-256 of the application id (`audit.application_ref`, the same reference the loan note uses), so no personal data is stored. A second write for the same application is refused by the contract; `chain.AuditRegistry.store` treats the same hash again as already done (no transaction) and a different hash as an error. The transaction hash is saved on the application as `auditTxHash`.
+
+**Settings** (names are in `.env.example`; keys live in `.env`, never in the repo, testnet wallets only):
+
+| Setting | Meaning |
+|---|---|
+| `CHAIN_RPC_URL` | the node, default `http://127.0.0.1:8545` (the local Hardhat node) |
+| `CHAIN_REGISTRAR_PRIVATE_KEY` | the registrar wallet's key. Locally, account #0's key as `npx hardhat node` prints it |
+| `AUDIT_REGISTRY_ADDRESS` | the deployed registry; if unset, `chain/deployments/<CHAIN_NETWORK>.json` is used (`CHAIN_NETWORK` defaults to `localhost`) |
+
+**Checking it against a real chain:** with the node and `npm run deploy:local` running as above, `CHAIN_LIVE_TEST=1 CHAIN_REGISTRAR_PRIVATE_KEY=<account #0's key> uv run pytest tests/test_chain_live.py`. Without those, that test is skipped and CI uses stand-ins for web3.
+
 ### Choices for the chain
 
 - **Who signs transactions:** al-core, with a server-held testnet wallet (web3.py). The underwriter clicks sign-off in the portal and the API mints, so nobody needs a browser wallet. The wallet's address gets `MINTER_ROLE` at deploy (`MINTER_ADDRESS`, defaulting to the deployer for local work). The notes themselves go to a separate bank address (`HOLDER_ADDRESS`, also defaulting to the deployer), so replacing al-core's wallet never moves them.
