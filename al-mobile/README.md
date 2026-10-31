@@ -34,6 +34,8 @@ xcodebuild test -project AgenticLender.xcodeproj -scheme AgenticLender \
 
 Use any iPhone Simulator name from `xcrun simctl list devices`. GitHub Actions runs the same tests on every PR that changes `al-mobile/` (`.github/workflows/mobile.yml`).
 
+The end-to-end UI tests need the emulators and the gateway running, so CI doesn't run them. Start the stack and run `./run-ui-tests.sh`: see "UI tests" in [docs/infrastructure.md](../docs/infrastructure.md).
+
 ## Project layout
 
 ```
@@ -46,6 +48,8 @@ AgenticLender/
   Config/FirebaseSetup.swift   connects Firebase Auth and Firestore to the emulators
   Assets.xcassets
 AgenticLenderTests/        XCTest unit tests
+AgenticLenderUITests/      end-to-end UI tests against the local stack (own scheme, not run in CI)
+run-ui-tests.sh            runs the UI tests
 ```
 
 Xcode picks up new files in these folders automatically, so adding a file doesn't touch `project.pbxproj`.

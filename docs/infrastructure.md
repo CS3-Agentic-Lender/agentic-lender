@@ -184,6 +184,16 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 
 GitHub Actions runs each suite on every PR, filtered by path so only the changed subsystem runs. A failing test fails that PR's check. Every user story has a written test case in the sprint docs.
 
+### UI tests (al-mobile)
+
+`AgenticLenderUITests` drives the iOS app end to end against the local stack: submitting a mortgage application, seeing a status change live on the status screen, and picking a saved property check in the application form. They run on a Mac only, before a merge or a demo. CI doesn't run them, because it has no emulators: they sit in their own `AgenticLenderUITests` scheme, and `mobile.yml` runs the `AgenticLender` scheme's unit tests as before.
+
+1. Start the emulators with the seed data: `cd al-core && firebase emulators:start --project demo-al --import=./seed-data`
+2. Start the gateway, al-core and al-ai from the repo root: `docker compose up -d --build`
+3. Run the tests: `./al-mobile/run-ui-tests.sh` (any iPhone Simulator; set `SIMULATOR_ID` to pick one)
+
+Each test makes its own borrower, signs in as them, and deletes them and everything they created when it finishes, so the tests run in any order and leave the seed data as it was. The app starts signed out in these tests (`UITestLaunch`, Debug builds only).
+
 ## 6. Deploy
 
 Status key as above. Items marked TBD are decided at the team meeting.

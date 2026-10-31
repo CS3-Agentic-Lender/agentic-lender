@@ -99,6 +99,8 @@ private struct NoPropertiesYet: View {
         }
         .padding(32)
         .frame(maxHeight: .infinity)
+        // A container, so the button inside keeps its own identifier.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("properties.empty")
     }
 }

@@ -51,6 +51,8 @@ struct HomeApplicationCard: View {
             .padding(.top, 8)
             .accessibilityIdentifier("home.applicationCard.borrow")
         }
+        // A container, so the button inside keeps its own identifier.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.applicationCard.none")
     }
 
@@ -80,6 +82,8 @@ struct HomeApplicationCard: View {
             }
             .accessibilityIdentifier("home.applicationCard.viewStatus")
         }
+        // A container, so the button inside keeps its own identifier.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.applicationCard")
     }
 }
