@@ -44,12 +44,11 @@ final class LoanNoteTests: XCTestCase {
         XCTAssertEqual(try record(fields).loanNote?.rows(timeZone: dublin)[2].value, "3.5%")
     }
 
-    func testWithoutAnOfferedRateTheBenchmarkRateTheNoteWasMintedWithShows() throws {
+    func testWithoutARateOnTheApplicationTheAPRShowsADash() throws {
         var fields = minted
         fields["aprPct"] = nil
-        fields["dtiBreakdown"] = ["benchmarkRatePct": 4.1]
 
-        XCTAssertEqual(try record(fields).loanNote?.rows(timeZone: dublin)[2].value, "4.1%")
+        XCTAssertEqual(try record(fields).loanNote?.rows(timeZone: dublin)[2].value, "—")
     }
 
     func testAMintDateWrittenAsTextIsRead() throws {

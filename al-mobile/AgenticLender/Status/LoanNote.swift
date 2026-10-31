@@ -4,8 +4,8 @@ import Foundation
 /// application when it minted the ERC-721 note and moved the status to Funded (al-core SCHEMA.md).
 ///
 /// `loanNote` holds `tokenId` (text), `txHash` (the mint transaction) and `mintedAt`. The terms the
-/// note was minted with are the application's own: `loanAmountEur`, `termYears` and `aprPct`, or the
-/// DTI benchmark rate when no rate was offered, the same fallback the mint uses.
+/// note was minted with are the application's own: `loanAmountEur`, `termYears` and `aprPct`. The
+/// borrower can't read `review/underwriting`, so a rate stored only there shows as "—".
 struct LoanNote: Equatable, Sendable {
     struct Row: Equatable, Sendable {
         let title: String
@@ -33,8 +33,7 @@ struct LoanNote: Equatable, Sendable {
         mintedAt = Self.date(note["mintedAt"])
         principalEur = (fields["loanAmountEur"] as? NSNumber).map { Int($0.doubleValue.rounded()) }
         termYears = (fields["termYears"] as? NSNumber)?.intValue
-        let benchmark = (fields["dtiBreakdown"] as? [String: Any])?["benchmarkRatePct"]
-        aprPct = ((fields["aprPct"] ?? benchmark) as? NSNumber)?.doubleValue
+        aprPct = (fields["aprPct"] as? NSNumber)?.doubleValue
     }
 
     /// Token ID, Principal, APR, Term and Mint date, in Figma 14c's order.
