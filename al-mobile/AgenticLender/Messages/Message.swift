@@ -1,7 +1,7 @@
 import Foundation
 
-/// One message in `applications/{id}/messages` (al-core SCHEMA.md). Clients only read these;
-/// al-core writes them.
+/// One message in `applications/{id}/messages` (al-core SCHEMA.md). Clients read these from
+/// Firestore; only al-core writes them.
 struct Message: Equatable, Identifiable, Sendable {
     enum Role: String, Sendable {
         case borrower
@@ -49,4 +49,19 @@ struct Message: Equatable, Identifiable, Sendable {
             read: fields["read"] as? Bool ?? false
         )
     }
+}
+
+/// A message the borrower wrote that isn't in the thread from Firestore yet (AL-147, Figma 15c).
+struct PendingMessage: Equatable, Identifiable, Sendable {
+    enum State: Equatable, Sendable {
+        case sending
+        case notSent
+        /// al-core saved it; it shows as sending until the listener brings it.
+        case saved(serverID: String)
+    }
+
+    let id: String
+    let text: String
+    let sentAt: Date
+    var state: State
 }

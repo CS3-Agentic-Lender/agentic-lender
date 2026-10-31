@@ -4,10 +4,16 @@ import Foundation
 import os
 
 /// Reads the borrower's thread from Firestore: their applications (`borrowerId == uid`, which the
-/// rules allow) and the newest submitted one's `messages`, listened to live.
+/// rules allow) and the newest submitted one's `messages`, listened to live. Sending and marking
+/// read go through al-core (`APIMessageSender`).
 @MainActor
 final class FirestoreMessageService: MessageService {
     private let logger = Logger(category: "Messages")
+    private let sender: APIMessageSender
+
+    nonisolated init(sender: APIMessageSender = .live()) {
+        self.sender = sender
+    }
 
     var myID: String? { Auth.auth().currentUser?.uid }
 
@@ -44,6 +50,14 @@ final class FirestoreMessageService: MessageService {
                 onChange(.success(messages))
             }
         return MessageListener { registration.remove() }
+    }
+
+    func send(_ text: String, on applicationID: String) async throws -> String {
+        try await sender.send(text, on: applicationID)
+    }
+
+    func markRead(on applicationID: String) async throws {
+        try await sender.markRead(on: applicationID)
     }
 
     private func createdAt(_ document: QueryDocumentSnapshot) -> Date {

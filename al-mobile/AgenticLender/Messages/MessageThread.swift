@@ -1,15 +1,23 @@
 import Foundation
 
-/// The thread as the screen lays it out (AL-147, Figma 15 and 15e): messages oldest first, a day
-/// label before each day, one time under each run of messages sent close together, and a
-/// "New messages" divider above the first reply the borrower hasn't read.
+/// The thread as the screen lays it out (AL-147, Figma 15, 15c and 15e): messages oldest first, a
+/// day label before each day, one time under each run of messages sent close together, a
+/// "New messages" divider above the first reply the borrower hasn't read, and the borrower's
+/// messages still sending or not sent at the end.
 struct MessageThread: Equatable {
     struct Bubble: Equatable {
+        enum Delivery: Equatable {
+            case sent
+            case sending
+            case notSent
+        }
+
         let id: String
         let text: String
         let isMine: Bool
-        /// "09:41", under the last message of a run. Nil inside a run.
+        /// "09:41", under the last message of a run. Nil inside a run, and while it's still sending.
         let time: String?
+        var delivery: Delivery = .sent
     }
 
     enum Row: Equatable {
@@ -45,7 +53,7 @@ struct MessageThread: Equatable {
         return backwards.reversed()
     }
 
-    init(messages: [Message], myID: String, now: Date = .now, timeZone: TimeZone = .current) {
+    init(messages: [Message], pending: [PendingMessage] = [], myID: String, now: Date = .now, timeZone: TimeZone = .current) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let ordered = messages.sorted { ($0.sentAt, $0.id) < ($1.sentAt, $1.id) }
@@ -53,7 +61,7 @@ struct MessageThread: Equatable {
         let firstUnread = ordered.first(where: isUnreadReply)?.id
         let labels = Labels(calendar: calendar, now: now)
 
-        rows = ordered.indices.flatMap { index -> [Row] in
+        let messageRows: [Row] = ordered.indices.flatMap { index -> [Row] in
             let message = ordered[index]
             let previous = index > 0 ? ordered[index - 1] : nil
             let next = index + 1 < ordered.count ? ordered[index + 1] : nil
@@ -71,7 +79,24 @@ struct MessageThread: Equatable {
             )))
             return rows
         }
+        rows = messageRows + Self.pendingRows(pending, after: ordered.last?.sentAt, calendar: calendar, labels: labels)
         unreadCount = ordered.filter(isUnreadReply).count
+    }
+
+    /// The borrower's own messages that aren't in Firestore yet, after the thread, with a day label
+    /// when the day changes and no time until they're sent.
+    private static func pendingRows(_ pending: [PendingMessage], after lastSent: Date?, calendar: Calendar, labels: Labels) -> [Row] {
+        var previous = lastSent
+        return pending.flatMap { message -> [Row] in
+            var rows: [Row] = []
+            if previous.map({ !calendar.isDate($0, inSameDayAs: message.sentAt) }) ?? true {
+                rows.append(.day(labels.day(message.sentAt)))
+            }
+            previous = message.sentAt
+            let delivery: Bubble.Delivery = message.state == .notSent ? .notSent : .sending
+            rows.append(.bubble(Bubble(id: message.id, text: message.text, isMine: true, time: nil, delivery: delivery)))
+            return rows
+        }
     }
 
     private static func sameRun(_ first: Message, _ second: Message, calendar: Calendar) -> Bool {
