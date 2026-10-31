@@ -130,6 +130,35 @@ def test_the_rate_falls_back_to_the_benchmark_rate_in_the_dti_breakdown(approved
     assert approved["notes"].terms[0][1].apr_bps == 375
 
 
+def test_a_rate_taken_from_the_dti_breakdown_is_saved_as_aprpct_in_the_same_write_as_the_note(approved):
+    doc(approved).pop("aprPct")
+    approved["db"].store["applications/app1/review/underwriting"] = {"dtiBreakdown": {"benchmarkRatePct": 3.75}}
+    do_mint()
+    assert doc(approved)["aprPct"] == 3.75 and doc(approved)["loanNote"]["tokenId"] == "12"
+    sign_in(approved, "borrower1", "borrower")
+    assert client.get("/core/applications/app1", headers=TOKEN).json()["loan_note"]["token_id"] == "12"
+
+
+def test_the_saved_rate_is_the_one_on_the_note_not_an_unrounded_original(approved):
+    doc(approved).pop("aprPct")
+    approved["db"].store["applications/app1/review/underwriting"] = {"dtiBreakdown": {"benchmarkRatePct": 3.754}}
+    do_mint()
+    assert approved["notes"].terms[0][1].apr_bps == 375 and doc(approved)["aprPct"] == 3.75
+
+
+def test_an_application_that_already_has_a_rate_keeps_it(approved):
+    do_mint()
+    assert doc(approved)["aprPct"] == 4.25
+
+
+def test_a_failed_mint_does_not_save_a_rate(approved):
+    doc(approved).pop("aprPct")
+    approved["db"].store["applications/app1/review/underwriting"] = {"dtiBreakdown": {"benchmarkRatePct": 3.75}}
+    approved["notes"].error = ChainError("the chain could not be reached")
+    do_mint()
+    assert "aprPct" not in doc(approved)
+
+
 def test_the_move_is_logged_as_a_mint_by_the_underwriter_who_asked(approved):
     do_mint()
     entry = doc(approved)["statusHistory"][-1]

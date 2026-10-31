@@ -121,6 +121,11 @@ def mint_loan_note(application_id: str, response: Response, user: dict = Depends
         "tokenId": str(minted.token_id), "contractAddress": minted.contract_address, "txHash": minted.tx_hash,
         "auditHash": anchored.audit_hash, "mintedAt": SERVER_TIMESTAMP,
     }
-    changes = status_moves.plan_move(doc, "Funded", status_moves.MINT, user["uid"], extra={"loanNote": note})
+    extra = {"loanNote": note}
+    if doc.get("aprPct") is None:
+        # The rate came from the DTI breakdown, which a borrower can't read. Saving what went on the chain as aprPct, in the
+        # same write as the note, means the application always shows the rate its loan note holds.
+        extra["aprPct"] = terms.apr_bps / 100
+    changes = status_moves.plan_move(doc, "Funded", status_moves.MINT, user["uid"], extra=extra)
     _update_if_unchanged(ref, changes, read_at)
     return _out(ref.id, ref.get().to_dict())
