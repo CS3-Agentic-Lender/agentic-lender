@@ -32,3 +32,34 @@ def test_a_hash_is_stored_once_read_back_and_never_replaced():
     with pytest.raises(ChainError, match="different audit hash"):
         registry.store(application_id, second)
     assert registry.record_of(application_id)[0] == first
+
+
+def test_a_loan_note_is_minted_once_and_found_again_with_its_transaction():
+    from app.loan_notes import LoanNotes, NoteTerms, borrower_ref
+
+    notes = LoanNotes.from_env()
+    application_id = f"live-{uuid.uuid4()}"
+    terms = NoteTerms(27_000_000, 425, 360, "mortgage", borrower_ref("borrower1", "live-salt"))
+
+    first = notes.mint(application_id, terms)
+    assert first.token_id >= 1 and not first.already_minted
+    assert first.contract_address == notes.address and first.tx_hash.startswith("0x")
+
+    again = notes.mint(application_id, terms)
+    assert again.already_minted and (again.token_id, again.tx_hash) == (first.token_id, first.tx_hash)
+
+    other = NoteTerms(27_000_100, 425, 360, "mortgage", terms.borrower_ref)
+    with pytest.raises(ChainError, match="different terms"):
+        notes.mint(application_id, other)
+
+
+def test_a_wallet_without_the_minter_role_is_refused_with_the_reason(monkeypatch):
+    from app.loan_notes import LoanNotes, NoteTerms, borrower_ref
+
+    stranger = os.getenv("CHAIN_LIVE_STRANGER_KEY")
+    if not stranger:
+        pytest.skip("set CHAIN_LIVE_STRANGER_KEY to a funded account that is not the minter")
+    notes = LoanNotes.from_env({**os.environ, "CHAIN_MINTER_PRIVATE_KEY": stranger})
+    terms = NoteTerms(1_000_000, 400, 120, "heloc", borrower_ref("borrower1", "live-salt"))
+    with pytest.raises(ChainError, match="refused the loan note: .*AccessControlUnauthorizedAccount"):
+        notes.mint(f"live-{uuid.uuid4()}", terms)
