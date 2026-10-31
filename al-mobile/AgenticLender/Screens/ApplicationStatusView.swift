@@ -51,6 +51,7 @@ struct ApplicationStatusView: View {
                     .sheet(isPresented: $isExplaining) { FigureExplanations(figures: figures) }
             }
             TimelineCard(timeline: timeline)
+            LoanNoteCard(section: model.loanNote)
         } else if let error = model.loadError {
             RetryMessage(message: error) { model.retry() }
         } else {
