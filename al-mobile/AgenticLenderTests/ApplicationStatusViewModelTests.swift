@@ -133,6 +133,54 @@ final class ApplicationStatusViewModelTests: XCTestCase {
         XCTAssertNil(model.loadError)
     }
 
+    // MARK: - A network error after loading ends the listener (AL-277)
+
+    func testANetworkErrorWithATimelineKeepsItAndTheBannerAndDropsTheStoppedListener() {
+        let service = FakeStatusService()
+        let model = ApplicationStatusViewModel(applicationID: "a1", service: service, network: network)
+        model.start()
+        service.push(fresh(applied))
+
+        service.push(.failure(.network))
+
+        XCTAssertTrue(model.isOffline)
+        XCTAssertEqual(model.timeline, StatusTimeline(record: applied))
+        XCTAssertNil(model.loadError)
+        XCTAssertEqual(service.stopped, 1, "Firestore ended that listener, so it's let go")
+    }
+
+    func testWhenTheConnectionComesBackItListensAgainAndTheBannerGoesOnTheNextServerAnswer() {
+        let service = FakeStatusService()
+        let model = ApplicationStatusViewModel(applicationID: "a1", service: service, network: network)
+        model.start()
+        service.push(fresh(applied))
+        network.set(connected: false)
+        service.push(.failure(.network))
+
+        network.set(connected: true)
+
+        XCTAssertEqual(service.listenedTo, ["a1", "a1"], "listening again")
+        XCTAssertTrue(model.isOffline, "still the last saved status until the server answers")
+
+        service.push(fresh(deliberated))
+
+        XCTAssertFalse(model.isOffline)
+        XCTAssertEqual(model.timeline, StatusTimeline(record: deliberated))
+    }
+
+    func testTheConnectionComingBackWhileStillListeningDoesntListenTwice() {
+        let service = FakeStatusService()
+        let model = ApplicationStatusViewModel(applicationID: "a1", service: service, network: network)
+        model.start()
+        service.push(fresh(applied))
+
+        network.set(connected: false)
+        network.set(connected: true)
+
+        XCTAssertEqual(service.listenedTo, ["a1"])
+        XCTAssertEqual(service.stopped, 0)
+    }
+
     func testOfflineBeforeAnythingLoadedSaysSoAndStillListens() {
         let service = FakeStatusService()
         let model = ApplicationStatusViewModel(applicationID: "a1", service: service, network: network)

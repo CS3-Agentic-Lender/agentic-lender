@@ -41,15 +41,27 @@ final class ApplicationStatusViewModel {
     func start() {
         if networkWatch == nil {
             networkWatch = network.watch { [weak self] connected in
-                self?.hasNetwork = connected
+                self?.networkChanged(connected: connected)
             }
         }
         guard listener == nil else { return }
         isLoading = timeline == nil
         loadError = nil
+        listen()
+    }
+
+    private func listen() {
         listener = service.listen(to: applicationID) { [weak self] result in
             self?.received(result)
         }
+    }
+
+    /// Back online after a network error ended the listener (AL-277): listen again. The banner stays
+    /// until the server answers, as with any cached status.
+    private func networkChanged(connected: Bool) {
+        hasNetwork = connected
+        guard connected, listener == nil, timeline != nil, loadError == nil else { return }
+        listen()
     }
 
     /// After a failure: listens again from scratch.
@@ -73,8 +85,11 @@ final class ApplicationStatusViewModel {
             }
             loadError = nil
         case .failure(.network) where timeline != nil:
-            // Keep what the borrower last saw; Firestore carries on listening and catches up when back.
+            // Keep what the borrower last saw. Firestore ends a listener once it reports an error, so let it go;
+            // the network watch listens again when the connection is back.
             isServedFromCache = true
+            listener?.stop()
+            listener = nil
         case .failure(.network):
             loadError = Self.message(for: .network)
         case .failure(let error):
