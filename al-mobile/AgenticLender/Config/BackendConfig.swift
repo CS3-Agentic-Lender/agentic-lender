@@ -14,6 +14,9 @@ struct BackendConfig: Equatable {
     static let apiGatewayPort = 8000
 
     let emulatorHost: String
+    /// The block explorer's transaction address, such as "https://amoy.polygonscan.com/tx/", for the loan
+    /// note's "View on block explorer". Nil on the local Hardhat chain, which has no explorer.
+    let blockExplorerTxURL: String?
 
     /// Where the app sends API calls: the local gateway on the same host as the emulators.
     var apiBaseURL: URL {
@@ -27,5 +30,7 @@ struct BackendConfig: Equatable {
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let host = environment["EMULATOR_HOST"]?.trimmingCharacters(in: .whitespaces) ?? ""
         emulatorHost = host.isEmpty ? Self.defaultEmulatorHost : host
+        let explorer = environment["BLOCK_EXPLORER_TX_URL"]?.trimmingCharacters(in: .whitespaces) ?? ""
+        blockExplorerTxURL = explorer.isEmpty ? nil : explorer
     }
 }

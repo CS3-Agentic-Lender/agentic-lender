@@ -31,10 +31,12 @@ struct ApplicationStatusRecord: Equatable, Sendable {
     let history: [Move]
     /// LTV, DTI and approval likelihood, once the AI review has written them (AL-145).
     let figures: LoanFigures
+    /// Set by the mint, in the same write that moves the status to Funded (Figma 14c).
+    let loanNote: LoanNote?
 
     init(
         status: ApplicationStatus, createdAt: Date?, submittedAt: Date?, decision: Decision?, history: [Move],
-        figures: LoanFigures = LoanFigures(fields: [:])
+        figures: LoanFigures = LoanFigures(fields: [:]), loanNote: LoanNote? = nil
     ) {
         self.status = status
         self.createdAt = createdAt
@@ -42,6 +44,7 @@ struct ApplicationStatusRecord: Equatable, Sendable {
         self.decision = decision
         self.history = history
         self.figures = figures
+        self.loanNote = loanNote
     }
 
     /// Nil when the document has no status the app knows, since nothing sensible can be shown then.
@@ -53,7 +56,8 @@ struct ApplicationStatusRecord: Equatable, Sendable {
             submittedAt: Self.date(fields["submittedAt"]),
             decision: (fields["decision"] as? [String: Any]).flatMap(Self.decision),
             history: (fields["statusHistory"] as? [Any] ?? []).compactMap(Self.move),
-            figures: LoanFigures(fields: fields)
+            figures: LoanFigures(fields: fields),
+            loanNote: LoanNote(fields: fields)
         )
     }
 
