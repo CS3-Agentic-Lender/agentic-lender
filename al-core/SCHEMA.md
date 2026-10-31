@@ -119,7 +119,7 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 
 `decision` map: `outcome` (`approved` or `declined`), `underwriterId`, `decidedAt`, `reason` (optional, left out when none is given). Written only by `POST /core/applications/{id}/decision`, in the same write that moves the status to `Underwriter Approved` or `Declined`, and never changed afterwards.
 
-`loanNote` map: `tokenId`, `contractAddress`, `txHash`, `auditHash`, `mintedAt`. No personal data goes on chain.
+`loanNote` map: `tokenId` (text), `contractAddress`, `txHash` (the mint transaction), `auditHash`, `mintedAt`. No personal data goes on chain. Written only by `POST /core/applications/{id}/mint`, in the same write that moves the status to `Funded`, and never changed afterwards.
 
 ## applications/{id}/review/underwriting
 

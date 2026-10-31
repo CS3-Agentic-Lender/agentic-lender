@@ -114,6 +114,14 @@ class DecisionOut(BaseModel):
     reason: str | None = None
 
 
+class LoanNoteOut(BaseModel):
+    token_id: str
+    contract_address: str | None = None
+    tx_hash: str | None = None
+    audit_hash: str | None = None
+    minted_at: str | None = None
+
+
 class ApplicationOut(BaseModel):
     id: str
     borrower_id: str
@@ -141,6 +149,8 @@ class ApplicationOut(BaseModel):
     risk_tier: str | None = None
     # Set by the underwriter's sign-off (POST .../decision). Null until then.
     decision: DecisionOut | None = None
+    # Set when the loan note is minted (POST .../mint). Null until then.
+    loan_note: LoanNoteOut | None = None
     created_at: str | None = None
     submitted_at: str | None = None
     updated_at: str | None = None
@@ -262,6 +272,18 @@ def _decision_out(decision: dict | None) -> dict | None:
     }
 
 
+def _loan_note_out(note: dict | None) -> dict | None:
+    if not note:
+        return None
+    return {
+        "token_id": str(note.get("tokenId")),
+        "contract_address": note.get("contractAddress"),
+        "tx_hash": note.get("txHash"),
+        "audit_hash": note.get("auditHash"),
+        "minted_at": _iso(note.get("mintedAt")),
+    }
+
+
 def _out(app_id: str, doc: dict) -> dict:
     """Firestore camelCase to API snake_case."""
     prop = doc.get("property")
@@ -279,6 +301,7 @@ def _out(app_id: str, doc: dict) -> dict:
         "ltv_band": doc.get("ltvBand"),
         "risk_tier": doc.get("riskTier"),
         "decision": _decision_out(doc.get("decision")),
+        "loan_note": _loan_note_out(doc.get("loanNote")),
         "created_at": _iso(doc.get("createdAt")),
         "submitted_at": _iso(doc.get("submittedAt")),
         "updated_at": _iso(doc.get("updatedAt")),
