@@ -82,14 +82,21 @@ def risk_tier(findings: RiskFindings) -> str:
 
 def write_risk(db, application_id: str, findings: RiskFindings) -> tuple[str, str]:
     """Save the band and tier after a run or re-run: both on `applications/{id}`, and the tier again on `review/underwriting`
-    (underwriter-only, so the borrower never reads that copy). One batch, so the two documents never disagree.
+    (readable by underwriters and the assigned broker, never the borrower). One batch, so the two documents never disagree.
 
     `db` is a Firestore client. The committee flow ticket calls this after each run. Returns (ltv_band, risk_tier).
+    Raises ValueError if the application does not exist or has no brokerId.
     """
     band, tier = ltv_band(ltv_ratio(findings)), risk_tier(findings)
     application = db.collection("applications").document(application_id)
+    snapshot = application.get()
+    if not snapshot.exists:
+        raise ValueError(f"Application {application_id} does not exist")
+    broker_id = (snapshot.to_dict() or {}).get("brokerId")
+    if not broker_id:
+        raise ValueError(f"Application {application_id} has no brokerId")
     batch = db.batch()
     batch.update(application, {"ltvBand": band, "riskTier": tier})
-    batch.set(application.collection("review").document("underwriting"), {"riskTier": tier, "updatedAt": SERVER_TIMESTAMP}, merge=True)
+    batch.set(application.collection("review").document("underwriting"), {"riskTier": tier, "updatedAt": SERVER_TIMESTAMP, "applicationId": application_id, "brokerId": broker_id}, merge=True)
     batch.commit()
     return band, tier

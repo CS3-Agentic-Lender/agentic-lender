@@ -128,16 +128,28 @@ def test_any_other_warning_is_low_support(warning):
 # ---- saving it (criterion 3) ---------------------------------------------------------------------
 
 class FakeRef:
-    def __init__(self, path):
-        self.path = path
+    def __init__(self, path, documents):
+        self.path, self.documents = path, documents
+
+    def get(self):
+        data = self.documents.get(self.path)
+        return FakeSnapshot(data)
 
     def collection(self, name):
-        return FakeCollection(f"{self.path}/{name}")
+        return FakeCollection(f"{self.path}/{name}", self.documents)
+
+
+class FakeSnapshot:
+    def __init__(self, data):
+        self.data, self.exists = data, data is not None
+
+    def to_dict(self):
+        return self.data
 
 
 class FakeCollection(FakeRef):
     def document(self, doc_id):
-        return FakeRef(f"{self.path}/{doc_id}")
+        return FakeRef(f"{self.path}/{doc_id}", self.documents)
 
 
 class FakeBatch:
@@ -155,11 +167,12 @@ class FakeBatch:
 
 
 class FakeDb:
-    def __init__(self):
+    def __init__(self, documents=None):
         self.last_batch = None
+        self.documents = documents if documents is not None else {"applications/app-1": {"brokerId": "broker-1"}}
 
     def collection(self, name):
-        return FakeCollection(name)
+        return FakeCollection(name, self.documents)
 
     def batch(self):
         self.last_batch = FakeBatch()
@@ -177,7 +190,18 @@ def test_the_band_and_tier_go_on_the_application_and_the_tier_on_the_underwritin
     kind, path, data, merge = batch.writes[1]
     assert (kind, path, merge) == ("set", "applications/app-1/review/underwriting", True)
     assert data["riskTier"] == "B" and "updatedAt" in data
+    assert data["applicationId"] == "app-1" and data["brokerId"] == "broker-1"
     assert len(batch.writes) == 2
+
+
+@pytest.mark.parametrize("documents", [{"applications/app-1": {}}, {"applications/app-1": {"brokerId": ""}}, {}])
+def test_missing_application_or_broker_prevents_the_batch(documents):
+    db = FakeDb(documents)
+
+    with pytest.raises(ValueError, match="app-1"):
+        write_risk(db, "app-1", mortgage())
+
+    assert db.last_batch is None or (not db.last_batch.committed and not db.last_batch.writes)
 
 
 def test_a_re_run_overwrites_with_the_new_answer():
