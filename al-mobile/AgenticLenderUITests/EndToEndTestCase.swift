@@ -47,16 +47,26 @@ class EndToEndTestCase: XCTestCase {
     }
 
     /// iOS offers to save the password after a sign-in; the prompt covers Home until it's closed.
+    /// It can take several seconds to appear, so both places it shows up are watched together.
     private func dismissSavePasswordPrompt() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        for owner in [app, springboard] {
-            let notNow = owner.buttons["Not Now"].firstMatch
-            if notNow.waitForExistence(timeout: 3) {
+        let candidates = [app.buttons["Not Now"].firstMatch, springboard.buttons["Not Now"].firstMatch]
+        let deadline = Date().addingTimeInterval(Self.savePasswordPromptWait)
+        var tapped = false
+        while Date() < deadline {
+            if let notNow = candidates.first(where: \.exists) {
+                // A tap while the prompt is still sliding in can be ignored, so tap until it's gone.
                 notNow.tap()
+                tapped = true
+            } else if tapped {
                 return
             }
+            _ = candidates[0].waitForExistence(timeout: 0.5)
         }
     }
+
+    /// The prompt has taken over three seconds on a freshly booted simulator.
+    private static let savePasswordPromptWait: TimeInterval = 10
 
     /// Home → What can I borrow? → Mortgage → calculate → Start application, ending on the form.
     func openMortgageApplication() {

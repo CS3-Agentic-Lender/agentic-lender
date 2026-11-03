@@ -244,6 +244,24 @@ final class ApplicationStatusViewModelTests: XCTestCase {
         XCTAssertNil(model.figures)
     }
 
+    // MARK: - Loan note (Figma 14c)
+
+    func testTheLoanNoteAppearsLiveWhenTheApplicationIsFunded() throws {
+        let service = FakeStatusService()
+        let model = ApplicationStatusViewModel(applicationID: "a1", service: service, network: network)
+        model.start()
+        let approved = try XCTUnwrap(ApplicationStatusRecord(fields: ["status": "Underwriter Approved"]))
+        let funded = try XCTUnwrap(ApplicationStatusRecord(fields: [
+            "status": "Funded", "loanNote": ["tokenId": "42", "txHash": "0xabc"],
+        ]))
+
+        service.push(fresh(approved))
+        XCTAssertEqual(model.loanNote, .waiting)
+
+        service.push(fresh(funded))
+        XCTAssertEqual(model.loanNote, .minted(try XCTUnwrap(funded.loanNote)))
+    }
+
     // MARK: - Failures and Retry
 
     func testAnApplicationThatCantBeReadShowsItsMessageAndRetryListensAgain() {
