@@ -255,6 +255,91 @@ describe('loan file review parser', () => {
   });
 });
 
+describe('valuation detail parser', () => {
+  const detail = {
+    baselineEur: 250000,
+    contributions: { ber: -1300, county: 18500, property_type: -4600, floor_area: 31200, bedrooms: 9800 },
+    estimatedValueEur: 303600,
+  };
+
+  it('keeps signed effects and sorts by magnitude', () => {
+    expect(toLoanFileReview({ valuationDetail: detail })).toMatchObject({
+      valuation: {
+        state: 'available',
+        baselineEur: 250000,
+        estimatedValueEur: 303600,
+        contributions: [
+          { feature: 'floor_area', eur: 31200 },
+          { feature: 'county', eur: 18500 },
+          { feature: 'bedrooms', eur: 9800 },
+          { feature: 'property_type', eur: -4600 },
+          { feature: 'ber', eur: -1300 },
+        ],
+        discrepancyEur: 0,
+      },
+    });
+  });
+
+  it('keeps unknown keys, zero effects and stored order for tied magnitudes', () => {
+    expect(toLoanFileReview({ valuationDetail: {
+      baselineEur: 0,
+      contributions: { unknown_feature: -20, county: 20, ber: 0 },
+      estimatedValueEur: 0,
+    } })).toMatchObject({ valuation: {
+      state: 'available',
+      contributions: [
+        { feature: 'unknown_feature', eur: -20 },
+        { feature: 'county', eur: 20 },
+        { feature: 'ber', eur: 0 },
+      ],
+      discrepancyEur: 0,
+    } });
+  });
+
+  it.each([undefined, null, [], 'missing', {}])('marks a missing or unusable map as missing (%j)', (valuationDetail) => {
+    expect(toLoanFileReview({ valuationDetail })).toMatchObject({ valuation: { state: 'missing' } });
+  });
+
+  it.each([undefined, null, '250000', Number.NaN, Number.POSITIVE_INFINITY])(
+    'requires a finite numeric baseline (%s)',
+    (baselineEur) => {
+      expect(toLoanFileReview({ valuationDetail: { ...detail, baselineEur } })).toMatchObject({
+        valuation: { state: 'missing' },
+      });
+    },
+  );
+
+  it.each([undefined, null, {}, [], 'county'])('requires a nonempty contributions map (%j)', (contributions) => {
+    expect(toLoanFileReview({ valuationDetail: { ...detail, contributions } })).toMatchObject({
+      valuation: { state: 'missing' },
+    });
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, '10', null, {}])(
+    'rejects the whole breakdown when one contribution is unusable (%s)',
+    (eur) => {
+      expect(toLoanFileReview({ valuationDetail: { ...detail, contributions: { county: 18500, ber: eur } } })).toMatchObject({
+        valuation: { state: 'missing' },
+      });
+    },
+  );
+
+  it('reports the discrepancy without changing the stored estimate or contributions', () => {
+    expect(toLoanFileReview({ valuationDetail: { ...detail, estimatedValueEur: 304100 } })).toMatchObject({
+      valuation: { state: 'available', baselineEur: 250000, estimatedValueEur: 304100, discrepancyEur: 500 },
+    });
+  });
+
+  it.each([undefined, null, '303600', Number.NaN, Number.POSITIVE_INFINITY])(
+    'leaves the estimate and discrepancy null when the estimate is unusable (%s)',
+    (estimatedValueEur) => {
+      expect(toLoanFileReview({ valuationDetail: { ...detail, estimatedValueEur } })).toMatchObject({
+        valuation: { state: 'available', estimatedValueEur: null, discrepancyEur: null },
+      });
+    },
+  );
+});
+
 describe('loan file risk tier', () => {
   const review = toLoanFileReview({ riskTier: 'A' });
 

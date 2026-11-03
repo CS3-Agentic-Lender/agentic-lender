@@ -18,6 +18,12 @@ export function formatEuro(amountEur: number | null) {
   return amountEur === null ? UNAVAILABLE : euro.format(amountEur);
 }
 
+export function signedEuro(amountEur: number) {
+  const sign = amountEur < 0 ? '−' : amountEur > 0 ? '+' : '';
+
+  return `${sign}${formatEuro(Math.abs(amountEur))}`;
+}
+
 // Percentages arrive as whole numbers: 83 means 83%.
 export function formatPercent(valuePct: number | null) {
   return valuePct === null ? UNAVAILABLE : `${percent.format(valuePct)}%`;
