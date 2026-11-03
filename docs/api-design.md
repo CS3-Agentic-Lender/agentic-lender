@@ -258,7 +258,7 @@ Endpoints do not substitute made-up numbers when something fails. A missing or s
 { "run_id": "run-app-deliberated-2", "application_id": "app-deliberated", "status": "running", "trigger": "rerun" }
 ```
 
-`GET /core/applications/{id}/audit-pack` returns the stored audit record plus its hash. The `record` keeps the exact keys it is stored and hashed with (camelCase), so hash it as it is and compare the result with `audit_hash`:
+`GET /core/applications/{id}/audit-pack` returns the stored audit record plus its hash, and, so the PDF, the CSV and the on-chain hash all come from one response, the documents behind the decision and a check that they agree (the other keys are listed after the example). The `record` keeps the exact keys it is stored and hashed with (camelCase), so hash it as it is and compare the result with `audit_hash`:
 
 ```json
 {
@@ -275,6 +275,8 @@ Endpoints do not substitute made-up numbers when something fails. A missing or s
   }
 }
 ```
+
+The example shows only the record's part. The response also has `application` (the summary, with the `decision` and its `reason`, and the `loan_note` with the mint's `tx_hash`), `audit_tx_hash`, `valuation`, `affordability` and `policy_gate` (the stored maps, `null` if there is no review document), `agent_calls` (each call the record lists: agent, provider, model, output, time, the hash the record gives it and whether the stored call still hashes to it) and `verification` (the record's hash worked out again, the stored hash, the loan note's, the registry's when the server has a chain, and `verified`, true only when every hash that could be checked agrees). A borrower gets 403, another broker's application 404, and an application with no loan note yet 409.
 
 ## 9. Application status
 

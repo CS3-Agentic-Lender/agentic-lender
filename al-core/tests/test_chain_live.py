@@ -63,3 +63,15 @@ def test_a_wallet_without_the_minter_role_is_refused_with_the_reason(monkeypatch
     terms = NoteTerms(1_000_000, 400, 120, "heloc", borrower_ref("borrower1", "live-salt"))
     with pytest.raises(ChainError, match="refused the loan note: .*AccessControlUnauthorizedAccount"):
         notes.mint(f"live-{uuid.uuid4()}", terms)
+
+
+def test_the_audit_pack_reads_the_hash_back_from_the_chain():
+    from app import audit_pack
+
+    registry = AuditRegistry.from_env()
+    application_id = f"live-{uuid.uuid4()}"
+    stored_hash = audit.audit_hash({"applicationId": application_id, "n": 1})
+
+    assert audit_pack._on_chain_hash(application_id) == (None, True)  # asked, and nothing is there
+    registry.store(application_id, stored_hash)
+    assert audit_pack._on_chain_hash(application_id) == (stored_hash, True)
