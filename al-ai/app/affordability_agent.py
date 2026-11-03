@@ -1,47 +1,49 @@
-"""The affordability agent step: one call to the local Ollama model, checked before anyone trusts it.
+"""The affordability agent step: one call to the model agents.json names for it, checked before anyone trusts it.
 
 Code owns the figures and the bands (affordability.py). The model only explains them and
 recommends. Whatever it replies is checked against the schema and against the figures we
-gave it. A bad reply gets one retry with the error shown, then the step fails: there is no
-other provider to fall back to. Every attempt is logged and returned.
+gave it. Retries and logging are the shared ones in app.agent_loop: a bad reply gets one retry with the error shown,
+a provider error that may clear gets two retries with a pause, and then the step fails. There is no other provider
+to fall back to. Every attempt is logged and returned.
 """
 
-import http.client
 import json
 import logging
 import re
 import time
-import urllib.request
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable
 
 from app import affordability as aff
+from app import agent_loop
+from app import valuation_agent as va
+from app.llm import clients, config
 
 log = logging.getLogger("al-ai.affordability-agent")
 
 PROMPT_VERSION = "affordability-agent-v1"
 PROMPT = (Path(__file__).parent / "prompts" / "affordability_agent_v1.md").read_text()
 
-RATINGS = {"strong", "adequate", "weak", "unaffordable"}
-RECOMMENDATIONS = {"Approve", "Conditionally Approve", "Decline"}
+SYSTEM = va.SYSTEM
+RATINGS = ("strong", "adequate", "weak", "unaffordable")
+RECOMMENDATIONS = ("Approve", "Conditionally Approve", "Decline")
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "rating": {"type": "string", "enum": list(RATINGS)},
+        "recommendation": {"type": "string", "enum": list(RECOMMENDATIONS)},
+        "concerns": {"type": "array", "items": {"type": "string"}},
+        "conditions": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["rating", "recommendation", "concerns", "conditions"],
+    "additionalProperties": False,
+}
 MAX_ITEMS = 5
 MAX_SENTENCE = 300
 # Figures from our own policy that the prompt and the bands mention, so a reply may quote them.
 POLICY_NUMBERS = {0.0, 2.0, 3.5, 4.0, 40.0, 50.0, 500.0}
 
-OLLAMA_URL = "http://localhost:11434"
-TIMEOUT_S = 120
-
-
-# What a failed Ollama call raises: no connection or a timeout (OSError, which covers URLError), a cut-off
-# response, a body that isn't JSON, or JSON without "response". Anything else is a bug in our code and must show.
-PROVIDER_ERRORS = (OSError, http.client.HTTPException, json.JSONDecodeError, KeyError)
-
-
-class InvalidReply(ValueError):
-    """The model replied, but not with something we accept."""
+ReplyRejected = va.ReplyRejected
 
 
 def build_facts(
@@ -98,106 +100,69 @@ def _allowed_numbers(facts: dict) -> set[float]:
     return allowed
 
 
-def validate(raw: str, facts: dict) -> dict:
-    """Parse the reply and check it. Raises InvalidReply with a message the model can act on."""
-    text = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-    try:
-        reply = json.loads(text)
-    except json.JSONDecodeError as e:
-        raise InvalidReply(f"the reply is not valid JSON ({e.msg})") from e
+def check_reply(reply, facts: dict) -> dict:
+    """Check a parsed reply. Raises ReplyRejected with a message the model can act on."""
     if not isinstance(reply, dict):
-        raise InvalidReply("the reply must be one JSON object")
+        raise ReplyRejected("the reply must be one JSON object")
     if set(reply) != {"rating", "recommendation", "concerns", "conditions"}:
-        raise InvalidReply('the fields must be exactly "rating", "recommendation", "concerns" and "conditions"')
+        raise ReplyRejected('the fields must be exactly "rating", "recommendation", "concerns" and "conditions"')
     if not isinstance(reply["rating"], str) or reply["rating"] not in RATINGS:
-        raise InvalidReply(f'"rating" must be one of {sorted(RATINGS)}')
+        raise ReplyRejected(f'"rating" must be one of {list(RATINGS)}')
     if not isinstance(reply["recommendation"], str) or reply["recommendation"] not in RECOMMENDATIONS:
-        raise InvalidReply(f'"recommendation" must be one of {sorted(RECOMMENDATIONS)}')
+        raise ReplyRejected(f'"recommendation" must be one of {list(RECOMMENDATIONS)}')
     allowed = _allowed_numbers(facts)
     for name in ("concerns", "conditions"):
         items = reply[name]
         if not isinstance(items, list) or len(items) > MAX_ITEMS:
-            raise InvalidReply(f'"{name}" must be a list of at most {MAX_ITEMS} sentences')
+            raise ReplyRejected(f'"{name}" must be a list of at most {MAX_ITEMS} sentences')
         for item in items:
             if not isinstance(item, str) or not item.strip() or len(item) > MAX_SENTENCE:
-                raise InvalidReply(f'every item in "{name}" must be a short, non-empty sentence')
+                raise ReplyRejected(f'every item in "{name}" must be a short, non-empty sentence')
             for n in _numbers(item):
                 if n not in allowed:
-                    raise InvalidReply(f'"{item}" quotes {n:g}, which is not in DATA')
+                    raise ReplyRejected(f'"{item}" quotes {n:g}, which is not in DATA')
     # Code decides what a cap breach or an Adverse band means. The reply cannot clear it.
     blocked = facts["lti_cap_breached"] or "Adverse" in (facts["dti_band"], facts["surplus_band"])
     if blocked and reply["recommendation"] == "Approve":
-        raise InvalidReply("you cannot recommend Approve when a band is Adverse or the loan-to-income cap is breached")
+        raise ReplyRejected("you cannot recommend Approve when a band is Adverse or the loan-to-income cap is breached")
     return reply
 
 
-def ollama_call(model: str, base_url: str = OLLAMA_URL) -> Callable[[str], str]:
-    """A function that sends one prompt to the local Ollama model and returns its reply text."""
-
-    def call(prompt: str) -> str:
-        body = json.dumps(
-            {"model": model, "prompt": prompt, "stream": False, "format": "json", "options": {"temperature": 0.2}}
-        ).encode()
-        req = urllib.request.Request(f"{base_url}/api/generate", body, {"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
-            return json.load(resp)["response"]
-
-    return call
-
-
-@dataclass
-class AgentResult:
-    ok: bool
-    reply: dict | None
-    failure_reason: str | None
-    attempts: list[dict] = field(default_factory=list)
+def run(
+    facts: dict,
+    *,
+    run_id: str,
+    agent: config.AgentModel | None = None,
+    transport: clients.Transport = clients.urllib_transport,
+    env: dict | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> va.AgentResult:
+    """Run the step with the model agents.json names for the affordability agent. Never calls any other model."""
+    agent = agent or config.load().agent("affordability")
+    return agent_loop.run_step(
+        log=log, agent=agent, prompt=build_prompt(facts), system=SYSTEM, schema=SCHEMA, check=lambda reply: check_reply(reply, facts),
+        run_id=run_id, prompt_version=PROMPT_VERSION, transport=transport, env=env, sleep=sleep,
+    )
 
 
-def run(facts: dict, call: Callable[[str], str], *, model: str, run_id: str) -> AgentResult:
-    """One attempt, then one repair attempt if the reply is rejected. Never calls anything else."""
-    prompt = build_prompt(facts)
-    attempts: list[dict] = []
-    error = None
-    for n in (1, 2):
-        sent = prompt if error is None else (
-            f"{prompt}\n\nYour previous reply was rejected: {error}. Reply again with only the corrected JSON object."
-        )
-        started = datetime.now(UTC)
-        t0 = time.monotonic()
-        attempt = {
-            "run_id": run_id, "attempt": n, "provider": "ollama", "model": model,
-            "prompt_version": PROMPT_VERSION, "started_at": started.isoformat(),
-            "raw_reply": None, "parsed_reply": None, "outcome": None, "error": None,
-        }
-        try:
-            attempt["raw_reply"] = call(sent)
-            attempt["parsed_reply"] = validate(attempt["raw_reply"], facts)
-            attempt["outcome"] = "ok"
-        except InvalidReply as e:
-            attempt["outcome"], attempt["error"] = "invalid_reply", str(e)
-        except PROVIDER_ERRORS as e:  # provider down, timeout, bad HTTP: retrying the same call won't repair it
-            attempt["outcome"], attempt["error"] = "provider_error", f"{type(e).__name__}: {e}"
-        attempt["duration_s"] = round(time.monotonic() - t0, 3)
-        attempts.append(attempt)
-        log.info(json.dumps(attempt))
-        if attempt["outcome"] == "ok":
-            return AgentResult(True, attempt["parsed_reply"], None, attempts)
-        if attempt["outcome"] == "provider_error":
-            break
-        error = attempt["error"]
-    return AgentResult(False, None, attempts[-1]["error"], attempts)
-
-
-if __name__ == "__main__":  # real run for the evidence: uv run python -m app.affordability_agent MODEL
-    import sys
+def main(argv: list[str]) -> int:
+    """A real run: cd al-ai && uv run python -m app.affordability_agent (needs Ollama running with the model agents.json names)."""
     import uuid
 
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    model = sys.argv[1]
+    from app.llm import smoke
+
     # Reference case from AL-115: joint mover, EUR 270,000 over 25 years, at a 4.00% test rate.
     demo = build_facts(
         loan=270_000, years=25, benchmark_rate=0.04, gross_annual_income=90_000,
         net_monthly_income=5_600, monthly_debts=300, monthly_living_costs=2_400, first_time_buyer=False,
     )
-    result = run(demo, ollama_call(model), model=model, run_id=str(uuid.uuid4()))
+    result = run(demo, run_id=str(uuid.uuid4()), env=smoke.load_env())
     print(json.dumps({"ok": result.ok, "reply": result.reply, "failure_reason": result.failure_reason}, indent=2))
+    return 0 if result.ok else 1
+
+
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    sys.exit(main(sys.argv[1:]))
