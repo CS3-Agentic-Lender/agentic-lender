@@ -84,6 +84,7 @@ class Minted:
     tx_hash: str
     contract_address: str
     already_minted: bool  # True when the note was already on the chain and this call only found it
+    network: str = "localhost"  # the chain it is on (CHAIN_NETWORK), saved with the note so the apps can tell which explorer to use
 
 
 def borrower_ref(uid: str, salt: str) -> str:
@@ -94,8 +95,9 @@ def borrower_ref(uid: str, salt: str) -> str:
 
 
 class LoanNotes:
-    def __init__(self, w3: Web3, address: str, private_key: str):
+    def __init__(self, w3: Web3, address: str, private_key: str, network: str = "localhost"):
         self.w3 = w3
+        self.network = network
         self.account = w3.eth.account.from_key(private_key)
         self.address = Web3.to_checksum_address(address)
         self.contract = w3.eth.contract(address=self.address, abi=ABI)
@@ -106,16 +108,16 @@ class LoanNotes:
         key = env.get("CHAIN_MINTER_PRIVATE_KEY", "")
         if not key:
             raise NotConfigured("CHAIN_MINTER_PRIVATE_KEY is not set")
+        network = env.get("CHAIN_NETWORK") or "localhost"  # an empty value, as .env.example has, means the default too
         address = env.get("LOAN_NOTE_ADDRESS", "")
         if not address:
-            network = env.get("CHAIN_NETWORK", "localhost")
             path = DEPLOYMENTS / f"{network}.json"
             try:
                 address = json.loads(path.read_text())["LoanNote"]["address"]
             except (OSError, KeyError, ValueError):
                 raise NotConfigured(f"LOAN_NOTE_ADDRESS is not set and {path.name} has no LoanNote address") from None
         w3 = Web3(Web3.HTTPProvider(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL), request_kwargs={"timeout": 15}))
-        return cls(w3, address, key)
+        return cls(w3, address, key, network)
 
     def mint(self, application_id: str, terms: NoteTerms) -> Minted:
         """Mint the application's note, or return the one that is already there. A note with other terms is an error."""
@@ -150,7 +152,7 @@ class LoanNotes:
             (event,) = self.contract.events.NoteMinted().process_receipt(receipt, errors=DISCARD)
         except (ValueError, Web3Exception):
             raise ChainError("the loan note was minted but its token id could not be read from the receipt") from None
-        return Minted(int(event["args"]["tokenId"]), "0x" + tx_hash.hex().removeprefix("0x"), self.address, already_minted=False)
+        return Minted(int(event["args"]["tokenId"]), "0x" + tx_hash.hex().removeprefix("0x"), self.address, already_minted=False, network=self.network)
 
     def _token_of(self, ref: bytes) -> int:
         try:
@@ -171,4 +173,4 @@ class LoanNotes:
             raise ChainError("a loan note with different terms already exists for this application")
         if not events:
             raise ChainError("the loan note exists but the transaction that minted it could not be found")
-        return Minted(token_id, "0x" + events[0]["transactionHash"].hex().removeprefix("0x"), self.address, already_minted=True)
+        return Minted(token_id, "0x" + events[0]["transactionHash"].hex().removeprefix("0x"), self.address, already_minted=True, network=self.network)

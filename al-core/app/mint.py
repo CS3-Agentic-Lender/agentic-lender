@@ -119,7 +119,7 @@ def mint_loan_note(application_id: str, response: Response, user: dict = Depends
         return _out(ref.id, doc)
     note = {
         "tokenId": str(minted.token_id), "contractAddress": minted.contract_address, "txHash": minted.tx_hash,
-        "auditHash": anchored.audit_hash, "mintedAt": SERVER_TIMESTAMP,
+        "auditHash": anchored.audit_hash, "network": minted.network, "mintedAt": SERVER_TIMESTAMP,
     }
     extra = {"loanNote": note}
     if doc.get("aprPct") is None:
