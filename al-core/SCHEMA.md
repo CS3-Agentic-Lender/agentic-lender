@@ -182,6 +182,9 @@ The one function that does this is `audit_hash(record)` in `al-core/app/audit.py
 |---|---|---|
 | `applicationId` | string | |
 | `decision` | string | |
+| `loanType` | string | `mortgage` or `heloc`, as on the application |
+| `principalCents` | integer | The loan amount in euro cents: `loanAmountEur` times 100, a half rounded up. A whole number, written with no decimal point or exponent |
+| `termMonths` | integer | The term in months: `termYears` times 12. A whole number |
 | `riskTier` | string | |
 | `creditMemo` | string | |
 | `underwriterId` | string | |

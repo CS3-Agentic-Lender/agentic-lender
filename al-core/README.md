@@ -307,7 +307,7 @@ npm run demo:local
 
 When an application is signed off and approved, al-core builds one **audit record** from what is stored, hashes it, saves it at `applications/{id}/audit/record` and writes the hash to the registry. A declined application has none. `audit_store.anchor(application_id, registry)` does all of it and is safe to call again; the mint endpoint calls it.
 
-**The record** has exactly these seven fields. Keys are sorted, so this order is the order they are hashed in:
+**The record** has exactly these ten fields. Keys are sorted, so this order is the order they are hashed in:
 
 | Field | Value |
 |---|---|
@@ -315,11 +315,14 @@ When an application is signed off and approved, al-core builds one **audit recor
 | `applicationId` | the application id |
 | `creditMemo` | the run's credit memo, as text |
 | `decision` | `approved` |
+| `loanType` | `mortgage` or `heloc`, as stored on the application |
+| `principalCents` | the loan amount in euro cents, a whole number: `loanAmountEur` times 100, a half rounded up (`123456.78` euro is `12345678`) |
 | `riskTier` | `A`, `B`, `C` or `D` |
 | `signedOffAt` | the sign-off time as UTC with milliseconds and a Z, for example `2026-09-18T11:00:00.000Z` |
+| `termMonths` | the term in months, a whole number: `termYears` times 12 |
 | `underwriterId` | the underwriter's uid |
 
-Which run: the latest **complete** run of the application. Every field is text, so there is no number format to agree.
+Which run: the latest **complete** run of the application. `principalCents` and `termMonths` are the only numbers in the record, and they are whole numbers, written without a decimal point or an exponent (`29000000`, never `29000000.0`), so Python and JavaScript hash the same bytes. Every other field is text. They come from the same functions as the loan note's terms (`app/loan_terms.py`), so what the hash proves and what was minted can't disagree; an application with no loan amount, no whole-year term or no loan type can't make a record. The rate is not in the record: it isn't priced yet and may change when pricing arrives, and the loan note already carries it on the chain. There is no version field. After this change, re-import `seed-data/` to reset a dev emulator that still holds a record made before it: a saved record is never replaced by one with another hash.
 
 **The hash** is the SHA-256, in lower-case hex, of `json.dumps(record, sort_keys=True, separators=(",", ":"))` encoded as UTF-8, with the record's own `auditHash` field left out. Non-ASCII text is escaped by `json.dumps` (an accented e is written as backslash, u, 0, 0, e, 9), so the text hashed is pure ASCII. To check a loan by hand, take `record` from the audit pack, remove `auditHash`, and run:
 
