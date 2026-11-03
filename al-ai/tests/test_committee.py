@@ -215,3 +215,37 @@ def test_a_mortgage_over_the_ltv_limit_gets_an_exception_condition_and_the_appro
     assert gate["breaches"] == [policy_gate.LTV_CAP] and gate["original"] == "Approve" and gate["effective"] == "Conditionally Approve"
     assert f"{policy_gate.EXCEPTION_CONDITION} ({policy_gate.LTV_CAP})" in gate["conditions"] and gate["changed"] is True
     assert record["effective_recommendation"] == "Conditionally Approve"
+
+
+# ---- criterion 5: a HELOC, below and above the 80% cap -------------------------------------------
+
+def heloc_with_balance_of(share_of_value: float, income=HELOC["grossIncomeEur"]):
+    """A HELOC whose existing balance is a share of the model's estimate for the home, so the combined LTV is easy to set."""
+    application = copy.deepcopy(HELOC)
+    request = committee_input.Application.model_validate(application).valuation_request()
+    estimate = valuation_endpoint.estimate_home(request)[0].estimate_eur
+    application["existingMortgageBalanceEur"] = round(estimate * share_of_value - application["loanAmountEur"])
+    application["grossIncomeEur"] = income
+    return application
+
+
+def test_a_heloc_below_the_80_percent_cap_runs_through_with_combined_ltv_and_the_surveyor_condition():
+    record, providers, _ = go(heloc_with_balance_of(0.5))
+    assert record["status"] == "complete"
+    facts = record["steps"]["calculations"]["output"]["valuation_facts"]
+    assert facts["loan_type"] == "heloc" and facts["combined_ltv_pct"] == pytest.approx(50, abs=0.1) and facts["combined_ltv_within_limit"] is True
+    sent = json.dumps(next(body for host, body in providers.calls if host == "api.groq.com"))
+    assert "combined_ltv_pct" in sent  # the valuation agent was given combined LTV
+    gate = record["steps"]["policy_gate"]["output"]
+    assert gate["breaches"] == [] and gate["effective"] == "Conditionally Approve"
+    assert policy_gate.SURVEYOR_CONDITION in gate["conditions"] and policy_gate.CLTV_CAP not in " ".join(gate["conditions"])
+
+
+def test_a_heloc_above_the_80_percent_cap_gets_cltv_cap_and_the_surveyor_condition():
+    record, _, _ = go(heloc_with_balance_of(0.9, income=2_000_000))  # the income is high so only the value cap is broken
+    facts = record["steps"]["calculations"]["output"]["valuation_facts"]
+    assert facts["combined_ltv_pct"] == pytest.approx(90, abs=0.1) and facts["combined_ltv_within_limit"] is False
+    gate = record["steps"]["policy_gate"]["output"]
+    assert gate["breaches"] == [policy_gate.CLTV_CAP]
+    assert f"{policy_gate.EXCEPTION_CONDITION} ({policy_gate.CLTV_CAP})" in gate["conditions"] and policy_gate.SURVEYOR_CONDITION in gate["conditions"]
+    assert gate["original"] == "Approve" and gate["effective"] == "Conditionally Approve" and gate["changed"] is True
