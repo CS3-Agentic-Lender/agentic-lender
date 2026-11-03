@@ -122,3 +122,8 @@ def test_a_missing_application_or_broker_writes_nothing(documents):
     with pytest.raises(ValueError, match="app-1"):
         valuation_review.write_valuation(db, "app-1", result(**MORTGAGE))
     assert db.writes == []
+
+
+def test_the_model_version_saved_is_the_one_that_produced_the_result():
+    newer = result(**MORTGAGE).model_copy(update={"model_version": "v3"})
+    assert valuation_review.write_valuation(FakeDb(), "app-1", newer)["modelVersion"] == "v3"
