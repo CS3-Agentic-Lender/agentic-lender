@@ -53,7 +53,7 @@ class RunStore(Protocol):
 
 
 class JsonFileRunStore:
-    """One JSON file per run in a folder. The Firestore store (AL-141) keeps the same record."""
+    """One JSON file per run in a folder. The Firestore store, built with the submit trigger, keeps the same record."""
 
     def __init__(self, folder: Path = RUNS_FOLDER):
         self.folder = Path(folder)
@@ -103,6 +103,14 @@ class State(TypedDict, total=False):
     record: dict
 
 
+def _failure(name: str, reason: str, evidence: dict | None = None) -> dict:
+    return {
+        "node_order": [name],
+        "steps": {name: {"ok": False, "error": reason, **(evidence or {})}},
+        "failures": [{"step": name, "reason": reason}],
+    }
+
+
 def _node(name: str, work: Callable[[State], dict]):
     """Wrap a step: skip it once an earlier step has failed, and turn StepFailed into a failure on the record."""
 
@@ -112,11 +120,10 @@ def _node(name: str, work: Callable[[State], dict]):
         try:
             update = work(state)
         except StepFailed as exc:
-            return {
-                "node_order": [name],
-                "steps": {name: {"ok": False, "error": exc.reason, **exc.evidence}},
-                "failures": [{"step": name, "reason": exc.reason}],
-            }
+            return _failure(name, exc.reason, exc.evidence)
+        except Exception as exc:  # a bug or an outage nobody planned for must still leave a failed record, not lose the run
+            log.exception("committee step %s raised", name)
+            return _failure(name, f"unexpected error: {type(exc).__name__}: {exc}"[:300])
         return {"node_order": [name], **update}
 
     return run
@@ -144,7 +151,9 @@ def build_graph(deps: Deps):
             response, breakdown_error = valuation_endpoint.estimate_home(state["inputs"].valuation_request(state["run_id"]))
         except valuation_model.ValuationUnavailable as exc:
             raise StepFailed(str(exc))
-        return {"steps": {"valuation_model": {"ok": True, "output": response.model_dump(), "breakdown_error": breakdown_error}}}
+        return {"steps": {"valuation_model": {
+            "ok": True, "model_version": response.model_version, "output": response.model_dump(), "breakdown_error": breakdown_error,
+        }}}
 
     def market(state: State) -> dict:
         got = ma.get_report(
@@ -265,7 +274,9 @@ def build_graph(deps: Deps):
 
 def make_record(state: State) -> dict:
     """The run record from AL-138 decision 1: one document per run, the steps nested inside. Called by the save node, so it adds itself to the order."""
-    failures, steps = state.get("failures", []), state.get("steps", {})
+    steps = state.get("steps", {})
+    # The two agents run side by side and may both fail: the earlier step in the flow is the one reported, whichever finished first.
+    failures = sorted(state.get("failures", []), key=lambda failure: NODE_ORDER.index(failure["step"]))
     gate = steps.get("policy_gate", {}).get("output")
     calls = [
         {"id": f"{state['run_id']}-{name}-{attempt['attempt']}", "step": name}

@@ -1,7 +1,7 @@
 """The committee flow (AL-138): the nodes run in the ticket's order, the state holds every step's result, and a failed step
 still leaves a record. All tested with fake providers: no network, no keys.
 
-The real run through Gemini, Groq and Ollama is the evidence in docs/committee-run-evidence.json.
+The real run through Gemini, Groq and Ollama is the evidence in docs/committee-run-evidence.json (see the PR).
 """
 
 import copy
@@ -201,6 +201,22 @@ def test_a_valuation_model_that_is_unavailable_fails_that_step(monkeypatch):
 def test_a_reply_the_strategist_cannot_use_fails_the_run_after_its_retry():
     record, _, _ = go(MORTGAGE, Providers(gemini={"recommendation": "Maybe", "conditions": [], "memo": MEMO}))
     assert record["failed_step"] == "strategist" and record["status"] == "failed" and len(record["steps"]["strategist"]["attempts"]) == 2
+
+
+def test_an_error_nobody_planned_for_still_saves_a_failed_record(monkeypatch):
+    def broken(request):
+        raise KeyError("something odd")
+
+    monkeypatch.setattr(valuation_endpoint, "estimate_home", broken)
+    record, providers, store = go(MORTGAGE)
+    assert record["status"] == "failed" and record["failed_step"] == "valuation_model"
+    assert record["failure_reason"].startswith("unexpected error: KeyError") and providers.calls == [] and store.saved == [record]
+
+
+def test_when_both_side_by_side_agents_fail_the_earlier_step_in_the_flow_is_the_one_reported():
+    for _ in range(5):  # either may finish first; the report must not depend on that
+        record, _, _ = go(MORTGAGE, Providers(ollama=(503, b"down"), groq=(503, b"down")))
+        assert record["failed_step"] == "affordability" and record["steps"]["valuation_agent"]["ok"] is False
 
 
 # ---- the policy gate, on a mortgage ----------------------------------------------------------------

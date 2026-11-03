@@ -41,3 +41,6 @@ docs/week 3 report/
 
 # al-ai raw datasets and row-level exports stay out of git; only aggregate reports are committed
 al-ai/data/
+
+# Run records written by the local committee runner (income, loan figures, raw model replies). The evidence run is committed by hand.
+al-ai/docs/committee-runs/
