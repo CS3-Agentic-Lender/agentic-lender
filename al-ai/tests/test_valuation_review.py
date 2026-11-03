@@ -84,7 +84,8 @@ def test_the_breakdown_is_saved_as_the_api_list_of_six_inputs_with_their_values(
     assert detail["baselineEur"] + sum(piece["eur"] for piece in detail["contributions"]) == pytest.approx(detail["estimatedValueEur"], abs=0.1)
 
 
-def test_a_re_run_replaces_the_map_whole_by_naming_it_in_the_mask_and_leaves_the_other_fields_alone():
+def test_the_mask_names_the_whole_valuation_map_and_none_of_the_other_review_fields():
+    # This pins what is sent. That Firestore then replaces the map whole on a re-run is shown by docs/valuation-review-check/.
     db = FakeDb()
     valuation_review.write_valuation(db, "app-1", result(**MORTGAGE))
     [(_, _, merge)] = db.writes
