@@ -1,6 +1,7 @@
 """POST /core/applications/{id}/messages and /messages/read against an in-memory Firestore (AL-70)."""
 
 import itertools
+from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,6 +52,11 @@ class Collection:
     def document(self, doc_id=None):
         return Doc(self.db, f"{self.path}/{doc_id or next(self.db.ids)}")
 
+    def stream(self):
+        for path, data in list(self.db.store.items()):
+            if path.startswith(self.path + "/") and "/" not in path[len(self.path) + 1:]:
+                yield Snap(self.db, path, data)
+
     def where(self, filter):
         db, prefix, field, value = self.db, self.path + "/", filter.field_path, filter.value
 
@@ -70,14 +76,17 @@ class Batch:
         self.db, self.pending = db, []
 
     def update(self, ref, changes):
-        self.pending.append((ref.path, changes))
+        self.pending.append(("update", ref.path, changes))
+
+    def set(self, ref, data):
+        self.pending.append(("set", ref.path, data))
 
     def commit(self):
         if self.db.fail_commit:
             raise RuntimeError("commit failed")
         self.db.commits.append(len(self.pending))
-        for path, changes in self.pending:
-            Doc(self.db, path).update(changes)
+        for kind, path, data in self.pending:
+            getattr(Doc(self.db, path), kind)(data)
 
 
 class FakeDB:
@@ -224,7 +233,7 @@ def test_the_borrowers_message_is_cleared_by_a_broker_or_an_underwriter_for_both
     assert thread(world)[note]["read"] is True
 
 
-def test_staff_messages_to_each_other_are_left_for_the_later_unread_ticket(world):
+def test_the_flag_of_a_message_between_two_staff_members_is_left_alone_their_unread_state_is_per_person(world):
     sign_in(world, "underwriter1", "underwriter")
     note = send("Broker, can you confirm the income?").json()["id"]
     sign_in(world, "broker1", "broker")
@@ -249,7 +258,7 @@ def test_a_large_thread_is_marked_in_batches_within_the_firestore_limit(world, m
         send(f"message {n}")
     sign_in(world, "underwriter1", "underwriter")
     assert mark().json() == {"marked": 7}
-    assert world["db"].commits == [3, 3, 1]
+    assert world["db"].commits == [3, 3, 2]  # the seven messages, then the reader's last-read time with the last of them
 
 
 def test_marking_read_again_changes_nothing(world):
@@ -284,7 +293,138 @@ def test_a_sent_message_cannot_be_edited_or_deleted(world, method):
     assert world["db"].store == before
 
 
-def test_the_messages_routes_are_only_the_two_post_endpoints():
+def test_the_messages_routes_are_the_two_posts_and_the_unread_count_and_nothing_edits_or_deletes():
     paths = client.get("/core/openapi.json").json()["paths"]
     found = {(method.upper(), path) for path, item in paths.items() if "/messages" in path for method in item}
-    assert found == {("POST", "/core/applications/{application_id}/messages"), ("POST", "/core/applications/{application_id}/messages/read")}
+    assert found == {
+        ("POST", "/core/applications/{application_id}/messages"),
+        ("POST", "/core/applications/{application_id}/messages/read"),
+        ("GET", "/core/applications/{application_id}/messages/unread"),
+    }
+
+
+# ---- unread state per person (AL-71) -------------------------------------------------------------------------------
+
+
+def at(minutes: int):
+    return LATER + timedelta(minutes=minutes)
+
+
+def add(world, msg_id, uid, role, minutes):
+    """A message sent `minutes` after LATER, put straight in the thread so the tests control the times."""
+    world["db"].store[f"{THREAD}/{msg_id}"] = {"senderId": uid, "senderRole": role, "text": msg_id, "sentAt": at(minutes), "read": False}
+
+
+def unread(world, uid, role):
+    sign_in(world, uid, role)
+    return client.get("/core/applications/app1/messages/unread", headers=TOKEN).json()
+
+
+def state(world, uid):
+    return world["db"].store.get(f"applications/app1/readState/{uid}")
+
+
+@pytest.fixture
+def busy(world):
+    """A thread of three people: the broker's `old` message at LATER, then the borrower, the underwriter and the broker."""
+    add(world, "m1", "borrower1", "borrower", 1)
+    add(world, "m2", "underwriter1", "underwriter", 2)
+    add(world, "m3", "broker1", "broker", 3)
+    return world
+
+
+def test_nobody_has_read_the_thread_at_first_so_each_person_counts_everything_sent_by_someone_else(busy):
+    assert unread(busy, "borrower1", "borrower") == {"unread": 3, "last_read_at": None}  # old (broker), m2, m3
+    assert unread(busy, "broker1", "broker") == {"unread": 2, "last_read_at": None}  # m1, m2
+    assert unread(busy, "underwriter1", "underwriter") == {"unread": 3, "last_read_at": None}  # old, m1, m3
+
+
+def test_opening_the_thread_records_when_the_reader_last_read_it(busy):
+    sign_in(busy, "broker1", "broker")
+    mark()
+    assert state(busy, "broker1") == {"lastReadAt": at(3), "role": "broker"}  # the newest message in the thread when they opened it
+    assert unread(busy, "broker1", "broker") == {"unread": 0, "last_read_at": "2026-10-14T09:03:00.000Z"}
+
+
+def test_each_person_has_their_own_count_so_one_reading_does_not_clear_another(busy):
+    sign_in(busy, "broker1", "broker")
+    mark()
+    assert unread(busy, "broker1", "broker")["unread"] == 0
+    assert unread(busy, "underwriter1", "underwriter")["unread"] == 3
+    assert unread(busy, "borrower1", "borrower")["unread"] == 3
+
+
+def test_a_message_between_two_staff_members_counts_for_the_one_it_was_sent_to(busy):
+    sign_in(busy, "underwriter1", "underwriter")
+    mark()  # reads everything up to m3
+    add(busy, "m4", "broker1", "broker", 4)
+    assert unread(busy, "underwriter1", "underwriter")["unread"] == 1  # the broker's new message
+    assert unread(busy, "broker1", "broker")["unread"] == 2  # m1 and m2: the broker has not opened it
+    sign_in(busy, "underwriter1", "underwriter")
+    mark()
+    assert unread(busy, "underwriter1", "underwriter")["unread"] == 0
+
+
+def test_a_message_that_arrives_after_reading_is_unread_and_the_readers_own_never_counts(busy):
+    sign_in(busy, "borrower1", "borrower")
+    mark()
+    add(busy, "m4", "broker1", "broker", 4)
+    add(busy, "m5", "borrower1", "borrower", 5)  # their own
+    assert unread(busy, "borrower1", "borrower")["unread"] == 1
+
+
+def test_opening_the_thread_again_with_nothing_new_writes_nothing(busy):
+    sign_in(busy, "broker1", "broker")
+    mark()
+    writes = len(busy["db"].writes)
+    assert mark().json() == {"marked": 0}
+    assert len(busy["db"].writes) == writes
+
+
+def test_opening_the_thread_after_something_new_moves_the_time_forward(busy):
+    sign_in(busy, "broker1", "broker")
+    mark()
+    add(busy, "m4", "underwriter1", "underwriter", 9)
+    mark()
+    assert state(busy, "broker1")["lastReadAt"] == at(9)
+
+
+def test_a_thread_with_no_messages_still_records_that_it_was_opened_once(world):
+    del world["db"].store[f"{THREAD}/old"]
+    sign_in(world, "broker1", "broker")
+    mark()
+    assert state(world, "broker1") == {"lastReadAt": LATER, "role": "broker"}
+    writes = len(world["db"].writes)
+    mark()
+    assert len(world["db"].writes) == writes
+
+
+def test_the_last_read_time_is_written_together_with_the_flags_or_not_at_all(busy):
+    sign_in(busy, "broker1", "broker")
+    busy["db"].fail_commit = True
+    with pytest.raises(RuntimeError):
+        mark()
+    assert state(busy, "broker1") is None and thread(busy)["m1"]["read"] is False
+
+
+def test_the_read_state_is_kept_only_for_the_caller(busy):
+    sign_in(busy, "broker1", "broker")
+    mark()
+    assert [p for p in busy["db"].store if "/readState/" in p] == ["applications/app1/readState/broker1"]
+
+
+@pytest.mark.parametrize("uid,role", [("borrower2", "borrower"), ("broker2", "broker")])
+def test_the_unread_count_is_404_for_anyone_outside_the_thread(world, uid, role):
+    sign_in(world, uid, role)
+    assert client.get("/core/applications/app1/messages/unread", headers=TOKEN).status_code == 404
+
+
+def test_the_unread_count_is_409_on_a_draft_and_needs_a_token(world):
+    assert client.get("/core/applications/draft1/messages/unread", headers=TOKEN).status_code == 409
+    assert client.get("/core/applications/app1/messages/unread").status_code == 401
+
+
+def test_reading_the_unread_count_changes_nothing(busy):
+    before = dict(busy["db"].store)
+    unread(busy, "broker1", "broker")
+    assert busy["db"].store == before

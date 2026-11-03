@@ -21,6 +21,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `applications/{id}/review/underwriting` | The assigned broker, underwriters | al-ai | Risk tier, DTI breakdown, valuation detail |
 | `applications/{id}/audit/record` | The assigned broker, underwriters | al-core (at mint) | The record behind the on-chain audit hash |
 | `applications/{id}/messages/{messageId}` | The borrower, the assigned broker, underwriters | al-core | The message thread |
+| `applications/{id}/readState/{uid}` | That person only | al-core | When that person last opened the thread |
 | `ai_runs/{runId}` | The assigned broker, underwriters | al-ai | One record per committee run |
 | `ai_calls/{callId}` | The assigned broker, underwriters | al-ai | One record per AI call |
 | `support_requests/{requestId}` | The user who sent it, underwriters | al-core (`POST /core/support-requests`) | A support request from a user |
@@ -197,9 +198,20 @@ The one function that does this is `audit_hash(record)` in `al-core/app/audit.py
 | `senderRole` | string | `borrower`, `broker` or `underwriter` |
 | `text` | string | |
 | `sentAt` | timestamp | |
-| `read` | boolean | Whether the other side has read it: a message from the borrower is read when a broker or an underwriter opens the thread, and a message from the broker or an underwriter is read when the borrower does. Starts `false`. Set only through `POST /core/applications/{id}/messages/read`. Messages between the broker and an underwriter are not cleared by it; per-person unread state is a later ticket |
+| `read` | boolean | Whether the other side has read it: a message from the borrower is read when a broker or an underwriter opens the thread, and a message from the broker or an underwriter is read when the borrower does. Starts `false`. Set only through `POST /core/applications/{id}/messages/read`. Messages between the broker and an underwriter are not cleared by it: use `readState` below for a per-person count |
 
 Written only by the API: `POST /core/applications/{id}/messages` sets `senderId` and `senderRole` from the token and `sentAt` on the server, and there is no way to edit or delete a message. A thread opens when the application is submitted, because a broker can't see a Draft.
+
+## applications/{id}/readState/{uid}
+
+When one person last opened the thread. There is one document per person, named by their uid, and a person can read only their own. It is what gives the borrower, the broker and each underwriter their own unread count; the `read` flag on a message is a different thing (see above).
+
+| Field | Type | Notes |
+|---|---|---|
+| `lastReadAt` | timestamp | The `sentAt` of the newest message in the thread when the person opened it, not the time of the request, so a message that arrives while they open it is still unread for them. Never moves backwards |
+| `role` | string | `borrower`, `broker` or `underwriter` |
+
+Written only by the API, by `POST /core/applications/{id}/messages/read`, for the caller. Absent until the person first opens the thread, which means everything sent by anyone else is unread. The unread count is the messages sent by someone else after `lastReadAt`; `GET /core/applications/{id}/messages/unread` gives it, and an app can work it out itself by listening to the thread and to its own `readState` document.
 
 ## ai_runs/{runId} (Nic to confirm)
 

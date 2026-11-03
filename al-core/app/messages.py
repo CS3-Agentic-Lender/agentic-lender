@@ -1,5 +1,6 @@
 """POST /core/applications/{id}/messages sends a message on an application's thread, and
-POST /core/applications/{id}/messages/read marks the caller's unread messages as read.
+POST /core/applications/{id}/messages/read marks the caller's unread messages as read and records when they last read the
+thread, and GET /core/applications/{id}/messages/unread says how many messages they have not read yet.
 
 A thread belongs to an application: the borrower, the broker the application is assigned to and the bank's
 underwriters talk in it. The apps read the messages straight from Firestore (the rules allow exactly those three) and every
@@ -10,7 +11,6 @@ Draft, so a thread on one would have only one side.
 
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import SERVER_TIMESTAMP
-from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, field_validator
 
 from app.applications import _iso
@@ -48,6 +48,11 @@ class MessageOut(BaseModel):
 
 class ReadOut(BaseModel):
     marked: int  # how many messages this call marked as read
+
+
+class UnreadOut(BaseModel):
+    unread: int  # messages sent by someone else after the caller last read the thread (all of theirs if they never have)
+    last_read_at: str | None = None  # null if the caller has never read this thread
 
 
 def _thread(application_id: str, user: dict):
@@ -93,7 +98,9 @@ def send_message(application_id: str, body: MessageIn, user: dict = Depends(requ
 
 # A thread has two sides: the borrower, and the bank's staff (the broker and the underwriters). `read` is one flag on a message
 # and means "the other side has read it", so a message from staff is cleared only by the borrower and a message from the
-# borrower only by staff. Staff messages to each other are never cleared here: per-person unread state is a later ticket.
+# borrower only by staff. That flag is what the borrower's app shows. What each person has read is a separate thing: the time they
+# last opened the thread, kept per person at applications/{id}/readState/{uid} (AL-71), so a broker, an underwriter and the
+# borrower each have their own unread count and a message between two staff members counts for the one it was sent to.
 STAFF = ("broker", "underwriter")
 BATCH = 450  # Firestore allows 500 writes in one batch
 
@@ -106,17 +113,43 @@ def _senders_for(role: str) -> tuple[str, ...]:
 def mark_read(application_id: str, user: dict = Depends(require_role("borrower", "broker", "underwriter"))):
     """Mark the unread messages sent to the caller's side as read: the borrower clears what the bank's staff sent, and a broker
     or an underwriter clears what the borrower sent. A broker opening the thread never clears the underwriter's message to the
-    borrower, so the borrower's unread count stays right. The messages are updated together (all or none, up to 450 at a
-    time). Safe to repeat."""
+    borrower, so the borrower's unread count stays right.
+
+    It also records the caller's own last-read time: the send time of the newest message in the thread when they opened it, so
+    a message that arrives while this runs is still unread for them. Everything is written together (all or none, up to 450
+    writes at a time, the last-read time with the final ones). Safe to repeat: nothing is written when nothing changed."""
     ref = _thread(application_id, user)
     wanted = _senders_for(user["role"])
-    unread = [
-        snap for snap in ref.collection("messages").where(filter=FieldFilter("read", "==", False)).stream()
-        if snap.to_dict().get("senderRole") in wanted
-    ]
-    for start in range(0, len(unread), BATCH):
+    everything = [(snap, snap.to_dict()) for snap in ref.collection("messages").stream()]
+    unread = [snap for snap, data in everything if data.get("read") is False and data.get("senderRole") in wanted]
+
+    newest = max((data["sentAt"] for _, data in everything if data.get("sentAt") is not None), default=None)
+    state_ref = ref.collection("readState").document(user["uid"])
+    state = state_ref.get()
+    last = state.to_dict().get("lastReadAt") if state.exists else None
+    moved = newest is not None and (last is None or newest > last)
+    writes = [("update", snap.reference, {"read": True}) for snap in unread]
+    if moved or (newest is None and not state.exists):
+        writes.append(("set", state_ref, {"lastReadAt": newest if newest is not None else SERVER_TIMESTAMP, "role": user["role"]}))
+
+    for start in range(0, len(writes), BATCH):
         batch = db().batch()
-        for snap in unread[start:start + BATCH]:
-            batch.update(snap.reference, {"read": True})
+        for kind, target, data in writes[start:start + BATCH]:
+            getattr(batch, kind)(target, data)
         batch.commit()
     return {"marked": len(unread)}
+
+
+@router.get("/applications/{application_id}/messages/unread", response_model=UnreadOut)
+def unread_count(application_id: str, user: dict = Depends(require_role("borrower", "broker", "underwriter"))):
+    """How many messages the caller has not read: those sent by anyone else after the time they last opened the thread, or all
+    of them if they never have. It is per person, so a broker reading the thread does not change an underwriter's count."""
+    ref = _thread(application_id, user)
+    state = ref.collection("readState").document(user["uid"]).get()
+    last = state.to_dict().get("lastReadAt") if state.exists else None
+    count = 0
+    for snap in ref.collection("messages").stream():
+        data = snap.to_dict()
+        if data.get("senderId") != user["uid"] and (last is None or data.get("sentAt") is None or data["sentAt"] > last):
+            count += 1
+    return {"unread": count, "last_read_at": _iso(last)}
