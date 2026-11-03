@@ -124,6 +124,45 @@ def _warnings(request: ValuationRequest, routing_key: str) -> list[str]:
     return found
 
 
+def estimate_home(request: ValuationRequest) -> tuple[ValuationResponse, str | None]:
+    """The estimate and everything the endpoint sends with it, with no HTTP, login or logging in it, so the committee flow can call it too.
+
+    Returns the response and, when only the breakdown failed, why (the endpoint logs it; the estimate is still good).
+    Raises valuation_model.ValuationUnavailable when there is no estimate.
+    """
+    routing_key = request.eircode[:3]
+    # A0 has no band, so ber_band turns it into Unknown inside estimate_value; the warning above says so.
+    estimate = valuation_model.estimate_value(
+        request.county, request.property_type, request.bedrooms, request.floor_area_m2, request.ber, routing_key
+    )
+    warnings = _warnings(request, routing_key)
+    breakdown_error = None
+    try:
+        baseline, contributions = _breakdown(request, routing_key)
+    except Exception as exc:  # the estimate matters more than its explanation, so a failed breakdown never costs the borrower the estimate
+        baseline = contributions = None
+        warnings.append(BREAKDOWN_WARNING)
+        breakdown_error = f"{type(exc).__name__}: {exc}"[:300]  # the log says why, with no Eircode in it
+    gap, needs_review = valuation_checks.price_gap_check(estimate, request.asking_price_eur, valuation_model.review_threshold())
+    combined = None
+    if request.loan_type == "heloc":
+        combined = round(affordability.combined_ltv(request.existing_mortgage_balance_eur, request.loan_amount_eur, estimate), 6)
+    response = ValuationResponse(
+        estimate_eur=round(estimate, 2),
+        display_estimate_eur=int(round(estimate / 1000)) * 1000,
+        basis=BASIS,
+        support_warnings=warnings,
+        model_version=MODEL_VERSION,
+        schema_version=SCHEMA_VERSION,
+        asking_price_gap=None if gap is None else round(gap, 6),
+        price_needs_review=needs_review,
+        combined_ltv=combined,
+        baseline_eur=baseline,
+        contributions=contributions,
+    )
+    return response, breakdown_error
+
+
 @router.post("/valuation")
 def value_home(
     request: Annotated[ValuationRequest, Body()], http: Request, user: dict = Depends(auth.current_user)
@@ -137,34 +176,9 @@ def value_home(
     }
     started = time.monotonic()
     try:
-        # A0 has no band, so ber_band turns it into Unknown inside estimate_value; the warning above says so.
-        estimate = valuation_model.estimate_value(
-            request.county, request.property_type, request.bedrooms, request.floor_area_m2, request.ber, routing_key
-        )
-        warnings = _warnings(request, routing_key)
-        try:
-            baseline, contributions = _breakdown(request, routing_key)
-        except Exception as exc:  # the estimate matters more than its explanation, so a failed breakdown never costs the borrower the estimate
-            baseline = contributions = None
-            warnings.append(BREAKDOWN_WARNING)
-            entry["breakdown_error"] = f"{type(exc).__name__}: {exc}"[:300]  # the log says why, with no Eircode in it
-        gap, needs_review = valuation_checks.price_gap_check(estimate, request.asking_price_eur, valuation_model.review_threshold())
-        combined = None
-        if request.loan_type == "heloc":
-            combined = round(affordability.combined_ltv(request.existing_mortgage_balance_eur, request.loan_amount_eur, estimate), 6)
-        response = ValuationResponse(
-            estimate_eur=round(estimate, 2),
-            display_estimate_eur=int(round(estimate / 1000)) * 1000,
-            basis=BASIS,
-            support_warnings=warnings,
-            model_version=MODEL_VERSION,
-            schema_version=SCHEMA_VERSION,
-            asking_price_gap=None if gap is None else round(gap, 6),
-            price_needs_review=needs_review,
-            combined_ltv=combined,
-            baseline_eur=baseline,
-            contributions=contributions,
-        )
+        response, breakdown_error = estimate_home(request)
+        if breakdown_error:
+            entry["breakdown_error"] = breakdown_error
         entry.update(outcome="ok", estimate_eur=response.estimate_eur)
         return response
     except valuation_model.ValuationUnavailable as exc:
