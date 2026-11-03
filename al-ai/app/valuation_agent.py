@@ -18,18 +18,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable
 
-from app import valuation_checks
+from app import affordability, valuation_checks
 from app.llm import clients, config
 
 log = logging.getLogger("al-ai.valuation-agent")
 
-PROMPT_VERSION = "valuation-agent-v1"
-PROMPT_PATH = Path(__file__).parent / "prompts" / "valuation_agent_v1.md"
+# v2 adds the HELOC rules. v1 stays in prompts/ because the saved runs and logs name it.
+PROMPT_VERSION = "valuation-agent-v2"
+PROMPT_PATH = Path(__file__).parent / "prompts" / "valuation_agent_v2.md"
 PROMPT = PROMPT_PATH.read_text()
 
 SYSTEM = "You are a careful analyst. You reply only with one JSON object that matches the schema."
 RATINGS = ("strong", "adequate", "weak", "unsupported")
 RECOMMENDATIONS = ("Approve", "Conditionally Approve", "Decline")
+LOAN_TYPES = ("mortgage", "heloc")
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -69,18 +71,43 @@ def build_facts(
     estimate_eur: float,
     review_threshold: float,
     support_warnings: tuple[str, ...] = (),
+    loan_type: str = "mortgage",
+    existing_mortgage_balance_eur: float | None = None,
 ) -> dict:
-    """The only figures the agent sees. Code works them all out and the model quotes them. No name or full Eircode goes in."""
+    """The only figures the agent sees. Code works them all out and the model quotes them. No name or full Eircode goes in.
+
+    For a HELOC `loan_eur` is the requested credit line. There is no asking price, so there is no gap and no purchase LTV:
+    the home is judged on combined LTV (what is owed plus the line, over the estimate) against the 80% HELOC cap.
+    """
+    if loan_type not in LOAN_TYPES:
+        raise ValueError(f"loan_type must be one of {list(LOAN_TYPES)}")
+    home = {
+        "county": county, "property_type": property_type, "bedrooms": bedrooms, "floor_area_m2": floor_area_m2, "ber": ber,
+        "eircode_area": routing_key, "loan_type": loan_type, "estimate_basis": "2024 asking-price estimate",
+        "estimate_eur": round(estimate_eur, 2),
+    }
+    if loan_type == "heloc":
+        if asking_price_eur is not None:
+            raise ValueError("a HELOC has no asking price")
+        if existing_mortgage_balance_eur is None:
+            raise ValueError("a HELOC needs the existing mortgage balance")
+        cltv = affordability.combined_ltv(existing_mortgage_balance_eur, loan_eur, estimate_eur)
+        return home | {
+            "existing_mortgage_balance_eur": round(existing_mortgage_balance_eur, 2),
+            "line_eur": round(loan_eur, 2),
+            "combined_ltv_pct": round(cltv * 100, 2),
+            "combined_ltv_limit_pct": round(affordability.HELOC_LTV_CAP * 100, 2),
+            "combined_ltv_within_limit": cltv <= affordability.HELOC_LTV_CAP,
+            "support_warnings": list(support_warnings),
+        }
+    if existing_mortgage_balance_eur is not None:
+        raise ValueError("an existing mortgage balance is for a HELOC only")
     c = valuation_checks.check_valuation(
         estimate=estimate_eur, loan=loan_eur, asking_price=asking_price_eur,
         review_threshold=review_threshold, support_warnings=tuple(support_warnings),
     )
     pct = lambda x: None if x is None else round(x * 100, 2)  # noqa: E731
-    return {
-        "county": county, "property_type": property_type, "bedrooms": bedrooms, "floor_area_m2": floor_area_m2, "ber": ber,
-        "eircode_area": routing_key,
-        "estimate_basis": "2024 asking-price estimate",
-        "estimate_eur": round(estimate_eur, 2),
+    return home | {
         "asking_price_eur": None if asking_price_eur is None else round(asking_price_eur, 2),
         "loan_eur": round(loan_eur, 2),
         "price_gap_pct": pct(c.price_gap),
@@ -141,7 +168,8 @@ def check_reply(reply, facts: dict) -> dict:
             if n not in allowed:
                 raise ReplyRejected(f'"{item}" quotes {n:g}, which is not in DATA')
     # Code decides what a review flag or an LTV over the limit means. The reply cannot clear it.
-    blocked = facts["price_needs_review"] is True or facts["purchase_ltv_within_limit"] is False or facts["model_ltv_within_limit"] is False
+    flags = ("price_needs_review", "purchase_ltv_within_limit", "model_ltv_within_limit", "combined_ltv_within_limit")
+    blocked = facts.get(flags[0]) is True or any(facts.get(name) is False for name in flags[1:])
     if blocked and reply["recommendation"] == "Approve":
         raise ReplyRejected("you cannot recommend Approve when price_needs_review is true or a loan to value is over the limit")
     return reply

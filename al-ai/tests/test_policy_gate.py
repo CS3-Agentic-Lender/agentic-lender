@@ -171,6 +171,50 @@ def test_an_unknown_rule_id_is_refused():
         apply_policy_gate("Approve", [], ("MADE_UP",))
 
 
+# ---- a HELOC always gets a surveyor's valuation ------------------------------------------------
+
+def test_a_heloc_approve_with_no_breach_gets_the_surveyor_condition_and_becomes_conditional():
+    r = apply_policy_gate("Approve", [], (), loan_type="heloc")
+    assert r.effective == "Conditionally Approve" and r.conditions == (gate.SURVEYOR_CONDITION,) and r.changed is True
+    assert r.breaches == ()  # the surveyor's valuation is policy for every HELOC, not a breach
+
+
+def test_a_heloc_conditionally_approve_keeps_its_conditions_and_adds_the_surveyor_condition():
+    r = apply_policy_gate("Conditionally Approve", ["Proof of income"], (), loan_type="heloc")
+    assert r.effective == "Conditionally Approve" and r.conditions == ("Proof of income", gate.SURVEYOR_CONDITION)
+
+
+def test_a_heloc_over_the_combined_ltv_cap_gets_the_breach_and_the_surveyor_condition():
+    r = apply_policy_gate("Approve", [], (CLTV_CAP,), loan_type="heloc")
+    assert r.effective == "Conditionally Approve" and r.breaches == (CLTV_CAP,)
+    assert r.conditions == (f"{EXCEPTION} ({CLTV_CAP})", gate.SURVEYOR_CONDITION)
+
+
+def test_a_heloc_decline_stays_decline_with_no_conditions():
+    r = apply_policy_gate("Decline", [], (CLTV_CAP,), loan_type="heloc")
+    assert r.effective == "Decline" and r.conditions == () and r.breaches == (CLTV_CAP,)
+
+
+def test_the_surveyor_condition_is_not_added_twice():
+    r = apply_policy_gate("Conditionally Approve", [gate.SURVEYOR_CONDITION], (), loan_type="heloc")
+    assert r.conditions == (gate.SURVEYOR_CONDITION,) and r.changed is False
+
+
+def test_a_purchase_never_gets_the_surveyor_condition_from_the_gate():
+    assert apply_policy_gate("Approve", [], ()).conditions == ()
+    assert apply_policy_gate("Approve", [], (), loan_type="mortgage").effective == "Approve"
+
+
+def test_an_approve_whose_breach_condition_is_already_written_still_becomes_conditional():
+    r = apply_policy_gate("Approve", [f"{EXCEPTION} ({LTI_CAP})"], (LTI_CAP,))
+    assert r.effective == "Conditionally Approve"
+
+
+def test_an_unknown_loan_type_is_refused():
+    with pytest.raises(ValueError):
+        apply_policy_gate("Approve", [], (), loan_type="bridging")
+
+
 # ---- one place for each limit ----------------------------------------------------------------
 
 def test_the_gate_holds_no_limits_of_its_own_so_it_cannot_drift_from_the_other_checks():

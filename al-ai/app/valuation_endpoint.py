@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app import auth, valuation_checks, valuation_explain, valuation_model
+from app import affordability, auth, valuation_checks, valuation_explain, valuation_model
 from app.affordability_endpoint import BER_VALUES, _one_of
 from ml import data_readiness as dr
 
@@ -38,6 +38,25 @@ class ValuationRequest(BaseModel):
     eircode: str = Field(pattern=EIRCODE.pattern)  # the full Eircode; the routing key is worked out here, never sent on its own
     asking_price_eur: float | None = Field(default=None, gt=0, le=1_000_000_000, allow_inf_nan=False)
     run_id: str | None = Field(default=None, max_length=100)  # set when the call is part of a committee run
+    loan_type: Literal["mortgage", "heloc"] = "mortgage"  # a request with no loan_type is a purchase, as before
+    # A HELOC only, named as in al-core's SCHEMA.md. The home's value still comes from the house details above, never from the client.
+    existing_mortgage_balance_eur: float | None = Field(default=None, ge=0, le=100_000_000, allow_inf_nan=False)
+    loan_amount_eur: float | None = Field(default=None, gt=0, le=100_000_000, allow_inf_nan=False)  # the requested credit limit
+
+    @model_validator(mode="after")
+    def _fields_for_the_loan_type(self):
+        heloc_fields = ("existing_mortgage_balance_eur", "loan_amount_eur")
+        if self.loan_type == "heloc":
+            missing = [name for name in heloc_fields if getattr(self, name) is None]
+            if missing:
+                raise ValueError(f"a HELOC needs {' and '.join(missing)}")
+            if self.asking_price_eur is not None:
+                raise ValueError("a HELOC has no asking price, so asking_price_eur is not allowed")
+        else:
+            sent = [name for name in heloc_fields if getattr(self, name) is not None]
+            if sent:
+                raise ValueError(f"{' and '.join(sent)} is for a HELOC only")
+        return self
 
 
 class Contribution(BaseModel):
@@ -59,6 +78,10 @@ class ValuationResponse(BaseModel):
     schema_version: str
     asking_price_gap: float | None  # asking price / estimate - 1; null when no asking price was sent
     price_needs_review: bool | None
+    combined_ltv: float | None = Field(
+        default=None,
+        description="A HELOC only: what is owed plus the credit limit, over the estimate. Null for a purchase. The policy gate judges it, not this endpoint."
+    )
     baseline_eur: float | None = Field(
         description="The model's average estimate over the 100 sample homes saved with it: the starting point of the breakdown. "
         "Null together with contributions (never just one of them) when the breakdown could not be worked out. The estimate is still good then."
@@ -126,6 +149,9 @@ def value_home(
             warnings.append(BREAKDOWN_WARNING)
             entry["breakdown_error"] = f"{type(exc).__name__}: {exc}"[:300]  # the log says why, with no Eircode in it
         gap, needs_review = valuation_checks.price_gap_check(estimate, request.asking_price_eur, valuation_model.review_threshold())
+        combined = None
+        if request.loan_type == "heloc":
+            combined = round(affordability.combined_ltv(request.existing_mortgage_balance_eur, request.loan_amount_eur, estimate), 6)
         response = ValuationResponse(
             estimate_eur=round(estimate, 2),
             display_estimate_eur=int(round(estimate / 1000)) * 1000,
@@ -135,6 +161,7 @@ def value_home(
             schema_version=SCHEMA_VERSION,
             asking_price_gap=None if gap is None else round(gap, 6),
             price_needs_review=needs_review,
+            combined_ltv=combined,
             baseline_eur=baseline,
             contributions=contributions,
         )
