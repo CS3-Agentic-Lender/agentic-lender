@@ -127,6 +127,7 @@ These need no emulator.
 | `PATCH /core/applications/{id}` | Borrower (their own) | Edits a Draft. Send any of the Draft fields: only those change, `null` clears one, and `property` is merged field by field (`"property": null` clears it all). Changing `loan_type` drops the other type's fields (the deposit and first-time buyer for a HELOC, the existing mortgage balance for a mortgage). `status`, the borrower, broker, name and timestamps are ignored if sent; `updated_at` is set. `409` once it isn't a Draft, `404` for someone else's, `403` for staff. `422` names the field with the same rules as creating, for example `property.eircode` |
 | `POST /core/applications/{id}/submit` | Borrower (their own) | No body. Moves a complete Draft to `Applied`, sets `submitted_at` and returns it, which starts the AI review. Needs `applicants`, `gross_income_eur`, `monthly_debts_eur`, `monthly_take_home_eur`, `monthly_living_costs_eur`, `employment_type`, `years_in_current_job`, `loan_amount_eur`, `term_years`, then `deposit_eur` and `first_time_buyer` for a mortgage or `existing_mortgage_balance_eur` for a HELOC, then `property.address_line_1`, `county`, `eircode`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` (the four the valuation needs) and, for a mortgage only, `asking_price_eur` (a HELOC has no asking price); `0` and `false` count as answers. A missing one is `422` naming the first (`property.eircode`) and it stays a Draft. Repeating it on an `Applied` application returns it unchanged; any later status is `409`. `404` for someone else's, `403` for staff. After this the borrower can't edit it |
 | `POST /core/applications/{id}/decision` | Underwriter | Signs off an application that has been through the AI review. Body `{"outcome": "approved" or "declined", "reason": "..."}` (`reason` is optional, up to 1,000 characters). Saves the `decision` (outcome, the underwriter's uid, the time, the reason) and moves the status to `Underwriter Approved` or `Declined` in one write, and logs the move in `statusHistory`. Returns the application with its `decision`. Repeating the same outcome returns it unchanged; the opposite outcome, or any status other than `AI Deliberated`, is `409`. `403` for a broker or borrower, `404` for an unknown id |
+| `POST /core/applications/{id}/mint` | Underwriter | No body. Mints the loan note for an `Underwriter Approved` application and moves it to `Funded`. It first anchors the decision's audit hash on the registry, then mints the note (principal in cents, rate in basis points, term in months, loan type, and a salted hash of the borrower's uid, so no personal data goes on chain), then saves `loan_note` (`token_id`, `contract_address`, `tx_hash`, `audit_hash`, `minted_at`) and the new status in one write (plus `aprPct`, if it was unset and the rate came from the DTI breakdown, so the application shows the rate on its note). `201` with the application the first time; `200` with the same note if it is already `Funded`, so calling it twice never mints twice. Any other status is `409`, as is an application missing its amount, term or rate (`aprPct`, or else the DTI breakdown's benchmark rate) or with no complete AI run to hash. A chain that is down or refuses is `502` with its reason and the application stays `Underwriter Approved`, so the call can be repeated; `503` if the server has no chain settings. `403` for a broker or borrower, `404` for an unknown id |
 | `POST /core/applications/{id}/messages` | Borrower (their own), the assigned broker, any underwriter | Sends a message on the application's thread. Body `{"text": "..."}`, trimmed, 1 to 2,000 characters (`422` naming `text` otherwise). The sender's id and role come from the token, never the body. Returns `201` with the message (`id`, `application_id`, `sender_id`, `sender_role`, `text`, `sent_at`, `read: false`). `404` for anyone not in the thread, `409` while the application is still a Draft (a broker can't see a Draft, so a thread would have one side). There is no endpoint to edit or delete a message |
 | `POST /core/applications/{id}/messages/read` | The same three | No body. Marks the unread messages sent *to the caller's side* as read and returns `{"marked": n}`: the borrower clears what the broker and the underwriters sent, and a broker or an underwriter clears what the borrower sent. So a broker opening the thread never clears an underwriter's message to the borrower, and the borrower's unread count stays right. Messages between the broker and an underwriter are left unread until per-person unread state exists (a later ticket). The messages are updated together, all or none. Safe to repeat. The apps read the messages straight from Firestore (`applications/{id}/messages`); this is the only way to change `read` |
 | `POST /core/saved-checks` | Borrower | Keeps a property check the borrower ran. Send `property` (`county`, `eircode`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and an optional `asking_price_eur`, the application's names and limits) plus the result you already have: `estimated_value_eur`, `asking_price_gap`, `price_needs_review`, `support_warnings` and `model_version`. al-core validates and stores it and does not call al-ai again. `201` with the saved check and its `id`. The gap and the flag must be null or left out when there is no asking price. At most 20 per borrower: the 21st is `409`. `422` names the field (`property.eircode`) |
@@ -225,6 +226,13 @@ call POST "/core/applications/$APP/messages" '{"text":"Thanks Dara, I have them.
 # 15. POST /core/applications/{id}/messages/read: Bob marks the borrower's message as read ({"marked": 1}; his own message is not his to mark); again gives {"marked": 0}
 call POST "/core/applications/$APP/messages/read"
 call POST "/core/applications/$APP/messages/read"
+
+# 16. POST /core/applications/{id}/mint: an underwriter mints the loan note for a seeded Underwriter Approved application.
+#     Needs the local chain (see "The loan note and the mint" below). 201 the first time and the status becomes Funded;
+#     the same call again is 200 with the same note (re-import seed-data/ to reset it)
+TOKEN=$(token signInWithPassword uma@test.com password123)
+call POST "/core/applications/app-approved/mint"
+call POST "/core/applications/app-approved/mint"
 ```
 
 Errors come back as `{"error": {"code", "message", "field", "request_id"}}`, for example a `PATCH` with `"term_years": 41` returns `422` with `"field": "term_years"`. The same calls can be tried from the browser at http://127.0.0.1:5002/core/docs (**Authorize** with the token, then **Try it out**).
@@ -293,7 +301,7 @@ npm run demo:local
 
 (the same as `npx hardhat run scripts/deploy.js --network localhost` and `scripts/demo-mint.js`.)
 
-`deploy.js` deploys the loan note and the audit registry and saves both addresses to `deployments/localhost.json`, which al-core will read to find the contracts once minting is wired in. `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node: `demo-mint.js` says so if the saved address has no contract behind it.
+`deploy.js` deploys the loan note and the audit registry and saves both addresses to `deployments/localhost.json`, which al-core reads to find the contracts (see "The loan note and the mint" below). `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node: `demo-mint.js` says so if the saved address has no contract behind it.
 
 ### The audit record and its hash (`app/audit.py`, `app/audit_store.py`, `app/chain.py`)
 
@@ -334,6 +342,28 @@ and compare it with the `auditHash` and with the value in the registry. The shar
 | `AUDIT_REGISTRY_ADDRESS` | the deployed registry; if unset, `chain/deployments/<CHAIN_NETWORK>.json` is used (`CHAIN_NETWORK` defaults to `localhost`) |
 
 **Checking it against a real chain:** with the node and `npm run deploy:local` running as above, `CHAIN_LIVE_TEST=1 CHAIN_REGISTRAR_PRIVATE_KEY=<account #0's key> uv run pytest tests/test_chain_live.py`. Without those, that test is skipped and CI uses stand-ins for web3.
+
+### The loan note and the mint (`app/mint.py`, `app/loan_notes.py`)
+
+`POST /core/applications/{id}/mint` (underwriters only) is the step after sign-off. In order:
+
+1. Read the application. A `Funded` one with a note is answered as it is (`200`); anything but `Underwriter Approved` is `409`. The note's terms are worked out before the chain is touched: principal in euro cents from `loanAmountEur`, the rate in basis points from `aprPct` (or, until pricing exists, the DTI breakdown's benchmark rate), the term in months from `termYears`, the loan type, and the borrower reference. Anything missing or out of the contract's range (a term over 40 years, a rate over 100%) is `409` and nothing is sent.
+2. `audit_store.anchor` saves the audit record and writes its hash to the registry.
+3. `LoanNotes.mint` mints the note. If a note for the application is already on the chain (a mint that reached the chain but never reached Firestore, or a second request that lost the race), it finds that note and its transaction instead of minting again, and refuses if its terms differ.
+4. One guarded write saves `loanNote` and moves the status to `Funded` (the log entry is `actor: mint`, with the underwriter's uid as `actorId`). If `aprPct` was unset, the same write saves the rate that went on the note as `aprPct`, because the borrower can't read the DTI breakdown the rate came from. If the application changed while the chain was working, the write is `409` and calling again finishes the job from step 3.
+
+A chain failure at step 2 or 3 is `502`, the status stays `Underwriter Approved`, and the same call can be repeated.
+
+The borrower reference is `sha256(BORROWER_REF_SALT + uid)`, so the uid can't be read back from the note; the salt stays in al-core. The application reference is the same SHA-256 of the application id that the audit registry uses.
+
+| Setting | Meaning |
+|---|---|
+| `CHAIN_MINTER_PRIVATE_KEY` | the wallet that holds the contract's `MINTER_ROLE`. Locally, account #0's key as `npx hardhat node` prints it |
+| `LOAN_NOTE_ADDRESS` | the deployed `LoanNote`; if unset, `chain/deployments/<CHAIN_NETWORK>.json` is used |
+| `BORROWER_REF_SALT` | the secret mixed into the borrower reference. Any long random text; changing it changes every reference minted after |
+| `CHAIN_RPC_URL`, `CHAIN_NETWORK` | as for the audit registry above |
+
+With a local node and `npm run deploy:local` running, the live checks are `CHAIN_LIVE_TEST=1 CHAIN_MINTER_PRIVATE_KEY=<account #0's key> CHAIN_REGISTRAR_PRIVATE_KEY=<account #0's key> uv run pytest tests/test_chain_live.py` (add `CHAIN_LIVE_STRANGER_KEY=<account #1's key>` to also check that a wallet without the role is refused).
 
 ### Choices for the chain
 

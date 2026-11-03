@@ -102,6 +102,9 @@ class FakeDoc:
     def get(self):
         return FakeSnap(self.id, self.store.get(self.path), self.db.versions.get(self.path))
 
+    def collection(self, name):
+        return self.db.collection(f"{self.path}/{name}")
+
 
 class FakeDB:
     def __init__(self):
