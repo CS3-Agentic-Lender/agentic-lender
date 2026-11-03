@@ -1,0 +1,91 @@
+{
+ "what": "A real run of the strategist step. The valuation and market reports are saved real runs and the affordability report is made up. No keys are stored here.",
+ "facts": {
+  "loan": {
+   "loan_type": "purchase",
+   "loan_eur": 402000.0,
+   "term_years": 30,
+   "first_time_buyer": true,
+   "county": "Cork",
+   "property_type": "Semi-D",
+   "bedrooms": 3,
+   "asking_price_eur": 474000.0
+  },
+  "affordability_report": {
+   "rating": "adequate",
+   "recommendation": "Approve",
+   "concerns": [
+    "Spare income is thin once rates rise 2 points."
+   ],
+   "conditions": []
+  },
+  "valuation_report": {
+   "rating": "adequate",
+   "recommendation": "Conditionally Approve",
+   "conditions": [
+    "Obtain an independent surveyor's valuation.",
+    "Reduce the loan amount to bring model LTV within the 90% limit."
+   ],
+   "explanation": "The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, but below the review threshold of 35.67%. The model LTV of 95.0% exceeds the 90% limit, increasing risk. The estimate is indicative only and not a formal valuation. With additional verification the loan could be approved."
+  },
+  "market_report": {
+   "outlook": "rising",
+   "summary": "The ECB main refinancing rate is currently 2.15% and the Irish new mortgage rate is 3.9%. While the ECB may leave rates unchanged in the immediate term, market expectations point toward further rate increases due to energy-driven inflation. Consequently, the outlook for interest rates remains on an upward trajectory."
+  },
+  "votes": {
+   "Affordability": "Approve",
+   "Valuation": "Conditionally Approve"
+  },
+  "voting_agents_disagree": true
+ },
+ "ok": true,
+ "failure_reason": null,
+ "reply": {
+  "recommendation": "Conditionally Approve",
+  "conditions": [
+   "Obtain an independent surveyor's valuation.",
+   "Reduce the loan amount to bring model LTV within the 90% limit."
+  ],
+  "memo": {
+   "application_summary": "The applicant is a first-time buyer seeking a 402000.0 EUR loan for a 3-bedroom semi-D in Cork. The asking price for the property is 474000.0 EUR.",
+   "affordability": "The affordability rating is adequate. Spare income is thin once rates rise 2 points.",
+   "property_assessment": "The valuation rating is adequate. The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, and the model LTV of 95.0% exceeds the 90% limit.",
+   "market_context": "The ECB main refinancing rate is 2.15% and the Irish new mortgage rate is 3.9%. The outlook for interest rates remains on an upward trajectory due to energy-driven inflation.",
+   "disagreements": "The Affordability agent recommends Approve, while the Valuation agent recommends Conditionally Approve. I side with the Valuation agent because the model LTV of 95.0% exceeds the 90% limit, necessitating risk mitigation.",
+   "recommendation_and_conditions": "I recommend a conditional approval. The applicant must obtain an independent surveyor's valuation and reduce the loan amount to bring the model LTV within the 90% limit."
+  }
+ },
+ "memo": "## Application summary\nThe applicant is a first-time buyer seeking a 402000.0 EUR loan for a 3-bedroom semi-D in Cork. The asking price for the property is 474000.0 EUR.\n\n## Affordability\nThe affordability rating is adequate. Spare income is thin once rates rise 2 points.\n\n## Property assessment\nThe valuation rating is adequate. The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, and the model LTV of 95.0% exceeds the 90% limit.\n\n## Market context\nThe ECB main refinancing rate is 2.15% and the Irish new mortgage rate is 3.9%. The outlook for interest rates remains on an upward trajectory due to energy-driven inflation.\n\n## Disagreements\nThe Affordability agent recommends Approve, while the Valuation agent recommends Conditionally Approve. I side with the Valuation agent because the model LTV of 95.0% exceeds the 90% limit, necessitating risk mitigation.\n\n## Recommendation and conditions\nI recommend a conditional approval. The applicant must obtain an independent surveyor's valuation and reduce the loan amount to bring the model LTV within the 90% limit.\n",
+ "attempts": [
+  {
+   "run_id": "demo-strategist",
+   "attempt": 1,
+   "provider": "gemini",
+   "model": "gemini-3.1-flash-lite",
+   "prompt_version": "strategist-agent-v1",
+   "started_at": "2026-10-28T20:11:11.918960+00:00",
+   "raw_reply": "{\n  \"recommendation\": \"Conditionally Approve\",\n  \"conditions\": [\n    \"Obtain an independent surveyor's valuation.\",\n    \"Reduce the loan amount to bring model LTV within the 90% limit.\"\n  ],\n  \"memo\": {\n    \"application_summary\": \"The applicant is a first-time buyer seeking a 402000.0 EUR loan for a 3-bedroom semi-D in Cork. The asking price for the property is 474000.0 EUR.\",\n    \"affordability\": \"The affordability rating is adequate. Spare income is thin once rates rise 2 points.\",\n    \"property_assessment\": \"The valuation rating is adequate. The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, and the model LTV of 95.0% exceeds the 90% limit.\",\n    \"market_context\": \"The ECB main refinancing rate is 2.15% and the Irish new mortgage rate is 3.9%. The outlook for interest rates remains on an upward trajectory due to energy-driven inflation.\",\n    \"disagreements\": \"The Affordability agent recommends Approve, while the Valuation agent recommends Conditionally Approve. I side with the Valuation agent because the model LTV of 95.0% exceeds the 90% limit, necessitating risk mitigation.\",\n    \"recommendation_and_conditions\": \"I recommend a conditional approval. The applicant must obtain an independent surveyor's valuation and reduce the loan amount to bring the model LTV within the 90% limit.\"\n  }\n}",
+   "parsed_reply": {
+    "recommendation": "Conditionally Approve",
+    "conditions": [
+     "Obtain an independent surveyor's valuation.",
+     "Reduce the loan amount to bring model LTV within the 90% limit."
+    ],
+    "memo": {
+     "application_summary": "The applicant is a first-time buyer seeking a 402000.0 EUR loan for a 3-bedroom semi-D in Cork. The asking price for the property is 474000.0 EUR.",
+     "affordability": "The affordability rating is adequate. Spare income is thin once rates rise 2 points.",
+     "property_assessment": "The valuation rating is adequate. The asking price of 474000.0 EUR is 12.01% above the model estimate of 423174.57 EUR, and the model LTV of 95.0% exceeds the 90% limit.",
+     "market_context": "The ECB main refinancing rate is 2.15% and the Irish new mortgage rate is 3.9%. The outlook for interest rates remains on an upward trajectory due to energy-driven inflation.",
+     "disagreements": "The Affordability agent recommends Approve, while the Valuation agent recommends Conditionally Approve. I side with the Valuation agent because the model LTV of 95.0% exceeds the 90% limit, necessitating risk mitigation.",
+     "recommendation_and_conditions": "I recommend a conditional approval. The applicant must obtain an independent surveyor's valuation and reduce the loan amount to bring the model LTV within the 90% limit."
+    }
+   },
+   "request_id": "4FbiaqD1C_v-nsEP5Y3L0QI",
+   "input_tokens": 901,
+   "output_tokens": 371,
+   "outcome": "ok",
+   "error": null,
+   "duration_s": 2.656
+  }
+ ]
+}
