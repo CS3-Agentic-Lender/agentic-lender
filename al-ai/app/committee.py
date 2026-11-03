@@ -1,0 +1,334 @@
+"""The credit committee as one fixed LangGraph flow, runnable on a synthetic application file.
+
+    validate -> valuation model -> Market & Macro -> code calculations -> (affordability agent | valuation agent)
+             -> strategist -> policy gate -> save
+
+Nobody decides the route: the order is fixed. The two agents that need only the calculations run side by side and the
+strategist waits for both. Every step is required. A step that fails after its retries is recorded and the steps after it
+skip themselves, so the run is still saved, as failed, with the evidence so far and no recommendation (AL-138 decision 3).
+The state holds each step's result under `steps`; the save step turns it into the run record that `RunStore` keeps.
+
+    cd al-ai && uv run python -m app.committee app/committee_samples/mortgage-application.json
+"""
+
+import dataclasses
+import json
+import logging
+import time
+import uuid
+from datetime import UTC, datetime
+from operator import add
+from pathlib import Path
+from typing import Annotated, Callable, Protocol, TypedDict
+
+from langgraph.graph import END, START, StateGraph
+from pydantic import ValidationError
+
+from app import affordability_agent as aa
+from app import committee_input, policy_gate, serper, valuation_endpoint, valuation_model
+from app import market_agent as ma
+from app import strategist_agent as sa
+from app import valuation_agent as va
+from app.llm import clients, config
+
+log = logging.getLogger("al-ai.committee")
+
+AL_AI = Path(__file__).resolve().parents[1]
+SAMPLES = Path(__file__).with_name("committee_samples")
+RUNS_FOLDER = AL_AI / "docs" / "committee-runs"
+DEFAULT_BENCHMARK_RATE_PCT = 4.0  # the stand-in the docker-compose file uses, until the ECB rate tool exists
+NODE_ORDER = ("validate", "valuation_model", "market", "calculations", "affordability", "valuation_agent", "strategist", "policy_gate", "save")
+
+
+class StepFailed(Exception):
+    """A required step could not finish. `evidence` is kept in the run record (for example the attempts made)."""
+
+    def __init__(self, reason: str, evidence: dict | None = None):
+        super().__init__(reason)
+        self.reason, self.evidence = reason, evidence or {}
+
+
+class RunStore(Protocol):
+    def save(self, record: dict) -> None: ...
+
+
+class JsonFileRunStore:
+    """One JSON file per run in a folder. The Firestore store (AL-141) keeps the same record."""
+
+    def __init__(self, folder: Path = RUNS_FOLDER):
+        self.folder = Path(folder)
+
+    def path_for(self, run_id: str) -> Path:
+        return self.folder / f"{run_id}.json"
+
+    def save(self, record: dict) -> None:
+        self.folder.mkdir(parents=True, exist_ok=True)
+        self.path_for(record["run_id"]).write_text(json.dumps(record, indent=1) + "\n")
+
+
+@dataclasses.dataclass
+class Deps:
+    """What the flow uses from outside. Tests hand in fakes; the runner hands in the real ones."""
+
+    store: RunStore
+    report_store: ma.ReportStore
+    official: ma.OfficialFigures
+    benchmark_rate_pct: float
+    today: str | None = None
+    agents: dict[str, config.AgentModel] | None = None  # None: the models agents.json names
+    search: Callable[..., serper.SearchResult] = serper.search
+    transport: clients.Transport = clients.urllib_transport
+    env: dict | None = None
+    sleep: Callable[[float], None] = time.sleep
+
+    def agent(self, name: str) -> config.AgentModel | None:
+        return (self.agents or {}).get(name)
+
+
+def _merge(old: dict, new: dict) -> dict:
+    return {**old, **new}
+
+
+class State(TypedDict, total=False):
+    """What travels through the graph. The three Annotated fields take writes from nodes that run side by side."""
+
+    run_id: str
+    application_id: str
+    application: dict
+    started_at: str
+    inputs: committee_input.Application
+    steps: Annotated[dict, _merge]  # step name -> that step's result
+    failures: Annotated[list, add]  # {"step", "reason"}; the first one is the run's failed step
+    node_order: Annotated[list, add]  # the nodes that actually ran
+    record: dict
+
+
+def _node(name: str, work: Callable[[State], dict]):
+    """Wrap a step: skip it once an earlier step has failed, and turn StepFailed into a failure on the record."""
+
+    def run(state: State) -> dict:
+        if state.get("failures"):
+            return {}
+        try:
+            update = work(state)
+        except StepFailed as exc:
+            return {
+                "node_order": [name],
+                "steps": {name: {"ok": False, "error": exc.reason, **exc.evidence}},
+                "failures": [{"step": name, "reason": exc.reason}],
+            }
+        return {"node_order": [name], **update}
+
+    return run
+
+
+def _llm_result(name: str, result: va.AgentResult, extra: dict | None = None) -> dict:
+    last = result.attempts[-1]
+    evidence = {"provider": last["provider"], "model": last["model"], "prompt_version": last["prompt_version"], "attempts": result.attempts}
+    if not result.ok:
+        raise StepFailed(result.failure_reason or "the step failed", evidence)
+    return {"steps": {name: {"ok": True, "output": result.reply, **evidence, **(extra or {})}}}
+
+
+def build_graph(deps: Deps):
+    def validate(state: State) -> dict:
+        try:
+            application = committee_input.Application.model_validate(state["application"])
+            application.valuation_request()  # a county, property type or BER the model does not know fails here, before any model call
+        except ValidationError as exc:
+            raise StepFailed(f"the application is not valid: {committee_input.problems(exc)}")
+        return {"inputs": application, "steps": {"validate": {"ok": True, "output": {"loan_type": application.loan_type}}}}
+
+    def valuation_model_step(state: State) -> dict:
+        try:
+            response, breakdown_error = valuation_endpoint.estimate_home(state["inputs"].valuation_request(state["run_id"]))
+        except valuation_model.ValuationUnavailable as exc:
+            raise StepFailed(str(exc))
+        return {"steps": {"valuation_model": {"ok": True, "output": response.model_dump(), "breakdown_error": breakdown_error}}}
+
+    def market(state: State) -> dict:
+        got = ma.get_report(
+            deps.official, store=deps.report_store, run_id=state["run_id"], today=deps.today, agent=deps.agent("market"),
+            search=deps.search, transport=deps.transport, env=deps.env, sleep=deps.sleep,
+        )
+        evidence = {"attempts": got.attempts, "searches": got.searches}
+        if not got.ok:
+            raise StepFailed(got.failure_reason or "the market report failed", evidence)
+        report = got.report
+        return {"steps": {"market": {
+            "ok": True, "output": report, "report_id": report["report_id"], "reused_report_id": got.reused_report_id,
+            "provider": report["provider"], "model": report["model"], "prompt_version": report["prompt_version"], **evidence,
+        }}}
+
+    def calculations(state: State) -> dict:
+        """Every figure the agents will quote and every limit the policy gate will judge, worked out by code."""
+        a, steps = state["inputs"], state["steps"]
+        valuation = steps["valuation_model"]["output"]
+        heloc = a.loan_type == "heloc"
+        try:
+            affordability_facts = aa.build_facts(
+                loan=a.loan_amount_eur, years=a.term_years, benchmark_rate=deps.benchmark_rate_pct / 100,
+                gross_annual_income=a.gross_income_eur, net_monthly_income=a.monthly_take_home_eur, monthly_debts=a.monthly_debts_eur,
+                monthly_living_costs=a.monthly_living_costs_eur, first_time_buyer=bool(a.first_time_buyer) and not heloc,
+            )
+            valuation_facts = va.build_facts(
+                county=a.property.county, property_type=a.property.property_type, bedrooms=a.property.bedrooms,
+                floor_area_m2=a.property.floor_area_m2, ber=a.property.ber, routing_key=a.property.eircode[:3],
+                asking_price_eur=a.property.asking_price_eur, loan_eur=a.loan_amount_eur, estimate_eur=valuation["estimate_eur"],
+                review_threshold=valuation_model.review_threshold(), support_warnings=tuple(valuation["support_warnings"]),
+                loan_type=a.loan_type, existing_mortgage_balance_eur=a.existing_mortgage_balance_eur,
+            )
+            if heloc:
+                breaches = policy_gate.heloc_breaches(
+                    existing_balance=a.existing_mortgage_balance_eur, line=a.loan_amount_eur,
+                    home_value=valuation["estimate_eur"], gross_annual_income=a.gross_income_eur,
+                )
+            else:
+                breaches = policy_gate.purchase_breaches(
+                    loan=a.loan_amount_eur, gross_annual_income=a.gross_income_eur,
+                    first_time_buyer=bool(a.first_time_buyer), asking_price=a.property.asking_price_eur,
+                )
+        except ValueError as exc:
+            raise StepFailed(f"the figures could not be worked out: {exc}")
+        output = {
+            "benchmark_rate_pct": deps.benchmark_rate_pct, "affordability_facts": affordability_facts,
+            "valuation_facts": valuation_facts, "breaches": list(breaches),
+        }
+        return {"steps": {"calculations": {"ok": True, "output": output}}}
+
+    def affordability(state: State) -> dict:
+        facts = state["steps"]["calculations"]["output"]["affordability_facts"]
+        result = aa.run(facts, run_id=state["run_id"], agent=deps.agent("affordability"), transport=deps.transport, env=deps.env, sleep=deps.sleep)
+        return _llm_result("affordability", result)
+
+    def valuation_agent(state: State) -> dict:
+        facts = state["steps"]["calculations"]["output"]["valuation_facts"]
+        result = va.run(facts, run_id=state["run_id"], agent=deps.agent("valuation"), transport=deps.transport, env=deps.env, sleep=deps.sleep)
+        return _llm_result("valuation_agent", result)
+
+    def strategist(state: State) -> dict:
+        a, steps = state["inputs"], state["steps"]
+        loan = dict(
+            loan_type=a.loan_type, loan_eur=a.loan_amount_eur, term_years=a.term_years, first_time_buyer=bool(a.first_time_buyer),
+            county=a.property.county, property_type=a.property.property_type, bedrooms=a.property.bedrooms,
+        )
+        if a.loan_type == "mortgage":
+            loan["asking_price_eur"] = a.property.asking_price_eur
+        try:
+            facts = sa.build_facts(
+                loan=loan, affordability=steps["affordability"]["output"], valuation=steps["valuation_agent"]["output"],
+                market=steps["market"]["output"],
+            )
+        except ValueError as exc:
+            raise StepFailed(f"the strategist could not be given the reports: {exc}")
+        result = sa.run(facts, run_id=state["run_id"], agent=deps.agent("strategist"), transport=deps.transport, env=deps.env, sleep=deps.sleep)
+        return _llm_result("strategist", result, {"memo": sa.render_memo(result.reply) if result.ok else None})
+
+    def gate(state: State) -> dict:
+        steps = state["steps"]
+        reply = steps["strategist"]["output"]
+        try:
+            result = policy_gate.apply_policy_gate(
+                reply["recommendation"], reply["conditions"], steps["calculations"]["output"]["breaches"], loan_type=state["inputs"].loan_type
+            )
+        except ValueError as exc:
+            raise StepFailed(f"the policy gate refused its inputs: {exc}")
+        output = {**dataclasses.asdict(result), "conditions": list(result.conditions), "breaches": list(result.breaches)}
+        return {"steps": {"policy_gate": {"ok": True, "output": output}}}
+
+    def save(state: State) -> dict:
+        """Always runs, whether the run finished or failed, so every run leaves a record."""
+        record = make_record(state)
+        deps.store.save(record)
+        return {"record": record, "node_order": ["save"]}
+
+    graph = StateGraph(State)
+    for name, work in (
+        ("validate", validate), ("valuation_model", valuation_model_step), ("market", market), ("calculations", calculations),
+        ("affordability", affordability), ("valuation_agent", valuation_agent), ("strategist", strategist), ("policy_gate", gate),
+    ):
+        graph.add_node(name, _node(name, work))
+    graph.add_node("save", save)
+
+    graph.add_edge(START, "validate")
+    graph.add_edge("validate", "valuation_model")
+    graph.add_edge("valuation_model", "market")
+    graph.add_edge("market", "calculations")
+    graph.add_edge("calculations", "affordability")
+    graph.add_edge("calculations", "valuation_agent")
+    graph.add_edge(["affordability", "valuation_agent"], "strategist")  # waits for both
+    graph.add_edge("strategist", "policy_gate")
+    graph.add_edge("policy_gate", "save")
+    graph.add_edge("save", END)
+    return graph.compile()
+
+
+def make_record(state: State) -> dict:
+    """The run record from AL-138 decision 1: one document per run, the steps nested inside. Called by the save node, so it adds itself to the order."""
+    failures, steps = state.get("failures", []), state.get("steps", {})
+    gate = steps.get("policy_gate", {}).get("output")
+    calls = [
+        {"id": f"{state['run_id']}-{name}-{attempt['attempt']}", "step": name}
+        for name, step in steps.items() for attempt in step.get("attempts", [])
+    ]
+    return {
+        "run_id": state["run_id"],
+        "application_id": state["application_id"],
+        "rerun_of": None,
+        "status": "failed" if failures else "complete",
+        "started_at": state["started_at"],
+        "finished_at": datetime.now(UTC).isoformat(),
+        "failed_step": failures[0]["step"] if failures else None,
+        "failure_reason": failures[0]["reason"] if failures else None,
+        "steps": steps,
+        "original_recommendation": gate["original"] if gate else None,
+        "effective_recommendation": gate["effective"] if gate else None,
+        "ai_calls": calls,
+        "node_order": [*state["node_order"], "save"],
+    }
+
+
+def run_committee(application: dict, *, deps: Deps, application_id: str, run_id: str | None = None) -> dict:
+    """Run the whole flow once and return the saved record."""
+    final = build_graph(deps).invoke({
+        "run_id": run_id or str(uuid.uuid4()), "application_id": application_id, "application": application,
+        "started_at": datetime.now(UTC).isoformat(), "steps": {}, "failures": [], "node_order": [],
+    })
+    return final["record"]
+
+
+def main(argv: list[str]) -> int:
+    """cd al-ai && uv run python -m app.committee APPLICATION.json [--figures FILE] [--out FOLDER]"""
+    from app.llm import smoke
+
+    args = list(argv)
+    options = {}
+    for flag in ("--figures", "--out"):
+        if flag in args:
+            at = args.index(flag)
+            options[flag] = args[at + 1]
+            del args[at:at + 2]
+    if len(args) != 1:
+        print(main.__doc__)
+        return 2
+    path = Path(args[0])
+    env = smoke.load_env()
+    figures = json.loads(Path(options.get("--figures", SAMPLES / "official-figures.json")).read_text())
+    deps = Deps(
+        store=JsonFileRunStore(Path(options.get("--out", RUNS_FOLDER))), report_store=ma.MemoryReportStore(),
+        official=ma.OfficialFigures(as_of=figures["as_of"], figures=figures["figures"]),
+        benchmark_rate_pct=float(env.get("BENCHMARK_RATE_PCT") or DEFAULT_BENCHMARK_RATE_PCT), env=env,
+    )
+    record = run_committee(json.loads(path.read_text()), deps=deps, application_id=path.stem)
+    print(f"{record['status']} run {record['run_id']}: {record['original_recommendation']} -> {record['effective_recommendation']}")
+    if record["failed_step"]:
+        print(f"failed at {record['failed_step']}: {record['failure_reason']}")
+    print("saved", deps.store.path_for(record["run_id"]))
+    return 0 if record["status"] == "complete" else 1
+
+
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    sys.exit(main(sys.argv[1:]))
