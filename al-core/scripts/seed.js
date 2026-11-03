@@ -94,8 +94,6 @@ function dtiBreakdown(app, benchmarkRatePct, rateDate) {
   };
 }
 
-// Same text as Python's json.dumps(record, sort_keys=True, separators=(",", ":"))
-// for records made of plain strings, integers, arrays and objects (no floats, no non-ASCII).
 // The audit record's cents and months (app/loan_terms.py does the same in Python). The seeded loans are whole euros and
 // whole years, so this refuses anything else rather than round it a different way from Python.
 function wholeTimes(value, factor, field) {
@@ -103,6 +101,8 @@ function wholeTimes(value, factor, field) {
   return value * factor;
 }
 
+// Same text as Python's json.dumps(record, sort_keys=True, separators=(",", ":"))
+// for records made of plain strings, integers, arrays and objects (no floats, no non-ASCII).
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value && typeof value === 'object') {
