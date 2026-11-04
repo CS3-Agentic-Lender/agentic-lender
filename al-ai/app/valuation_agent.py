@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 from app import affordability, valuation_checks
+from app import retry_policy
 from app.llm import clients, config
 
 log = logging.getLogger("al-ai.valuation-agent")
@@ -48,9 +49,9 @@ MAX_SENTENCE = 300
 MAX_EXPLANATION = 900
 # Figures that are not in DATA but are ours to say: the basis reads "2024 asking-price estimate".
 POLICY_NUMBERS = {2024.0}
-INVALID_REPLY_RETRIES = 1
-PROVIDER_RETRIES = 2
-BACKOFF_S = (1.0, 2.0)
+INVALID_REPLY_RETRIES = retry_policy.INVALID_REPLY_RETRIES
+PROVIDER_RETRIES = retry_policy.PROVIDER_RETRIES
+BACKOFF_S = retry_policy.BACKOFF_S
 RETRYABLE_CLIENT_ERRORS = {408, 429}  # any other 4xx (a wrong key, a bad request) will not be fixed by asking again
 
 
@@ -195,6 +196,7 @@ def run(
     transport: clients.Transport = clients.urllib_transport,
     env: dict | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    budget: retry_policy.Budget | None = None,
 ) -> AgentResult:
     """Run the step with the model agents.json names for the valuation agent. Never calls any other model."""
     agent = agent or config.load().agent("valuation")
@@ -203,6 +205,8 @@ def run(
     error = None  # why the last reply was rejected, shown to the model on the retry
     invalid_retries = provider_retries = 0
     while True:
+        if budget is not None and budget.remaining() <= 0:
+            return AgentResult(False, None, budget.reason(), attempts)
         sent = prompt if error is None else f"{prompt}\n\nYour previous reply was rejected: {error}. Reply again with only the corrected JSON object."
         t0 = time.monotonic()
         attempt = {
@@ -210,9 +214,9 @@ def run(
             "prompt_version": PROMPT_VERSION, "started_at": datetime.now(UTC).isoformat(), "raw_reply": None, "parsed_reply": None,
             "request_id": None, "input_tokens": None, "output_tokens": None, "outcome": None, "error": None,
         }
-        retry = False
+        retry, retry_after = False, None
         try:
-            got = clients.complete_json(agent.provider, agent.model, SYSTEM, sent, SCHEMA, transport=transport, env=env)
+            got = clients.complete_json(agent.provider, agent.model, SYSTEM, sent, SCHEMA, transport=transport, env=env, timeout=retry_policy.call_timeout(budget))
             attempt.update(raw_reply=got.raw_reply, request_id=got.request_id, input_tokens=got.input_tokens, output_tokens=got.output_tokens)
             attempt["parsed_reply"] = check_reply(got.parsed, facts)
             attempt["outcome"] = "ok"
@@ -228,6 +232,7 @@ def run(
         except clients.LlmError as exc:  # a timeout or an outage or a rate limit, or a wrong key
             attempt.update(outcome="provider_error", error=str(exc))
             retry = _retryable(exc) and provider_retries < PROVIDER_RETRIES
+            retry_after = exc.retry_after
         attempt["duration_s"] = round(time.monotonic() - t0, 3)
         attempts.append(attempt)
         log.info(json.dumps(attempt))
@@ -236,7 +241,10 @@ def run(
         if not retry:
             return AgentResult(False, None, attempt["error"], attempts)
         if attempt["outcome"] == "provider_error":
-            sleep(BACKOFF_S[provider_retries])
+            pause = retry_policy.pause_before_retry(provider_retries, retry_after, budget)
+            if pause is None:
+                return AgentResult(False, None, budget.reason(), attempts)
+            sleep(pause)
             provider_retries += 1
 
 

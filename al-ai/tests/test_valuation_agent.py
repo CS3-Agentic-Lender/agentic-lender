@@ -265,7 +265,7 @@ def test_a_provider_error_is_retried_twice_with_backoff_and_then_the_step_fails(
     net = Net((500, "down"), (500, "down"), (500, "down"))
     sleeps = []
     result = run(net, sleeps=sleeps)
-    assert not result.ok and len(net.calls) == 3 and sleeps == [1.0, 2.0]
+    assert not result.ok and len(net.calls) == 3 and sleeps == [2.0, 8.0]
     assert [a["outcome"] for a in result.attempts] == ["provider_error"] * 3 and "HTTP 500" in result.failure_reason
     assert all("groq.com" in c["url"] for c in net.calls)  # no other model
 
@@ -274,7 +274,7 @@ def test_a_provider_error_that_clears_is_recovered_from():
     net = Net((429, "slow down"), (200, GOOD))
     sleeps = []
     result = run(net, sleeps=sleeps)
-    assert result.ok and sleeps == [1.0] and [a["outcome"] for a in result.attempts] == ["provider_error", "ok"]
+    assert result.ok and sleeps == [2.0] and [a["outcome"] for a in result.attempts] == ["provider_error", "ok"]
 
 
 def test_a_retry_after_a_provider_error_sends_the_same_prompt_again():
@@ -288,7 +288,7 @@ def test_a_bad_reply_and_a_provider_error_each_keep_their_own_retry_budget():
     net = Net((200, bad), (500, "down"), (500, "down"), (200, GOOD))
     sleeps = []
     result = run(net, sleeps=sleeps)
-    assert result.ok and len(net.calls) == 4 and sleeps == [1.0, 2.0]
+    assert result.ok and len(net.calls) == 4 and sleeps == [2.0, 8.0]
     assert "rejected" in json.dumps(net.calls[3]["body"])  # the repair prompt survives the outage
 
 
@@ -389,7 +389,7 @@ def test_a_dead_network_is_retried_like_any_provider_error():
 
     sleeps = []
     result = va.run(facts(), agent=GROQ, run_id="r", transport=dead, env=ENV, sleep=sleeps.append)
-    assert not result.ok and len(calls) == 3 and sleeps == [1.0, 2.0]
+    assert not result.ok and len(calls) == 3 and sleeps == [2.0, 8.0]
 
 
 # ---- digits inside text facts are not invented figures (found in review: "D24" and "C1" were rejected) ---------------------

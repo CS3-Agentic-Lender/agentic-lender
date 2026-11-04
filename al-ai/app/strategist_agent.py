@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from app import agent_loop
+from app import agent_loop, retry_policy
 from app import market_agent as ma
 from app import valuation_agent as va
 from app.llm import clients, config
@@ -167,12 +167,13 @@ def run(
     transport: clients.Transport = clients.urllib_transport,
     env: dict | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    budget: retry_policy.Budget | None = None,
 ) -> va.AgentResult:
     """Run the step with the model agents.json names for the strategist. Never calls any other model."""
     agent = agent or config.load().agent("strategist")
     return agent_loop.run_step(
         log=log, agent=agent, prompt=build_prompt(facts), system=SYSTEM, schema=SCHEMA, check=lambda reply: check_reply(reply, facts),
-        run_id=run_id, prompt_version=PROMPT_VERSION, transport=transport, env=env, sleep=sleep,
+        run_id=run_id, prompt_version=PROMPT_VERSION, transport=transport, env=env, sleep=sleep, budget=budget,
     )
 
 
