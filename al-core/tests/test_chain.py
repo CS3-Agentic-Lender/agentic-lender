@@ -197,6 +197,35 @@ def test_no_address_and_no_deployment_file_means_not_configured(monkeypatch, tmp
         AuditRegistry.from_env({"CHAIN_REGISTRAR_PRIVATE_KEY": KEY})
 
 
+@pytest.mark.parametrize("setting,file", [({}, "localhost.json"), ({"CHAIN_NETWORK": ""}, "localhost.json"), ({"CHAIN_NETWORK": "amoy"}, "amoy.json")])
+def test_the_deployment_file_is_named_after_the_chain_and_localhost_when_it_is_missing_or_empty(monkeypatch, tmp_path, setting, file):
+    address = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+    (tmp_path / file).write_text(json.dumps({"AuditRegistry": {"address": address}}))
+    monkeypatch.setattr(chain, "DEPLOYMENTS", tmp_path)
+    assert AuditRegistry.from_env({"CHAIN_REGISTRAR_PRIVATE_KEY": KEY, **setting}).contract.address == address
+
+
+@pytest.mark.parametrize("setting", [{}, {"CHAIN_NETWORK": ""}])
+def test_an_empty_chain_name_does_not_look_for_a_file_called_dot_json(monkeypatch, tmp_path, setting):
+    (tmp_path / ".json").write_text(json.dumps({"AuditRegistry": {"address": "0x" + "11" * 20}}))  # what an empty name used to find
+    monkeypatch.setattr(chain, "DEPLOYMENTS", tmp_path)
+    with pytest.raises(NotConfigured, match="localhost.json"):
+        AuditRegistry.from_env({"CHAIN_REGISTRAR_PRIVATE_KEY": KEY, **setting})
+
+
+def test_the_registry_and_the_loan_note_client_look_for_the_same_file_with_the_default_env(monkeypatch, tmp_path):
+    from app import loan_notes
+    from app.loan_notes import LoanNotes
+
+    deployed = {"AuditRegistry": {"address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"}, "LoanNote": {"address": "0x5FbDB2315678afecb367f032d93F642f64180aa3"}}
+    (tmp_path / "localhost.json").write_text(json.dumps(deployed))
+    monkeypatch.setattr(chain, "DEPLOYMENTS", tmp_path)
+    monkeypatch.setattr(loan_notes, "DEPLOYMENTS", tmp_path)
+    shipped = {"CHAIN_NETWORK": ""}  # what .env.example ships
+    assert AuditRegistry.from_env({"CHAIN_REGISTRAR_PRIVATE_KEY": KEY, **shipped}).contract.address == deployed["AuditRegistry"]["address"]
+    assert LoanNotes.from_env({"CHAIN_MINTER_PRIVATE_KEY": KEY, **shipped}).address == deployed["LoanNote"]["address"]
+
+
 def test_the_address_comes_from_the_setting_or_else_from_the_deployment_file(monkeypatch, tmp_path):
     address = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
     assert AuditRegistry.from_env({"CHAIN_REGISTRAR_PRIVATE_KEY": KEY, "AUDIT_REGISTRY_ADDRESS": address}).contract.address == address
