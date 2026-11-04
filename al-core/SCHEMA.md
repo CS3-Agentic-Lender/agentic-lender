@@ -132,7 +132,7 @@ Underwriter-only details, kept in a separate document so borrowers can't read th
 | `riskTier` | string | `A`, `B`, `C` or `D` |
 | `policyGate` | map | What the policy gate returned for the run (al-ai `policy_gate.py`), saved exactly as returned. See below |
 | `dtiBreakdown` | map | Every part of the debt-to-income calculation, at the benchmark rate and at the stressed rate. See below |
-| `valuationDetail` | map | `baselineEur`, `contributions` (feature name to euro effect), `estimatedValueEur` |
+| `valuationDetail` | map | What the valuation model returned for the home, as al-ai saves it after each run. See below |
 | `updatedAt` | timestamp | |
 
 ### policyGate
@@ -143,9 +143,24 @@ Written by al-ai after each run, with the Admin SDK; no client can write it. The
 |---|---|---|
 | `original` | string | What the strategist recommended: `Approve`, `Conditionally Approve` or `Decline` |
 | `effective` | string | What the underwriter is shown as the recommendation, same three values. `Approve` with a breach becomes `Conditionally Approve`; a `Decline` stays a `Decline` |
-| `conditions` | list of text | The strategist's conditions plus one per breach, such as `Requires lender exception review (LTI_CAP)`. Empty for a `Decline` |
+| `conditions` | list of text | The strategist's conditions plus one per breach, such as `Requires lender exception review (LTI_CAP)`, plus `Requires an independent surveyor's valuation (HELOC)` on every HELOC (the home is already owned, so the model's estimate is the only value until a surveyor sees it; policy, not a breach). A condition makes an `Approve` a `Conditionally Approve`. Empty for a `Decline` |
 | `breaches` | list of text | The rule IDs broken, always recorded, even for a `Decline`: `LTI_CAP` (a purchase over 4x income for a first-time buyer, otherwise 3.5x; a HELOC counts the existing mortgage plus the line, always 3.5x), `LTV_CAP` (a purchase over 90% of the asking price) and `CLTV_CAP` (a HELOC over 80% of the home's value, the valuation estimate). Exactly on a limit is not a breach |
 | `changed` | boolean | Whether the recommendation or its conditions differ from what the strategist wrote |
+
+### valuationDetail
+
+Written by al-ai after each run (`write_valuation`, with the Admin SDK); a re-run replaces the whole map and no client can write it. The portal reads it from here instead of calling `/ai/valuation` on every render. Every key is always present, `null` when unknown. It is an estimate of a 2024 asking price, not a valuation.
+
+| Field | Type | Notes |
+|---|---|---|
+| `estimatedValueEur` | number | The model's estimate. The same figure as `estimatedValueEur` on the application |
+| `displayEstimateEur` | integer | The estimate to the nearest EUR 1,000, the figure to show |
+| `askingPriceGap` | number or null | Asking price over estimate, minus 1, signed (0.047 means the asking price is 4.7% over). Null for a HELOC, which has no asking price |
+| `priceNeedsReview` | boolean or null | True when the asking price is over the estimate by more than 43.3%. Null for a HELOC |
+| `supportWarnings` | list of text | Why the estimate may be less reliable, such as an Eircode area the model has not seen. Empty when there is nothing to warn about |
+| `modelVersion` | string | The valuation model's version, such as `v2` |
+| `baselineEur` | number or null | The model's average estimate over its sample homes: the starting point of the breakdown |
+| `contributions` | list or null | The breakdown: one item per input (`county`, `property_type`, `bedrooms`, `floor_area`, `ber`, `eircode_area`), biggest effect first ignoring the sign. Each is `{feature, value, eur}`: the input's value for this home (`eircode_area` is the routing key only) and the euro it added to the estimate or took off it. `baselineEur` plus every `eur` is the estimate. Null together with `baselineEur`, never just one, when only the breakdown could not be worked out; the estimate is still good then |
 
 ### dtiBreakdown
 
@@ -216,6 +231,7 @@ Written only by the API: `POST /core/applications/{id}/messages` sets `senderId`
 | `finishedAt` | timestamp | |
 | `recommendation` | string | For example `approve`, `conditional`, `decline` |
 | `creditMemo` | string | From the Underwriting Strategist |
+| `policyGate` | map | What the policy gate returned for this run, the same map as `review/underwriting.policyGate` (see there). Both are written in one batch, so a run record always keeps what the gate said, even after a re-run replaces the review document's copy |
 
 ## ai_calls/{callId} (Nic to confirm)
 

@@ -93,9 +93,11 @@ describe('policyGate on review/underwriting', () => {
   test('a breach never makes the recommendation more favourable, and every breach has a condition unless declined', () => {
     for (const w of reviewDocs) {
       const { original, effective, conditions, breaches } = w.data.policyGate;
+      const heloc = applications.find((a) => a.path === `applications/${w.path.split('/')[1]}`).data.loanType === 'heloc';
       if (breaches.length) expect(effective).not.toBe('Approve');
       if (original === 'Decline') expect(effective).toBe('Decline');
-      if (effective !== 'Decline') expect(conditions.length).toBe(breaches.length);
+      // One condition for each breach, and every HELOC also carries the surveyor condition.
+      if (effective !== 'Decline') expect(conditions.length).toBe(breaches.length + (heloc ? 1 : 0));
     }
   });
 
@@ -166,5 +168,74 @@ describe('audit records (AL-283)', () => {
     expect(vector).toBeDefined();
     expect(app.loanNote.auditHash).toBe(record.auditHash);
     expect(vector.hash).toBe(record.auditHash);
+  });
+});
+
+describe('valuationDetail and the HELOC gate (AL-287)', () => {
+  const reviews = writes.filter((w) => /^applications\/[^/]+\/review\/underwriting$/.test(w.path));
+  const applicationOf = (reviewPath) => applications.find((a) => a.path === reviewPath.replace('/review/underwriting', '')).data;
+  const KEYS = ['askingPriceGap', 'baselineEur', 'contributions', 'displayEstimateEur', 'estimatedValueEur', 'modelVersion', 'priceNeedsReview', 'supportWarnings'];
+  const FEATURES = ['county', 'property_type', 'bedrooms', 'floor_area', 'ber', 'eircode_area'];
+  const SURVEYOR = "Requires an independent surveyor's valuation (HELOC)";
+
+  test('there are reviewed applications to check', () => {
+    expect(reviews.length).toBeGreaterThan(0);
+  });
+
+  test.each(reviews.map((r) => [r.path.split('/')[1], r.data]))('%s: valuationDetail has exactly the agreed keys', (_id, review) => {
+    expect(Object.keys(review.valuationDetail).sort()).toEqual(KEYS);
+  });
+
+  test.each(reviews.map((r) => [r.path.split('/')[1], r.data]))('%s: contributions are the six inputs, biggest first, and add up to the estimate', (_id, review) => {
+    const v = review.valuationDetail;
+    expect(Array.isArray(v.contributions)).toBe(true);
+    expect(v.contributions.map((c) => c.feature).sort()).toEqual([...FEATURES].sort());
+    for (const piece of v.contributions) expect(Object.keys(piece).sort()).toEqual(['eur', 'feature', 'value']);
+    const sizes = v.contributions.map((c) => Math.abs(c.eur));
+    expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
+    expect(v.baselineEur + v.contributions.reduce((sum, c) => sum + c.eur, 0)).toBeCloseTo(v.estimatedValueEur, 2);
+  });
+
+  test.each(reviews.map((r) => [r.path, r.data]))('%s: the estimate, the display estimate and the application agree', (path, review) => {
+    const v = review.valuationDetail;
+    expect(v.estimatedValueEur).toBe(applicationOf(path).estimatedValueEur);
+    expect(v.displayEstimateEur).toBe(Math.round(v.estimatedValueEur / 1000) * 1000);
+  });
+
+  test.each(reviews.map((r) => [r.path, r.data]))('%s: the price gap and flag exist for a purchase and are null for a HELOC', (path, review) => {
+    const v = review.valuationDetail;
+    const app = applicationOf(path);
+    if (app.loanType === 'heloc') {
+      expect(v.askingPriceGap).toBeNull();
+      expect(v.priceNeedsReview).toBeNull();
+    } else {
+      expect(v.askingPriceGap).toBeCloseTo(app.property.askingPriceEur / v.estimatedValueEur - 1, 3);
+      expect(v.priceNeedsReview).toBe(v.askingPriceGap > 0.433);
+    }
+  });
+
+  test('every HELOC carries the surveyor condition, so an Approve on one is a Conditionally Approve', () => {
+    const helocs = reviews.filter((r) => applicationOf(r.path).loanType === 'heloc');
+    expect(helocs.length).toBeGreaterThan(0);
+    for (const r of helocs) {
+      const gate = r.data.policyGate;
+      expect(gate.conditions).toContain(SURVEYOR);
+      if (gate.original === 'Approve') expect(gate.effective).toBe('Conditionally Approve');
+      if (gate.original !== 'Decline') expect(gate.changed).toBe(true);
+    }
+  });
+
+  test('a purchase never gets the surveyor condition', () => {
+    for (const r of reviews.filter((x) => applicationOf(x.path).loanType === 'mortgage')) {
+      expect(r.data.policyGate.conditions).not.toContain(SURVEYOR);
+    }
+  });
+
+  test('the run record keeps the same policy gate result as the review document', () => {
+    for (const r of reviews) {
+      const run = writes.find((w) => w.path === `ai_runs/run-${r.path.split('/')[1]}`);
+      expect(run).toBeDefined();
+      expect(run.data.policyGate).toEqual(r.data.policyGate);
+    }
   });
 });
