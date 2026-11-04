@@ -77,14 +77,13 @@ struct LoanNoteCard: View {
                 Text("Mint transaction")
                     .font(.subheadline)
                     .foregroundStyle(Theme.mutedText)
-                Text(hash)
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(Theme.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+                TransactionHashText(hash: hash)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
+            // VoiceOver reads the title, then the hash exactly as stored.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Mint transaction")
+            .accessibilityValue(hash)
             .accessibilityIdentifier("status.loanNote.transaction")
         }
     }
