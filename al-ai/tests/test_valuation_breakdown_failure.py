@@ -142,3 +142,22 @@ def test_the_api_design_doc_and_the_model_card_say_the_fields_can_be_null_togeth
     card = (REPO / "al-ai" / "models" / "valuation" / "MODEL_CARD.md").read_text()
     for text in (doc, card):
         assert "both null" in text and WARNING in text
+
+
+# ---- the same answer without HTTP (the committee flow calls this) -------------------------------
+
+def test_estimate_home_gives_the_same_estimate_as_the_endpoint_and_no_error():
+    from app.valuation_endpoint import ValuationRequest, estimate_home
+
+    response, breakdown_error = estimate_home(ValuationRequest(**body()))
+    assert breakdown_error is None
+    assert response.estimate_eur == post(body()).json()["estimate_eur"]
+
+
+def test_estimate_home_reports_why_the_breakdown_failed_but_keeps_the_estimate(monkeypatch):
+    from app.valuation_endpoint import ValuationRequest, estimate_home
+
+    break_the_breakdown(monkeypatch, RuntimeError("something odd inside the breakdown"))
+    response, breakdown_error = estimate_home(ValuationRequest(**body()))
+    assert response.baseline_eur is None and response.contributions is None and WARNING in response.support_warnings
+    assert breakdown_error.startswith("RuntimeError") and "D24" not in breakdown_error

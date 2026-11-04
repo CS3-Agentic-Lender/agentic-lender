@@ -1,0 +1,18 @@
+{
+  "loanType": "heloc",
+  "grossIncomeEur": 100000,
+  "monthlyDebtsEur": 300,
+  "monthlyTakeHomeEur": 5800,
+  "monthlyLivingCostsEur": 2300,
+  "termYears": 20,
+  "loanAmountEur": 40000,
+  "existingMortgageBalanceEur": 150000,
+  "property": {
+    "eircode": "D24 AB12",
+    "county": "Dublin",
+    "propertyType": "Semi-D",
+    "bedrooms": 3,
+    "floorAreaSqm": 118,
+    "berRating": "C1"
+  }
+}
