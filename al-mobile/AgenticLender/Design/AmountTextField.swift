@@ -8,6 +8,10 @@ import SwiftUI
 /// writes the regrouped text back on the next turn of the main loop, which SwiftUI does redraw. The model still gets
 /// every edit through `onEdit`, and a change from outside (such as a saved check filling the form)
 /// replaces what is shown.
+///
+/// The model's own regrouped copy of an edit is not written back (AL-286). When typing fast it can arrive
+/// while the keystroke is still being applied, so the screen kept the old text, and the regroup on the
+/// next turn then had nothing left to change.
 struct AmountTextField: View {
     let placeholder: String
     /// The model's text for this field.
@@ -31,7 +35,12 @@ struct AmountTextField: View {
                 }
             }
             .onChange(of: text) { _, stored in
-                if stored != shown { shown = stored }
+                if Self.replacesShown(shown, with: stored) { shown = stored }
             }
+    }
+
+    /// Whether the model's text should replace what is shown: only when it isn't just what is shown, regrouped.
+    static func replacesShown(_ shown: String, with stored: String) -> Bool {
+        stored != shown && stored != EuroAmount.regroup(shown)
     }
 }
