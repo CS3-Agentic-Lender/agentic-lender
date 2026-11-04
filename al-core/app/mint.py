@@ -9,12 +9,11 @@ the retry and never repeated. A Funded application answers 200 with the note it 
 """
 
 import os
-from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from google.cloud.firestore import SERVER_TIMESTAMP
 
-from app import audit_store
+from app import audit_store, loan_terms
 from app import status as status_moves
 from app.applications import ApplicationOut, _out, _update_if_unchanged
 from app.audit import AuditRecordError
@@ -22,6 +21,7 @@ from app.auth import require_role
 from app.chain import AuditRegistry, ChainError, NotConfigured
 from app.firestore import db
 from app.loan_notes import LoanNotes, NoteTerms, borrower_ref
+from app.loan_terms import LoanTermsError
 
 router = APIRouter(prefix="/core", tags=["mint"])
 
@@ -52,21 +52,19 @@ def _apr_pct(ref, doc: dict) -> float | None:
     return (breakdown or {}).get("benchmarkRatePct")
 
 
-def _scaled(value) -> int:
-    """A euro amount as cents, or a percentage as basis points: times 100, halves rounded up, with no float slips."""
-    return int((Decimal(str(value)) * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
-
-
 def _terms(ref, doc: dict) -> NoteTerms:
-    """The note's terms from the stored application, or a 409 saying what is missing (the chain is not touched)."""
-    amount, years, apr = doc.get("loanAmountEur"), doc.get("termYears"), _apr_pct(ref, doc)
-    if not amount or amount <= 0:
-        raise HTTPException(409, "The application has no loan amount to put on a loan note")
-    if not years or years <= 0:
-        raise HTTPException(409, "The application has no term to put on a loan note")
+    """The note's terms from the stored application, or a 409 saying what is missing (the chain is not touched).
+
+    The type, amount and term come from app/loan_terms.py, the same functions the audit record uses.
+    """
+    try:
+        kind, cents, term_months = loan_terms.loan_type(doc), loan_terms.principal_cents(doc), loan_terms.term_months(doc)
+    except LoanTermsError as exc:
+        raise HTTPException(409, f"{exc}, so a loan note can't be minted")
+    apr = _apr_pct(ref, doc)
     if apr is None:
         raise HTTPException(409, "The application has no rate yet (aprPct or the DTI breakdown's benchmark rate), so a loan note can't be minted")
-    term_months, apr_bps = int(years) * 12, _scaled(apr)
+    apr_bps = loan_terms.scaled(apr)
     if term_months > MAX_TERM_MONTHS:
         raise HTTPException(409, f"A loan note can't have a term over {MAX_TERM_MONTHS // 12} years")
     if not 0 <= apr_bps <= MAX_APR_BPS:
@@ -75,10 +73,7 @@ def _terms(ref, doc: dict) -> NoteTerms:
         borrower = borrower_ref(doc["borrowerId"], os.environ.get("BORROWER_REF_SALT", ""))
     except NotConfigured as exc:
         raise HTTPException(503, f"The blockchain is not set up on this server: {exc}")
-    return NoteTerms(
-        principal_cents=_scaled(amount), apr_bps=apr_bps, term_months=term_months,
-        loan_type=doc.get("loanType", "mortgage"), borrower_ref=borrower,
-    )
+    return NoteTerms(principal_cents=cents, apr_bps=apr_bps, term_months=term_months, loan_type=kind, borrower_ref=borrower)
 
 
 @router.post("/applications/{application_id}/mint", response_model=ApplicationOut, status_code=201)

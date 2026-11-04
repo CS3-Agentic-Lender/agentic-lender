@@ -269,8 +269,11 @@ Endpoints do not substitute made-up numbers when something fails. A missing or s
     "applicationId": "app-funded",
     "creditMemo": "Strong affordability ...",
     "decision": "approved",
+    "loanType": "mortgage",
+    "principalCents": 29000000,
     "riskTier": "A",
     "signedOffAt": "2026-09-18T11:00:00Z",
+    "termMonths": 360,
     "underwriterId": "underwriter1"
   }
 }

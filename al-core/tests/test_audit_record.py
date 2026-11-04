@@ -29,6 +29,10 @@ def funded_inputs():
             doc["createdAt"] = as_datetime(doc["createdAt"])
             calls.append((vector["name"].split(":", 1)[1], doc))
     application = {
+        # The loan as the application states it; the record holds it as whole cents and months.
+        "loanType": record["loanType"],
+        "loanAmountEur": record["principalCents"] // 100,
+        "termYears": record["termMonths"] // 12,
         "riskTier": record["riskTier"],
         "decision": {"outcome": "approved", "underwriterId": record["underwriterId"], "decidedAt": as_datetime(record["signedOffAt"]), "reason": "Strong affordability"},
     }
@@ -67,7 +71,30 @@ def test_a_call_is_hashed_with_its_times_as_utc_iso_strings():
 
 
 def test_the_record_has_exactly_the_agreed_fields_and_no_hash_of_its_own():
-    assert sorted(build()) == ["aiCalls", "applicationId", "creditMemo", "decision", "riskTier", "signedOffAt", "underwriterId"]
+    assert sorted(build()) == [
+        "aiCalls", "applicationId", "creditMemo", "decision", "loanType", "principalCents", "riskTier", "signedOffAt",
+        "termMonths", "underwriterId",
+    ]
+
+
+def test_the_record_holds_the_loan_as_text_and_whole_numbers():
+    record = build()
+    assert record["loanType"] == "mortgage" and isinstance(record["principalCents"], int) and isinstance(record["termMonths"], int)
+    assert (record["principalCents"], record["termMonths"]) == (29_000_000, 360)
+    assert '"principalCents":29000000' in audit.canonical_json(record)  # a whole number, no decimal point or exponent
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [{"loanType": "heloc"}, {"loanAmountEur": 290_001}, {"termYears": 29}],
+    ids=["loan type", "amount", "term"],
+)
+def test_changing_any_one_of_the_three_loan_fields_changes_the_hash(changes):
+    assert audit.audit_hash(build(application=changes)) != FUNDED["hash"]
+
+
+def test_an_amount_with_cents_is_stated_exactly():
+    assert build(application={"loanAmountEur": 123456.78})["principalCents"] == 12_345_678
 
 
 def test_the_same_record_always_gives_the_same_hash():
@@ -119,6 +146,13 @@ def broken_decision(**changes):
         {"application": broken_decision(underwriterId="")},
         {"application": broken_decision(decidedAt=None)},
         {"application": {"riskTier": None}},
+        {"application": {"loanAmountEur": None}},
+        {"application": {"loanAmountEur": 0}},
+        {"application": {"loanAmountEur": "290000"}},
+        {"application": {"termYears": None}},
+        {"application": {"termYears": 2.5}},
+        {"application": {"loanType": None}},
+        {"application": {"loanType": "bridging"}},
         {"run": {"status": "running"}},
         {"run": {"status": "failed"}},
         {"run": {"creditMemo": None}},

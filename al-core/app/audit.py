@@ -8,6 +8,8 @@ import hashlib
 import json
 from datetime import datetime, timezone
 
+from app import loan_terms
+
 
 def utc_iso(moment: datetime) -> str:
     """A time in the one format hashed records use: UTC, milliseconds, a Z (2026-09-18T11:00:00.000Z).
@@ -84,13 +86,25 @@ def build_record(application_id: str, application: dict, run: dict, calls: list[
     if not calls:
         raise AuditRecordError("the AI run has no logged calls")
 
+    try:  # the same functions the loan note's terms come from (app/loan_terms.py), so the hash and the note can't disagree
+        loan = {
+            "loanType": loan_terms.loan_type(application),
+            "principalCents": loan_terms.principal_cents(application),
+            "termMonths": loan_terms.term_months(application),
+        }
+    except loan_terms.LoanTermsError as exc:
+        raise AuditRecordError(f"{exc}, so there is nothing to put in the audit record") from None
+
     ordered = sorted(calls, key=lambda item: (utc_iso(item[1]["createdAt"]) if isinstance(item[1].get("createdAt"), datetime) else str(item[1].get("createdAt")), item[0]))
     return {
         "aiCalls": [{"id": call_id, "sha256": call_hash(doc)} for call_id, doc in ordered],
         "applicationId": application_id,
         "creditMemo": memo,
         "decision": decision["outcome"],
+        "loanType": loan["loanType"],
+        "principalCents": loan["principalCents"],
         "riskTier": application["riskTier"],
         "signedOffAt": plain(decision["decidedAt"]),
+        "termMonths": loan["termMonths"],
         "underwriterId": decision["underwriterId"],
     }

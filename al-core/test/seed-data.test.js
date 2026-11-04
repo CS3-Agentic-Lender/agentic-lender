@@ -141,3 +141,30 @@ describe('ai_runs', () => {
     }
   });
 });
+
+describe('audit records (AL-283)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const vectors = JSON.parse(fs.readFileSync(path.join(__dirname, 'audit-hash-vectors.json'), 'utf8')).vectors;
+  const records = writes.filter((w) => /^applications\/[^/]+\/audit\/record$/.test(w.path));
+
+  test('there is an audit record for each funded application', () => {
+    expect(records.length).toBeGreaterThan(0);
+  });
+
+  test.each(records.map((r) => [r.data.applicationId, r.data]))('%s: the record states the loan as whole cents and months', (id, record) => {
+    const app = applications.find((a) => a.path === `applications/${id}`).data;
+    expect(record.loanType).toBe(app.loanType);
+    expect(record.principalCents).toBe(app.loanAmountEur * 100);
+    expect(record.termMonths).toBe(app.termYears * 12);
+    expect(Number.isInteger(record.principalCents) && Number.isInteger(record.termMonths)).toBe(true);
+  });
+
+  test.each(records.map((r) => [r.data.applicationId, r.data]))('%s: the loan note, the record and the shared vector hold the same hash', (id, record) => {
+    const app = applications.find((a) => a.path === `applications/${id}`).data;
+    const vector = vectors.find((v) => v.name === `audit-record:${id}`);
+    expect(vector).toBeDefined();
+    expect(app.loanNote.auditHash).toBe(record.auditHash);
+    expect(vector.hash).toBe(record.auditHash);
+  });
+});
