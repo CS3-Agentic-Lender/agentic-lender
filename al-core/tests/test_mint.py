@@ -19,6 +19,8 @@ CONTRACT = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
 
 
 class FakeNotes:
+    network = "localhost"
+
     def __init__(self, calls, error=None):
         self.calls, self.error, self.terms = calls, error, []
 
@@ -27,7 +29,7 @@ class FakeNotes:
         self.terms.append((application_id, terms))
         if self.error:
             raise self.error
-        return Minted(token_id=12, tx_hash=MINT_TX, contract_address=CONTRACT, already_minted=False)
+        return Minted(token_id=12, tx_hash=MINT_TX, contract_address=CONTRACT, already_minted=False, network=self.network)
 
 
 @pytest.fixture
@@ -77,11 +79,12 @@ def test_minting_saves_the_note_and_moves_the_application_to_funded(approved):
     assert r.json()["status"] == "Funded"
     assert r.json()["loan_note"] == {
         "token_id": "12", "contract_address": CONTRACT, "tx_hash": MINT_TX, "audit_hash": AUDIT_HASH,
-        "minted_at": "2026-10-14T09:00:00.000Z",
+        "network": "localhost", "minted_at": "2026-10-14T09:00:00.000Z",
     }
     assert doc(approved)["status"] == "Funded"
     assert doc(approved)["loanNote"] == {
-        "tokenId": "12", "contractAddress": CONTRACT, "txHash": MINT_TX, "auditHash": AUDIT_HASH, "mintedAt": LATER,
+        "tokenId": "12", "contractAddress": CONTRACT, "txHash": MINT_TX, "auditHash": AUDIT_HASH, "network": "localhost",
+        "mintedAt": LATER,
     }
 
 
@@ -157,6 +160,19 @@ def test_a_failed_mint_does_not_save_a_rate(approved):
     approved["notes"].error = ChainError("the chain could not be reached")
     do_mint()
     assert "aprPct" not in doc(approved)
+
+
+def test_the_note_saves_the_name_of_the_chain_it_was_minted_on(approved):
+    approved["notes"].network = "amoy"
+    body = do_mint().json()
+    assert doc(approved)["loanNote"]["network"] == "amoy" and body["loan_note"]["network"] == "amoy"
+
+
+def test_a_note_made_before_the_chain_name_was_saved_reads_back_with_none(approved):
+    do_mint()
+    del doc(approved)["loanNote"]["network"]
+    sign_in(approved, "borrower1", "borrower")
+    assert client.get("/core/applications/app1", headers=TOKEN).json()["loan_note"]["network"] is None
 
 
 def test_the_move_is_logged_as_a_mint_by_the_underwriter_who_asked(approved):

@@ -112,7 +112,7 @@ def on_chain(terms=TERMS):
 
 def notes(contract=None, status=1, fail=None) -> LoanNotes:
     client = object.__new__(LoanNotes)
-    client.account, client.address = FakeAccount(), ADDRESS
+    client.account, client.address, client.network = FakeAccount(), ADDRESS, "localhost"
     client.contract = contract or FakeContract()
 
     class W3:
@@ -145,6 +145,15 @@ def test_a_heloc_is_minted_as_the_second_loan_type():
     client = notes()
     client.mint("app-approved", NoteTerms(10_000_000, 400, 240, "heloc", BORROWER))
     assert client.contract.minted_with[0][5] == 1
+
+
+def test_the_note_says_which_chain_it_is_on_whether_minted_or_found():
+    client = notes()
+    client.network = "amoy"
+    assert client.mint("app-approved", TERMS).network == "amoy"
+    found = notes(FakeContract(token=5, note=on_chain(), logs=[{"transactionHash": bytes.fromhex(TX)}]))
+    found.network = "amoy"
+    assert found.mint("app-approved", TERMS).network == "amoy"
 
 
 def test_the_receipts_other_logs_are_ignored_instead_of_warned_about():
@@ -250,6 +259,11 @@ def test_no_address_and_no_deployment_file_means_not_configured(monkeypatch, tmp
     monkeypatch.setattr(loan_notes, "DEPLOYMENTS", tmp_path)
     with pytest.raises(NotConfigured, match="LOAN_NOTE_ADDRESS"):
         LoanNotes.from_env({"CHAIN_MINTER_PRIVATE_KEY": KEY})
+
+
+@pytest.mark.parametrize("setting,network", [({}, "localhost"), ({"CHAIN_NETWORK": ""}, "localhost"), ({"CHAIN_NETWORK": "amoy"}, "amoy")])
+def test_the_chain_name_is_the_setting_and_localhost_when_it_is_missing_or_empty(setting, network):
+    assert LoanNotes.from_env({"CHAIN_MINTER_PRIVATE_KEY": KEY, "LOAN_NOTE_ADDRESS": ADDRESS, **setting}).network == network
 
 
 def test_the_address_comes_from_the_setting_or_else_from_the_deployment_file(monkeypatch, tmp_path):

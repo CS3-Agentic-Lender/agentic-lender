@@ -75,3 +75,17 @@ def test_the_audit_pack_reads_the_hash_back_from_the_chain():
     assert audit_pack._on_chain_hash(application_id) == (None, True)  # asked, and nothing is there
     registry.store(application_id, stored_hash)
     assert audit_pack._on_chain_hash(application_id) == (stored_hash, True)
+
+
+def test_the_terms_of_a_note_match_what_the_contract_returns_for_its_token():
+    from app.loan_notes import LOAN_TYPES, LoanNotes, NoteTerms, borrower_ref
+
+    notes = LoanNotes.from_env()
+    # EUR 60,000 over 15 years at 4.00%, as the mint works them out from loanAmountEur, termYears and aprPct
+    terms = NoteTerms(6_000_000, 400, 180, "heloc", borrower_ref("borrower1", "live-salt"))
+    minted = notes.mint(f"live-{uuid.uuid4()}", terms)
+
+    on_chain = notes.contract.functions.noteOf(minted.token_id).call()
+    assert (on_chain[2], on_chain[3], on_chain[4], on_chain[5]) == (6_000_000, 400, 180, LOAN_TYPES["heloc"])
+    assert bytes(on_chain[1]).hex() == terms.borrower_ref
+    assert minted.network == (os.getenv("CHAIN_NETWORK") or "localhost")
