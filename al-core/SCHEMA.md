@@ -211,7 +211,7 @@ When one person last opened the thread. There is one document per person, named 
 
 | Field | Type | Notes |
 |---|---|---|
-| `lastReadAt` | timestamp | The `sentAt` of the newest message in the thread when the person opened it, not the time of the request, so a message that arrives while they open it is still unread for them. Never moves backwards |
+| `lastReadAt` | timestamp | The `sentAt` of the newest message in the thread when the person opened it, not the time of the request, so a message that arrives while they open it is still unread for them. It only moves forward when the thread is opened with something new in it; two opens by the same person at the very same moment could in theory write them out of order, and the next open puts it right |
 | `role` | string | `borrower`, `broker` or `underwriter` |
 
 Written only by the API, by `POST /core/applications/{id}/messages/read`, for the caller. Absent until the person first opens the thread, which means everything sent by anyone else is unread. The unread count is the messages sent by someone else after `lastReadAt`; `GET /core/applications/{id}/messages/unread` gives it, and an app can work it out itself by listening to the thread and to its own `readState` document.
