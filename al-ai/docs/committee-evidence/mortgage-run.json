@@ -1,0 +1,389 @@
+{
+ "run_id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883",
+ "application_id": "mortgage-application",
+ "rerun_of": null,
+ "status": "complete",
+ "started_at": "2026-11-04T13:25:58.204543+00:00",
+ "finished_at": "2026-11-04T13:26:19.947511+00:00",
+ "failed_step": null,
+ "failure_reason": null,
+ "steps": {
+  "validate": {
+   "ok": true,
+   "output": {
+    "loan_type": "mortgage"
+   }
+  },
+  "valuation_model": {
+   "ok": true,
+   "model_version": "v2",
+   "output": {
+    "estimate_eur": 422968.0,
+    "display_estimate_eur": 423000,
+    "basis": "2024 asking-price estimate",
+    "support_warnings": [],
+    "model_version": "v2",
+    "schema_version": "1",
+    "asking_price_gap": 0.06391,
+    "price_needs_review": false,
+    "combined_ltv": null,
+    "baseline_eur": 576575.36,
+    "contributions": [
+     {
+      "feature": "county",
+      "value": "Dublin",
+      "eur": 183076.38
+     },
+     {
+      "feature": "eircode_area",
+      "value": "D24",
+      "eur": -148167.63
+     },
+     {
+      "feature": "floor_area",
+      "value": 118.0,
+      "eur": -136241.35
+     },
+     {
+      "feature": "property_type",
+      "value": "Semi-D",
+      "eur": -21838.97
+     },
+     {
+      "feature": "ber",
+      "value": "C1",
+      "eur": -18112.22
+     },
+     {
+      "feature": "bedrooms",
+      "value": 3,
+      "eur": -12323.56
+     }
+    ]
+   },
+   "breakdown_error": null
+  },
+  "market": {
+   "ok": true,
+   "output": {
+    "report_id": "market-2026-11-04-bbb15157b172",
+    "date": "2026-11-04",
+    "official_figures_fingerprint": "bbb15157b172",
+    "prompt_version": "market-agent-v1",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-lite",
+    "run_id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883",
+    "outlook": "rising",
+    "summary": "The ECB main refinancing rate is currently 2.15% as of 23 October 2026. While the ECB recently held rates steady, market expectations and policy signals point toward future increases due to rising energy prices and inflationary pressures. Consequently, the outlook for interest rates is rising.",
+    "sources": [
+     {
+      "url": "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+      "date": "2026-10-29"
+     },
+     {
+      "url": "https://www.reuters.com/business/ecb-keeps-rates-unchanged-points-mounting-inflation-risk-2026-10-29/",
+      "date": "2026-10-29"
+     },
+     {
+      "url": "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+      "date": "2026-10-29"
+     },
+     {
+      "url": "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+      "date": "2026-10-24"
+     }
+    ]
+   },
+   "report_id": "market-2026-11-04-bbb15157b172",
+   "reused_report_id": null,
+   "provider": "gemini",
+   "model": "gemini-3.1-flash-lite",
+   "prompt_version": "market-agent-v1",
+   "attempts": [
+    {
+     "run_id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883",
+     "attempt": 1,
+     "provider": "gemini",
+     "model": "gemini-3.1-flash-lite",
+     "prompt_version": "market-agent-v1",
+     "started_at": "2026-11-04T13:26:03.240505+00:00",
+     "search_links": [
+      "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+      "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+      "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+      "https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774",
+      "https://www.reuters.com/business/ecb-keeps-rates-unchanged-points-mounting-inflation-risk-2026-10-29/",
+      "https://www.bbc.com/news/articles/c3dky111m40o",
+      "https://www.uswitch.com/mortgages/mortgage-news/",
+      "https://www.facebook.com/ambassadors.kabayan/posts/rate-updatebelow-500-7118above-501-7084/1901444224172246/",
+      "https://www.reddit.com/r/REBubble/comments/1x5ufz0/fannie_mae_sharply_raises_mortgage_rate_forecast/",
+      "https://www.rte.ie/news/business/2026/1022/1596461-are-more-mortgage-rate-increases-likely-after-ptsb-hike/"
+     ],
+     "raw_reply": "{\n  \"outlook\": \"rising\",\n  \"summary\": \"The ECB main refinancing rate is currently 2.15% as of 23 October 2026. While the ECB recently held rates steady, market expectations and policy signals point toward future increases due to rising energy prices and inflationary pressures. Consequently, the outlook for interest rates is rising.\",\n  \"sources\": [\n    {\n      \"url\": \"https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html\",\n      \"date\": \"2026-10-29\"\n    },\n    {\n      \"url\": \"https://www.reuters.com/business/ecb-keeps-rates-unchanged-points-mounting-inflation-risk-2026-10-29/\",\n      \"date\": \"2026-10-29\"\n    },\n    {\n      \"url\": \"https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html\",\n      \"date\": \"2026-10-29\"\n    },\n    {\n      \"url\": \"https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2\",\n      \"date\": \"2026-10-24\"\n    }\n  ]\n}",
+     "parsed_reply": {
+      "outlook": "rising",
+      "summary": "The ECB main refinancing rate is currently 2.15% as of 23 October 2026. While the ECB recently held rates steady, market expectations and policy signals point toward future increases due to rising energy prices and inflationary pressures. Consequently, the outlook for interest rates is rising.",
+      "sources": [
+       {
+        "url": "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+        "date": "2026-10-29"
+       },
+       {
+        "url": "https://www.reuters.com/business/ecb-keeps-rates-unchanged-points-mounting-inflation-risk-2026-10-29/",
+        "date": "2026-10-29"
+       },
+       {
+        "url": "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+        "date": "2026-10-29"
+       },
+       {
+        "url": "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+        "date": "2026-10-24"
+       }
+      ]
+     },
+     "request_id": "azLrav32NOOY3boPydWc6AY",
+     "input_tokens": 1955,
+     "output_tokens": 354,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 4.826
+    }
+   ],
+   "searches": [
+    {
+     "query": "ECB interest rate decision outlook euro area",
+     "outcome": "ok",
+     "links": [
+      "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+      "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+      "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+      "https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774",
+      "https://www.reuters.com/business/ecb-keeps-rates-unchanged-points-mounting-inflation-risk-2026-10-29/"
+     ]
+    },
+    {
+     "query": "Ireland mortgage interest rates outlook",
+     "outcome": "ok",
+     "links": [
+      "https://www.bbc.com/news/articles/c3dky111m40o",
+      "https://www.uswitch.com/mortgages/mortgage-news/",
+      "https://www.facebook.com/ambassadors.kabayan/posts/rate-updatebelow-500-7118above-501-7084/1901444224172246/",
+      "https://www.reddit.com/r/REBubble/comments/1x5ufz0/fannie_mae_sharply_raises_mortgage_rate_forecast/",
+      "https://www.rte.ie/news/business/2026/1022/1596461-are-more-mortgage-rate-increases-likely-after-ptsb-hike/"
+     ]
+    }
+   ]
+  },
+  "calculations": {
+   "ok": true,
+   "output": {
+    "benchmark_rate_pct": 4.0,
+    "affordability_facts": {
+     "loan_eur": 360000.0,
+     "term_years": 30,
+     "benchmark_rate_pct": 4.0,
+     "stress_margin_pct": 2.0,
+     "first_time_buyer": true,
+     "gross_annual_income_eur": 95000.0,
+     "net_monthly_income_eur": 5500.0,
+     "monthly_debts_eur": 250.0,
+     "monthly_living_costs_eur": 2200.0,
+     "repayment_eur": 1718.7,
+     "stressed_repayment_eur": 2158.38,
+     "loan_to_income": 3.79,
+     "lti_cap": 4.0,
+     "lti_cap_breached": false,
+     "dti_pct": 24.87,
+     "stressed_dti_pct": 30.42,
+     "surplus_eur": 1331.3,
+     "stressed_surplus_eur": 891.62,
+     "dti_band": "Comfortable",
+     "surplus_band": "Comfortable"
+    },
+    "valuation_facts": {
+     "county": "Dublin",
+     "property_type": "Semi-D",
+     "bedrooms": 3,
+     "floor_area_m2": 118.0,
+     "ber": "C1",
+     "eircode_area": "D24",
+     "loan_type": "mortgage",
+     "estimate_basis": "2024 asking-price estimate",
+     "estimate_eur": 422968.0,
+     "asking_price_eur": 450000.0,
+     "loan_eur": 360000.0,
+     "price_gap_pct": 6.39,
+     "review_threshold_pct": 35.67,
+     "price_needs_review": false,
+     "purchase_ltv_pct": 80.0,
+     "purchase_ltv_within_limit": true,
+     "model_ltv_pct": 85.11,
+     "model_ltv_within_limit": true,
+     "ltv_limit_pct": 90.0,
+     "support_warnings": []
+    },
+    "breaches": []
+   }
+  },
+  "affordability": {
+   "ok": true,
+   "output": {
+    "rating": "strong",
+    "recommendation": "Approve",
+    "concerns": [],
+    "conditions": []
+   },
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt_version": "affordability-agent-v1",
+   "attempts": [
+    {
+     "run_id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883",
+     "attempt": 1,
+     "provider": "ollama",
+     "model": "qwen3.5:9b",
+     "prompt_version": "affordability-agent-v1",
+     "started_at": "2026-11-04T13:26:08.068508+00:00",
+     "raw_reply": "{\n  \"rating\": \"strong\",\n  \"recommendation\": \"Approve\",\n  \"concerns\": [],\n  \"conditions\": []\n}",
+     "parsed_reply": {
+      "rating": "strong",
+      "recommendation": "Approve",
+      "concerns": [],
+      "conditions": []
+     },
+     "request_id": null,
+     "input_tokens": 619,
+     "output_tokens": 35,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 10.455
+    }
+   ]
+  },
+  "valuation_agent": {
+   "ok": true,
+   "output": {
+    "rating": "strong",
+    "recommendation": "Approve",
+    "conditions": [],
+    "explanation": "The model estimates the property value at 422,968.0 EUR, which is 6.39% below the asking price of 450,000.0 EUR, well under the 35.67% review threshold. Both the purchase LTV of 80.0% and the model LTV of 85.11% are within the 90.0% limit. No support warnings are present, so the estimate is considered reliable. The collateral is therefore strong."
+   },
+   "provider": "groq",
+   "model": "openai/gpt-oss-120b",
+   "prompt_version": "valuation-agent-v2",
+   "attempts": [
+    {
+     "run_id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883",
+     "attempt": 1,
+     "provider": "groq",
+     "model": "openai/gpt-oss-120b",
+     "prompt_version": "valuation-agent-v2",
+     "started_at": "2026-11-04T13:26:08.068317+00:00",
+     "raw_reply": "{\"rating\":\"strong\",\"recommendation\":\"Approve\",\"conditions\":[],\"explanation\":\"The model estimates the property value at 422,968.0 EUR, which is 6.39% below the asking price of 450,000.0 EUR, well under the 35.67% review threshold. Both the purchase LTV of 80.0% and the model LTV of 85.11% are within the 90.0% limit. No support warnings are present, so the estimate is considered reliable. The collateral is therefore strong.\"}",
+     "parsed_reply": {
+      "rating": "strong",
+      "recommendation": "Approve",
+      "conditions": [],
+      "explanation": "The model estimates the property value at 422,968.0 EUR, which is 6.39% below the asking price of 450,000.0 EUR, well under the 35.67% review threshold. Both the purchase LTV of 80.0% and the model LTV of 85.11% are within the 90.0% limit. No support warnings are present, so the estimate is considered reliable. The collateral is therefore strong."
+     },
+     "request_id": "req_01m6kbt1hfev9atfvfa3e12xz2",
+     "input_tokens": 1046,
+     "output_tokens": 400,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 1.02
+    }
+   ]
+  },
+  "strategist": {
+   "ok": true,
+   "output": {
+    "recommendation": "Approve",
+    "conditions": [],
+    "memo": {
+     "application_summary": "The applicant is a first-time buyer seeking a 360,000.0 EUR mortgage for a 3-bedroom semi-detached property in Dublin. The asking price for the property is 450,000.0 EUR. The loan term is 30 years.",
+     "affordability": "The affordability assessment is rated as strong. There are no concerns or conditions identified regarding the applicant's financial capacity.",
+     "property_assessment": "The property value is estimated at 422,968.0 EUR, which is 6.39% below the asking price. The purchase LTV is 80.0% and the model LTV is 85.11%, both within the 90.0% limit. The collateral is considered strong.",
+     "market_context": "The ECB main refinancing rate is 2.15% as of 23 October 2026. Market expectations point toward future interest rate increases due to inflationary pressures. The overall market outlook is rising.",
+     "disagreements": "The Affordability and Valuation agents agree on the recommendation.",
+     "recommendation_and_conditions": "I recommend approval of the mortgage application. No conditions are required."
+    }
+   },
+   "provider": "gemini",
+   "model": "gemini-3.1-flash-lite",
+   "prompt_version": "strategist-agent-v1",
+   "attempts": [
+    {
+     "run_id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883",
+     "attempt": 1,
+     "provider": "gemini",
+     "model": "gemini-3.1-flash-lite",
+     "prompt_version": "strategist-agent-v1",
+     "started_at": "2026-11-04T13:26:18.526654+00:00",
+     "raw_reply": "{\n  \"recommendation\": \"Approve\",\n  \"conditions\": [],\n  \"memo\": {\n    \"application_summary\": \"The applicant is a first-time buyer seeking a 360,000.0 EUR mortgage for a 3-bedroom semi-detached property in Dublin. The asking price for the property is 450,000.0 EUR. The loan term is 30 years.\",\n    \"affordability\": \"The affordability assessment is rated as strong. There are no concerns or conditions identified regarding the applicant's financial capacity.\",\n    \"property_assessment\": \"The property value is estimated at 422,968.0 EUR, which is 6.39% below the asking price. The purchase LTV is 80.0% and the model LTV is 85.11%, both within the 90.0% limit. The collateral is considered strong.\",\n    \"market_context\": \"The ECB main refinancing rate is 2.15% as of 23 October 2026. Market expectations point toward future interest rate increases due to inflationary pressures. The overall market outlook is rising.\",\n    \"disagreements\": \"The Affordability and Valuation agents agree on the recommendation.\",\n    \"recommendation_and_conditions\": \"I recommend approval of the mortgage application. No conditions are required.\"\n  }\n}",
+     "parsed_reply": {
+      "recommendation": "Approve",
+      "conditions": [],
+      "memo": {
+       "application_summary": "The applicant is a first-time buyer seeking a 360,000.0 EUR mortgage for a 3-bedroom semi-detached property in Dublin. The asking price for the property is 450,000.0 EUR. The loan term is 30 years.",
+       "affordability": "The affordability assessment is rated as strong. There are no concerns or conditions identified regarding the applicant's financial capacity.",
+       "property_assessment": "The property value is estimated at 422,968.0 EUR, which is 6.39% below the asking price. The purchase LTV is 80.0% and the model LTV is 85.11%, both within the 90.0% limit. The collateral is considered strong.",
+       "market_context": "The ECB main refinancing rate is 2.15% as of 23 October 2026. Market expectations point toward future interest rate increases due to inflationary pressures. The overall market outlook is rising.",
+       "disagreements": "The Affordability and Valuation agents agree on the recommendation.",
+       "recommendation_and_conditions": "I recommend approval of the mortgage application. No conditions are required."
+      }
+     },
+     "request_id": "ejLratbiLvWFxs0PxLq8kAM",
+     "input_tokens": 863,
+     "output_tokens": 306,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 1.419
+    }
+   ],
+   "memo": "## Application summary\nThe applicant is a first-time buyer seeking a 360,000.0 EUR mortgage for a 3-bedroom semi-detached property in Dublin. The asking price for the property is 450,000.0 EUR. The loan term is 30 years.\n\n## Affordability\nThe affordability assessment is rated as strong. There are no concerns or conditions identified regarding the applicant's financial capacity.\n\n## Property assessment\nThe property value is estimated at 422,968.0 EUR, which is 6.39% below the asking price. The purchase LTV is 80.0% and the model LTV is 85.11%, both within the 90.0% limit. The collateral is considered strong.\n\n## Market context\nThe ECB main refinancing rate is 2.15% as of 23 October 2026. Market expectations point toward future interest rate increases due to inflationary pressures. The overall market outlook is rising.\n\n## Disagreements\nThe Affordability and Valuation agents agree on the recommendation.\n\n## Recommendation and conditions\nI recommend approval of the mortgage application. No conditions are required.\n"
+  },
+  "policy_gate": {
+   "ok": true,
+   "output": {
+    "original": "Approve",
+    "effective": "Approve",
+    "conditions": [],
+    "breaches": [],
+    "changed": false
+   }
+  }
+ },
+ "original_recommendation": "Approve",
+ "effective_recommendation": "Approve",
+ "ai_calls": [
+  {
+   "id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883-market-1",
+   "step": "market"
+  },
+  {
+   "id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883-affordability-1",
+   "step": "affordability"
+  },
+  {
+   "id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883-valuation_agent-1",
+   "step": "valuation_agent"
+  },
+  {
+   "id": "ec1334f1-f7eb-442c-bf1a-45ac8ae50883-strategist-1",
+   "step": "strategist"
+  }
+ ],
+ "node_order": [
+  "validate",
+  "valuation_model",
+  "market",
+  "calculations",
+  "affordability",
+  "valuation_agent",
+  "strategist",
+  "policy_gate",
+  "save"
+ ]
+}

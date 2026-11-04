@@ -1,0 +1,458 @@
+{
+ "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+ "application_id": "heloc-application",
+ "rerun_of": null,
+ "status": "complete",
+ "started_at": "2026-11-04T13:26:27.892516+00:00",
+ "finished_at": "2026-11-04T13:27:30.704416+00:00",
+ "failed_step": null,
+ "failure_reason": null,
+ "steps": {
+  "validate": {
+   "ok": true,
+   "output": {
+    "loan_type": "heloc"
+   }
+  },
+  "valuation_model": {
+   "ok": true,
+   "model_version": "v2",
+   "output": {
+    "estimate_eur": 422968.0,
+    "display_estimate_eur": 423000,
+    "basis": "2024 asking-price estimate",
+    "support_warnings": [],
+    "model_version": "v2",
+    "schema_version": "1",
+    "asking_price_gap": null,
+    "price_needs_review": null,
+    "combined_ltv": 0.449207,
+    "baseline_eur": 576575.36,
+    "contributions": [
+     {
+      "feature": "county",
+      "value": "Dublin",
+      "eur": 183076.38
+     },
+     {
+      "feature": "eircode_area",
+      "value": "D24",
+      "eur": -148167.63
+     },
+     {
+      "feature": "floor_area",
+      "value": 118.0,
+      "eur": -136241.35
+     },
+     {
+      "feature": "property_type",
+      "value": "Semi-D",
+      "eur": -21838.97
+     },
+     {
+      "feature": "ber",
+      "value": "C1",
+      "eur": -18112.22
+     },
+     {
+      "feature": "bedrooms",
+      "value": 3,
+      "eur": -12323.56
+     }
+    ]
+   },
+   "breakdown_error": null
+  },
+  "market": {
+   "ok": true,
+   "output": {
+    "report_id": "market-2026-11-04-bbb15157b172",
+    "date": "2026-11-04",
+    "official_figures_fingerprint": "bbb15157b172",
+    "prompt_version": "market-agent-v1",
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-lite",
+    "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+    "outlook": "rising",
+    "summary": "The ECB main refinancing rate is currently 2.15% as of 23 October 2026. While the ECB recently decided to keep rates unchanged, market expectations and analyst forecasts point toward future rate increases due to rising energy prices and inflationary pressures. Consequently, the outlook for interest rates is rising.",
+    "sources": [
+     {
+      "url": "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+      "date": "2026-10-29"
+     },
+     {
+      "url": "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+      "date": "2026-10-24"
+     },
+     {
+      "url": "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+      "date": "2026-10-29"
+     },
+     {
+      "url": "https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774",
+      "date": "2026-10-22"
+     }
+    ]
+   },
+   "report_id": "market-2026-11-04-bbb15157b172",
+   "reused_report_id": null,
+   "provider": "gemini",
+   "model": "gemini-3.1-flash-lite",
+   "prompt_version": "market-agent-v1",
+   "attempts": [
+    {
+     "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+     "attempt": 1,
+     "provider": "gemini",
+     "model": "gemini-3.1-flash-lite",
+     "prompt_version": "market-agent-v1",
+     "started_at": "2026-11-04T13:26:34.483653+00:00",
+     "search_links": [
+      "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+      "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+      "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+      "https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774",
+      "https://www.reuters.com/business/ecb-june-hike-done-deal-another-likely-september-economists-say-2026-06-03/",
+      "https://www.bbc.com/news/articles/c3dky111m40o",
+      "https://www.uswitch.com/mortgages/mortgage-news/",
+      "https://www.facebook.com/ambassadors.kabayan/posts/rate-updatebelow-500-7107above-501-7084/1901444224172246/",
+      "https://www.reddit.com/r/REBubble/comments/1x5ufz0/fannie_mae_sharply_raises_mortgage_rate_forecast/",
+      "https://www.rte.ie/news/business/2026/1022/1596461-are-more-mortgage-rate-increases-likely-after-ptsb-hike/"
+     ],
+     "raw_reply": null,
+     "parsed_reply": null,
+     "request_id": null,
+     "input_tokens": null,
+     "output_tokens": null,
+     "outcome": "provider_error",
+     "error": "gemini answered HTTP 503: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n",
+     "duration_s": 28.578
+    },
+    {
+     "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+     "attempt": 2,
+     "provider": "gemini",
+     "model": "gemini-3.1-flash-lite",
+     "prompt_version": "market-agent-v1",
+     "started_at": "2026-11-04T13:27:04.066658+00:00",
+     "search_links": [
+      "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+      "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+      "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+      "https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774",
+      "https://www.reuters.com/business/ecb-june-hike-done-deal-another-likely-september-economists-say-2026-06-03/",
+      "https://www.bbc.com/news/articles/c3dky111m40o",
+      "https://www.uswitch.com/mortgages/mortgage-news/",
+      "https://www.facebook.com/ambassadors.kabayan/posts/rate-updatebelow-500-7107above-501-7084/1901444224172246/",
+      "https://www.reddit.com/r/REBubble/comments/1x5ufz0/fannie_mae_sharply_raises_mortgage_rate_forecast/",
+      "https://www.rte.ie/news/business/2026/1022/1596461-are-more-mortgage-rate-increases-likely-after-ptsb-hike/"
+     ],
+     "raw_reply": "{\n  \"outlook\": \"rising\",\n  \"summary\": \"The ECB main refinancing rate is currently 2.15% as of 23 October 2026. While the ECB recently decided to keep rates unchanged, market expectations and analyst forecasts point toward future rate increases due to rising energy prices and inflationary pressures. Consequently, the outlook for interest rates is rising.\",\n  \"sources\": [\n    {\n      \"url\": \"https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html\",\n      \"date\": \"2026-10-29\"\n    },\n    {\n      \"url\": \"https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2\",\n      \"date\": \"2026-10-24\"\n    },\n    {\n      \"url\": \"https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html\",\n      \"date\": \"2026-10-29\"\n    },\n    {\n      \"url\": \"https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774\",\n      \"date\": \"2026-10-22\"\n    }\n  ]\n}",
+     "parsed_reply": {
+      "outlook": "rising",
+      "summary": "The ECB main refinancing rate is currently 2.15% as of 23 October 2026. While the ECB recently decided to keep rates unchanged, market expectations and analyst forecasts point toward future rate increases due to rising energy prices and inflationary pressures. Consequently, the outlook for interest rates is rising.",
+      "sources": [
+       {
+        "url": "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+        "date": "2026-10-29"
+       },
+       {
+        "url": "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+        "date": "2026-10-24"
+       },
+       {
+        "url": "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+        "date": "2026-10-29"
+       },
+       {
+        "url": "https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774",
+        "date": "2026-10-22"
+       }
+      ]
+     },
+     "request_id": "qDLravHOHPO6xN8P6qCG6Qw",
+     "input_tokens": 1952,
+     "output_tokens": 361,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 3.653
+    }
+   ],
+   "searches": [
+    {
+     "query": "ECB interest rate decision outlook euro area",
+     "outcome": "ok",
+     "links": [
+      "https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.mp261029~9a493adf17.en.html",
+      "https://global.morningstar.com/en-nd/economy/ecb-rate-decision-what-expect-thursday-2",
+      "https://www.cnbc.com/2026/10/29/european-central-bank-interest-rates.html",
+      "https://www.ft.com/content/93852564-cae6-41f6-aa79-8db53e2b7774",
+      "https://www.reuters.com/business/ecb-june-hike-done-deal-another-likely-september-economists-say-2026-06-03/"
+     ]
+    },
+    {
+     "query": "Ireland mortgage interest rates outlook",
+     "outcome": "ok",
+     "links": [
+      "https://www.bbc.com/news/articles/c3dky111m40o",
+      "https://www.uswitch.com/mortgages/mortgage-news/",
+      "https://www.facebook.com/ambassadors.kabayan/posts/rate-updatebelow-500-7107above-501-7084/1901444224172246/",
+      "https://www.reddit.com/r/REBubble/comments/1x5ufz0/fannie_mae_sharply_raises_mortgage_rate_forecast/",
+      "https://www.rte.ie/news/business/2026/1022/1596461-are-more-mortgage-rate-increases-likely-after-ptsb-hike/"
+     ]
+    }
+   ]
+  },
+  "calculations": {
+   "ok": true,
+   "output": {
+    "benchmark_rate_pct": 4.0,
+    "affordability_facts": {
+     "loan_eur": 40000.0,
+     "term_years": 20,
+     "benchmark_rate_pct": 4.0,
+     "stress_margin_pct": 2.0,
+     "first_time_buyer": false,
+     "gross_annual_income_eur": 100000.0,
+     "net_monthly_income_eur": 5800.0,
+     "monthly_debts_eur": 300.0,
+     "monthly_living_costs_eur": 2300.0,
+     "repayment_eur": 242.39,
+     "stressed_repayment_eur": 286.57,
+     "loan_to_income": 0.4,
+     "lti_cap": 3.5,
+     "lti_cap_breached": false,
+     "dti_pct": 6.51,
+     "stressed_dti_pct": 7.04,
+     "surplus_eur": 2957.61,
+     "stressed_surplus_eur": 2913.43,
+     "dti_band": "Comfortable",
+     "surplus_band": "Comfortable"
+    },
+    "valuation_facts": {
+     "county": "Dublin",
+     "property_type": "Semi-D",
+     "bedrooms": 3,
+     "floor_area_m2": 118.0,
+     "ber": "C1",
+     "eircode_area": "D24",
+     "loan_type": "heloc",
+     "estimate_basis": "2024 asking-price estimate",
+     "estimate_eur": 422968.0,
+     "existing_mortgage_balance_eur": 150000.0,
+     "line_eur": 40000.0,
+     "combined_ltv_pct": 44.92,
+     "combined_ltv_limit_pct": 80.0,
+     "combined_ltv_within_limit": true,
+     "support_warnings": []
+    },
+    "breaches": []
+   }
+  },
+  "affordability": {
+   "ok": true,
+   "output": {
+    "rating": "strong",
+    "recommendation": "Approve",
+    "concerns": [],
+    "conditions": []
+   },
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt_version": "affordability-agent-v1",
+   "attempts": [
+    {
+     "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+     "attempt": 1,
+     "provider": "ollama",
+     "model": "qwen3.5:9b",
+     "prompt_version": "affordability-agent-v1",
+     "started_at": "2026-11-04T13:27:07.721939+00:00",
+     "raw_reply": "{\n  \"rating\": \"strong\",\n  \"recommendation\": \"Approve\",\n  \"concerns\": [],\n  \"conditions\": []\n}",
+     "parsed_reply": {
+      "rating": "strong",
+      "recommendation": "Approve",
+      "concerns": [],
+      "conditions": []
+     },
+     "request_id": null,
+     "input_tokens": 617,
+     "output_tokens": 35,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 1.012
+    }
+   ]
+  },
+  "valuation_agent": {
+   "ok": true,
+   "output": {
+    "rating": "strong",
+    "recommendation": "Approve",
+    "conditions": [],
+    "explanation": "The model estimate is \u20ac422,968.0 and the combined LTV is 44.92%, well below the 80.0% limit. No support warnings are present, so the estimate is reliable. This provides strong security for the HELOC."
+   },
+   "provider": "groq",
+   "model": "openai/gpt-oss-120b",
+   "prompt_version": "valuation-agent-v2",
+   "attempts": [
+    {
+     "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+     "attempt": 1,
+     "provider": "groq",
+     "model": "openai/gpt-oss-120b",
+     "prompt_version": "valuation-agent-v2",
+     "started_at": "2026-11-04T13:27:07.722114+00:00",
+     "raw_reply": "{\"rating\":\"strong\",\"recommendation\":\"Approve\",\"conditions\":[],\"explanation\":\"The model estimate is \u20ac422,968.00 and the total debt of \u20ac190,000.00 gives a combined LTV of 44.92%, well below the 80% limit. No support warnings are present, so the estimate is reliable. The collateral is therefore strong security for the HELOC.\"}",
+     "parsed_reply": null,
+     "request_id": "req_01m6kbvvs5ek1rqx460gaa6eaz",
+     "input_tokens": 996,
+     "output_tokens": 321,
+     "outcome": "invalid_reply",
+     "error": "\"The model estimate is \u20ac422,968.00 and the total debt of \u20ac190,000.00 gives a combined LTV of 44.92%, well below the 80% limit. No support warnings are present, so the estimate is reliable. The collateral is therefore strong security for the HELOC.\" quotes 190000, which is not in DATA",
+     "duration_s": 1.001
+    },
+    {
+     "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+     "attempt": 2,
+     "provider": "groq",
+     "model": "openai/gpt-oss-120b",
+     "prompt_version": "valuation-agent-v2",
+     "started_at": "2026-11-04T13:27:08.722774+00:00",
+     "raw_reply": "{\"rating\":\"strong\",\"recommendation\":\"Approve\",\"conditions\":[],\"explanation\":\"The model estimate is \u20ac422,968.0 and the combined LTV is 44.92%, well below the 80.0% limit. No support warnings are present, so the estimate is reliable. This provides strong security for the HELOC.\"}",
+     "parsed_reply": {
+      "rating": "strong",
+      "recommendation": "Approve",
+      "conditions": [],
+      "explanation": "The model estimate is \u20ac422,968.0 and the combined LTV is 44.92%, well below the 80.0% limit. No support warnings are present, so the estimate is reliable. This provides strong security for the HELOC."
+     },
+     "request_id": "req_01m6kbvwrge1ebhexrcy8sw0th",
+     "input_tokens": 1086,
+     "output_tokens": 495,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 1.306
+    }
+   ]
+  },
+  "strategist": {
+   "ok": true,
+   "output": {
+    "recommendation": "Approve",
+    "conditions": [],
+    "memo": {
+     "application_summary": "The applicant is seeking a HELOC of 40000.0 EUR over a 20-year term. The property is a 3-bedroom Semi-D located in Dublin. The applicant is not a first-time buyer.",
+     "affordability": "The affordability rating is strong. There are no concerns or conditions identified in the affordability report.",
+     "property_assessment": "The model estimate for the property is 422968.0 EUR. The combined LTV is 44.92%, which is well below the 80.0% limit. The valuation is considered reliable with no support warnings.",
+     "market_context": "The ECB main refinancing rate is 2.15% as of 23 October 2026. The market outlook for interest rates is rising due to inflationary pressures and energy prices.",
+     "disagreements": "The Affordability and Valuation agents are in agreement.",
+     "recommendation_and_conditions": "I recommend approval of the HELOC application. No conditions are required."
+    }
+   },
+   "provider": "gemini",
+   "model": "gemini-3.1-flash-lite",
+   "prompt_version": "strategist-agent-v1",
+   "attempts": [
+    {
+     "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+     "attempt": 1,
+     "provider": "gemini",
+     "model": "gemini-3.1-flash-lite",
+     "prompt_version": "strategist-agent-v1",
+     "started_at": "2026-11-04T13:27:10.029863+00:00",
+     "raw_reply": null,
+     "parsed_reply": null,
+     "request_id": null,
+     "input_tokens": null,
+     "output_tokens": null,
+     "outcome": "provider_error",
+     "error": "gemini answered HTTP 503: {\n  \"error\": {\n    \"code\": 503,\n    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\n    \"status\": \"UNAVAILABLE\"\n  }\n}\n",
+     "duration_s": 11.047
+    },
+    {
+     "run_id": "2fd4d620-22ee-4709-91a5-528f21d1e533",
+     "attempt": 2,
+     "provider": "gemini",
+     "model": "gemini-3.1-flash-lite",
+     "prompt_version": "strategist-agent-v1",
+     "started_at": "2026-11-04T13:27:22.081061+00:00",
+     "raw_reply": "{\n  \"recommendation\": \"Approve\",\n  \"conditions\": [],\n  \"memo\": {\n    \"application_summary\": \"The applicant is seeking a HELOC of 40000.0 EUR over a 20-year term. The property is a 3-bedroom Semi-D located in Dublin. The applicant is not a first-time buyer.\",\n    \"affordability\": \"The affordability rating is strong. There are no concerns or conditions identified in the affordability report.\",\n    \"property_assessment\": \"The model estimate for the property is 422968.0 EUR. The combined LTV is 44.92%, which is well below the 80.0% limit. The valuation is considered reliable with no support warnings.\",\n    \"market_context\": \"The ECB main refinancing rate is 2.15% as of 23 October 2026. The market outlook for interest rates is rising due to inflationary pressures and energy prices.\",\n    \"disagreements\": \"The Affordability and Valuation agents are in agreement.\",\n    \"recommendation_and_conditions\": \"I recommend approval of the HELOC application. No conditions are required.\"\n  }\n}",
+     "parsed_reply": {
+      "recommendation": "Approve",
+      "conditions": [],
+      "memo": {
+       "application_summary": "The applicant is seeking a HELOC of 40000.0 EUR over a 20-year term. The property is a 3-bedroom Semi-D located in Dublin. The applicant is not a first-time buyer.",
+       "affordability": "The affordability rating is strong. There are no concerns or conditions identified in the affordability report.",
+       "property_assessment": "The model estimate for the property is 422968.0 EUR. The combined LTV is 44.92%, which is well below the 80.0% limit. The valuation is considered reliable with no support warnings.",
+       "market_context": "The ECB main refinancing rate is 2.15% as of 23 October 2026. The market outlook for interest rates is rising due to inflationary pressures and energy prices.",
+       "disagreements": "The Affordability and Valuation agents are in agreement.",
+       "recommendation_and_conditions": "I recommend approval of the HELOC application. No conditions are required."
+      }
+     },
+     "request_id": "ujLrauviFbftxN8Pw6SNwQk",
+     "input_tokens": 797,
+     "output_tokens": 266,
+     "outcome": "ok",
+     "error": null,
+     "duration_s": 8.622
+    }
+   ],
+   "memo": "## Application summary\nThe applicant is seeking a HELOC of 40000.0 EUR over a 20-year term. The property is a 3-bedroom Semi-D located in Dublin. The applicant is not a first-time buyer.\n\n## Affordability\nThe affordability rating is strong. There are no concerns or conditions identified in the affordability report.\n\n## Property assessment\nThe model estimate for the property is 422968.0 EUR. The combined LTV is 44.92%, which is well below the 80.0% limit. The valuation is considered reliable with no support warnings.\n\n## Market context\nThe ECB main refinancing rate is 2.15% as of 23 October 2026. The market outlook for interest rates is rising due to inflationary pressures and energy prices.\n\n## Disagreements\nThe Affordability and Valuation agents are in agreement.\n\n## Recommendation and conditions\nI recommend approval of the HELOC application. No conditions are required.\n"
+  },
+  "policy_gate": {
+   "ok": true,
+   "output": {
+    "original": "Approve",
+    "effective": "Conditionally Approve",
+    "conditions": [
+     "Requires an independent surveyor's valuation (HELOC)"
+    ],
+    "breaches": [],
+    "changed": true
+   }
+  }
+ },
+ "original_recommendation": "Approve",
+ "effective_recommendation": "Conditionally Approve",
+ "ai_calls": [
+  {
+   "id": "2fd4d620-22ee-4709-91a5-528f21d1e533-market-1",
+   "step": "market"
+  },
+  {
+   "id": "2fd4d620-22ee-4709-91a5-528f21d1e533-market-2",
+   "step": "market"
+  },
+  {
+   "id": "2fd4d620-22ee-4709-91a5-528f21d1e533-affordability-1",
+   "step": "affordability"
+  },
+  {
+   "id": "2fd4d620-22ee-4709-91a5-528f21d1e533-valuation_agent-1",
+   "step": "valuation_agent"
+  },
+  {
+   "id": "2fd4d620-22ee-4709-91a5-528f21d1e533-valuation_agent-2",
+   "step": "valuation_agent"
+  },
+  {
+   "id": "2fd4d620-22ee-4709-91a5-528f21d1e533-strategist-1",
+   "step": "strategist"
+  },
+  {
+   "id": "2fd4d620-22ee-4709-91a5-528f21d1e533-strategist-2",
+   "step": "strategist"
+  }
+ ],
+ "node_order": [
+  "validate",
+  "valuation_model",
+  "market",
+  "calculations",
+  "affordability",
+  "valuation_agent",
+  "strategist",
+  "policy_gate",
+  "save"
+ ]
+}
