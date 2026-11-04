@@ -1,0 +1,20 @@
+{
+  "loanType": "mortgage",
+  "grossIncomeEur": 95000,
+  "monthlyDebtsEur": 250,
+  "monthlyTakeHomeEur": 5500,
+  "monthlyLivingCostsEur": 2200,
+  "termYears": 30,
+  "loanAmountEur": 360000,
+  "firstTimeBuyer": true,
+  "depositEur": 90000,
+  "property": {
+    "eircode": "D24 AB12",
+    "county": "Dublin",
+    "propertyType": "Semi-D",
+    "bedrooms": 3,
+    "floorAreaSqm": 118,
+    "berRating": "C1",
+    "askingPriceEur": 450000
+  }
+}

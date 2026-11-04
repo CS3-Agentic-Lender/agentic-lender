@@ -94,6 +94,13 @@ function dtiBreakdown(app, benchmarkRatePct, rateDate) {
   };
 }
 
+// The audit record's cents and months (app/loan_terms.py does the same in Python). The seeded loans are whole euros and
+// whole years, so this refuses anything else rather than round it a different way from Python.
+function wholeTimes(value, factor, field) {
+  if (!Number.isInteger(value) || value <= 0) throw new Error(`${field} must be a positive whole number for the audit record, got ${value}`);
+  return value * factor;
+}
+
 // Same text as Python's json.dumps(record, sort_keys=True, separators=(",", ":"))
 // for records made of plain strings, integers, arrays and objects (no floats, no non-ASCII).
 function canonicalJson(value) {
@@ -431,8 +438,11 @@ function build() {
           applicationId: app.id,
           creditMemo,
           decision: spec.decision.outcome,
+          loanType: doc.loanType,
+          principalCents: wholeTimes(doc.loanAmountEur, 100, 'loanAmountEur'),
           riskTier: spec.riskTier,
           signedOffAt: at(spec.decision.decidedAt).toISOString(),
+          termMonths: wholeTimes(doc.termYears, 12, 'termYears'),
           underwriterId: spec.decision.underwriterId,
         };
         const auditHash = sha256(canonicalJson(record));

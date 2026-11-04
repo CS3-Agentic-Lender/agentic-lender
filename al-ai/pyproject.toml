@@ -13,6 +13,7 @@ dependencies = [
     "pandas==3.0.6",
     "catboost==1.2.10",
     "joblib==1.6.0",
+    "langgraph==1.2.19",
 ]
 
 [dependency-groups]

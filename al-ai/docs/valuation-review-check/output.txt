@@ -1,0 +1,14 @@
+--- run 1: mortgage, full breakdown
+other fields kept: {'riskTier': 'B', 'policyGate': {'effective': 'Approve'}, 'dtiBreakdown': {'dtiBand': 'Comfortable'}}
+ids: al61-check broker-1 updatedAt set: True
+keys: ['askingPriceGap', 'baselineEur', 'contributions', 'displayEstimateEur', 'estimatedValueEur', 'modelVersion', 'priceNeedsReview', 'supportWarnings']
+estimate: 422968.0 display: 423000 gap: 0.06391 needsReview: False model: v2 warnings: []
+baseline: 576575.36 contributions: ['county', 'eircode_area', 'floor_area', 'property_type', 'ber', 'bedrooms']
+--- run 2: HELOC, breakdown failed
+other fields kept: {'riskTier': 'B', 'policyGate': {'effective': 'Approve'}, 'dtiBreakdown': {'dtiBand': 'Comfortable'}}
+ids: al61-check broker-1 updatedAt set: True
+keys: ['askingPriceGap', 'baselineEur', 'contributions', 'displayEstimateEur', 'estimatedValueEur', 'modelVersion', 'priceNeedsReview', 'supportWarnings']
+estimate: 422968.0 display: 423000 gap: None needsReview: None model: v2 warnings: ["The breakdown of this estimate isn't available right now."]
+baseline: None contributions: None
+
+ALL CHECKS PASSED: run 2 replaced run 1 whole, other review fields and the application were untouched

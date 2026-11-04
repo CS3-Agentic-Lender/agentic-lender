@@ -120,7 +120,7 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 
 `decision` map: `outcome` (`approved` or `declined`), `underwriterId`, `decidedAt`, `reason` (optional, left out when none is given). Written only by `POST /core/applications/{id}/decision`, in the same write that moves the status to `Underwriter Approved` or `Declined`, and never changed afterwards.
 
-`loanNote` map: `tokenId` (text), `contractAddress`, `txHash` (the mint transaction), `auditHash`, `mintedAt`. No personal data goes on chain. Written only by `POST /core/applications/{id}/mint`, in the same write that moves the status to `Funded`, and never changed afterwards.
+`loanNote` map: `tokenId` (text), `contractAddress`, `txHash` (the mint transaction), `auditHash`, `network` (the name of the chain it was minted on, from `CHAIN_NETWORK`: `localhost` on the local Hardhat node; absent on a note saved before this field existed), `mintedAt`. The note's principal, rate and term are the application's own `loanAmountEur`, `aprPct` and `termYears`, which the mint checks against the contract before it saves anything. No personal data goes on chain. Written only by `POST /core/applications/{id}/mint`, in the same write that moves the status to `Funded`, and never changed afterwards.
 
 ## applications/{id}/review/underwriting
 
@@ -183,6 +183,9 @@ The one function that does this is `audit_hash(record)` in `al-core/app/audit.py
 |---|---|---|
 | `applicationId` | string | |
 | `decision` | string | |
+| `loanType` | string | `mortgage` or `heloc`, as on the application |
+| `principalCents` | integer | The loan amount in euro cents: `loanAmountEur` times 100, a half rounded up. A whole number, written with no decimal point or exponent |
+| `termMonths` | integer | The term in months: `termYears` times 12. A whole number |
 | `riskTier` | string | |
 | `creditMemo` | string | |
 | `underwriterId` | string | |

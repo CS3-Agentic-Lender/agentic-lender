@@ -119,6 +119,7 @@ class LoanNoteOut(BaseModel):
     contract_address: str | None = None
     tx_hash: str | None = None
     audit_hash: str | None = None
+    network: str | None = None  # the chain the note is on, such as localhost; null on notes made before it was saved
     minted_at: str | None = None
 
 
@@ -280,6 +281,7 @@ def _loan_note_out(note: dict | None) -> dict | None:
         "contract_address": note.get("contractAddress"),
         "tx_hash": note.get("txHash"),
         "audit_hash": note.get("auditHash"),
+        "network": note.get("network"),
         "minted_at": _iso(note.get("mintedAt")),
     }
 

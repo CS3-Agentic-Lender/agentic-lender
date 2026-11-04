@@ -1,8 +1,13 @@
 import json
+import logging
 
 import pytest
 
 from app import affordability_agent as ag
+from app.llm import config
+
+OLLAMA = config.AgentModel("ollama", "qwen3.5:9b")
+ENV = {"OLLAMA_HOST": "http://ollama.test:11434"}
 
 # Reference case from AL-115: joint mover, EUR 270,000 over 25 years at a 4.00% test rate.
 GOOD = dict(
@@ -16,25 +21,28 @@ BREACH = ag.build_facts(**{**GOOD, "loan": 400_000, "gross_annual_income": 90_00
 
 def reply(**over):
     base = {"rating": "adequate", "recommendation": "Conditionally Approve", "concerns": ["Stressed repayment is 1739.61 a month."], "conditions": []}
-    return json.dumps({**base, **over})
+    return {**base, **over}
 
 
-class Fake:
-    """A model that returns the replies we give it in order, and remembers what it was sent."""
+class Net:
+    """A fake Ollama: returns the replies we give it in order (the last one repeats) and remembers what it was sent."""
 
     def __init__(self, *replies):
-        self.replies, self.prompts = list(replies), []
+        self.replies, self.calls = list(replies), []
 
-    def __call__(self, prompt):
-        self.prompts.append(prompt)
-        r = self.replies.pop(0)
-        if isinstance(r, Exception):
-            raise r
-        return r
+    def __call__(self, url, headers, body, timeout):
+        self.calls.append(json.loads(body))
+        got = self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
+        if isinstance(got, Exception):
+            raise got
+        if isinstance(got, tuple):
+            return got[0], {}, got[1]
+        text = got if isinstance(got, str) else json.dumps(got)
+        return 200, {}, json.dumps({"message": {"content": text}, "prompt_eval_count": 14, "eval_count": 8}).encode()
 
 
-def run(fake, facts=FACTS):
-    return ag.run(facts, fake, model="test-model", run_id="run-1")
+def run(net, facts=FACTS, **kw):
+    return ag.run(facts, run_id="run-1", agent=OLLAMA, transport=net, env=ENV, sleep=lambda s: None, **kw)
 
 
 # ---- facts: code works out every figure ---------------------------------------------------
@@ -53,40 +61,47 @@ def test_prompt_has_the_data_and_a_version():
 # ---- a good reply -------------------------------------------------------------------------
 
 def test_good_reply_passes_first_time():
-    r = run(Fake(reply()))
-    assert r.ok and r.reply["recommendation"] == "Conditionally Approve" and len(r.attempts) == 1
+    net = Net(reply())
+    r = run(net)
+    assert r.ok and r.reply["recommendation"] == "Conditionally Approve" and len(r.attempts) == 1 and len(net.calls) == 1
 
 
 def test_attempt_is_logged_with_everything_the_ticket_asks_for():
-    a = run(Fake(reply())).attempts[0]
+    a = run(Net(reply())).attempts[0]
     for key in ("run_id", "provider", "model", "prompt_version", "raw_reply", "parsed_reply", "duration_s", "outcome"):
         assert key in a
-    assert (a["run_id"], a["provider"], a["model"], a["outcome"]) == ("run-1", "ollama", "test-model", "ok")
+    assert (a["run_id"], a["provider"], a["model"], a["outcome"]) == ("run-1", "ollama", "qwen3.5:9b", "ok")
 
 
-def test_think_tags_are_stripped():
-    assert run(Fake("<think>hmm</think>" + reply())).ok
+def test_the_model_is_sent_the_facts():
+    net = Net(reply())
+    run(net)
+    assert "1739.61" in json.dumps(net.calls[0])
+
+
+def test_the_agent_is_the_one_agents_json_names_for_affordability():
+    assert config.load().agent("affordability") == OLLAMA
 
 
 # ---- bad replies: one retry with the error shown, then the step fails ----------------------
 
 def test_malformed_reply_is_retried_once_with_the_error_shown():
-    fake = Fake("not json", reply())
-    r = run(fake)
+    net = Net("not json", reply())
+    r = run(net)
     assert r.ok and [a["outcome"] for a in r.attempts] == ["invalid_reply", "ok"]
-    assert "rejected" in fake.prompts[1] and "not valid JSON" in fake.prompts[1]
-    assert "rejected" not in fake.prompts[0]
+    assert "Your previous reply was rejected" in json.dumps(net.calls[1])
+    assert "rejected" not in json.dumps(net.calls[0])
 
 
 def test_two_bad_replies_fail_the_step_with_the_reason():
-    fake = Fake("not json", "still not json")
-    r = run(fake)
-    assert not r.ok and r.reply is None and "not valid JSON" in r.failure_reason
-    assert len(r.attempts) == 2 and len(fake.prompts) == 2  # no third call, no other provider
+    net = Net("not json", "still not json")
+    r = run(net)
+    assert not r.ok and r.reply is None and r.failure_reason
+    assert len(r.attempts) == 2 and len(net.calls) == 2  # no third call, no other provider
 
 
 @pytest.mark.parametrize("bad, text", [
-    (json.dumps({"rating": "adequate"}), "exactly"),
+    ({"rating": "adequate"}, "exactly"),
     (reply(rating=["strong"]), "rating"),
     (reply(recommendation={"x": 1}), "recommendation"),
     (reply(rating=None), "rating"),
@@ -95,73 +110,81 @@ def test_two_bad_replies_fail_the_step_with_the_reason():
     (reply(concerns="one long string"), "concerns"),
     (reply(concerns=["x"] * 6), "at most 5"),
     (reply(conditions=[""]), "non-empty"),
-    ("[1, 2]", "one JSON object"),
+    ([1, 2], "one JSON object"),
 ])
 def test_schema_checks(bad, text):
-    with pytest.raises(ag.InvalidReply, match=text):
-        ag.validate(bad, FACTS)
+    with pytest.raises(ag.ReplyRejected, match=text):
+        ag.check_reply(bad, FACTS)
 
 
 # ---- semantic checks: no figure we didn't give it -------------------------------------------
 
 def test_invented_figure_is_rejected():
-    with pytest.raises(ag.InvalidReply, match="777"):
-        ag.validate(reply(concerns=["Repayment would be 777 a month."]), FACTS)
+    with pytest.raises(ag.ReplyRejected, match="777"):
+        ag.check_reply(reply(concerns=["Repayment would be 777 a month."]), FACTS)
 
 
 def test_supplied_figures_with_commas_and_rounding_are_accepted():
-    ag.validate(reply(concerns=["Loan of 270,000 over 25 years, repayment 1425.16, stressed about 1740."]), FACTS)
+    ag.check_reply(reply(concerns=["Loan of 270,000 over 25 years, repayment 1425.16, stressed about 1740."]), FACTS)
 
 
 def test_negative_figures_can_be_quoted():
     # net income 3,000 leaves a stressed surplus of -1439.61 (Adverse): the Adverse cases are the point.
     short = ag.build_facts(**{**GOOD, "net_monthly_income": 3_000})
     assert short["stressed_surplus_eur"] == -1439.61
-    ag.validate(reply(rating="unaffordable", recommendation="Decline", concerns=["Stressed surplus is -1439.61 a month."]), short)
-    ag.validate(reply(rating="unaffordable", recommendation="Decline", concerns=["The household is short by 1,439.61 a month."]), short)
+    ag.check_reply(reply(rating="unaffordable", recommendation="Decline", concerns=["Stressed surplus is -1439.61 a month."]), short)
+    ag.check_reply(reply(rating="unaffordable", recommendation="Decline", concerns=["The household is short by 1,439.61 a month."]), short)
 
 
 # ---- the reply cannot clear a band or a cap breach ----------------------------------------
 
 def test_approve_is_rejected_when_the_cap_is_breached():
     assert BREACH["lti_cap_breached"] is True
-    with pytest.raises(ag.InvalidReply, match="cannot recommend Approve"):
-        ag.validate(reply(recommendation="Approve", concerns=[]), BREACH)
+    with pytest.raises(ag.ReplyRejected, match="cannot recommend Approve"):
+        ag.check_reply(reply(recommendation="Approve", concerns=[]), BREACH)
 
 
 def test_approve_is_rejected_when_a_band_is_adverse():
     adverse = {**FACTS, "dti_band": "Adverse", "lti_cap_breached": False}
-    with pytest.raises(ag.InvalidReply, match="cannot recommend Approve"):
-        ag.validate(reply(recommendation="Approve", concerns=[]), adverse)
+    with pytest.raises(ag.ReplyRejected, match="cannot recommend Approve"):
+        ag.check_reply(reply(recommendation="Approve", concerns=[]), adverse)
 
 
 def test_reply_cannot_change_a_band():
-    # The reply has no band field (extra fields are rejected) and validate never touches the facts.
+    # The reply has no band field (extra fields are rejected) and the check never touches the facts.
     adverse = {**FACTS, "surplus_band": "Adverse"}
-    with pytest.raises(ag.InvalidReply, match="exactly"):
-        ag.validate(json.dumps({**json.loads(reply()), "surplus_band": "Comfortable"}), adverse)
+    with pytest.raises(ag.ReplyRejected, match="exactly"):
+        ag.check_reply({**reply(), "surplus_band": "Comfortable"}, adverse)
     assert adverse["surplus_band"] == "Adverse"
 
 
 def test_a_reply_that_tries_to_approve_a_breach_is_retried_then_fails():
-    fake = Fake(reply(recommendation="Approve", concerns=[]), reply(recommendation="Approve", concerns=[]))
-    r = run(fake, BREACH)
-    assert not r.ok and "cannot recommend Approve" in r.failure_reason
+    net = Net(reply(recommendation="Approve", concerns=[]))
+    r = run(net, BREACH)
+    assert not r.ok and "cannot recommend Approve" in r.failure_reason and len(r.attempts) == 2
 
 
-# ---- provider trouble ---------------------------------------------------------------------
+# ---- provider trouble (now retried like every other step) ---------------------------------
 
-def test_wrongly_typed_field_is_an_invalid_reply_and_gets_the_repair_attempt():
-    r = run(Fake(reply(rating=["strong"]), reply()))
-    assert r.ok and [a["outcome"] for a in r.attempts] == ["invalid_reply", "ok"]
+def test_a_provider_outage_is_retried_with_a_pause_and_then_fails():
+    pauses = []
+    r = ag.run(FACTS, run_id="r", agent=OLLAMA, transport=Net((503, b"down")), env=ENV, sleep=pauses.append)
+    assert not r.ok and len(r.attempts) == 3 and pauses == [1.0, 2.0]
+    assert all(a["outcome"] == "provider_error" for a in r.attempts)
+
+
+def test_a_bad_request_is_not_retried():
+    assert len(run(Net((400, b"bad"))).attempts) == 1
 
 
 def test_a_bug_in_our_own_code_is_not_hidden_as_a_provider_error():
     with pytest.raises(RuntimeError):
-        run(Fake(RuntimeError("our bug")))
+        run(Net(RuntimeError("our bug")))
 
 
-def test_provider_error_fails_without_a_second_call():
-    fake = Fake(ConnectionError("refused"))
-    r = run(fake)
-    assert not r.ok and r.attempts[0]["outcome"] == "provider_error" and len(fake.prompts) == 1
+def test_every_attempt_is_logged_with_the_prompt_version(caplog):
+    with caplog.at_level(logging.INFO, logger="al-ai.affordability-agent"):
+        run(Net(reply(recommendation="Maybe"), reply()))
+    logged = [json.loads(r.message) for r in caplog.records]
+    assert [a["outcome"] for a in logged] == ["invalid_reply", "ok"]
+    assert all(a["prompt_version"] == "affordability-agent-v1" and "duration_s" in a for a in logged)
