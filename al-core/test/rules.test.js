@@ -60,6 +60,8 @@ beforeEach(async () => {
     await set('applications/app2/review/underwriting', { applicationId: 'app2', brokerId: 'broker2', riskTier: 'D' });
     await set('applications/app1/audit/record', { applicationId: 'app1', auditHash: 'abc' });
     await set('applications/app1/messages/msg1', { senderId: 'broker1', text: 'Hi', read: false });
+    await set('applications/app1/readState/broker1', { lastReadAt: new Date('2026-10-05T09:00:00Z'), role: 'broker' });
+    await set('applications/app1/readState/borrower1', { lastReadAt: new Date('2026-10-05T09:30:00Z'), role: 'borrower' });
 
     await set('ai_runs/run1', { applicationId: 'app1', brokerId: 'broker1', status: 'complete' });
     await set('ai_runs/run2', { applicationId: 'app2', brokerId: 'broker2', status: 'complete' });
@@ -337,6 +339,32 @@ describe('applications/{id}/messages', () => {
     const snap = await assertSucceeds(broker1().doc('applications/app1/messages/msg1').get());
     expect(snap.data()).toMatchObject({ senderId: 'broker1', text: 'Hi', read: false });
   });
+});
+
+describe('applications/{id}/readState/{uid} (AL-71)', () => {
+  test('a broker can read their own last-read time', () =>
+    assertSucceeds(broker1().doc('applications/app1/readState/broker1').get()));
+  test('a borrower can read their own last-read time', () =>
+    assertSucceeds(borrower1().doc('applications/app1/readState/borrower1').get()));
+  test("nobody can read someone else's last-read time, even in the same thread", async () => {
+    await assertFails(borrower1().doc('applications/app1/readState/broker1').get());
+    await assertFails(underwriter().doc('applications/app1/readState/broker1').get());
+    await assertFails(underwriter().doc('applications/app1/readState/borrower1').get());
+    await assertFails(broker1().doc('applications/app1/readState/borrower1').get());
+  });
+  test("another broker can't read it, not even by using the id of the broker it is about", () =>
+    assertFails(broker2().doc('applications/app1/readState/broker1').get()));
+  test('a signed-out user can read nothing here', () =>
+    assertFails(signedOut().doc('applications/app1/readState/broker1').get()));
+  test('nobody can write a last-read time from a client, not even their own', async () => {
+    await assertFails(broker1().doc('applications/app1/readState/broker1').set({ lastReadAt: new Date(), role: 'broker' }));
+    await assertFails(broker1().doc('applications/app1/readState/broker1').update({ lastReadAt: new Date() }));
+    await assertFails(borrower1().doc('applications/app1/readState/borrower1').set({ lastReadAt: new Date(), role: 'borrower' }));
+    await assertFails(underwriter().doc('applications/app1/readState/underwriter1').set({ lastReadAt: new Date(), role: 'underwriter' }));
+    await assertFails(broker1().doc('applications/app1/readState/broker1').delete());
+  });
+  test("a broker can't read their own last-read time on an application that is not theirs", () =>
+    assertFails(broker2().doc('applications/app1/readState/broker2').get()));
 });
 
 describe('ai_runs and ai_calls', () => {

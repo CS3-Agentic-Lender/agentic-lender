@@ -64,6 +64,12 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if canReadApplication(appId);
       }
+
+      // What each person has read of the thread (AL-71): the time they last opened it. Written only by the API, and
+      // readable only by the person it is about, and only while they can read the application.
+      match /readState/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid && canReadApplication(appId);
+      }
     }
 
     // review/underwriting: matched at any depth so the portal's collection-group
