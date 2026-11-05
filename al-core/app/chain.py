@@ -8,7 +8,7 @@ key read from the environment, never from a file in the repo. Settings (names ar
     CHAIN_RPC_URL                  default http://127.0.0.1:8545 (the local Hardhat node)
     CHAIN_REGISTRAR_PRIVATE_KEY    the registrar wallet's key, a testnet wallet only
     AUDIT_REGISTRY_ADDRESS         the deployed AuditRegistry; if unset, chain/deployments/<CHAIN_NETWORK>.json is used
-    CHAIN_NETWORK                  default localhost
+    CHAIN_NETWORK                  default localhost; an empty value, as .env.example has, means the default too
 """
 
 import json
@@ -77,7 +77,7 @@ class AuditRegistry:
             raise NotConfigured("CHAIN_REGISTRAR_PRIVATE_KEY is not set")
         address = env.get("AUDIT_REGISTRY_ADDRESS", "")
         if not address:
-            network = env.get("CHAIN_NETWORK", "localhost")
+            network = env.get("CHAIN_NETWORK") or "localhost"  # an empty value would look for a file called .json
             path = DEPLOYMENTS / f"{network}.json"
             try:
                 address = json.loads(path.read_text())["AuditRegistry"]["address"]
