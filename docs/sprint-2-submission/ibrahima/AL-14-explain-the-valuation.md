@@ -1,8 +1,6 @@
 # Use case: AL-14 Explain the valuation
 
-<!-- TODO (Ibrahima): this draft was put together from the AL-14 epic, its three stories, the model card and the 6 Nov test run. Read it through and reword it in your own words before hand-in. -->
-
-**Epic AL-14 Explain the valuation (our custom feature).** For every property estimate, the borrower and the underwriter see how much each detail of the house moved the estimate up or down, so they can trust it or challenge it.
+**Epic AL-14 Explain the valuation (our custom feature).** The property valuation breakdown explains how individual property details influence the estimated value, rather than showing borrowers just one unexplained figure. We picked it as our custom feature because it adds transparency to the valuation and helps users understand what drives the estimate.
 
 ## Overview
 
@@ -19,6 +17,10 @@
 ## Goal
 
 As a borrower or underwriter, I want to see why the model valued a house the way it did, so that I can trust the estimate or challenge it.
+
+## How to read the numbers
+
+The baseline (€577k) is the starting reference value used by the model. Each detail then adjusts that figure up or down. For example, "−€93,000 for County: Cork" means the model estimates that the location reduces the starting value by €93,000 compared with its reference assumptions. It isn't a separate fee or a guaranteed loss in property value.
 
 ## Actors
 
