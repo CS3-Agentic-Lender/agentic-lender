@@ -40,7 +40,7 @@ def test_a_failed_run_still_logs_the_ids_on_the_attempts_it_made():
 def test_a_re_run_logs_the_ids_under_its_own_run_id():
     failed, _, _ = tc.go(tc.MORTGAGE, tc.Providers(ollama=(503, b"down")))
     deps = committee.Deps(
-        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=lambda s: None,
     )
     again = committee.rerun_committee(failed, tc.MORTGAGE, deps=deps)
@@ -86,7 +86,7 @@ def test_the_market_step_hands_the_ids_to_each_web_search():
         return serper.SearchResult(query, (serper.Hit("ECB holds", "https://ecb.example/hold", "Rates held.", "Oct 23, 2026"),), 0.1, 1)
 
     deps = committee.Deps(
-        store=tc.MemoryRunStore(), report_store=ma.MemoryReportStore(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=tc.MemoryRunStore(), report_store=ma.MemoryReportStore(), get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=lambda s: None, search=fake_search,
     )
     record = committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1")  # the fake Gemini cannot write a report; the searches still ran

@@ -73,9 +73,13 @@ class OfficialFigures:
 
     as_of: str  # the date the figures are for, ISO
     figures: dict[str, float]
+    observed: dict[str, str] = field(default_factory=dict)  # figure name -> the ECB period it is from ("2026-09" or "2026-06-11")
 
     def __post_init__(self):
         date.fromisoformat(self.as_of)
+        for name, period in self.observed.items():
+            if name not in self.figures or not isinstance(period, str) or not period:
+                raise ValueError(f"{name!r} has an observation date but no figure, or the date is empty")
         if not self.figures:
             raise ValueError("there must be at least one official figure")
         for name, value in self.figures.items():
@@ -84,7 +88,7 @@ class OfficialFigures:
 
     def fingerprint(self) -> str:
         """Changes when any figure or its date changes, so a changed rate means a new report."""
-        return hashlib.sha256(json.dumps({"as_of": self.as_of, **self.figures}, sort_keys=True).encode()).hexdigest()[:12]
+        return hashlib.sha256(json.dumps({"as_of": self.as_of, **self.figures, **({"observed": self.observed} if self.observed else {})}, sort_keys=True).encode()).hexdigest()[:12]
 
 
 RELATIVE_DATE = re.compile(r"^(\d+) (minute|hour|day|week|month)s? ago$")
@@ -128,7 +132,7 @@ def build_facts(official: OfficialFigures, results: list[serper.SearchResult], *
                 found.append({"id": f"S{len(found) + 1}", "title": hit.title, "snippet": hit.snippet, "date": source_date(hit.date, today), "url": hit.link})
     return {
         "today": today,
-        "official_figures": {"as_of": official.as_of, **{k: v for k, v in sorted(official.figures.items())}},
+        "official_figures": {"as_of": official.as_of, **{k: v for k, v in sorted(official.figures.items())}, **({"observed": dict(sorted(official.observed.items()))} if official.observed else {})},
         "search_queries": [r.query for r in results],
         "search_results": found,
     }
