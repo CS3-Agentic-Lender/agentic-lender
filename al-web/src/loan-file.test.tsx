@@ -1,10 +1,12 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from 'react-router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { ClientsServiceContext } from './context/BrokerClientsContext';
 import { LoanFileServiceContext } from './context/LoanFileContext';
+import { DecisionServiceContext } from './context/DecisionContext';
+import type { DecisionResult, DecisionService } from './services/decisionService';
 import { PipelineServiceContext } from './context/PipelineContext';
 import { AppRoutes } from './routes';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
@@ -153,6 +155,7 @@ function NavigationProbe() {
 }
 
 interface Services {
+  decisions?: DecisionService;
   loanFiles?: LoanFileService;
   pipeline?: PipelineService;
   clients?: ClientsService;
@@ -161,6 +164,7 @@ interface Services {
 function renderAs(uid: string, role: TrustedRole, pathname: string, services: Services) {
   return render(
     <AuthProvider service={new FakeAuthService(authUser(uid), role)}>
+      <DecisionServiceContext.Provider value={services.decisions ?? { signOff: async () => { throw new Error('No decision fake configured'); } }}>
       <LoanFileServiceContext.Provider value={services.loanFiles ?? new FakeLoanFileService()}>
         <PipelineServiceContext.Provider value={services.pipeline ?? { subscribeToPipeline: () => () => {} }}>
           <ClientsServiceContext.Provider value={services.clients ?? { subscribeToBrokerClients: () => () => {} }}>
@@ -171,6 +175,7 @@ function renderAs(uid: string, role: TrustedRole, pathname: string, services: Se
           </ClientsServiceContext.Provider>
         </PipelineServiceContext.Provider>
       </LoanFileServiceContext.Provider>
+      </DecisionServiceContext.Provider>
     </AuthProvider>,
   );
 }
@@ -207,6 +212,63 @@ function fact(section: string, label: string) {
 afterEach(cleanup);
 
 describe('loan file page', () => {
+  it('offers sign-off to an underwriter on an AI Deliberated application', async () => {
+    renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile() }));
+    expect(await screen.findByRole('region', { name: 'Sign off' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeDisabled();
+  });
+
+  it.each(['Draft', 'Applied', 'Underwriter Approved', 'Declined', 'Funded', 'Closed', 'Unknown'])(
+    'does not offer sign-off to an underwriter on status %s', async (status) => {
+      renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', { ...seededApplication, status }) }));
+      await screen.findByRole('region', { name: 'Borrower' });
+      expect(screen.queryByRole('region', { name: 'Sign off' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    },
+  );
+
+  it('does not offer sign-off to a broker on an AI Deliberated file', async () => {
+    renderAs('broker-1', 'broker', '/broker/applications/LN-1001', {
+      loanFiles: new FakeLoanFileService({ 'LN-1001': loanFile() }),
+    });
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('region', { name: 'Sign off' })).not.toBeInTheDocument();
+  });
+
+  it.each(['response first', 'listener first'])('preserves the receipt and lets only Firestore update the badge (%s)', async (order) => {
+    const user = userEvent.setup();
+    const loanFiles = new FakeLoanFileService({ 'LN-1001': loanFile() });
+    let resolve!: (value: DecisionResult) => void;
+    const signOff = vi.fn<DecisionService['signOff']>(() => new Promise((done) => { resolve = done; }));
+    renderAs('underwriter-1', 'underwriter', '/underwriter/applications/LN-1001', { loanFiles, decisions: { signOff } });
+    await screen.findByRole('region', { name: 'Sign off' });
+    await user.type(screen.getByRole('textbox', { name: /Justification/ }), 'Reviewed.');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
+    expect(screen.getByText('AI Deliberated')).toBeInTheDocument();
+    expect(screen.queryByText('Underwriter Approved', { exact: true })).not.toBeInTheDocument();
+
+    const liveUpdate = () => act(() => loanFiles.push(loanFile('LN-1001', {
+      ...seededApplication, status: 'Underwriter Approved', decision: { outcome: 'approved' },
+    })));
+    if (order === 'listener first') {
+      liveUpdate();
+      expect(screen.queryByRole('region', { name: 'Sign off' })).not.toBeInTheDocument();
+    }
+    await act(async () => resolve({ id: 'LN-1001', status: 'Underwriter Approved', decision: { outcome: 'approved' } }));
+    expect(screen.getByText(/Decision recorded: Approved/)).toBeInTheDocument();
+    if (order === 'response first') {
+      expect(screen.getByText('AI Deliberated')).toBeInTheDocument();
+      expect(screen.queryByText('Underwriter Approved', { exact: true })).not.toBeInTheDocument();
+      liveUpdate();
+    }
+    expect(screen.getByText('Underwriter Approved', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(/Decision recorded: Approved/)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Sign off' })).not.toBeInTheDocument();
+    expect(signOff).toHaveBeenCalledExactlyOnceWith('LN-1001', 'approved', 'Reviewed.');
+  });
+
   it.each([
     [100000, 62.5, false],
     [170000, 80, false],
