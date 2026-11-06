@@ -3,6 +3,7 @@ import XCTest
 /// AL-146: the loan note section on the status screen waits before minting, then fills in live when
 /// the mint writes `loanNote` and moves the application to Funded, as al-core's mint endpoint does.
 final class LoanNoteUITests: EndToEndTestCase {
+    private static let txHash = "0x8c1f6e2a9b3d4c5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6"
     func testTheLoanNoteFillsInWhenTheApplicationIsFunded() async throws {
         let borrower = try testBorrower
         let applicationID = try await borrower.seedSubmittedApplication()
@@ -23,7 +24,10 @@ final class LoanNoteUITests: EndToEndTestCase {
         XCTAssertTrue(tokenRow.waitForExistence(timeout: Self.timeout), "The loan note didn't appear")
         app.swipeUp()
         XCTAssertEqual(tokenRow.label, "Token ID, #42")
-        XCTAssertTrue(element("status.loanNote.transaction").exists, "The local chain shows the mint transaction")
+        let transaction = element("status.loanNote.transaction")
+        XCTAssertTrue(transaction.exists, "The local chain shows the mint transaction")
+        XCTAssertEqual(transaction.label, "Mint transaction")
+        XCTAssertEqual(transaction.value as? String, Self.txHash, "AL-285: the hash exactly as stored, with no hyphen added")
         keepScreenshot(named: "Funded, loan note minted")
     }
 
@@ -44,7 +48,7 @@ final class LoanNoteUITests: EndToEndTestCase {
             "loanNote": EmulatorBackend.value([
                 "tokenId": "42",
                 "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-                "txHash": "0x8c1f6e2a9b3d4c5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6",
+                "txHash": Self.txHash,
                 "auditHash": "0x" + String(repeating: "ab", count: 32),
                 "mintedAt": now,
             ]),
