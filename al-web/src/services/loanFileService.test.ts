@@ -163,6 +163,44 @@ describe('loan file application parser', () => {
   });
 });
 
+describe('loan note parser', () => {
+  const note = {
+    tokenId: '0', contractAddress: '0xAbCd', txHash: 'ABCDEF', auditHash: '0xFeDc',
+    network: 'localhost', mintedAt: Timestamp.fromDate(new Date('2026-10-01T12:00:00Z')),
+  };
+
+  it('reads the complete note and separate audit transaction without normalising hex strings', () => {
+    expect(toLoanFileApplication('a', { loanNote: note, auditTxHash: '0xAUDIT' })).toMatchObject({
+      loanNote: { ...note, mintedAt: note.mintedAt.toDate() }, auditTxHash: '0xAUDIT',
+    });
+  });
+
+  it('accepts old notes with no network and preserves unknown networks', () => {
+    expect(toLoanFileApplication('a', { loanNote: { ...note, network: undefined } }).loanNote?.network).toBeNull();
+    expect(toLoanFileApplication('a', { loanNote: { ...note, network: 'other-chain' } }).loanNote?.network).toBe('other-chain');
+  });
+
+  it.each([undefined, null, {}, [], 'note', 42])('returns null for absent or malformed notes (%j)', (loanNote) => {
+    expect(toLoanFileApplication('a', { loanNote }).loanNote).toBeNull();
+  });
+
+  it.each(['tokenId', 'contractAddress', 'txHash', 'auditHash', 'network'])(
+    'rejects blank or non-string %s', (field) => {
+      for (const value of ['', '   ', 12, {}]) {
+        expect(toLoanFileApplication('a', { loanNote: { ...note, [field]: value } }).loanNote).toBeNull();
+      }
+    },
+  );
+
+  it.each([undefined, null, '2026-10-01', 42])('rejects a missing or malformed mint timestamp (%j)', (mintedAt) => {
+    expect(toLoanFileApplication('a', { loanNote: { ...note, mintedAt } }).loanNote).toBeNull();
+  });
+
+  it.each([undefined, null, '', '  ', 42, {}, []])('leaves absent or malformed audit transactions null (%j)', (auditTxHash) => {
+    expect(toLoanFileApplication('a', { auditTxHash }).auditTxHash).toBeNull();
+  });
+});
+
 describe('loan file review parser', () => {
   it('reads the effective policy recommendation and filters non-string list entries', () => {
     expect(toLoanFileReview({ policyGate: {
