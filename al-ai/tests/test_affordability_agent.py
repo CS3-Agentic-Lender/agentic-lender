@@ -169,7 +169,7 @@ def test_a_reply_that_tries_to_approve_a_breach_is_retried_then_fails():
 def test_a_provider_outage_is_retried_with_a_pause_and_then_fails():
     pauses = []
     r = ag.run(FACTS, run_id="r", agent=OLLAMA, transport=Net((503, b"down")), env=ENV, sleep=pauses.append)
-    assert not r.ok and len(r.attempts) == 3 and pauses == [1.0, 2.0]
+    assert not r.ok and len(r.attempts) == 3 and pauses == [2.0, 8.0]
     assert all(a["outcome"] == "provider_error" for a in r.attempts)
 
 

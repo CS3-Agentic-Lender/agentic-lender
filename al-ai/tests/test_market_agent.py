@@ -280,7 +280,7 @@ def test_text_that_is_not_json_is_retried_once_then_fails_with_the_reason():
 def test_a_provider_outage_is_retried_with_a_pause_and_then_fails_without_a_report():
     pauses, net, store = [], Net((503, b"down")), ma.MemoryReportStore()
     r = ma.get_report(OFFICIAL, store=store, run_id="r", today=TODAY, agent=GEMINI, transport=net, env=ENV, sleep=pauses.append)
-    assert r.ok is False and len(r.attempts) == 3 and pauses == [1.0, 2.0] and store.get(ma.report_key(OFFICIAL, TODAY)) is None
+    assert r.ok is False and len(r.attempts) == 3 and pauses == [2.0, 8.0] and store.get(ma.report_key(OFFICIAL, TODAY)) is None
 
 
 def test_a_wrong_key_is_not_retried():

@@ -29,6 +29,8 @@ DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 class LlmError(Exception):
     """The call failed or the reply is not usable. The message never contains a key."""
 
+    retry_after: float | None = None  # seconds from the provider's Retry-After header, when it sent one
+
     status: int | None = None  # the HTTP status when the provider answered with an error, so a caller can tell a wrong key from an outage
 
 
@@ -209,6 +211,15 @@ def schema_errors(value, schema: dict, path: str = "$") -> list[str]:
     return errors
 
 
+def _retry_after(headers: dict) -> float | None:
+    """The Retry-After header in seconds. A date or anything else we cannot read counts as not sent."""
+    try:
+        seconds = float(headers.get("retry-after"))
+    except (TypeError, ValueError):
+        return None
+    return seconds if seconds >= 0 else None
+
+
 # ---- the one call ----------------------------------------------------------------------------------------------
 
 def complete_json(
@@ -248,6 +259,7 @@ def complete_json(
         if status != 200:
             failure = LlmError(clean(f"{provider} answered HTTP {status}: {raw.decode(errors='replace')[:300]}"))
             failure.status = status
+            failure.retry_after = _retry_after(response_headers)
             raise failure
         try:
             text, input_tokens, output_tokens, request_id = spec.read(response_headers, json.loads(raw))

@@ -25,7 +25,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
 from app import affordability_agent as aa
-from app import committee_input, policy_gate, serper, valuation_endpoint, valuation_model
+from app import committee_input, policy_gate, retry_policy, serper, valuation_endpoint, valuation_model
 from app import market_agent as ma
 from app import strategist_agent as sa
 from app import valuation_agent as va
@@ -61,6 +61,9 @@ class JsonFileRunStore:
     def path_for(self, run_id: str) -> Path:
         return self.folder / f"{run_id}.json"
 
+    def load(self, run_id: str) -> dict:
+        return json.loads(self.path_for(run_id).read_text())
+
     def save(self, record: dict) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         self.path_for(record["run_id"]).write_text(json.dumps(record, indent=1) + "\n")
@@ -80,6 +83,8 @@ class Deps:
     transport: clients.Transport = clients.urllib_transport
     env: dict | None = None
     sleep: Callable[[float], None] = time.sleep
+    budget_s: float = retry_policy.RUN_BUDGET_S  # the whole run's time budget (AL-139)
+    clock: Callable[[], float] = time.monotonic
 
     def agent(self, name: str) -> config.AgentModel | None:
         return (self.agents or {}).get(name)
@@ -100,6 +105,7 @@ class State(TypedDict, total=False):
     steps: Annotated[dict, _merge]  # step name -> that step's result
     failures: Annotated[list, add]  # {"step", "reason"}; the first one is the run's failed step
     node_order: Annotated[list, add]  # the nodes that actually ran
+    rerun_of: str | None  # the failed run this one repeats
     record: dict
 
 
@@ -111,12 +117,14 @@ def _failure(name: str, reason: str, evidence: dict | None = None) -> dict:
     }
 
 
-def _node(name: str, work: Callable[[State], dict]):
-    """Wrap a step: skip it once an earlier step has failed, and turn StepFailed into a failure on the record."""
+def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget):
+    """Wrap a step: skip it once an earlier step has failed or the run's time is up, and turn StepFailed into a failure on the record."""
 
     def run(state: State) -> dict:
         if state.get("failures"):
             return {}
+        if budget.remaining() <= 0:
+            return _failure(name, budget.reason())
         try:
             update = work(state)
         except StepFailed as exc:
@@ -138,6 +146,8 @@ def _llm_result(name: str, result: va.AgentResult, extra: dict | None = None) ->
 
 
 def build_graph(deps: Deps):
+    budget = retry_policy.Budget(deps.budget_s, deps.clock)  # one per run: the graph is built once for each run
+
     def validate(state: State) -> dict:
         try:
             application = committee_input.Application.model_validate(state["application"])
@@ -158,7 +168,7 @@ def build_graph(deps: Deps):
     def market(state: State) -> dict:
         got = ma.get_report(
             deps.official, store=deps.report_store, run_id=state["run_id"], today=deps.today, agent=deps.agent("market"),
-            search=deps.search, transport=deps.transport, env=deps.env, sleep=deps.sleep,
+            search=deps.search, transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget,
         )
         evidence = {"attempts": got.attempts, "searches": got.searches}
         if not got.ok:
@@ -207,12 +217,12 @@ def build_graph(deps: Deps):
 
     def affordability(state: State) -> dict:
         facts = state["steps"]["calculations"]["output"]["affordability_facts"]
-        result = aa.run(facts, run_id=state["run_id"], agent=deps.agent("affordability"), transport=deps.transport, env=deps.env, sleep=deps.sleep)
+        result = aa.run(facts, run_id=state["run_id"], agent=deps.agent("affordability"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget)
         return _llm_result("affordability", result)
 
     def valuation_agent(state: State) -> dict:
         facts = state["steps"]["calculations"]["output"]["valuation_facts"]
-        result = va.run(facts, run_id=state["run_id"], agent=deps.agent("valuation"), transport=deps.transport, env=deps.env, sleep=deps.sleep)
+        result = va.run(facts, run_id=state["run_id"], agent=deps.agent("valuation"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget)
         return _llm_result("valuation_agent", result)
 
     def strategist(state: State) -> dict:
@@ -230,7 +240,7 @@ def build_graph(deps: Deps):
             )
         except ValueError as exc:
             raise StepFailed(f"the strategist could not be given the reports: {exc}")
-        result = sa.run(facts, run_id=state["run_id"], agent=deps.agent("strategist"), transport=deps.transport, env=deps.env, sleep=deps.sleep)
+        result = sa.run(facts, run_id=state["run_id"], agent=deps.agent("strategist"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget)
         return _llm_result("strategist", result, {"memo": sa.render_memo(result.reply) if result.ok else None})
 
     def gate(state: State) -> dict:
@@ -256,7 +266,7 @@ def build_graph(deps: Deps):
         ("validate", validate), ("valuation_model", valuation_model_step), ("market", market), ("calculations", calculations),
         ("affordability", affordability), ("valuation_agent", valuation_agent), ("strategist", strategist), ("policy_gate", gate),
     ):
-        graph.add_node(name, _node(name, work))
+        graph.add_node(name, _node(name, work, budget))
     graph.add_node("save", save)
 
     graph.add_edge(START, "validate")
@@ -285,7 +295,7 @@ def make_record(state: State) -> dict:
     return {
         "run_id": state["run_id"],
         "application_id": state["application_id"],
-        "rerun_of": None,
+        "rerun_of": state.get("rerun_of"),
         "status": "failed" if failures else "complete",
         "started_at": state["started_at"],
         "finished_at": datetime.now(UTC).isoformat(),
@@ -299,22 +309,33 @@ def make_record(state: State) -> dict:
     }
 
 
-def run_committee(application: dict, *, deps: Deps, application_id: str, run_id: str | None = None) -> dict:
-    """Run the whole flow once and return the saved record."""
+def run_committee(application: dict, *, deps: Deps, application_id: str, run_id: str | None = None, rerun_of: str | None = None) -> dict:
+    """Run the whole flow once and return the saved record. `rerun_of` is the failed run this one repeats."""
     final = build_graph(deps).invoke({
         "run_id": run_id or str(uuid.uuid4()), "application_id": application_id, "application": application,
-        "started_at": datetime.now(UTC).isoformat(), "steps": {}, "failures": [], "node_order": [],
+        "started_at": datetime.now(UTC).isoformat(), "steps": {}, "failures": [], "node_order": [], "rerun_of": rerun_of,
     })
     return final["record"]
 
 
+def rerun_committee(failed: dict, application: dict, *, deps: Deps) -> dict:
+    """Run the committee again for a failed run: a new run ID, linked to the failed one. The failed record is left as it is.
+
+    The record holds no application figures, so the caller hands in the application again (the Firestore document, by application_id).
+    Only a failed run can be re-run: a complete one stands until an underwriter makes a decision on it.
+    """
+    if failed.get("status") != "failed":
+        raise ValueError(f"run {failed.get('run_id')} did not fail, so it cannot be re-run")
+    return run_committee(application, deps=deps, application_id=failed["application_id"], rerun_of=failed["run_id"])
+
+
 def main(argv: list[str]) -> int:
-    """cd al-ai && uv run python -m app.committee APPLICATION.json [--figures FILE] [--out FOLDER]"""
+    """cd al-ai && uv run python -m app.committee APPLICATION.json [--figures FILE] [--out FOLDER] [--rerun FAILED_RUN_ID]"""
     from app.llm import smoke
 
     args = list(argv)
     options = {}
-    for flag in ("--figures", "--out"):
+    for flag in ("--figures", "--out", "--rerun"):
         if flag in args:
             at = args.index(flag)
             options[flag] = args[at + 1]
@@ -330,7 +351,12 @@ def main(argv: list[str]) -> int:
         official=ma.OfficialFigures(as_of=figures["as_of"], figures=figures["figures"]),
         benchmark_rate_pct=float(env.get("BENCHMARK_RATE_PCT") or DEFAULT_BENCHMARK_RATE_PCT), env=env,
     )
-    record = run_committee(json.loads(path.read_text()), deps=deps, application_id=path.stem)
+    application = json.loads(path.read_text())
+    if "--rerun" in options:
+        record = rerun_committee(deps.store.load(options["--rerun"]), application, deps=deps)
+        print(f"re-run of {record['rerun_of']}")
+    else:
+        record = run_committee(application, deps=deps, application_id=path.stem)
     print(f"{record['status']} run {record['run_id']}: {record['original_recommendation']} -> {record['effective_recommendation']}")
     if record["failed_step"]:
         print(f"failed at {record['failed_step']}: {record['failure_reason']}")
