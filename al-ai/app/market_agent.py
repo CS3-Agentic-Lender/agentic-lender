@@ -218,12 +218,13 @@ def run(
     env: dict | None = None,
     sleep: Callable[[float], None] = time.sleep,
     budget: retry_policy.Budget | None = None,
+    context: dict | None = None,
 ) -> AgentResult:
     """Run the step with the model agents.json names for the market agent. Never calls any other model."""
     agent = agent or config.load().agent("market")
     return agent_loop.run_step(
         log=log, agent=agent, prompt=build_prompt(facts), system=SYSTEM, schema=SCHEMA, check=lambda reply: check_reply(reply, facts),
-        run_id=run_id, prompt_version=PROMPT_VERSION, context={"search_links": [r["url"] for r in facts["search_results"]]},
+        run_id=run_id, prompt_version=PROMPT_VERSION, context={**(context or {}), "search_links": [r["url"] for r in facts["search_results"]]},
         transport=transport, env=env, sleep=sleep, budget=budget,
     )
 
@@ -274,6 +275,7 @@ def get_report(
     env: dict | None = None,
     sleep: Callable[[float], None] = time.sleep,
     budget: retry_policy.Budget | None = None,
+    context: dict | None = None,
 ) -> MarketResult:
     """The market view for this run: the day's report if there is one for these official figures, otherwise a new one."""
     today = today or date.today().isoformat()
@@ -294,7 +296,7 @@ def get_report(
     if not facts["search_results"]:
         return MarketResult(False, None, None, "the searches returned no results to cite", searches=searches)
 
-    got = run(facts, run_id=run_id, agent=agent, transport=transport, env=env, sleep=sleep, budget=budget)
+    got = run(facts, run_id=run_id, agent=agent, transport=transport, env=env, sleep=sleep, budget=budget, context=context)
     if not got.ok:
         return MarketResult(False, None, None, got.failure_reason, got.attempts, searches)
     used = got.attempts[-1]

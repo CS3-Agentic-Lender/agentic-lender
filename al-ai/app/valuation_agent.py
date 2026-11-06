@@ -197,8 +197,11 @@ def run(
     env: dict | None = None,
     sleep: Callable[[float], None] = time.sleep,
     budget: retry_policy.Budget | None = None,
+    context: dict | None = None,
 ) -> AgentResult:
-    """Run the step with the model agents.json names for the valuation agent. Never calls any other model."""
+    """Run the step with the model agents.json names for the valuation agent. Never calls any other model.
+
+    `context` (run_id, application_id, broker_id) is added to every logged attempt, the same as the shared retry loop does."""
     agent = agent or config.load().agent("valuation")
     prompt = build_prompt(facts)
     attempts: list[dict] = []
@@ -211,7 +214,7 @@ def run(
         t0 = time.monotonic()
         attempt = {
             "run_id": run_id, "attempt": len(attempts) + 1, "provider": agent.provider, "model": agent.model,
-            "prompt_version": PROMPT_VERSION, "started_at": datetime.now(UTC).isoformat(), "raw_reply": None, "parsed_reply": None,
+            "prompt_version": PROMPT_VERSION, "started_at": datetime.now(UTC).isoformat(), **(context or {}), "raw_reply": None, "parsed_reply": None,
             "request_id": None, "input_tokens": None, "output_tokens": None, "outcome": None, "error": None,
         }
         retry, retry_after = False, None

@@ -229,6 +229,13 @@ def test_a_run_searches_then_asks_the_configured_model_once_and_stores_a_report(
     assert store.get(ma.report_key(OFFICIAL, TODAY)) == r.report
 
 
+def test_the_context_a_caller_gives_is_logged_on_every_attempt_beside_the_search_links():
+    ids = {"run_id": "run-1", "application_id": "app-9", "broker_id": "broker-9"}
+    r = go(Net((503, b"down"), GOOD), context=ids)
+    assert r.ok and len(r.attempts) == 2
+    assert all(a["application_id"] == "app-9" and a["broker_id"] == "broker-9" and a["search_links"] for a in r.attempts)
+
+
 def test_the_model_is_sent_the_data_and_no_borrower_details():
     net = Net()
     go(net)

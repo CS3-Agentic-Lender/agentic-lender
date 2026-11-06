@@ -148,12 +148,18 @@ def _llm_result(name: str, result: va.AgentResult, extra: dict | None = None) ->
 def build_graph(deps: Deps):
     budget = retry_policy.Budget(deps.budget_s, deps.clock)  # one per run: the graph is built once for each run
 
+    def ids(state: State) -> dict:
+        """The three IDs every logged call carries, under the names the AI call log reads."""
+        return {"run_id": state["run_id"], "application_id": state["application_id"], "broker_id": state["inputs"].broker_id}
+
     def validate(state: State) -> dict:
         try:
             application = committee_input.Application.model_validate(state["application"])
             application.valuation_request()  # a county, property type or BER the model does not know fails here, before any model call
         except ValidationError as exc:
             raise StepFailed(f"the application is not valid: {committee_input.problems(exc)}")
+        if not application.broker_id:  # every call is logged against a broker, so a run without one never starts
+            raise StepFailed("the application has no brokerId, so the run cannot be logged against a broker")
         return {"inputs": application, "steps": {"validate": {"ok": True, "output": {"loan_type": application.loan_type}}}}
 
     def valuation_model_step(state: State) -> dict:
@@ -162,13 +168,13 @@ def build_graph(deps: Deps):
         except valuation_model.ValuationUnavailable as exc:
             raise StepFailed(str(exc))
         return {"steps": {"valuation_model": {
-            "ok": True, "model_version": response.model_version, "output": response.model_dump(), "breakdown_error": breakdown_error,
+            "ok": True, **ids(state), "model_version": response.model_version, "output": response.model_dump(), "breakdown_error": breakdown_error,
         }}}
 
     def market(state: State) -> dict:
         got = ma.get_report(
             deps.official, store=deps.report_store, run_id=state["run_id"], today=deps.today, agent=deps.agent("market"),
-            search=deps.search, transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget,
+            search=deps.search, transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state),
         )
         evidence = {"attempts": got.attempts, "searches": got.searches}
         if not got.ok:
@@ -217,12 +223,12 @@ def build_graph(deps: Deps):
 
     def affordability(state: State) -> dict:
         facts = state["steps"]["calculations"]["output"]["affordability_facts"]
-        result = aa.run(facts, run_id=state["run_id"], agent=deps.agent("affordability"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget)
+        result = aa.run(facts, run_id=state["run_id"], agent=deps.agent("affordability"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state))
         return _llm_result("affordability", result)
 
     def valuation_agent(state: State) -> dict:
         facts = state["steps"]["calculations"]["output"]["valuation_facts"]
-        result = va.run(facts, run_id=state["run_id"], agent=deps.agent("valuation"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget)
+        result = va.run(facts, run_id=state["run_id"], agent=deps.agent("valuation"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state))
         return _llm_result("valuation_agent", result)
 
     def strategist(state: State) -> dict:
@@ -240,7 +246,7 @@ def build_graph(deps: Deps):
             )
         except ValueError as exc:
             raise StepFailed(f"the strategist could not be given the reports: {exc}")
-        result = sa.run(facts, run_id=state["run_id"], agent=deps.agent("strategist"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget)
+        result = sa.run(facts, run_id=state["run_id"], agent=deps.agent("strategist"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state))
         return _llm_result("strategist", result, {"memo": sa.render_memo(result.reply) if result.ok else None})
 
     def gate(state: State) -> dict:
@@ -288,13 +294,16 @@ def make_record(state: State) -> dict:
     # The two agents run side by side and may both fail: the earlier step in the flow is the one reported, whichever finished first.
     failures = sorted(state.get("failures", []), key=lambda failure: NODE_ORDER.index(failure["step"]))
     gate = steps.get("policy_gate", {}).get("output")
+    inputs = state.get("inputs")
+    broker_id = inputs.broker_id if inputs else None
     calls = [
-        {"id": f"{state['run_id']}-{name}-{attempt['attempt']}", "step": name}
+        {"id": f"{state['run_id']}-{name}-{attempt['attempt']}", "step": name, "application_id": state["application_id"], "broker_id": broker_id}
         for name, step in steps.items() for attempt in step.get("attempts", [])
     ]
     return {
         "run_id": state["run_id"],
         "application_id": state["application_id"],
+        "broker_id": broker_id,
         "rerun_of": state.get("rerun_of"),
         "status": "failed" if failures else "complete",
         "started_at": state["started_at"],
