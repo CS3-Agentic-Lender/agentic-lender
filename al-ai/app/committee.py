@@ -338,6 +338,16 @@ def rerun_committee(failed: dict, application: dict, *, deps: Deps) -> dict:
     return run_committee(application, deps=deps, application_id=failed["application_id"], rerun_of=failed["run_id"])
 
 
+def local_deps(store: RunStore, env: dict, figures_path: Path = SAMPLES / "official-figures.json") -> Deps:
+    """The real providers, the stand-in rate and the sample official figures: what the runner and the Firestore listener use until the ECB rate is wired in."""
+    figures = json.loads(Path(figures_path).read_text())
+    return Deps(
+        store=store, report_store=ma.MemoryReportStore(),
+        official=ma.OfficialFigures(as_of=figures["as_of"], figures=figures["figures"]),
+        benchmark_rate_pct=float(env.get("BENCHMARK_RATE_PCT") or DEFAULT_BENCHMARK_RATE_PCT), env=env,
+    )
+
+
 def main(argv: list[str]) -> int:
     """cd al-ai && uv run python -m app.committee APPLICATION.json [--figures FILE] [--out FOLDER] [--rerun FAILED_RUN_ID]"""
     from app.llm import smoke
@@ -353,13 +363,7 @@ def main(argv: list[str]) -> int:
         print(main.__doc__)
         return 2
     path = Path(args[0])
-    env = smoke.load_env()
-    figures = json.loads(Path(options.get("--figures", SAMPLES / "official-figures.json")).read_text())
-    deps = Deps(
-        store=JsonFileRunStore(Path(options.get("--out", RUNS_FOLDER))), report_store=ma.MemoryReportStore(),
-        official=ma.OfficialFigures(as_of=figures["as_of"], figures=figures["figures"]),
-        benchmark_rate_pct=float(env.get("BENCHMARK_RATE_PCT") or DEFAULT_BENCHMARK_RATE_PCT), env=env,
-    )
+    deps = local_deps(JsonFileRunStore(Path(options.get("--out", RUNS_FOLDER))), smoke.load_env(), Path(options.get("--figures", SAMPLES / "official-figures.json")))
     application = json.loads(path.read_text())
     if "--rerun" in options:
         record = rerun_committee(deps.store.load(options["--rerun"]), application, deps=deps)
