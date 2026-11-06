@@ -356,6 +356,22 @@ describe('loan file minting', () => {
     expect(mint).not.toHaveBeenCalled();
   });
 
+  it.each(['underwriter', 'broker'] as const)('offers the audit pack downloads to the %s once the note is stored', async (role) => {
+    const { push } = setup('Underwriter Approved', role);
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('region', { name: 'Audit pack' })).not.toBeInTheDocument();
+
+    push({ status: 'Funded', loanNote: storedNote });
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeInTheDocument();
+  });
+
+  it.each(['AI Deliberated', 'Declined'])('offers no audit pack on %s', async (status) => {
+    setup(status);
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('region', { name: 'Audit pack' })).not.toBeInTheDocument();
+  });
+
   it('does not start a mint when an approval resolves after leaving the file', async () => {
     const { mint, signOff, unmount } = setup();
     let resolve!: (result: DecisionResult) => void;

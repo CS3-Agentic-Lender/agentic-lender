@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
+import { AuditPackActions } from '../../components/lending/AuditPackActions';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
@@ -359,7 +360,10 @@ function ReadyLoanFile({ application, review, viewer }: {
         </section>
       ) : null}
       {application.loanNote ? (
-        <LoanNotePanel auditTxHash={application.auditTxHash} note={application.loanNote} />
+        <>
+          <LoanNotePanel auditTxHash={application.auditTxHash} note={application.loanNote} />
+          <AuditPackActions applicationId={application.id} />
+        </>
       ) : null}
     </>
   );
