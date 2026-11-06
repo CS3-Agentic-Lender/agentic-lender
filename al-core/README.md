@@ -262,6 +262,12 @@ End-to-end check against the emulators (API running as above, from `al-core/`):
 uv run python scripts/smoke_me.py
 ```
 
+The close endpoint has its own end-to-end check against the emulators **and** a local chain (see "The loan note and the mint" below for starting the node and the chain settings). It mints the seeded `app-approved`, closes it, checks Firestore and the contract agree, and closes the seeded Declined application; 16 checks. It changes the emulator and the node, so to run it again re-import `seed-data/` and redeploy:
+
+```
+uv run python scripts/smoke_close.py
+```
+
 ## Browser origins (CORS)
 
 Only the portal's origin may call al-core from a browser (API design doc, section 5). The allowed origins come from the `CORS_ALLOWED_ORIGINS` setting, comma separated, the same name al-ai uses (`app/cors.py`):
