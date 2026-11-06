@@ -34,4 +34,3 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 - Step 4: Start application, then submit, showed "Application submitted" with Ref 0uG43XL5; Firestore has `0uG43XL5RqWwoqvGCu65` with `loanType: heloc`, status Applied, the €150,000 balance, and no deposit or asking price.
 - Step 5: the HELOC screens say "Estimated value of your home", never asking price.
 - The estimate (€262k) is lower than the property check's €273k for the same house because the HELOC check doesn't take an Eircode.
-<!-- TODO (Ibrahima): rewrite these notes in your own words. -->

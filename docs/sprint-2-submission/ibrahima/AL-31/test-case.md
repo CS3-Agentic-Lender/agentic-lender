@@ -31,4 +31,3 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 - Step 2: the explanations are in the "What do these mean?" sheet. The likelihood one runs to about four lines rather than one; still one short plain explanation.
 - Step 4: changed `dtiPct` 50.8 → 42.0 and `approvalLikelihood` Low → Medium in the emulator; the tiles and the open sheet updated within 5 seconds with no refresh. Put back afterwards. A change made by the backend itself (an edit or a committee re-run) is tested once AL-63 lands.
 - Also seen on a HELOC (`app-approved`): the first tile reads Combined LTV 57.8%, limit 80%, instead of the purchase LTV.
-<!-- TODO (Ibrahima): rewrite these notes in your own words. -->

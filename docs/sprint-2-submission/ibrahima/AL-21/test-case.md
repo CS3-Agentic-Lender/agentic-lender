@@ -31,4 +31,3 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 - Step 3: Home shows the newest-created application, so Ben's declined one (`app-declined`) was brought forward by setting its `createdAt` to 6 Oct, then put back to 20 Sep. That edit is why its Draft date read 6 Oct.
 - Step 4: turned the Mac's Wi-Fi off with the status screen open; the Offline banner showed over the last status and went when Wi-Fi came back.
 - Step 5: compared the app's status badges with the portal's (signed in as bob@test.com on localhost:5173); names and colours match.
-<!-- TODO (Ibrahima): rewrite these notes in your own words. -->

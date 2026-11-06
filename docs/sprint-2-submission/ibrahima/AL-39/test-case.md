@@ -31,4 +31,3 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 - Minted with POST /core/applications/app-approved/mint as uma@test.com (201, status Funded). With the status screen open, the note appeared within 5 seconds: token #1, €60,000, 4.0%, 15 years, minted 6 Nov 2026, and the timeline moved to Funded.
 - On the local chain there is no explorer link, so the full mint transaction hash shows (0x930a7bc4…0144c2), with no stray hyphen where it wraps.
 - Read back from the contract with noteOf(1): principal 6,000,000 cents, 400 bps, 180 months, minted 2026-11-06 22:36:29 UTC, status Active. All match the app. The mint transaction is in block 4.
-<!-- TODO (Ibrahima): rewrite these notes in your own words. -->

@@ -30,4 +30,3 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 - Step 1, Google: Continue with Google with a new emulator account opened Your details ("Signed in as newgoogle@test.com") with Sign out under Continue.
 - Step 2: Sign out went back to Welcome both times. No profile was saved: al-core got only GET /core/me (404) during the run and no request to create one, and `noprofile@test.com` has no users document in Firestore.
 - Steps 3 and 4 (a failed sign-out, and Sign out being off while Continue saves) were checked by the unit tests named above, which passed in the run above; they can't be made to happen by hand on the emulators.
-<!-- TODO (Ibrahima): rewrite these notes in your own words. -->

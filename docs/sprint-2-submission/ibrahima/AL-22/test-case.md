@@ -33,4 +33,3 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 - Step 5: floor area 0 and no county showed an error under each field and Check value stayed off. With al-ai stopped, the app showed "We couldn't value this property right now. Try again in a moment." with a Try again button (the criterion says Retry); after al-ai was started again, Try again gave the estimate.
 - Step 1: the form has county, Eircode, size in m², bedrooms, property type, BER and an optional asking price. The BER picker lists "I don't know", the new scale (A0, A to G) and the old one (A1 onwards).
 - Seen while testing: when the screen is scrolled, the large title slides under the status bar and the back button overlaps it (also on the application form). Cosmetic.
-<!-- TODO (Ibrahima): rewrite these notes in your own words. -->

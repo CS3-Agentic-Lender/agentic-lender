@@ -31,4 +31,3 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 - Step 3: with al-core stopped, "Alpha 123" showed greyed with "Not sent. Tap to try again". After al-core was started, tapping it sent it, and Firestore has it once (no duplicate).
 - Step 4: signed in as ben@test.com, reading Alice's messages straight from Firestore is refused by the security rules (PERMISSION_DENIED), and al-core answers 404 to his unread count and to sending on her thread.
 - The criterion's wording is "Not sent: tap to try again"; the app says "Not sent. Tap to try again".
-<!-- TODO (Ibrahima): rewrite these notes in your own words. -->
