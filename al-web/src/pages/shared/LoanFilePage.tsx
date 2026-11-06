@@ -4,6 +4,7 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
+import { MortgageCollateral } from '../../components/lending/MortgageCollateral';
 import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
 import {
@@ -154,15 +155,6 @@ function NotReady({ state, viewer }: { state: Exclude<LoanFileState, { status: '
   );
 }
 
-function Placeholder({ title, detail }: { title: string; detail: string }) {
-  return (
-    <section aria-label={title} className={`${sectionClass} border-dashed`}>
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="mt-3 text-sm leading-6 text-muted">{detail}</p>
-    </section>
-  );
-}
-
 interface LoanFileProps {
   application: LoanFileApplication;
   review: LoanFileReview;
@@ -237,10 +229,7 @@ function LoanFile({ application, review }: LoanFileProps) {
           {heloc ? (
             <HelocCollateral application={application} />
           ) : (
-            <Placeholder
-              detail="The collateral record for this property is not shown on the loan file yet."
-              title="Collateral"
-            />
+            <MortgageCollateral application={application} review={review} />
           )}
           <ValuationBreakdown application={application} review={review} />
         </div>
