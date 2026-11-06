@@ -57,6 +57,15 @@ final class AffordabilityViewModelTests: XCTestCase {
         XCTAssertEqual(model.form.income, "60,000")
     }
 
+    func testStoresTheTypedAmountEvenWhenTheScreenStillShowsTheOldGrouping() {
+        // AL-286: typing fast could leave "21,00000" on screen; the stored amount was still the number typed.
+        let model = makeModel()
+
+        model.updateAmount(.income, to: "21,00000")
+
+        XCTAssertEqual(model.form.income, "2,100,000")
+    }
+
     func testTermStepsByOneYearWithinFiveToThirtyFive() {
         let model = makeModel()
 

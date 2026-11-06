@@ -28,8 +28,28 @@ final class EuroAmountFieldUITests: EndToEndTestCase {
         tap("affordability.calculate")
         tap("affordabilityResult.startApplication")
         type("2100000", into: "application.loanAmount")
+        XCTAssertEqual(value(of: "application.loanAmount"), "2,100,000", "grouped after typing at full speed")
         element("application.loanAmount").typeText(deleteKey)
         XCTAssertEqual(value(of: "application.loanAmount"), "210,000")
+    }
+
+    /// AL-286: typing a whole amount at full speed ends grouped in the two forms the test above doesn't reach.
+    func testTypingFastGroupsThePropertyCheckAskingPrice() throws {
+        try signIn()
+        tap("home.propertyCheck")
+        tap("properties.checkEmpty")
+
+        type("2100000", into: "propertyCheck.askingPrice")
+        XCTAssertEqual(value(of: "propertyCheck.askingPrice"), "2,100,000")
+    }
+
+    func testTypingFastGroupsTheHELOCMortgageBalance() throws {
+        try signIn()
+        tap("home.affordability")
+        tap("loanType.heloc")
+
+        type("2100000", into: "helocCheck.mortgageBalance")
+        XCTAssertEqual(value(of: "helocCheck.mortgageBalance"), "2,100,000")
     }
 
     private func value(of identifier: String) -> String? {
