@@ -35,6 +35,9 @@ export function PortalHeader() {
             <NavLink className={navLinkClass} to="/broker/clients">
               My clients
             </NavLink>
+            <NavLink className={navLinkClass} to="/broker/messages">
+              Messages
+            </NavLink>
           </nav>
         ) : null}
         {role === 'underwriter' ? (
