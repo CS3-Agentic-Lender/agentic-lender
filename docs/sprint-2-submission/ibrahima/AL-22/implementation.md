@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Implemented the property check flow: the property form, the valuation call, the Fair or Over-priced result, saving checks and picking one in the application form, and a navigation fix.
 
 ## Pull requests: iOS app
 

@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Added the Sign out option to Your details.
 
 ## Pull requests: iOS app
 

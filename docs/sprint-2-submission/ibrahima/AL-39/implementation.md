@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Added the minted loan note to the status screen and fixed how the transaction hash is shown.
 
 ## Pull requests: iOS app
 

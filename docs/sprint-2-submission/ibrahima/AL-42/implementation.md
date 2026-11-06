@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Implemented messaging with the broker: a live thread, sending messages, and marking replies as read through al-core.
 
 ## Pull requests: iOS app
 

@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Implemented the mortgage-or-HELOC choice, the HELOC check with its credit line, and the HELOC application, plus fixes to how euro amounts are formatted.
 
 ## Pull requests: iOS app
 

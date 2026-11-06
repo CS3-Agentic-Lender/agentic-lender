@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Added the LTV, DTI and approval likelihood figures to the status screen.
 
 ## Pull requests: iOS app
 

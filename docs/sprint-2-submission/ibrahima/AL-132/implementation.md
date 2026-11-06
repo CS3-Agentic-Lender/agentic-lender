@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Added a breakdown to the property valuation result showing how each detail moved the estimate.
 
 ## Pull requests: iOS app
 

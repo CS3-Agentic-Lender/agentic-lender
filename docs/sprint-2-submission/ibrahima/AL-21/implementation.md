@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- TODO (Ibrahima): one or two lines in your own words. -->
+Completed the application status journey: the status timeline, live updates, offline handling and the application card on Home, plus fixes for the network reconnect and how the reference is shown.
 
 ## Pull requests: iOS app
 
