@@ -102,3 +102,11 @@ def test_a_query_is_logged_with_the_run_and_prompt_version_that_asked_for_it(cap
     tied, loose = (json.loads(r.message) for r in caplog.records)
     assert tied["run_id"] == "run-7" and tied["prompt_version"] == "market-agent-v1"
     assert loose["run_id"] is None and loose["prompt_version"] is None
+
+
+def test_a_search_logs_the_run_application_and_broker_ids_it_is_given(caplog):
+    ids = {"run_id": "run-1", "application_id": "app-9", "broker_id": "broker-9"}
+    with caplog.at_level(logging.INFO, logger="al-ai.serper"):
+        serper.search("ecb rate", run_id="run-1", context=ids, transport=Net(raw=body(item())), env=ENV)
+    entry = json.loads(caplog.records[-1].getMessage())
+    assert {key: entry[key] for key in ids} == ids and entry["outcome"] == "ok"

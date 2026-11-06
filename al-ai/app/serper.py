@@ -64,16 +64,18 @@ def search(
     transport: clients.Transport = clients.urllib_transport,
     env: dict | None = None,
     timeout: float = TIMEOUT_S,
+    context: dict | None = None,
 ) -> SearchResult:
     """One Serper search. `period` is Google's recency filter: d day, w week, m month, y year. Raises clients.LlmError if it fails.
 
-    `run_id` and `prompt_version` are only logged, so a search can be tied to the run and the prompt that used it.
+    `run_id` and `prompt_version` are only logged, so a search can be tied to the run and the prompt that used it. `context`
+    (run_id, application_id, broker_id) is added to the logged entry, the same as a model attempt carries it.
     """
     env = os.environ if env is None else env
     key = env.get(KEY_NAME, "")
     if not key:
         raise clients.MissingKey(f"{KEY_NAME} is not set")
-    entry = {"search": query, "run_id": run_id, "prompt_version": prompt_version, "outcome": None, "links": []}
+    entry = {"search": query, "run_id": run_id, "prompt_version": prompt_version, **(context or {}), "outcome": None, "links": []}
     started = time.monotonic()
     try:
         headers = {"X-API-KEY": key, "Content-Type": "application/json", "User-Agent": clients.USER_AGENT}

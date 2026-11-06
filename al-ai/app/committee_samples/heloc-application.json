@@ -1,5 +1,6 @@
 {
   "loanType": "heloc",
+  "brokerId": "broker-1",
   "grossIncomeEur": 100000,
   "monthlyDebtsEur": 300,
   "monthlyTakeHomeEur": 5800,

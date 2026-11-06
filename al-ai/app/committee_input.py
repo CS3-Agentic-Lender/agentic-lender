@@ -34,6 +34,7 @@ class Application(BaseModel):
     loan_amount_eur: float = Field(alias="loanAmountEur", gt=0)  # a HELOC's requested credit limit
     first_time_buyer: bool | None = Field(default=None, alias="firstTimeBuyer")
     existing_mortgage_balance_eur: float | None = Field(default=None, alias="existingMortgageBalanceEur", ge=0)
+    broker_id: str | None = Field(default=None, alias="brokerId")  # the assigned broker; the committee flow refuses an application without one
     property: Property
 
     @model_validator(mode="after")

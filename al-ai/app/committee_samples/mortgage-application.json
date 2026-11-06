@@ -1,5 +1,6 @@
 {
   "loanType": "mortgage",
+  "brokerId": "broker-1",
   "grossIncomeEur": 95000,
   "monthlyDebtsEur": 250,
   "monthlyTakeHomeEur": 5500,

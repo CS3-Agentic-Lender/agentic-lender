@@ -229,6 +229,13 @@ def test_a_run_searches_then_asks_the_configured_model_once_and_stores_a_report(
     assert store.get(ma.report_key(OFFICIAL, TODAY)) == r.report
 
 
+def test_the_context_a_caller_gives_is_logged_on_every_attempt_beside_the_search_links():
+    ids = {"run_id": "run-1", "application_id": "app-9", "broker_id": "broker-9"}
+    r = go(Net((503, b"down"), GOOD), context=ids)
+    assert r.ok and len(r.attempts) == 2
+    assert all(a["application_id"] == "app-9" and a["broker_id"] == "broker-9" and a["search_links"] for a in r.attempts)
+
+
 def test_the_model_is_sent_the_data_and_no_borrower_details():
     net = Net()
     go(net)
@@ -343,3 +350,12 @@ def test_live_a_real_search_and_the_configured_model_make_a_checked_report():
     r = ma.get_report(ma.made_up_official_figures(), store=ma.MemoryReportStore(), run_id="live-test", env=env)
     assert r.ok, r.failure_reason
     assert r.report["outlook"] in ma.OUTLOOKS and r.report["sources"]
+
+
+def test_every_search_is_recorded_with_the_ids_it_ran_under_whether_it_worked_or_not():
+    ids = {"run_id": "run-1", "application_id": "app-9", "broker_id": "broker-9"}
+    good = go(Net(), context=ids)
+    assert good.ok and len(good.searches) == len(ma.QUERIES)
+    assert all(s["application_id"] == "app-9" and s["broker_id"] == "broker-9" and s["run_id"] == "run-1" for s in good.searches)
+    bad = go(Net(serper_status=500), context=ids)
+    assert not bad.ok and bad.searches[0]["outcome"] == "error" and bad.searches[0]["broker_id"] == "broker-9"
