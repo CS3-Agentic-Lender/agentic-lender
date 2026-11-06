@@ -97,11 +97,22 @@ export type ValuationDetail =
       discrepancyEur: number | null;
     };
 
+export const AI_RECOMMENDATIONS = ['Approve', 'Conditionally Approve', 'Decline'] as const;
+export type AiRecommendation = (typeof AI_RECOMMENDATIONS)[number];
+
+export interface PolicyGate {
+  effective: AiRecommendation | null;
+  original: AiRecommendation | null;
+  conditions: string[];
+  breaches: string[];
+}
+
 export type LoanFileReview =
   | { state: 'pending' }
   | {
       state: 'available';
       riskTier: RiskTier | null;
+      policyGate: PolicyGate | null;
       dtiBreakdown: DtiBreakdown;
       stressTest: StressTest;
       valuation: ValuationDetail;
@@ -254,12 +265,29 @@ function readValuationDetail(review: DocumentData): ValuationDetail {
   };
 }
 
+function readPolicyGate(value: unknown): PolicyGate | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const gate = readMap(value);
+  const strings = (list: unknown): string[] =>
+    Array.isArray(list) ? list.filter((entry): entry is string => typeof entry === 'string') : [];
+
+  return {
+    effective: readOneOf(gate.effective, AI_RECOMMENDATIONS),
+    original: readOneOf(gate.original, AI_RECOMMENDATIONS),
+    conditions: strings(gate.conditions),
+    breaches: strings(gate.breaches),
+  };
+}
+
 export function toLoanFileReview(data: DocumentData): LoanFileReview {
   const breakdown = readMap(data.dtiBreakdown);
 
   return {
     state: 'available',
     riskTier: readOneOf(data.riskTier, RISK_TIERS),
+    policyGate: readPolicyGate(data.policyGate),
     dtiBreakdown: {
       incomeMonthlyEur: readAmount(breakdown.incomeMonthlyEur),
       takeHomeMonthlyEur: readAmount(breakdown.takeHomeMonthlyEur),
