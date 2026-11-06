@@ -350,3 +350,12 @@ def test_live_a_real_search_and_the_configured_model_make_a_checked_report():
     r = ma.get_report(ma.made_up_official_figures(), store=ma.MemoryReportStore(), run_id="live-test", env=env)
     assert r.ok, r.failure_reason
     assert r.report["outlook"] in ma.OUTLOOKS and r.report["sources"]
+
+
+def test_every_search_is_recorded_with_the_ids_it_ran_under_whether_it_worked_or_not():
+    ids = {"run_id": "run-1", "application_id": "app-9", "broker_id": "broker-9"}
+    good = go(Net(), context=ids)
+    assert good.ok and len(good.searches) == len(ma.QUERIES)
+    assert all(s["application_id"] == "app-9" and s["broker_id"] == "broker-9" and s["run_id"] == "run-1" for s in good.searches)
+    bad = go(Net(serper_status=500), context=ids)
+    assert not bad.ok and bad.searches[0]["outcome"] == "error" and bad.searches[0]["broker_id"] == "broker-9"

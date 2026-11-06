@@ -287,10 +287,10 @@ def get_report(
     results, searches = [], []
     for query in QUERIES:
         try:
-            results.append(search(query, run_id=run_id, prompt_version=PROMPT_VERSION, num=RESULTS_PER_QUERY, transport=transport, env=env))
-            searches.append({"query": query, "outcome": "ok", "links": [h.link for h in results[-1].hits]})
+            results.append(search(query, run_id=run_id, prompt_version=PROMPT_VERSION, num=RESULTS_PER_QUERY, transport=transport, env=env, context=context))
+            searches.append({"query": query, **(context or {}), "outcome": "ok", "links": [h.link for h in results[-1].hits]})
         except clients.LlmError as exc:  # no search means no report: nothing is made up
-            searches.append({"query": query, "outcome": "error", "error": str(exc)})
+            searches.append({"query": query, **(context or {}), "outcome": "error", "error": str(exc)})
             return MarketResult(False, None, None, f"search failed: {exc}", searches=searches)
     facts = build_facts(official, results, today=today)
     if not facts["search_results"]:

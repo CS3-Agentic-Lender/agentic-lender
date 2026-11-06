@@ -73,3 +73,23 @@ def test_the_heloc_sample_has_a_broker_too():
     record, _, _ = tc.go(tc.HELOC)
     assert record["status"] == "complete"
     assert all(attempt["broker_id"] == tc.HELOC["brokerId"] for _, attempt in attempts_of(record))
+
+
+def test_the_market_step_hands_the_ids_to_each_web_search():
+    from app import market_agent as ma
+    from app import serper
+
+    seen = []
+
+    def fake_search(query, **kw):
+        seen.append(kw.get("context"))
+        return serper.SearchResult(query, (serper.Hit("ECB holds", "https://ecb.example/hold", "Rates held.", "Oct 23, 2026"),), 0.1, 1)
+
+    deps = committee.Deps(
+        store=tc.MemoryRunStore(), report_store=ma.MemoryReportStore(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=lambda s: None, search=fake_search,
+    )
+    record = committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1")  # the fake Gemini cannot write a report; the searches still ran
+    expected = {"run_id": record["run_id"], "application_id": "app-1", "broker_id": tc.MORTGAGE["brokerId"]}
+    assert seen and all(context == expected for context in seen)
+    assert all({key: s[key] for key in expected} == expected for s in record["steps"]["market"].get("searches", []))
