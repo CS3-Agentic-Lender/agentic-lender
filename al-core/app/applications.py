@@ -121,6 +121,8 @@ class LoanNoteOut(BaseModel):
     audit_hash: str | None = None
     network: str | None = None  # the chain the note is on, such as localhost; null on notes made before it was saved
     minted_at: str | None = None
+    closed_at: str | None = None  # when the note was closed on the chain; null until the application is closed
+    close_tx_hash: str | None = None
 
 
 class ApplicationOut(BaseModel):
@@ -283,6 +285,8 @@ def _loan_note_out(note: dict | None) -> dict | None:
         "audit_hash": note.get("auditHash"),
         "network": note.get("network"),
         "minted_at": _iso(note.get("mintedAt")),
+        "closed_at": _iso(note.get("closedAt")),
+        "close_tx_hash": note.get("closeTxHash"),
     }
 
 

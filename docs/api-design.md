@@ -248,6 +248,26 @@ Endpoints do not substitute made-up numbers when something fails. A missing or s
 }
 ```
 
+`POST /core/applications/{id}/close` has no body and returns `200`, whether the application is closed now or was before (calling it again sends no transaction and returns the same body). It works on `Funded` and `Declined` and moves the status to `Closed`. A `Funded` one has its loan note closed on the chain first, and the response shows when and how:
+
+```json
+{
+  "application_id": "app-approved",
+  "status": "Closed",
+  "loan_note": {
+    "token_id": "4",
+    "contract_address": "0x0000000000000000000000000000000000000000",
+    "tx_hash": "0x9a1f...",
+    "audit_hash": "3b7c...",
+    "minted_at": "2026-09-30T14:30:00Z",
+    "closed_at": "2026-12-01T09:00:00Z",
+    "close_tx_hash": "0x4d2e..."
+  }
+}
+```
+
+A `Declined` application has no loan note, so its `loan_note` is `null` and no chain call is made. Any other status is `409`, a `Funded` application with no loan note is `409`, and a chain that is down or refuses is `502` and leaves the application `Funded` so the call can be repeated.
+
 `POST /ai/committee/runs` takes the application id, returns `201` and runs in the background. Watch `aiRunStatus` on the application for the result:
 
 ```json

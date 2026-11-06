@@ -79,7 +79,7 @@ def test_minting_saves_the_note_and_moves_the_application_to_funded(approved):
     assert r.json()["status"] == "Funded"
     assert r.json()["loan_note"] == {
         "token_id": "12", "contract_address": CONTRACT, "tx_hash": MINT_TX, "audit_hash": AUDIT_HASH,
-        "network": "localhost", "minted_at": "2026-10-14T09:00:00.000Z",
+        "network": "localhost", "minted_at": "2026-10-14T09:00:00.000Z", "closed_at": None, "close_tx_hash": None,
     }
     assert doc(approved)["status"] == "Funded"
     assert doc(approved)["loanNote"] == {
