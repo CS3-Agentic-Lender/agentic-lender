@@ -284,6 +284,18 @@ describe('applications/{id}/review/underwriting', () => {
   }
 });
 
+describe('applications/{id}/review/underwriting valuationDetail', () => {
+  // The valuation detail is written by the API only (al-ai, with the Admin SDK): no client can change a figure in it.
+  for (const [who, db] of [['borrower', borrower1], ['broker', broker1], ['underwriter', underwriter]]) {
+    test(`a ${who} can't write the valuation detail`, async () => {
+      const review = db().doc('applications/app1/review/underwriting');
+      await assertFails(review.update({ 'valuationDetail.estimatedValueEur': 1 }));
+      await assertFails(review.update({ 'valuationDetail.contributions': [] }));
+      await assertFails(review.set({ valuationDetail: { estimatedValueEur: 1 } }, { merge: true }));
+    });
+  }
+});
+
 describe('applications/{id}/audit/record', () => {
   test('an underwriter can read an audit record', () =>
     assertSucceeds(underwriter().doc('applications/app1/audit/record').get()));

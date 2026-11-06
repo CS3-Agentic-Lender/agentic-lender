@@ -7,6 +7,8 @@
 //   firebase emulators:export ./seed-data --project demo-al --force
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099';
@@ -174,12 +176,16 @@ function policyBreaches(app) {
 // What the gate returns for a run (original, effective, conditions, breaches, changed), saved as it is returned.
 // Approve with a breach becomes Conditionally Approve and every breach adds a condition; a Decline stays a Decline.
 const STRATEGIST = { approve: 'Approve', conditional: 'Conditionally Approve', decline: 'Decline' };
-function policyGate(recommendation, breaches) {
+// Every HELOC: the home is already owned, so the model's estimate is the only value until a surveyor sees it. Policy, not a breach.
+const SURVEYOR_CONDITION = "Requires an independent surveyor's valuation (HELOC)";
+function policyGate(recommendation, breaches, loanType = 'mortgage') {
   const original = STRATEGIST[recommendation];
   if (!original) throw new Error(`Unknown recommendation ${recommendation}`);
   if (original === 'Decline') return { original, effective: 'Decline', conditions: [], breaches, changed: false };
   const conditions = breaches.map((rule) => `Requires lender exception review (${rule})`);
-  const effective = breaches.length && original === 'Approve' ? 'Conditionally Approve' : original;
+  if (loanType === 'heloc') conditions.push(SURVEYOR_CONDITION);
+  // An Approve that has to carry any condition is conditional.
+  const effective = conditions.length && original === 'Approve' ? 'Conditionally Approve' : original;
   return { original, effective, conditions, breaches, changed: effective !== original || conditions.length > 0 };
 }
 
@@ -230,10 +236,36 @@ const baseProperty = {
   county: 'Cork', propertyType: 'Semi-D', bedrooms: 3, floorAreaSqm: 98, berRating: 'C2',
 };
 
-function valuation(estimatedValueEur) {
-  const contributions = { floor_area: 31200, county: 18500, bedrooms: 9800, property_type: -4600, ber: -1300 };
-  const baselineEur = estimatedValueEur - Object.values(contributions).reduce((a, b) => a + b, 0);
-  return { baselineEur, contributions, estimatedValueEur };
+// What al-ai's write_valuation saves on review/underwriting (al-ai/app/valuation_review.py): the model's estimate, the gap to the asking
+// price, the model version and the breakdown. The breakdown is a list of the six inputs, biggest effect first (ignoring the sign), and the
+// baseline plus every `eur` adds up to the estimate. A HELOC has no asking price, so its gap and flag are null.
+const MODEL_VERSION = 'v2';
+// The price needs review when the asking price is over the estimate by more than this. It is the model's own calibrated threshold, read from the
+// manifest that al-ai's review_threshold() reads, so the seed cannot drift from the service (v1 used 0.433, v2 uses 0.3567).
+const PRICE_REVIEW_GAP = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', '..', 'al-ai', 'models', 'valuation', 'manifest.json'), 'utf8'),
+).threshold;
+function valuation({ estimatedValueEur, askingPriceEur, property }) {
+  const contributions = [
+    { feature: 'floor_area', value: property.floorAreaSqm, eur: 31200 },
+    { feature: 'county', value: property.county, eur: 18500 },
+    { feature: 'bedrooms', value: property.bedrooms, eur: 9800 },
+    { feature: 'eircode_area', value: 'T12', eur: 6400 }, // the routing key, the first three characters of the Eircode
+    { feature: 'property_type', value: property.propertyType, eur: -4600 },
+    { feature: 'ber', value: property.berRating, eur: -1300 },
+  ];
+  const baselineEur = estimatedValueEur - contributions.reduce((sum, piece) => sum + piece.eur, 0);
+  const gap = askingPriceEur ? Math.round((askingPriceEur / estimatedValueEur - 1) * 1000) / 1000 : null;
+  return {
+    estimatedValueEur,
+    displayEstimateEur: Math.round(estimatedValueEur / 1000) * 1000,
+    askingPriceGap: gap,
+    priceNeedsReview: gap === null ? null : gap > PRICE_REVIEW_GAP,
+    supportWarnings: [],
+    modelVersion: MODEL_VERSION,
+    baselineEur,
+    contributions,
+  };
 }
 
 // Builds the shared fields for an application at a given stage.
@@ -286,9 +318,9 @@ function application(spec) {
       applicationId: id,
       brokerId,
       riskTier: spec.riskTier,
-      policyGate: policyGate(spec.recommendation, policyBreaches(rated)),
+      policyGate: policyGate(spec.recommendation, policyBreaches(rated), loanType),
       dtiBreakdown: breakdown,
-      valuationDetail: valuation(estimatedValueEur),
+      valuationDetail: valuation({ estimatedValueEur, askingPriceEur: loanType === 'mortgage' ? askingPriceEur : undefined, property: doc.property }),
       updatedAt: at(updatedAt),
     };
   }
@@ -384,6 +416,7 @@ function aiRun(app) {
   const run = {
     applicationId: app.id, brokerId: app.doc.brokerId, status: 'complete', trigger: 'submit',
     startedAt, finishedAt, recommendation, creditMemo,
+    policyGate: app.review.policyGate, // the same result as review/underwriting.policyGate: the two are written in one batch
   };
   return { runId, run, calls, creditMemo };
 }
@@ -527,7 +560,7 @@ async function seed() {
 }
 
 // The rules are exported for the tests (test/risk-tier.test.js); running the file seeds.
-module.exports = { purchasePriceLtvPct, ltvBand, riskTier, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, assess, dtiBreakdown, build, checkCoverage };
+module.exports = { purchasePriceLtvPct, ltvBand, riskTier, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, assess, dtiBreakdown, valuation, PRICE_REVIEW_GAP, build, checkCoverage };
 
 if (require.main === module) {
   seed().then(() => process.exit(0)).catch((err) => {
