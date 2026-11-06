@@ -7,6 +7,8 @@
 //   firebase emulators:export ./seed-data --project demo-al --force
 
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099';
@@ -238,7 +240,11 @@ const baseProperty = {
 // price, the model version and the breakdown. The breakdown is a list of the six inputs, biggest effect first (ignoring the sign), and the
 // baseline plus every `eur` adds up to the estimate. A HELOC has no asking price, so its gap and flag are null.
 const MODEL_VERSION = 'v2';
-const PRICE_REVIEW_GAP = 0.433; // the price needs review when the asking price is over the estimate by more than this (AL-120)
+// The price needs review when the asking price is over the estimate by more than this. It is the model's own calibrated threshold, read from the
+// manifest that al-ai's review_threshold() reads, so the seed cannot drift from the service (v1 used 0.433, v2 uses 0.3567).
+const PRICE_REVIEW_GAP = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', '..', 'al-ai', 'models', 'valuation', 'manifest.json'), 'utf8'),
+).threshold;
 function valuation({ estimatedValueEur, askingPriceEur, property }) {
   const contributions = [
     { feature: 'floor_area', value: property.floorAreaSqm, eur: 31200 },
@@ -554,7 +560,7 @@ async function seed() {
 }
 
 // The rules are exported for the tests (test/risk-tier.test.js); running the file seeds.
-module.exports = { purchasePriceLtvPct, ltvBand, riskTier, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, assess, dtiBreakdown, build, checkCoverage };
+module.exports = { purchasePriceLtvPct, ltvBand, riskTier, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, assess, dtiBreakdown, valuation, PRICE_REVIEW_GAP, build, checkCoverage };
 
 if (require.main === module) {
   seed().then(() => process.exit(0)).catch((err) => {

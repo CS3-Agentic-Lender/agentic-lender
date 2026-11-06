@@ -156,7 +156,7 @@ Written by al-ai after each run (`write_valuation`, with the Admin SDK); a re-ru
 | `estimatedValueEur` | number | The model's estimate. The same figure as `estimatedValueEur` on the application |
 | `displayEstimateEur` | integer | The estimate to the nearest EUR 1,000, the figure to show |
 | `askingPriceGap` | number or null | Asking price over estimate, minus 1, signed (0.047 means the asking price is 4.7% over). Null for a HELOC, which has no asking price |
-| `priceNeedsReview` | boolean or null | True when the asking price is over the estimate by more than 43.3%. Null for a HELOC |
+| `priceNeedsReview` | boolean or null | True when the asking price is over the estimate by more than the model's calibrated threshold (35.7% for `v2`; `v1` used 43.3%). The threshold is `threshold` in `al-ai/models/valuation/manifest.json`, so it changes with the model version. Null for a HELOC |
 | `supportWarnings` | list of text | Why the estimate may be less reliable, such as an Eircode area the model has not seen. Empty when there is nothing to warn about |
 | `modelVersion` | string | The valuation model's version, such as `v2` |
 | `baselineEur` | number or null | The model's average estimate over its sample homes: the starting point of the breakdown |

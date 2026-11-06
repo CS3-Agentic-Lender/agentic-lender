@@ -1,6 +1,12 @@
 // Checks on the documents scripts/seed.js would write. Pure functions: no emulator needed.
 
-const { build, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS } = require('../scripts/seed');
+const fs = require('fs');
+const path = require('path');
+const { build, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, valuation, PRICE_REVIEW_GAP } = require('../scripts/seed');
+
+const manifestThreshold = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', '..', 'al-ai', 'models', 'valuation', 'manifest.json'), 'utf8'),
+).threshold;
 
 // The eight property types the valuation model accepts.
 const PROPERTY_TYPES = ['Detached', 'Semi-D', 'Terrace', 'End of Terrace', 'Bungalow', 'Apartment', 'Duplex', 'Townhouse'];
@@ -210,8 +216,16 @@ describe('valuationDetail and the HELOC gate (AL-287)', () => {
       expect(v.priceNeedsReview).toBeNull();
     } else {
       expect(v.askingPriceGap).toBeCloseTo(app.property.askingPriceEur / v.estimatedValueEur - 1, 3);
-      expect(v.priceNeedsReview).toBe(v.askingPriceGap > 0.433);
+      expect(v.priceNeedsReview).toBe(v.askingPriceGap > manifestThreshold);
     }
+  });
+
+  test("the review threshold is the model's own, from the manifest al-ai reads, and not v1's 43.3%", () => {
+    expect(PRICE_REVIEW_GAP).toBe(manifestThreshold);
+    expect(manifestThreshold).toBeCloseTo(0.3567, 4);
+    expect(valuation({ estimatedValueEur: 400000, askingPriceEur: 400000 * 1.4, property: {} }).priceNeedsReview).toBe(true); // 40% over: flagged by v2, not by v1
+    expect(valuation({ estimatedValueEur: 400000, askingPriceEur: 400000 * 1.35, property: {} }).priceNeedsReview).toBe(false);
+    expect(valuation({ estimatedValueEur: 400000, askingPriceEur: null, property: {} }).priceNeedsReview).toBeNull();
   });
 
   test('every HELOC carries the surveyor condition, so an Approve on one is a Conditionally Approve', () => {
