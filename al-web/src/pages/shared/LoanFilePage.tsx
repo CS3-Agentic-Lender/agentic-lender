@@ -7,6 +7,7 @@ import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
 import { LoanNotePanel } from '../../components/lending/LoanNotePanel';
+import { MessageBorrower } from '../../components/messaging/MessageBorrower';
 import { SignOffPanel, decisionLabels } from '../../components/lending/SignOffPanel';
 import type { DecisionResult } from '../../services/decisionService';
 import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
@@ -364,6 +365,9 @@ function ReadyLoanFile({ application, review, viewer }: {
           <LoanNotePanel auditTxHash={application.auditTxHash} note={application.loanNote} />
           <AuditPackActions applicationId={application.id} />
         </>
+      ) : null}
+      {viewer === 'underwriter' && application.status !== 'Draft' ? (
+        <MessageBorrower applicationId={application.id} borrowerName={application.borrowerName ?? null} />
       ) : null}
     </>
   );
