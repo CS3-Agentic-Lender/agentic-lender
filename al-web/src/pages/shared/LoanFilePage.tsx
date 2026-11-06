@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
+import { LoanNotePanel } from '../../components/lending/LoanNotePanel';
 import { SignOffPanel, decisionLabels } from '../../components/lending/SignOffPanel';
 import type { DecisionResult } from '../../services/decisionService';
 import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
+import { useSettlementService } from '../../context/SettlementContext';
+import { mintFailureMessage } from '../../services/settlementService';
 import {
   loanFileRiskTier,
   type LoanFileApplication,
@@ -263,6 +266,56 @@ function ReadyLoanFile({ application, review, viewer }: {
 }) {
   // Keep the receipt outside the panel: Firestore can remove the controls before HTTP returns.
   const [recorded, setRecorded] = useState<DecisionResult | null>(null);
+  const settlement = useSettlementService();
+  const [mintState, setMintState] = useState<'idle' | 'pending' | 'confirmed' | 'failed'>('idle');
+  const [mintError, setMintError] = useState<string | null>(null);
+  const submitting = useRef(false);
+  const active = useRef(true);
+  const latest = useRef({ application, viewer });
+  latest.current = { application, viewer };
+
+  useEffect(() => {
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
+
+  async function mint(approval?: DecisionResult) {
+    const current = latest.current;
+    const approvedResponse = approval?.id === current.application.id &&
+      approval.status === 'Underwriter Approved' && approval.decision.outcome === 'approved';
+    const eligible = current.application.status === 'Underwriter Approved' ||
+      (current.application.status === 'AI Deliberated' && approvedResponse);
+    if (!active.current || submitting.current || current.viewer !== 'underwriter' ||
+        current.application.loanNote || !eligible) {
+      return;
+    }
+    // Lock before React renders disabled=true; keep it after success while the listener catches up.
+    submitting.current = true;
+    setMintState('pending');
+    setMintError(null);
+    try {
+      await settlement.mint(current.application.id);
+      if (active.current) setMintState('confirmed');
+    } catch (error) {
+      submitting.current = false;
+      if (active.current) {
+        setMintError(mintFailureMessage(error));
+        setMintState('failed');
+      }
+    }
+  }
+
+  function onRecorded(result: DecisionResult) {
+    if (!active.current) return;
+    setRecorded(result);
+    if (result.decision.outcome === 'approved' && result.status === 'Underwriter Approved') {
+      void mint(result);
+    }
+  }
+
+  const canMint = application.status === 'Underwriter Approved' ||
+    (application.status === 'AI Deliberated' && recorded?.status === 'Underwriter Approved' &&
+      recorded.decision.outcome === 'approved');
 
   return (
     <>
@@ -276,9 +329,37 @@ function ReadyLoanFile({ application, review, viewer }: {
         <SignOffPanel
           applicationId={application.id}
           borrowerName={application.borrowerName ?? null}
-          onRecorded={setRecorded}
+          onRecorded={onRecorded}
           policyGate={review.state === 'available' ? review.policyGate : null}
         />
+      ) : null}
+      {viewer === 'underwriter' && !application.loanNote && (canMint || mintState === 'confirmed') ? (
+        <section aria-label="Mint loan note" className={`mt-6 ${sectionClass}`}>
+          <h2 className="text-xl font-semibold">Mint loan note</h2>
+          {mintState === 'pending' ? (
+            <p aria-live="polite" className="mt-4 text-muted" role="status">Minting…</p>
+          ) : mintState === 'confirmed' ? (
+            <p aria-live="polite" className="mt-4 text-success" role="status">
+              Loan note minted. Waiting for the loan file to update…
+            </p>
+          ) : null}
+          {mintError ? (
+            <p className="mt-4 rounded-lg bg-danger-soft p-3 text-error" role="alert">{mintError}</p>
+          ) : null}
+          {canMint && mintState !== 'confirmed' ? (
+            <button
+              className="mt-4 min-h-12 cursor-pointer rounded-lg bg-pine px-5 py-3 font-semibold text-surface transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={mintState === 'pending'}
+              onClick={() => void mint(recorded ?? undefined)}
+              type="button"
+            >
+              {mintState === 'failed' ? 'Retry mint' : 'Mint loan note'}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+      {application.loanNote ? (
+        <LoanNotePanel auditTxHash={application.auditTxHash} note={application.loanNote} />
       ) : null}
     </>
   );
