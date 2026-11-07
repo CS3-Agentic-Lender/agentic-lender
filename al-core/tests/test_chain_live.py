@@ -53,6 +53,39 @@ def test_a_loan_note_is_minted_once_and_found_again_with_its_transaction():
         notes.mint(application_id, other)
 
 
+def test_a_loan_note_is_closed_once_and_found_closed_again_with_its_transaction_and_time():
+    from app.loan_notes import LoanNotes, NoteTerms, borrower_ref
+
+    notes = LoanNotes.from_env()
+    application_id = f"live-{uuid.uuid4()}"
+    with pytest.raises(ChainError, match="no loan note on the chain"):
+        notes.close(application_id)  # nothing minted yet, so nothing to close and nothing sent
+
+    terms = NoteTerms(27_000_000, 425, 360, "mortgage", borrower_ref("borrower1", "live-salt"))
+    minted = notes.mint(application_id, terms)
+
+    first = notes.close(application_id)
+    assert not first.already_closed and first.token_id == minted.token_id and first.tx_hash.startswith("0x")
+    assert notes.contract.functions.noteOf(minted.token_id).call()[6] == 2  # Closed on the contract
+
+    again = notes.close(application_id)
+    assert again.already_closed and (again.token_id, again.tx_hash, again.closed_at) == (first.token_id, first.tx_hash, first.closed_at)
+    assert first.closed_at.tzinfo is not None
+
+
+def test_a_wallet_without_the_minter_role_cannot_close_a_note(monkeypatch):
+    from app.loan_notes import LoanNotes, NoteTerms, borrower_ref
+
+    stranger = os.getenv("CHAIN_LIVE_STRANGER_KEY")
+    if not stranger:
+        pytest.skip("set CHAIN_LIVE_STRANGER_KEY to a funded account that is not the minter")
+    application_id = f"live-{uuid.uuid4()}"
+    LoanNotes.from_env().mint(application_id, NoteTerms(1_000_000, 400, 120, "heloc", borrower_ref("borrower1", "live-salt")))
+    outsider = LoanNotes.from_env({**os.environ, "CHAIN_MINTER_PRIVATE_KEY": stranger})
+    with pytest.raises(ChainError, match="refused to close the loan note: .*AccessControlUnauthorizedAccount"):
+        outsider.close(application_id)
+
+
 def test_a_wallet_without_the_minter_role_is_refused_with_the_reason(monkeypatch):
     from app.loan_notes import LoanNotes, NoteTerms, borrower_ref
 

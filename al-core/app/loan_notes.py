@@ -1,4 +1,4 @@
-"""The loan note contract on the chain: mint an application's note once, and find it again if a mint was cut short.
+"""The loan note contract on the chain: mint an application's note once and close it once, and find either again if the call was cut short.
 
 The note holds the loan's principal (euro cents), APR (basis points), term (months) and type, plus two references that carry no
 personal data: the SHA-256 of the application id (app/audit.py, the same one the audit registry uses) and a salted SHA-256 of the
@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from web3 import Web3
 from web3.exceptions import ContractLogicError, Web3Exception
@@ -54,6 +55,14 @@ ABI = [
         "inputs": [{"name": "tokenId", "type": "uint256"}],
         "outputs": [{"name": "", "type": "tuple", "components": _NOTE}],
     },
+    {"type": "function", "name": "close", "stateMutability": "nonpayable", "inputs": [{"name": "tokenId", "type": "uint256"}], "outputs": []},
+    {
+        "type": "event", "name": "NoteClosed", "anonymous": False,
+        "inputs": [
+            {"name": "tokenId", "type": "uint256", "indexed": True},
+            {"name": "applicationRef", "type": "bytes32", "indexed": True},
+        ],
+    },
     {
         "type": "event", "name": "NoteMinted", "anonymous": False,
         "inputs": [
@@ -85,6 +94,19 @@ class Minted:
     contract_address: str
     already_minted: bool  # True when the note was already on the chain and this call only found it
     network: str = "localhost"  # the chain it is on (CHAIN_NETWORK), saved with the note so the apps can tell which explorer to use
+
+
+@dataclass(frozen=True)
+class Closed:
+    token_id: int
+    tx_hash: str
+    closed_at: datetime  # the chain's own time for the close (the block it was in), so a retry saves the same value
+    contract_address: str
+    already_closed: bool  # True when the note was already closed and this call only found it
+    network: str = "localhost"
+
+
+STATUS_CLOSED = 2  # the contract's Status enum: None 0, Active 1, Closed 2
 
 
 def borrower_ref(uid: str, salt: str) -> str:
@@ -153,6 +175,64 @@ class LoanNotes:
         except (ValueError, Web3Exception):
             raise ChainError("the loan note was minted but its token id could not be read from the receipt") from None
         return Minted(int(event["args"]["tokenId"]), "0x" + tx_hash.hex().removeprefix("0x"), self.address, already_minted=False, network=self.network)
+
+    def close(self, application_id: str) -> Closed:
+        """Close the application's note, or return the close that already happened. There must be a note to close.
+
+        The contract closes a note once and never reopens it, so a close that reached the chain but not Firestore is
+        picked up by the retry: the note is found already closed and its closing transaction is read back, never repeated.
+        """
+        ref = bytes.fromhex(application_ref(application_id))
+        token_id = self._token_of(ref)
+        if not token_id:
+            raise ChainError("there is no loan note on the chain for this application")
+        if self._note(token_id)[6] == STATUS_CLOSED:
+            return self._closed(token_id)
+
+        try:
+            tx = self.contract.functions.close(token_id).build_transaction(
+                {"from": self.account.address, "nonce": self.w3.eth.get_transaction_count(self.account.address, "pending")}
+            )
+            signed = self.account.sign_transaction(tx)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=RECEIPT_TIMEOUT_S)
+        except ContractLogicError as exc:
+            reason = str(getattr(exc, "message", None) or exc)[:200]
+            if "NotActive" in reason:  # another request closed it between the check above and this send
+                return self._closed(token_id)
+            raise ChainError(f"the chain refused to close the loan note: {reason}") from None
+        except (Web3Exception, OSError) as exc:
+            raise ChainError(f"the loan note could not be closed: {type(exc).__name__}") from None
+        if receipt["status"] != 1:
+            raise ChainError("the chain rejected the close of the loan note")
+        return Closed(
+            token_id, "0x" + tx_hash.hex().removeprefix("0x"), self._closed_at(self._note(token_id)), self.address,
+            already_closed=False, network=self.network,
+        )
+
+    def _note(self, token_id: int):
+        try:
+            return self.contract.functions.noteOf(token_id).call()
+        except (ContractLogicError, Web3Exception, OSError) as exc:
+            raise ChainError(f"the chain could not be read: {type(exc).__name__}") from None
+
+    @staticmethod
+    def _closed_at(note) -> datetime:
+        return datetime.fromtimestamp(int(note[8]), tz=timezone.utc)
+
+    def _closed(self, token_id: int) -> Closed:
+        """A note that is already closed, with the transaction that closed it."""
+        note = self._note(token_id)
+        try:
+            events = self.contract.events.NoteClosed().get_logs(from_block=0, argument_filters={"tokenId": token_id})
+        except (ContractLogicError, Web3Exception, OSError) as exc:
+            raise ChainError(f"the chain could not be read: {type(exc).__name__}") from None
+        if note[6] != STATUS_CLOSED or not events:
+            raise ChainError("the loan note is closed but the transaction that closed it could not be found")
+        return Closed(
+            token_id, "0x" + events[0]["transactionHash"].hex().removeprefix("0x"), self._closed_at(note), self.address,
+            already_closed=True, network=self.network,
+        )
 
     def _token_of(self, ref: bytes) -> int:
         try:

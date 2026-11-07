@@ -1,6 +1,6 @@
 from fastapi import APIRouter, FastAPI
 
-from app import applications, audit_pack, cors, decision, errors, me, messages, mint, saved_checks
+from app import applications, audit_pack, close, cors, decision, errors, me, messages, mint, saved_checks
 
 app = FastAPI(title="al-core", docs_url="/core/docs", openapi_url="/core/openapi.json", redoc_url=None)
 errors.install(app)
@@ -21,4 +21,5 @@ app.include_router(saved_checks.router)
 app.include_router(decision.router)
 app.include_router(messages.router)
 app.include_router(mint.router)
+app.include_router(close.router)
 app.include_router(audit_pack.router)
