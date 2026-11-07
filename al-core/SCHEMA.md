@@ -245,19 +245,36 @@ Written only by the API, by `POST /core/applications/{id}/messages/read`, for th
 | `creditMemo` | string | From the Underwriting Strategist |
 | `policyGate` | map | What the policy gate returned for this run, the same map as `review/underwriting.policyGate` (see there). Both are written in one batch, so a run record always keeps what the gate said, even after a re-run replaces the review document's copy |
 
-## ai_calls/{callId} (Nic to confirm)
+## ai_calls/{callId}
+
+One document for every call behind a decision, so the demo can prove each was really made: each model attempt (a retry is its own document), each Serper search, the valuation model's call, and a reused Market & Macro report. Written by al-ai with the Admin SDK, right after the call ends and before the next one starts (`create`, so a stored call is never replaced: the audit hash covers the stored document). Underwriters read every call, a broker only the calls whose copied `brokerId` is theirs, a borrower none, and no client writes.
+
+**Id.** `{runId}-{step}-{attempt}`, the same id the committee's run record lists under `ai_calls`: `affordability`, `valuation_agent`, `strategist` and `market` for model attempts (for example `run-1-affordability-2`), `{runId}-market-search-{n}` for the n-th search, `{runId}-valuation_model-1` for the valuation model and `{runId}-market-reused` for a reused report.
 
 | Field | Type | Notes |
 |---|---|---|
 | `runId` | string | |
 | `applicationId` | string | |
 | `brokerId` | string | Copied for the rules |
-| `agent` | string | For example `affordability`, `valuation`, `market`, `strategist` |
-| `provider` | string | For example `gemini`, `mistral`, `groq`, `ollama` |
-| `model` | string | |
-| `output` | string | The agent's recommendation and reasoning |
-| `latencyMs` | number | |
-| `createdAt` | timestamp | |
+| `agent` | string | `affordability`, `valuation` (the `valuation_agent` step), `market`, `strategist` or `valuation_model` |
+| `provider` | string | `gemini`, `groq`, `ollama`, `serper` for a search, `al-ai` for the valuation model |
+| `model` | string | The exact model; `google-search` for a search; the model version for the valuation model |
+| `attempt` | integer or null | The attempt number; the search number for a search; null for a reused report |
+| `promptVersion` | string or null | |
+| `startedAt`, `endedAt` | timestamp | |
+| `createdAt` | timestamp | The same as `endedAt`. The audit hash orders the calls by it |
+| `latencyMs` | integer or null | Null for a reused report |
+| `request` | map or null | What was sent: `system`, `prompt` and `schema` for a model call; `search`, `num`, `country` and `period` for a search; the inputs for the valuation model. Never a key or a header |
+| `rawReply` | string or null | What the provider sent back, as text |
+| `parsedReply` | map, list or null | The checked reply; a search's hits |
+| `output` | string or null | `parsedReply` as text, keys in order: what the underwriter reads |
+| `requestId` | string or null | The provider's request id |
+| `inputTokens`, `outputTokens` | integer or null | |
+| `outcome` | string | `ok`, `invalid_reply`, `provider_error`, `missing_key`, `error` or `reused` |
+| `error` | string or null | Why it failed, already scrubbed of any key |
+| `reusedFrom` | string or null | For `reused`: the id of the call that made the report |
+
+If a call cannot be saved twice, the step fails, because no decision should rest on a call that cannot be shown.
 
 ## support_requests/{requestId} (proposal, from the API design doc's endpoints)
 
@@ -300,7 +317,7 @@ The client sends the valuation result it already has and the API validates and s
 
 ## Open questions
 
-1. **ai_runs and ai_calls fields:** Nic to confirm or replace.
+1. **ai_runs fields:** Nic to confirm or replace (the `ai_calls` fields are confirmed).
 2. **Loan terms for HELOC:** resolved. A HELOC uses `loanAmountEur` for the credit limit plus `existingMortgageBalanceEur`, and its LTV is the combined LTV.
 3. **Stress-test results:** stored, or calculated on demand by `/ai/portfolio/*`?
 4. **Custom feature:** extra fields once the team chooses it.
