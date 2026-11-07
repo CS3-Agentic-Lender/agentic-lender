@@ -25,7 +25,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
 from app import affordability_agent as aa
-from app import committee_input, policy_gate, retry_policy, serper, valuation_endpoint, valuation_model
+from app import call_log, committee_input, policy_gate, retry_policy, serper, valuation_endpoint, valuation_model
 from app import market_agent as ma
 from app import strategist_agent as sa
 from app import valuation_agent as va
@@ -85,6 +85,7 @@ class Deps:
     sleep: Callable[[float], None] = time.sleep
     budget_s: float = retry_policy.RUN_BUDGET_S  # the whole run's time budget (AL-139)
     clock: Callable[[], float] = time.monotonic
+    call_sink: call_log.Sink | None = None  # where each AI call is saved as an ai_calls document (AL-140); None: calls are not saved
 
     def agent(self, name: str) -> config.AgentModel | None:
         return (self.agents or {}).get(name)
@@ -163,10 +164,22 @@ def build_graph(deps: Deps):
         return {"inputs": application, "steps": {"validate": {"ok": True, "output": {"loan_type": application.loan_type}}}}
 
     def valuation_model_step(state: State) -> dict:
+        request = state["inputs"].valuation_request(state["run_id"])
+        started, response, breakdown_error, error = time.monotonic(), None, None, None
         try:
-            response, breakdown_error = valuation_endpoint.estimate_home(state["inputs"].valuation_request(state["run_id"]))
+            response, breakdown_error = valuation_endpoint.estimate_home(request)
         except valuation_model.ValuationUnavailable as exc:
-            raise StepFailed(str(exc))
+            error = str(exc)
+        if deps.call_sink is not None:  # the model's call is saved too, answered or not, so the trail shows every call behind the decision
+            try:
+                call_log.save(deps.call_sink, *call_log.valuation_model_document(
+                    ids(state), request.model_dump(mode="json"), model_version=response.model_version if response else None,
+                    output=response.model_dump(mode="json") if response else None, error=error, duration_s=time.monotonic() - started,
+                ))
+            except call_log.CallLogError as exc:
+                raise StepFailed(f"the valuation model call could not be logged: {exc}")
+        if error:
+            raise StepFailed(error)
         return {"steps": {"valuation_model": {
             "ok": True, **ids(state), "model_version": response.model_version, "output": response.model_dump(), "breakdown_error": breakdown_error,
         }}}
@@ -175,6 +188,7 @@ def build_graph(deps: Deps):
         got = ma.get_report(
             deps.official, store=deps.report_store, run_id=state["run_id"], today=deps.today, agent=deps.agent("market"),
             search=deps.search, transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state),
+            record=call_log.recorder(deps.call_sink, "market"),
         )
         evidence = {"attempts": got.attempts, "searches": got.searches}
         if not got.ok:
@@ -223,12 +237,12 @@ def build_graph(deps: Deps):
 
     def affordability(state: State) -> dict:
         facts = state["steps"]["calculations"]["output"]["affordability_facts"]
-        result = aa.run(facts, run_id=state["run_id"], agent=deps.agent("affordability"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state))
+        result = aa.run(facts, run_id=state["run_id"], agent=deps.agent("affordability"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state), record=call_log.recorder(deps.call_sink, "affordability"))
         return _llm_result("affordability", result)
 
     def valuation_agent(state: State) -> dict:
         facts = state["steps"]["calculations"]["output"]["valuation_facts"]
-        result = va.run(facts, run_id=state["run_id"], agent=deps.agent("valuation"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state))
+        result = va.run(facts, run_id=state["run_id"], agent=deps.agent("valuation"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state), record=call_log.recorder(deps.call_sink, "valuation_agent"))
         return _llm_result("valuation_agent", result)
 
     def strategist(state: State) -> dict:
@@ -246,7 +260,7 @@ def build_graph(deps: Deps):
             )
         except ValueError as exc:
             raise StepFailed(f"the strategist could not be given the reports: {exc}")
-        result = sa.run(facts, run_id=state["run_id"], agent=deps.agent("strategist"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state))
+        result = sa.run(facts, run_id=state["run_id"], agent=deps.agent("strategist"), transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state), record=call_log.recorder(deps.call_sink, "strategist"))
         return _llm_result("strategist", result, {"memo": sa.render_memo(result.reply) if result.ok else None})
 
     def gate(state: State) -> dict:
@@ -297,7 +311,7 @@ def make_record(state: State) -> dict:
     inputs = state.get("inputs")
     broker_id = inputs.broker_id if inputs else None
     calls = [
-        {"id": f"{state['run_id']}-{name}-{attempt['attempt']}", "step": name, "application_id": state["application_id"], "broker_id": broker_id}
+        {"id": call_log.call_id(state["run_id"], name, attempt["attempt"]), "step": name, "application_id": state["application_id"], "broker_id": broker_id}
         for name, step in steps.items() for attempt in step.get("attempts", [])
     ]
     return {

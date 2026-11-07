@@ -23,7 +23,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable, Protocol
 
-from app import agent_loop, retry_policy, serper
+from app import agent_loop, call_log, retry_policy, serper
 from app import valuation_agent as va
 from app.llm import clients, config
 
@@ -219,13 +219,14 @@ def run(
     sleep: Callable[[float], None] = time.sleep,
     budget: retry_policy.Budget | None = None,
     context: dict | None = None,
+    record: Callable[[dict, dict], None] | None = None,
 ) -> AgentResult:
     """Run the step with the model agents.json names for the market agent. Never calls any other model."""
     agent = agent or config.load().agent("market")
     return agent_loop.run_step(
         log=log, agent=agent, prompt=build_prompt(facts), system=SYSTEM, schema=SCHEMA, check=lambda reply: check_reply(reply, facts),
         run_id=run_id, prompt_version=PROMPT_VERSION, context={**(context or {}), "search_links": [r["url"] for r in facts["search_results"]]},
-        transport=transport, env=env, sleep=sleep, budget=budget,
+        transport=transport, env=env, sleep=sleep, budget=budget, record=record,
     )
 
 
@@ -276,18 +277,28 @@ def get_report(
     sleep: Callable[[float], None] = time.sleep,
     budget: retry_policy.Budget | None = None,
     context: dict | None = None,
+    record: call_log.CallRecorder | None = None,
 ) -> MarketResult:
-    """The market view for this run: the day's report if there is one for these official figures, otherwise a new one."""
+    """The market view for this run: the day's report if there is one for these official figures, otherwise a new one.
+
+    `record` saves each search, the model call and a reused report as `ai_calls` documents (app/call_log.py). If a save fails the step fails.
+    """
     today = today or date.today().isoformat()
     key = report_key(official, today)
     stored = store.get(key)
     if stored is not None:
+        if record is not None:
+            try:
+                record.reused(context or {}, stored)
+            except Exception as exc:
+                return MarketResult(False, None, None, f"the reused report could not be logged: {exc}")
         return MarketResult(True, stored, stored["report_id"], None)
 
     results, searches = [], []
     for query in QUERIES:
         try:
-            results.append(search(query, run_id=run_id, prompt_version=PROMPT_VERSION, num=RESULTS_PER_QUERY, transport=transport, env=env, context=context))
+            extra = {"record": record.search} if record is not None else {}
+            results.append(search(query, run_id=run_id, prompt_version=PROMPT_VERSION, num=RESULTS_PER_QUERY, transport=transport, env=env, context=context, **extra))
             searches.append({"query": query, **(context or {}), "outcome": "ok", "links": [h.link for h in results[-1].hits]})
         except clients.LlmError as exc:  # no search means no report: nothing is made up
             searches.append({"query": query, **(context or {}), "outcome": "error", "error": str(exc)})
@@ -296,13 +307,15 @@ def get_report(
     if not facts["search_results"]:
         return MarketResult(False, None, None, "the searches returned no results to cite", searches=searches)
 
-    got = run(facts, run_id=run_id, agent=agent, transport=transport, env=env, sleep=sleep, budget=budget, context=context)
+    got = run(facts, run_id=run_id, agent=agent, transport=transport, env=env, sleep=sleep, budget=budget, context=context, record=record)
     if not got.ok:
         return MarketResult(False, None, None, got.failure_reason, got.attempts, searches)
     used = got.attempts[-1]
     report = {
         "report_id": f"market-{key.replace(':', '-')}", "date": today, "official_figures_fingerprint": official.fingerprint(),
-        "prompt_version": PROMPT_VERSION, "provider": used["provider"], "model": used["model"], "run_id": run_id, **got.reply,
+        "prompt_version": PROMPT_VERSION, "provider": used["provider"], "model": used["model"], "run_id": run_id,
+        "call_id": call_log.call_id(run_id, "market", used["attempt"]),  # the ai_calls document of the call that made it, for a run that reuses it
+        **got.reply,
     }
     store.put(key, report)
     return MarketResult(True, report, None, None, got.attempts, searches)

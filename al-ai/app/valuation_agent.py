@@ -198,10 +198,12 @@ def run(
     sleep: Callable[[float], None] = time.sleep,
     budget: retry_policy.Budget | None = None,
     context: dict | None = None,
+    record: Callable[[dict, dict], None] | None = None,
 ) -> AgentResult:
     """Run the step with the model agents.json names for the valuation agent. Never calls any other model.
 
-    `context` (run_id, application_id, broker_id) is added to every logged attempt, the same as the shared retry loop does."""
+    `context` (run_id, application_id, broker_id) is added to every logged attempt, the same as the shared retry loop does.
+    `record(attempt, request)` saves each attempt as an `ai_calls` document, as in agent_loop.run_step; if it raises, the step fails."""
     agent = agent or config.load().agent("valuation")
     prompt = build_prompt(facts)
     attempts: list[dict] = []
@@ -239,6 +241,11 @@ def run(
         attempt["duration_s"] = round(time.monotonic() - t0, 3)
         attempts.append(attempt)
         log.info(json.dumps(attempt))
+        if record is not None:
+            try:
+                record(attempt, {"system": SYSTEM, "prompt": sent, "schema": SCHEMA})
+            except Exception as exc:
+                return AgentResult(False, None, f"the AI call could not be logged: {exc}", attempts)
         if attempt["outcome"] == "ok":
             return AgentResult(True, attempt["parsed_reply"], None, attempts)
         if not retry:
