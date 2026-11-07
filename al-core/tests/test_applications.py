@@ -395,6 +395,8 @@ def test_both_endpoints_need_a_token():
         ({"loan_type": "mortgage", "gross_income_eur": -1}, "gross_income_eur"),
         ({"loan_type": "mortgage", "loan_amount_eur": 0}, "loan_amount_eur"),
         ({"loan_type": "mortgage", "term_years": 41}, "term_years"),
+        ({"loan_type": "mortgage", "term_years": 36}, "term_years"),
+        ({"loan_type": "mortgage", "term_years": 4}, "term_years"),
         ({"loan_type": "mortgage", "term_years": 0}, "term_years"),
         ({"loan_type": "mortgage", "employment_type": "retired"}, "employment_type"),
         ({"loan_type": "mortgage", "applicants": "three"}, "applicants"),
@@ -648,6 +650,8 @@ def test_edit_needs_a_token():
         ({"gross_income_eur": -1}, "gross_income_eur"),
         ({"loan_amount_eur": 0}, "loan_amount_eur"),
         ({"term_years": 41}, "term_years"),
+        ({"term_years": 36}, "term_years"),
+        ({"term_years": 4}, "term_years"),
         ({"employment_type": "retired"}, "employment_type"),
         ({"property": {"bedrooms": 21}}, "property.bedrooms"),
         ({"property": {"eircode": "t12x5y6"}}, "property.eircode"),
@@ -824,6 +828,32 @@ def test_an_empty_property_names_the_first_property_field(fake):
     body = {k: v for k, v in FULL_MORTGAGE.items() if k != "property"}
     app_id = create(body).json()["id"]
     assert submit(app_id).json()["error"]["field"] == "property.address_line_1"
+
+
+@pytest.mark.parametrize("years", [5, 35])
+def test_the_ends_of_the_term_range_are_accepted_and_submit(fake, years):
+    app_id = create({**FULL_MORTGAGE, "term_years": years}).json()["id"]
+    assert stored(fake)["termYears"] == years
+    assert submit(app_id).json()["status"] == "Applied"
+
+
+@pytest.mark.parametrize("years", [1, 4, 36, 40])
+def test_a_term_outside_five_to_thirty_five_is_422_on_create_and_edit_and_nothing_is_saved(fake, years):
+    r = create({**FULL_MORTGAGE, "term_years": years})
+    assert r.status_code == 422 and r.json()["error"]["field"] == "term_years"
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    r = edit(app_id, {"term_years": years})
+    assert r.status_code == 422 and r.json()["error"]["field"] == "term_years"
+    assert stored(fake)["termYears"] == FULL_MORTGAGE["term_years"]
+
+
+@pytest.mark.parametrize("years", [2, 38])
+def test_a_draft_saved_with_a_term_outside_the_range_cannot_be_submitted(fake, years):
+    app_id = create(FULL_MORTGAGE).json()["id"]
+    stored(fake)["termYears"] = years  # a Draft from before the range was set
+    r = submit(app_id)
+    assert r.status_code == 422 and r.json()["error"]["field"] == "term_years" and "between 5 and 35" in r.json()["error"]["message"]
+    assert stored(fake)["status"] == "Draft"
 
 
 def test_after_filling_in_the_missing_field_it_submits(fake):

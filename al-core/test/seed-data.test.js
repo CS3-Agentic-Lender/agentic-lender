@@ -29,6 +29,14 @@ describe('borrowerName', () => {
   });
 });
 
+describe('loan term', () => {
+  test.each(applications.map((a) => [a.path, a.data]))('%s has a term of 5 to 35 years, the range the API accepts', (_path, app) => {
+    expect(Number.isInteger(app.termYears)).toBe(true);
+    expect(app.termYears).toBeGreaterThanOrEqual(5);
+    expect(app.termYears).toBeLessThanOrEqual(35);
+  });
+});
+
 describe('property type', () => {
   test.each(applications.map((a) => [a.path, a.data]))("%s uses one of the valuation model's property types", (_path, app) => {
     expect(PROPERTY_TYPES).toContain(app.property.propertyType);
