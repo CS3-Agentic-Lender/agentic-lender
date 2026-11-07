@@ -352,13 +352,15 @@ def rerun_committee(failed: dict, application: dict, *, deps: Deps) -> dict:
     return run_committee(application, deps=deps, application_id=failed["application_id"], rerun_of=failed["run_id"])
 
 
-def local_deps(store: RunStore, env: dict, figures_path: Path = SAMPLES / "official-figures.json") -> Deps:
-    """The real providers, the stand-in rate and the sample official figures: what the runner and the Firestore listener use until the ECB rate is wired in."""
+def local_deps(store: RunStore, env: dict, figures_path: Path = SAMPLES / "official-figures.json", call_sink: call_log.Sink | None = None) -> Deps:
+    """The real providers, the stand-in rate and the sample official figures: what the runner and the Firestore listener use until the ECB rate is wired in.
+
+    `call_sink` is where every AI call of the run is saved as an ai_calls document (AL-140); the runner has none, the listener passes Firestore."""
     figures = json.loads(Path(figures_path).read_text())
     return Deps(
         store=store, report_store=ma.MemoryReportStore(),
         official=ma.OfficialFigures(as_of=figures["as_of"], figures=figures["figures"]),
-        benchmark_rate_pct=float(env.get("BENCHMARK_RATE_PCT") or DEFAULT_BENCHMARK_RATE_PCT), env=env,
+        benchmark_rate_pct=float(env.get("BENCHMARK_RATE_PCT") or DEFAULT_BENCHMARK_RATE_PCT), env=env, call_sink=call_sink,
     )
 
 

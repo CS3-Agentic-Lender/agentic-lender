@@ -29,7 +29,7 @@ from google.cloud import firestore
 from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import committee
+from app import call_log, committee
 
 log = logging.getLogger("al-ai.auto-start")
 
@@ -173,13 +173,19 @@ class Listener:
             log.exception("could not start a committee run for %s", application_id)
 
 
+def deps_factory_for(db, env: dict) -> DepsFactory:
+    """What each run is built from: the real providers, and every AI call of the run saved in `ai_calls` on the same database (AL-140)."""
+    sink = call_log.FirestoreSink(db)
+    return lambda store: committee.local_deps(store, env, call_sink=sink)
+
+
 def start_from_env() -> Listener:
     """A started listener on the real Firestore (or the emulator, when FIRESTORE_EMULATOR_HOST is set), with the real providers."""
     from app.llm import smoke
 
     env = smoke.load_env()
     db = firestore.Client(project=os.getenv("FIREBASE_PROJECT_ID", "demo-al"))
-    listener = Listener(db, lambda store: committee.local_deps(store, env))
+    listener = Listener(db, deps_factory_for(db, env))
     listener.start()
     return listener
 

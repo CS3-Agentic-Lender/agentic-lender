@@ -294,3 +294,18 @@ def test_a_call_without_its_application_or_broker_cannot_be_saved():
     attempt = {"run_id": RUN, "attempt": 1, "provider": "gemini", "model": "m", "prompt_version": "v1", "outcome": "ok"}
     with pytest.raises(CallLogError, match="application_id, broker_id"):
         call_log.model_document("market", attempt, {})
+
+
+# ---- the listener saves the calls of every run it starts ----------------------------------------------------------------
+
+
+def test_the_listeners_deps_save_every_call_to_ai_calls_on_the_database_it_listens_to():
+    from app import auto_start
+
+    database = object()
+    deps = auto_start.deps_factory_for(database, {})(tc.MemoryRunStore())
+    assert isinstance(deps.call_sink, call_log.FirestoreSink) and deps.call_sink.db is database
+
+
+def test_the_local_runner_has_no_call_sink():
+    assert committee.local_deps(tc.MemoryRunStore(), {}).call_sink is None
