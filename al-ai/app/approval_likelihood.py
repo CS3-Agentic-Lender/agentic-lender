@@ -61,7 +61,7 @@ def application_fields(
         return fields
 
     if heloc:
-        fields["ltvPct"] = round((a.existing_mortgage_balance_eur + a.loan_amount_eur) / valuation.estimate_eur * 100, 1)
+        fields["ltvPct"] = round(aff.combined_ltv(a.existing_mortgage_balance_eur, a.loan_amount_eur, valuation.estimate_eur) * 100, 1)
         breaches = policy_gate.heloc_breaches(
             existing_balance=a.existing_mortgage_balance_eur, line=a.loan_amount_eur,
             home_value=valuation.estimate_eur, gross_annual_income=a.gross_income_eur,
@@ -100,7 +100,7 @@ def from_run(record: dict) -> tuple[float, ValuationFindings] | None:
     facts = calculations["valuation_facts"]
     findings = ValuationFindings(
         estimate_eur=model["estimate_eur"],
-        price_needs_review=bool(facts["price_needs_review"]),
+        price_needs_review=bool(facts.get("price_needs_review")),  # a HELOC has no asking price, so its facts never flag it
         low_model_support=risk_tier.has_low_support(facts["support_warnings"]),
     )
     return calculations["benchmark_rate_pct"], findings

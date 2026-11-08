@@ -143,6 +143,12 @@ def test_a_support_warning_is_low_model_support_but_a_failed_breakdown_is_not():
     assert not al.from_run(run_record(warnings=[BREAKDOWN_WARNING]))[1].low_model_support
 
 
+def test_a_heloc_run_has_no_price_flag_and_is_never_flagged():
+    heloc = run_record()
+    del heloc["steps"]["calculations"]["output"]["valuation_facts"]["price_needs_review"]  # the HELOC facts have no such key
+    assert al.from_run(heloc)[1].price_needs_review is False
+
+
 def test_a_failed_run_or_one_without_a_valuation_gives_nothing():
     assert al.from_run(run_record(status="failed")) is None
     incomplete = run_record()
