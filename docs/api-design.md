@@ -138,7 +138,7 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 | `GET /core/me`, `PUT /core/me/broker` | Any role, borrower | View the profile and let a borrower select a broker |
 | `GET /core/brokers` | Any role | List the brokers a borrower can choose: uid, name and firm only |
 | `POST /core/applications` | Borrower | Start an application draft |
-| `PATCH /core/applications/{id}` | The owner | Change a draft |
+| `PATCH /core/applications/{id}` | The owner | Change a draft. The loan term (`term_years`) is a whole number from 5 to 35 on create, edit and submit; anything else is `422` naming `term_years` |
 | `POST /core/applications/{id}/submit` | The owner | Validate the draft and change its status to `Applied` |
 | `POST /core/applications/{id}/decision` | Underwriter | Record an approval or decline and its reason |
 | `POST /core/applications/{id}/mint` | Underwriter | Create the loan note and store its audit hash |

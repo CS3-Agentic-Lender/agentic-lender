@@ -60,6 +60,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `borrowerName` | string | yes | The borrower's `fullName`, copied when the application is created, so a broker can show it even after the borrower moves to another broker and their profile is no longer readable |
 | `status` | string | yes | Exactly one of: `Draft`, `Applied`, `AI Deliberated`, `Underwriter Approved`, `Declined`, `Funded`, `Closed`. al-ai matches on these strings |
 | `aiRunStatus` | string | no | `running`, `failed` or `complete`. Absent until the first AI run starts |
+| `aiRunId` | string | no | The `ai_runs` document of the run that holds the application, written with `aiRunStatus` when the run starts (the committee listener claims the application in one transaction); a re-run replaces it. The failure reason and everything else about the run is on that document, not here, because the borrower can read this one |
 | `loanType` | string | yes | `mortgage` or `heloc` |
 | `createdAt` | timestamp | yes | |
 | `submittedAt` | timestamp | no | Set when the status moves from `Draft` to `Applied` |
@@ -83,7 +84,7 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | `depositEur` | number | mortgage only | |
 | `firstTimeBuyer` | boolean | mortgage only | Sets the income multiple (4x first-time, 3.5x otherwise) |
 | `loanAmountEur` | number | yes | Amount requested. For a HELOC, the requested credit limit |
-| `termYears` | number | yes | |
+| `termYears` | number | yes | Whole years, 5 to 35 (the range the AI committee and the affordability check work for). The API refuses anything else on create, edit and submit; the loan note contract's own limit of 40 years stays as the hard limit on the chain |
 | `property` | map | yes | See below |
 
 `property` map:
@@ -231,19 +232,31 @@ When one person last opened the thread. There is one document per person, named 
 
 Written only by the API, by `POST /core/applications/{id}/messages/read`, for the caller. Absent until the person first opens the thread, which means everything sent by anyone else is unread. The unread count is the messages sent by someone else after `lastReadAt`; `GET /core/applications/{id}/messages/unread` gives it, and an app can work it out itself by listening to the thread and to its own `readState` document.
 
-## ai_runs/{runId} (Nic to confirm)
+## ai_runs/{runId}
+
+One document per committee run, so the portal's deliberation console can show each agent's report and vote and the committee's consensus. Written by al-ai with the Admin SDK: created when the listener claims an application, finished when the run ends. Underwriters read every run, a broker only runs whose copied `brokerId` is theirs, a borrower none, and no client writes. The layout was agreed with Nic on the reasoning-trail ticket. The calls behind a run are in `ai_calls` (each with the run's id), and a failed run keeps the reason here, never on the application.
 
 | Field | Type | Notes |
 |---|---|---|
 | `applicationId` | string | |
 | `brokerId` | string | Copied from the application so the rules can check broker access |
-| `status` | string | `running`, `failed` or `complete` |
+| `status` | string | `running`, `failed` or `complete`. The audit record only uses a `complete` run |
 | `trigger` | string | `submit` or `rerun` |
-| `startedAt` | timestamp | |
-| `finishedAt` | timestamp | |
-| `recommendation` | string | For example `approve`, `conditional`, `decline` |
-| `creditMemo` | string | From the Underwriting Strategist |
+| `startedAt` | timestamp | The audit record picks the latest complete run by this |
+| `finishedAt` | timestamp or null | Null while the run is `running` |
+| `rerunOf` | string or null | The failed run this one repeats |
+| `failedStep` | string or null | The step that failed: `validate`, `valuation_model`, `market`, `calculations`, `affordability`, `valuation_agent`, `strategist` or `policy_gate` |
+| `failureReason` | string or null | Why, in words an underwriter can read. Never contains a key |
+| `agents` | map | `affordability`, `valuation`, `strategist` and `market`; see below |
+| `creditMemo` | string | The strategist's memo. Named `creditMemo` because the audit record reads it by that name (a run without it cannot be minted) and its text is hashed |
+| `originalRecommendation` | string | The strategist's own: `Approve`, `Conditionally Approve` or `Decline` |
+| `effectiveRecommendation` | string | The one after the policy gate, same values. It can only be less favourable than the original |
+| `consensus` | map | `votes` (the three voting agents side by side: `affordability`, `valuation`, `strategist`, each a recommendation) and `disagreement` (true when they do not all give the same one). There is no majority rule |
 | `policyGate` | map | What the policy gate returned for this run, the same map as `review/underwriting.policyGate` (see there). Both are written in one batch, so a run record always keeps what the gate said, even after a re-run replaces the review document's copy |
+
+`agents.<name>` always holds `provider`, `model`, `promptVersion` and `report` (the text the agent wrote). The three voting agents also hold `recommendation` (its vote), `rating` (`affordability`: `strong`, `adequate`, `weak` or `unaffordable`; `valuation`: `strong`, `adequate`, `weak` or `unsupported`), `concerns` and `conditions` (lists of text). A field an agent's reply does not have is null: the strategist has no `rating` and no `concerns`. Market & Macro does not vote, so its `recommendation`, `rating`, `concerns` and `conditions` are all null.
+
+An older run record may still carry a single `recommendation` field (`approve`, `conditional` or `decline`). It is replaced by `originalRecommendation` and `effectiveRecommendation`, and the portal should read those and `consensus`.
 
 ## ai_calls/{callId}
 

@@ -26,6 +26,10 @@ from app.me import EIRCODE
 
 router = APIRouter(prefix="/core", tags=["applications"])
 
+# The loan terms the product offers: the range the AI committee, the affordability check and the iOS term control all use. The loan note
+# contract's own hard limit is 40 years (480 months), which this stays inside.
+MIN_TERM_YEARS, MAX_TERM_YEARS = 5, 35
+
 
 def money():
     """An optional euro amount: never negative, never NaN or infinity."""
@@ -78,7 +82,7 @@ class ApplicationFields(BaseModel):
     deposit_eur: float | None = money()
     first_time_buyer: bool | None = None
     loan_amount_eur: float | None = Field(default=None, gt=0, le=100_000_000)
-    term_years: int | None = Field(default=None, ge=1, le=40)
+    term_years: int | None = Field(default=None, ge=MIN_TERM_YEARS, le=MAX_TERM_YEARS)
     property: PropertyIn | None = None
 
 
@@ -447,6 +451,10 @@ def submit(application_id: str, user: dict = Depends(require_role("borrower"))):
     if missing:
         raise RequestValidationError(
             [{"loc": ("body", *missing.split(".")), "msg": "is required to submit", "type": "missing"}]
+        )
+    if not MIN_TERM_YEARS <= doc["termYears"] <= MAX_TERM_YEARS:  # a Draft saved before the range was set
+        raise RequestValidationError(
+            [{"loc": ("body", "term_years"), "msg": f"must be between {MIN_TERM_YEARS} and {MAX_TERM_YEARS} years to submit", "type": "value_error"}]
         )
 
     changes = status_moves.plan_move(doc, "Applied", status_moves.BORROWER, user["uid"], extra={"submittedAt": SERVER_TIMESTAMP})
