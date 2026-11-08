@@ -184,6 +184,8 @@ Goal: the whole app runs on one laptop with no cloud credentials. Status: **Plan
 
 GitHub Actions runs each suite on every PR, filtered by path so only the changed subsystem runs. A failing test fails that PR's check. Every user story has a written test case in the sprint docs.
 
+**al-ai thread cap.** `al-ai/tests/conftest.py` caps numpy, scikit-learn and joblib at 2 threads during tests (`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`, `LOKY_MAX_CPU_COUNT`). Uncapped, a full run peaked at about 17 cores; capped it peaks at about 2 and finishes slightly faster, because the threads no longer fight over the cores. A value you set wins, e.g. `OMP_NUM_THREADS=8 uv run pytest`. Only the tests are capped, not the app or the training scripts.
+
 ### UI tests (al-mobile)
 
 `AgenticLenderUITests` drives the iOS app end to end against the local stack: submitting a mortgage application, seeing a status change live on the status screen, and picking a saved property check in the application form. They run on a Mac only, before a merge or a demo. CI doesn't run them, because it has no emulators: they sit in their own `AgenticLenderUITests` scheme, and `mobile.yml` runs the `AgenticLender` scheme's unit tests as before.
