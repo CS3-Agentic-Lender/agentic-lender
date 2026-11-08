@@ -47,7 +47,8 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
 
     A first run needs an application that has never had an AI run. A re-run (`rerun_of`) needs one whose last run is that failed run.
     `extra_fields` works out more fields from the application as this transaction read it, and they are written in the same
-    transaction: the place the approval likelihood fields go (AL-63). It is only called for a claim that is won.
+    transaction: the place the approval likelihood fields go (AL-63). It runs inside the transaction function, which Firestore
+    may run again on a retry, including attempts that then lose: so it must be a pure calculation with no other side effects.
     """
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)

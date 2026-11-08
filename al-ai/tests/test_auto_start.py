@@ -301,17 +301,18 @@ def test_submit_writes_the_figures_with_the_claim_at_the_benchmark_rate(db):
     assert set(stored) == {"approvalLikelihood", "dtiPct", "purchaseLtvPct"}
 
 
-def test_the_figures_are_there_before_the_committee_runs(db):
+def test_the_figures_are_there_before_the_committee_runs(db, monkeypatch):
     application_id = applied(db)
     seen = {}
+    real_run = committee.run_committee
 
-    def watching(store):
-        seen.update(figures(application(db, application_id)))  # the deps (and the rate) are got first, then the claim writes the figures
-        return factory(FAILING)(store)
+    def watching(*args, **kwargs):
+        seen.update(figures(application(db, application_id)))  # what is stored as the committee starts
+        return real_run(*args, **kwargs)
 
-    auto_start.process(db, application_id, deps_factory=watching)
-    assert seen == {}  # built before the claim: nothing written yet ...
-    assert figures(application(db, application_id)) == expected_on_submit(tc.MORTGAGE)  # ... and the claim wrote them
+    monkeypatch.setattr(committee, "run_committee", watching)
+    auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    assert seen == expected_on_submit(tc.MORTGAGE)
 
 
 def test_a_heloc_is_unknown_on_submit_but_its_dti_is_written(db):
