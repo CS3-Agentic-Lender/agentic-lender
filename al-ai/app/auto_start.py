@@ -78,12 +78,14 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     """Write the end of a run: its `ai_runs` document, and the application's `aiRunStatus` (and, if it is complete, its status).
 
     The status only moves while the application is still Applied and this run is still the one that holds it, so a late write
-    from a run that was replaced can never move an application that has moved on.
+    from a run that was replaced can never move an application that has moved on. A complete run also rewrites the borrower's
+    figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit.
     """
     run_id, application_id = record["run_id"], record["application_id"]
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
     finished = now or datetime.fromisoformat(record["finished_at"])
+    recalculate = figures_on_finish(record)
 
     @firestore.transactional
     def write(transaction):
@@ -95,6 +97,8 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
         if data.get("aiRunId") != run_id:
             return
         update = {"aiRunStatus": record["status"], "updatedAt": SERVER_TIMESTAMP}
+        if recalculate:
+            update.update(recalculate(data))
         if record["status"] == "complete" and data.get("status") == APPLIED:
             entry = {"from": APPLIED, "to": AI_DELIBERATED, "actor": "committee", "actorId": "al-ai", "at": finished}  # a real datetime: Firestore refuses a server timestamp inside an array
             update.update({"status": AI_DELIBERATED, "statusHistory": ArrayUnion([entry])})
@@ -140,6 +144,31 @@ def figures_on_claim(deps: committee.Deps | None) -> ExtraFields | None:
             return approval_likelihood.application_fields(application, benchmark_rate_pct=rate)
         except Exception:
             log.exception("could not work out the borrower's figures on claim")
+            return {}
+
+    return fields
+
+
+def figures_on_finish(record: dict) -> ExtraFields | None:
+    """The borrower's figures recalculated from a complete run (AL-63 criterion 4), or None for a run that did not get that far.
+
+    Uses the rate the run used, so the figures match its credit memo, and adds the valuation concern. A HELOC gets its label and
+    combined LTV here. An error leaves the figures from submit and never stops the status moving.
+    """
+    try:
+        found = approval_likelihood.from_run(record)
+    except Exception:
+        log.exception("could not read the valuation from run %s, so the figures from submit stay", record.get("run_id"))
+        return None
+    if found is None:
+        return None
+    rate, valuation = found
+
+    def fields(application: dict) -> dict:
+        try:
+            return approval_likelihood.application_fields(application, benchmark_rate_pct=rate, valuation=valuation)
+        except Exception:
+            log.exception("could not recalculate the borrower's figures for run %s", record.get("run_id"))
             return {}
 
     return fields

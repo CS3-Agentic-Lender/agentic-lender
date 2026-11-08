@@ -341,3 +341,75 @@ def test_a_crash_building_the_run_still_claims_and_fails_it_with_no_figures(db):
     assert auto_start.process(db, application_id, deps_factory=broken) is None
     stored = application(db, application_id)
     assert stored["aiRunStatus"] == "failed" and figures(stored) == {}
+
+
+# ---- AL-63 criterion 4: recalculated when a run completes, with that run's rate and valuation -----------------
+
+def expected_after(sample, record):
+    rate, findings = approval_likelihood.from_run(record)
+    return approval_likelihood.application_fields(sample, benchmark_rate_pct=rate, valuation=findings)
+
+
+def heloc_applied(db):
+    return applied(db, **{key: None for key in tc.MORTGAGE if key not in tc.HELOC}, **tc.HELOC)
+
+
+def stale_before_save(db, application_id):
+    """A deps factory whose store marks the figures stale just before the run is saved, so a test sees the save rewrite them."""
+
+    def make(store):
+        real_save = store.save
+
+        def save(record):
+            db.collection("applications").document(application_id).update({"approvalLikelihood": "stale", "dtiPct": -1})
+            real_save(record)
+
+        store.save = save
+        return factory()(store)
+
+    return make
+
+
+def test_a_complete_run_recalculates_the_figures_with_its_valuation(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=stale_before_save(db, application_id))
+    stored = application(db, application_id)
+    assert stored["status"] == "AI Deliberated"
+    assert figures(stored) == expected_after(tc.MORTGAGE, record)
+
+
+def test_a_complete_heloc_run_turns_unknown_into_a_label_and_writes_its_combined_ltv(db):
+    application_id = heloc_applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    stored = figures(application(db, application_id))
+    assert stored == expected_after(tc.HELOC, record)
+    assert stored["approvalLikelihood"] != "Unknown" and "ltvPct" in stored and "purchaseLtvPct" not in stored
+
+
+def test_a_re_run_that_completes_recalculates_the_figures(db):
+    application_id = heloc_applied(db)
+    failed = auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    assert figures(application(db, application_id))["approvalLikelihood"] == "Unknown"  # the failed run kept the submit figures
+    again = auto_start.rerun(db, application_id, failed["run_id"], deps_factory=factory())
+    assert figures(application(db, application_id)) == expected_after(tc.HELOC, again)
+
+
+def test_a_run_that_was_replaced_does_not_write_figures(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    db.collection("applications").document(application_id).update({"aiRunId": "run-2", "approvalLikelihood": "Low"})
+    auto_start.finish(db, record)  # the old run's save arriving late
+    assert application(db, application_id)["approvalLikelihood"] == "Low"
+
+
+def test_a_crash_working_out_the_figures_never_stops_the_status_moving(db, monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("bug in the rule")
+
+    monkeypatch.setattr(approval_likelihood, "application_fields", broken)
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    stored = application(db, application_id)
+    assert record["status"] == "complete" and stored["status"] == "AI Deliberated"
+    assert figures(stored) == {}
