@@ -42,7 +42,7 @@ def run(application=tc.MORTGAGE, providers=None, sink=None, report_store=None, s
     sink = sink if sink is not None else MemorySink()
     store = tc.MemoryRunStore()
     deps = committee.Deps(
-        store=store, report_store=report_store or tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=store, report_store=report_store or tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=providers, env=env or tc.ENV, sleep=lambda s: None, call_sink=sink,
         search=search or (lambda *a, **k: pytest.fail("the day's report exists, so no search should run")),
     )
@@ -186,7 +186,7 @@ def test_no_key_or_auth_header_is_in_any_document_of_a_whole_run():
             return super().__call__(url, headers, body, timeout)
 
     deps = committee.Deps(
-        store=tc.MemoryRunStore(), report_store=reports, official=tm.OFFICIAL, benchmark_rate_pct=4.0, today=tm.TODAY,
+        store=tc.MemoryRunStore(), report_store=reports, get_rate=tc.get_rate, today=tm.TODAY,
         agents=tc.AGENTS, transport=Both(), env=env, sleep=lambda s: None, call_sink=(sink := MemorySink()),
     )
     committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1", run_id=RUN)
@@ -272,7 +272,7 @@ def test_a_valuation_model_call_that_cannot_be_saved_fails_that_step():
 
 def test_a_run_without_a_sink_saves_nothing_and_behaves_as_before():
     deps = committee.Deps(
-        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=lambda s: None,
     )
     assert committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1")["status"] == "complete"

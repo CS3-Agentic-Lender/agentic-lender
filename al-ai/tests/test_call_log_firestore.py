@@ -52,7 +52,7 @@ def test_saving_the_same_call_again_and_a_different_call_under_the_same_id(db):
 
 def test_a_whole_committee_run_leaves_its_calls_where_the_run_can_be_found(db):
     deps = committee.Deps(
-        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=lambda s: None, call_sink=FirestoreSink(db),
     )
     record = committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1", run_id="run-live")
@@ -73,7 +73,7 @@ def test_a_run_that_is_run_twice_with_the_same_ids_does_not_overwrite_the_first_
 
     def once(providers):
         deps = committee.Deps(
-            store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+            store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
             agents=tc.AGENTS, transport=providers, env=tc.ENV, sleep=lambda s: None, call_sink=sink,
         )
         return committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1", run_id="run-twice")
