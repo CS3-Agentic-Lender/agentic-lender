@@ -39,13 +39,15 @@ TRANSACTION_ATTEMPTS = 10  # the client retries a transaction that lost a fight 
 WORKERS = 2  # committee runs at once in one service: each makes several provider calls, so a small number keeps us inside their rate limits
 
 DepsFactory = Callable[[committee.RunStore], committee.Deps]
+ExtraFields = Callable[[dict], dict]  # the application as the claim read it -> more fields to write with the claim
 
 
-def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, extra_fields: dict | None = None, now: datetime | None = None) -> dict | None:
+def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, extra_fields: ExtraFields | None = None, now: datetime | None = None) -> dict | None:
     """Take the application for one run. Returns the application document, or None when someone else already has it (or it is not Applied).
 
     A first run needs an application that has never had an AI run. A re-run (`rerun_of`) needs one whose last run is that failed run.
-    `extra_fields` are written to the application in the same transaction: the place the approval likelihood fields go (AL-63).
+    `extra_fields` works out more fields from the application as this transaction read it, and they are written in the same
+    transaction: the place the approval likelihood fields go (AL-63). It is only called for a claim that is won.
     """
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
@@ -61,7 +63,7 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
             return None
         if rerun_of is not None and (data.get("aiRunStatus") != "failed" or data.get("aiRunId") != rerun_of):
             return None
-        transaction.update(application, {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields or {})})
+        transaction.update(application, {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields(data) if extra_fields else {})})
         transaction.set(run, {
             "applicationId": application_id, "brokerId": data.get("brokerId"), "status": "running",
             "trigger": "rerun" if rerun_of else "submit", "rerunOf": rerun_of, "startedAt": started,
@@ -118,7 +120,7 @@ def _crashed(run_id: str, application_id: str, exc: Exception) -> dict:
     }
 
 
-def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None, extra_fields: dict | None = None) -> dict | None:
+def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None, extra_fields: ExtraFields | None = None) -> dict | None:
     """Claim the application and run the committee for it. Returns the run record, or None if the claim was not won.
 
     The committee turns its own step failures into a failed record. This also turns a crash outside the steps (for example the

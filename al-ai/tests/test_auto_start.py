@@ -122,13 +122,21 @@ def test_the_listener_never_claims_an_application_that_has_already_had_a_run(db,
 
 
 def test_the_claim_writes_the_extra_fields_in_the_same_transaction(db):
-    """The place the approval likelihood fields go (AL-63): they land with the claim, or not at all."""
+    """The place the approval likelihood fields go (AL-63): worked out from the application the claim read, and written with it or not at all."""
+    seen = []
+
+    def fields(data):
+        seen.append(data["loanAmountEur"])
+        return {"approvalLikelihood": "High"}
+
     application_id = applied(db)
-    auto_start.claim(db, application_id, run_id="run-1", extra_fields={"approvalLikelihood": "High"})
+    auto_start.claim(db, application_id, run_id="run-1", extra_fields=fields)
     assert application(db, application_id)["approvalLikelihood"] == "High"
+    assert seen == [tc.MORTGAGE["loanAmountEur"]]
     other = applied(db, status="Draft")
-    auto_start.claim(db, other, run_id="run-2", extra_fields={"approvalLikelihood": "High"})
+    auto_start.claim(db, other, run_id="run-2", extra_fields=fields)
     assert "approvalLikelihood" not in application(db, other)
+    assert len(seen) == 1  # a claim that is refused works nothing out
 
 
 # ---- criterion 3: a complete run moves the status, a failed run leaves it ------------------------
