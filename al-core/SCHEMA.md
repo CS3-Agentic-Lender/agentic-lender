@@ -83,7 +83,7 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | `depositEur` | number | mortgage only | |
 | `firstTimeBuyer` | boolean | mortgage only | Sets the income multiple (4x first-time, 3.5x otherwise) |
 | `loanAmountEur` | number | yes | Amount requested. For a HELOC, the requested credit limit |
-| `termYears` | number | yes | |
+| `termYears` | number | yes | Whole years, 5 to 35 (the range the AI committee and the affordability check work for). The API refuses anything else on create, edit and submit; the loan note contract's own limit of 40 years stays as the hard limit on the chain |
 | `property` | map | yes | See below |
 
 `property` map:
