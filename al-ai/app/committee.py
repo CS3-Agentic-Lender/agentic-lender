@@ -138,6 +138,8 @@ def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget)
 
 
 def _llm_result(name: str, result: va.AgentResult, extra: dict | None = None) -> dict:
+    if not result.attempts:  # the run's time ran out before the step's first call: there is nothing to record but the reason
+        raise StepFailed(result.failure_reason or "the step failed")
     last = result.attempts[-1]
     evidence = {"provider": last["provider"], "model": last["model"], "prompt_version": last["prompt_version"], "attempts": result.attempts}
     if not result.ok:
