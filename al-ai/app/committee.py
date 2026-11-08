@@ -16,7 +16,7 @@ import json
 import logging
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from operator import add
 from pathlib import Path
 from typing import Annotated, Callable, Protocol, TypedDict
@@ -25,7 +25,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
 from app import affordability_agent as aa
-from app import call_log, committee_input, policy_gate, retry_policy, serper, valuation_endpoint, valuation_model
+from app import call_log, committee_input, official_rates, policy_gate, rates, retry_policy, serper, valuation_endpoint, valuation_model
 from app import market_agent as ma
 from app import strategist_agent as sa
 from app import valuation_agent as va
@@ -36,7 +36,6 @@ log = logging.getLogger("al-ai.committee")
 AL_AI = Path(__file__).resolve().parents[1]
 SAMPLES = Path(__file__).with_name("committee_samples")
 RUNS_FOLDER = AL_AI / "docs" / "committee-runs"
-DEFAULT_BENCHMARK_RATE_PCT = 4.0  # the stand-in the docker-compose file uses, until the ECB rate tool exists
 NODE_ORDER = ("validate", "valuation_model", "market", "calculations", "affordability", "valuation_agent", "strategist", "policy_gate", "save")
 
 
@@ -75,8 +74,7 @@ class Deps:
 
     store: RunStore
     report_store: ma.ReportStore
-    official: ma.OfficialFigures
-    benchmark_rate_pct: float
+    get_rate: official_rates.GetRate = rates.get_rate  # the ECB rates; tests and the local runner hand in a fake cache (AL-291)
     today: str | None = None
     agents: dict[str, config.AgentModel] | None = None  # None: the models agents.json names
     search: Callable[..., serper.SearchResult] = serper.search
@@ -106,6 +104,7 @@ class State(TypedDict, total=False):
     steps: Annotated[dict, _merge]  # step name -> that step's result
     failures: Annotated[list, add]  # {"step", "reason"}; the first one is the run's failed step
     node_order: Annotated[list, add]  # the nodes that actually ran
+    rates: official_rates.RunRates  # the ECB rates this run uses, fetched by the market step
     rerun_of: str | None  # the failed run this one repeats
     record: dict
 
@@ -139,6 +138,8 @@ def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget)
 
 
 def _llm_result(name: str, result: va.AgentResult, extra: dict | None = None) -> dict:
+    if not result.attempts:  # the run's time ran out before the step's first call: there is nothing to record but the reason
+        raise StepFailed(result.failure_reason or "the step failed")
     last = result.attempts[-1]
     evidence = {"provider": last["provider"], "model": last["model"], "prompt_version": last["prompt_version"], "attempts": result.attempts}
     if not result.ok:
@@ -185,16 +186,21 @@ def build_graph(deps: Deps):
         }}}
 
     def market(state: State) -> dict:
+        """The first step that needs a rate, so a rate that cannot be had fails the run here, before any model call."""
+        try:
+            run_rates = official_rates.load(deps.get_rate, deps.today or date.today().isoformat())
+        except rates.RateUnavailable as exc:
+            raise StepFailed(str(exc))
         got = ma.get_report(
-            deps.official, store=deps.report_store, run_id=state["run_id"], today=deps.today, agent=deps.agent("market"),
+            run_rates.official, store=deps.report_store, run_id=state["run_id"], today=deps.today, agent=deps.agent("market"),
             search=deps.search, transport=deps.transport, env=deps.env, sleep=deps.sleep, budget=budget, context=ids(state),
             record=call_log.recorder(deps.call_sink, "market"),
         )
-        evidence = {"attempts": got.attempts, "searches": got.searches}
+        evidence = {"attempts": got.attempts, "searches": got.searches, "rates": run_rates.evidence()}
         if not got.ok:
             raise StepFailed(got.failure_reason or "the market report failed", evidence)
         report = got.report
-        return {"steps": {"market": {
+        return {"rates": run_rates, "steps": {"market": {
             "ok": True, "output": report, "report_id": report["report_id"], "reused_report_id": got.reused_report_id,
             "provider": report["provider"], "model": report["model"], "prompt_version": report["prompt_version"], **evidence,
         }}}
@@ -206,7 +212,7 @@ def build_graph(deps: Deps):
         heloc = a.loan_type == "heloc"
         try:
             affordability_facts = aa.build_facts(
-                loan=a.loan_amount_eur, years=a.term_years, benchmark_rate=deps.benchmark_rate_pct / 100,
+                loan=a.loan_amount_eur, years=a.term_years, benchmark_rate=state["rates"].benchmark_rate_pct / 100,
                 gross_annual_income=a.gross_income_eur, net_monthly_income=a.monthly_take_home_eur, monthly_debts=a.monthly_debts_eur,
                 monthly_living_costs=a.monthly_living_costs_eur, first_time_buyer=bool(a.first_time_buyer) and not heloc,
             )
@@ -230,7 +236,7 @@ def build_graph(deps: Deps):
         except ValueError as exc:
             raise StepFailed(f"the figures could not be worked out: {exc}")
         output = {
-            "benchmark_rate_pct": deps.benchmark_rate_pct, "affordability_facts": affordability_facts,
+            "benchmark_rate_pct": state["rates"].benchmark_rate_pct, "benchmark_rate_month": state["rates"].benchmark_rate_month, "affordability_facts": affordability_facts,
             "valuation_facts": valuation_facts, "breaches": list(breaches),
         }
         return {"steps": {"calculations": {"ok": True, "output": output}}}
@@ -352,25 +358,24 @@ def rerun_committee(failed: dict, application: dict, *, deps: Deps) -> dict:
     return run_committee(application, deps=deps, application_id=failed["application_id"], rerun_of=failed["run_id"])
 
 
-def local_deps(store: RunStore, env: dict, figures_path: Path = SAMPLES / "official-figures.json", call_sink: call_log.Sink | None = None) -> Deps:
-    """The real providers, the stand-in rate and the sample official figures: what the runner and the Firestore listener use until the ECB rate is wired in.
+def local_deps(store: RunStore, env: dict, call_sink: call_log.Sink | None = None) -> Deps:
+    """The real providers, for the Firestore listener: the ECB rates come from the shared Firestore cache (`rates_cache`).
 
     `call_sink` is where every AI call of the run is saved as an ai_calls document (AL-140); the runner has none, the listener passes Firestore."""
-    figures = json.loads(Path(figures_path).read_text())
-    return Deps(
-        store=store, report_store=ma.MemoryReportStore(),
-        official=ma.OfficialFigures(as_of=figures["as_of"], figures=figures["figures"]),
-        benchmark_rate_pct=float(env.get("BENCHMARK_RATE_PCT") or DEFAULT_BENCHMARK_RATE_PCT), env=env, call_sink=call_sink,
-    )
+    return Deps(store=store, report_store=ma.MemoryReportStore(), env=env, call_sink=call_sink)
 
 
 def main(argv: list[str]) -> int:
-    """cd al-ai && uv run python -m app.committee APPLICATION.json [--figures FILE] [--out FOLDER] [--rerun FAILED_RUN_ID]"""
+    """cd al-ai && uv run python -m app.committee APPLICATION.json [--rates CACHE.json] [--out FOLDER] [--rerun FAILED_RUN_ID]
+
+    The runner needs no Firestore. The ECB rates come from an in-memory cache: filled from CACHE.json (`rates_cache` documents by name,
+    with `fetchedAt` as an ISO time) when given, else empty, so the rates are fetched live from the ECB and kept for this run only.
+    """
     from app.llm import smoke
 
     args = list(argv)
     options = {}
-    for flag in ("--figures", "--out", "--rerun"):
+    for flag in ("--rates", "--out", "--rerun"):
         if flag in args:
             at = args.index(flag)
             options[flag] = args[at + 1]
@@ -379,7 +384,15 @@ def main(argv: list[str]) -> int:
         print(main.__doc__)
         return 2
     path = Path(args[0])
-    deps = local_deps(JsonFileRunStore(Path(options.get("--out", RUNS_FOLDER))), smoke.load_env(), Path(options.get("--figures", SAMPLES / "official-figures.json")))
+    env = smoke.load_env()
+    cache = rates.MemoryCache()
+    if "--rates" in options:
+        for name, doc in json.loads(Path(options["--rates"]).read_text()).items():
+            cache.save(name, {**doc, "fetchedAt": datetime.fromisoformat(doc["fetchedAt"])})
+    deps = Deps(
+        store=JsonFileRunStore(Path(options.get("--out", RUNS_FOLDER))), report_store=ma.MemoryReportStore(),
+        get_rate=lambda name: rates.get_rate(name, cache=cache), env=env,
+    )
     application = json.loads(path.read_text())
     if "--rerun" in options:
         record = rerun_committee(deps.store.load(options["--rerun"]), application, deps=deps)

@@ -10,7 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from app import committee, committee_input, policy_gate, valuation_endpoint, valuation_model
+from datetime import UTC, datetime
+
+from app import committee, committee_input, official_rates, policy_gate, rates, valuation_endpoint, valuation_model
 from app import market_agent as ma
 from app.llm import config
 
@@ -26,7 +28,18 @@ AGENTS = {
 }
 ENV = {"GROQ_API_KEY": "k", "GEMINI_API_KEY": "k", "OLLAMA_HOST": "http://ollama.test:11434"}
 TODAY = "2026-10-23"
-OFFICIAL = ma.OfficialFigures(as_of=TODAY, figures={"ecb_main_refinancing_rate_pct": 2.15})
+FETCHED = datetime(2026, 10, 23, 8, 0, tzinfo=UTC)
+RATES = {  # the 4.00% test rate the reference cases use, dated
+    "mortgage_ie": rates.Rate("mortgage_ie", 4.0, "2026-09", 4.5, "2025-09", FETCHED),
+    "ecb_mrr": rates.Rate("ecb_mrr", 2.15, "2026-06-11", 3.65, "2025-06-11", FETCHED),
+}
+
+
+def get_rate(name):
+    return RATES[name]
+
+
+OFFICIAL = official_rates.load(get_rate, TODAY).official  # what the market step builds from those rates
 
 AFFORDABILITY = {"rating": "adequate", "recommendation": "Conditionally Approve", "concerns": [], "conditions": []}
 VALUATION = {"rating": "adequate", "recommendation": "Conditionally Approve", "conditions": [], "explanation": "The estimate supports the loan."}
@@ -94,7 +107,7 @@ def go(application, providers=None, store=None):
     providers = providers or Providers()
     store = store or MemoryRunStore()
     deps = committee.Deps(
-        store=store, report_store=a_report_for_today(), official=OFFICIAL, benchmark_rate_pct=4.0, today=TODAY,
+        store=store, report_store=a_report_for_today(), get_rate=get_rate, today=TODAY,
         agents=AGENTS, transport=providers, env=ENV, sleep=lambda s: None,
         search=lambda *a, **k: pytest.fail("the day's report exists, so no search should run"),
     )

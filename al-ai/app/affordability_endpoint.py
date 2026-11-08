@@ -1,13 +1,15 @@
 """POST /ai/affordability: how much a borrower can borrow. The maths lives in app.affordability."""
 
-import os
+import logging
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import AfterValidator, BaseModel, ConfigDict, Discriminator, Field, StrictBool, Tag
 
-from app import affordability, auth, valuation_model
+from app import affordability, auth, rates, valuation_model
 from ml import data_readiness as dr
+
+log = logging.getLogger("al-ai.affordability")
 
 router = APIRouter(prefix="/ai")
 
@@ -75,17 +77,16 @@ class AffordabilityResponse(BaseModel):
 
 
 def benchmark_rate() -> tuple[float, str]:
-    """The benchmark mortgage rate in percent and the month it is from.
+    """The benchmark mortgage rate in percent and the month it is from, from the ECB rate tool (cached in Firestore).
 
-    ponytail: read from settings until the ECB rate tool exists. Never guessed: missing or unreadable is a 503.
+    Never guessed: a rate we cannot get, or that is more than 3 months old with the ECB unreachable, is a 503.
     """
-    pct, month = os.getenv("BENCHMARK_RATE_PCT"), os.getenv("BENCHMARK_RATE_DATE")
     try:
-        if pct and month:
-            return float(pct), month
-    except ValueError:
-        pass
-    raise HTTPException(503, "The benchmark mortgage rate is not available")
+        rate = rates.get_rate("mortgage_ie")
+    except rates.RateUnavailable as exc:
+        log.warning("the benchmark mortgage rate is not available: %s", exc)
+        raise HTTPException(503, "The benchmark mortgage rate is not available")
+    return rate.pct, rate.month
 
 
 def _loan_type(value) -> str:
