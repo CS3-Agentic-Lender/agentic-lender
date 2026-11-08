@@ -149,12 +149,57 @@ describe('policyGate on review/underwriting', () => {
 });
 
 describe('ai_runs', () => {
-  test('a run record carries the recommendation and no percentage', () => {
+  const RECOMMENDATIONS = ['Approve', 'Conditionally Approve', 'Decline'];
+  const VOTERS = ['affordability', 'valuation', 'strategist'];
+  const AFFORDABILITY_RATINGS = ['strong', 'adequate', 'weak', 'unaffordable'];
+  const VALUATION_RATINGS = ['strong', 'adequate', 'weak', 'unsupported'];
+  const runDocs = runs.map((r) => [r.path, r.data]);
+
+  test('a run record carries no percentage and no single old-style recommendation', () => {
     expect(runs.length).toBeGreaterThan(0);
     for (const r of runs) {
-      expect(['approve', 'conditional', 'decline']).toContain(r.data.recommendation);
       expect(r.data).not.toHaveProperty('approvalLikelihoodPct');
+      expect(r.data).not.toHaveProperty('recommendation');
     }
+  });
+
+  test.each(runDocs)('%s has exactly the documented fields', (_path, run) => {
+    expect(Object.keys(run).sort()).toEqual([
+      'agents', 'applicationId', 'brokerId', 'consensus', 'creditMemo', 'effectiveRecommendation', 'failedStep', 'failureReason',
+      'finishedAt', 'originalRecommendation', 'policyGate', 'rerunOf', 'startedAt', 'status', 'trigger',
+    ]);
+    expect(run.status).toBe('complete');
+    expect(typeof run.creditMemo).toBe('string');
+    expect(run.creditMemo.trim()).not.toBe(''); // the audit record refuses a run without a credit memo
+    expect([run.rerunOf, run.failedStep, run.failureReason]).toEqual([null, null, null]);
+  });
+
+  test.each(runDocs)('%s holds every agent, with a vote for the three voters and none for Market & Macro', (_path, run) => {
+    expect(Object.keys(run.agents).sort()).toEqual(['affordability', 'market', 'strategist', 'valuation']);
+    for (const [name, a] of Object.entries(run.agents)) {
+      expect(Object.keys(a).sort()).toEqual(['concerns', 'conditions', 'model', 'promptVersion', 'provider', 'rating', 'recommendation', 'report']);
+      expect(a.provider && a.model && a.promptVersion && a.report).toBeTruthy();
+      if (VOTERS.includes(name)) expect(RECOMMENDATIONS).toContain(a.recommendation);
+    }
+    expect([run.agents.market.recommendation, run.agents.market.rating, run.agents.market.concerns, run.agents.market.conditions]).toEqual([null, null, null, null]);
+    expect(AFFORDABILITY_RATINGS).toContain(run.agents.affordability.rating);
+    expect(VALUATION_RATINGS).toContain(run.agents.valuation.rating);
+    expect([run.agents.strategist.rating, run.agents.strategist.concerns]).toEqual([null, null]); // the strategist's reply has neither
+  });
+
+  test.each(runDocs)('%s: the consensus is the three votes side by side, and the recommendations are the strategist and the gate ones', (_path, run) => {
+    const votes = Object.fromEntries(VOTERS.map((n) => [n, run.agents[n].recommendation]));
+    expect(run.consensus.votes).toEqual(votes);
+    expect(run.consensus.disagreement).toBe(new Set(Object.values(votes)).size > 1);
+    expect(run.originalRecommendation).toBe(run.agents.strategist.recommendation);
+    expect(run.originalRecommendation).toBe(run.policyGate.original);
+    expect(run.effectiveRecommendation).toBe(run.policyGate.effective);
+  });
+
+  test('one seeded run has the agents disagreeing, and the others agree, so the console has both to show', () => {
+    const flags = runs.map((r) => r.data.consensus.disagreement);
+    expect(flags).toContain(true);
+    expect(flags).toContain(false);
   });
 });
 

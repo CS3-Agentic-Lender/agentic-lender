@@ -395,6 +395,8 @@ const AGENTS = [
   { agent: 'strategist', provider: 'gemini', model: 'gemini' },
 ];
 
+const PROMPT_VERSIONS = { affordability: 'affordability-agent-v1', valuation: 'valuation-agent-v2', market: 'market-agent-v1', strategist: 'strategist-agent-v1' };
+
 function aiRun(app) {
   const { spec } = app;
   const runId = `run-${app.id}`;
@@ -413,10 +415,38 @@ function aiRun(app) {
     },
   }));
 
+  // The reasoning trail (SCHEMA.md, ai_runs): each agent's vote and report, the strategist's own recommendation and the one after the
+  // policy gate, and the three votes side by side with no majority rule. The words are the ones the agents reply with.
+  const word = { approve: 'Approve', conditional: 'Conditionally Approve', decline: 'Decline' }[recommendation];
+  const gate = app.review.policyGate;
+  const ratings = { approve: ['strong', 'strong'], conditional: ['adequate', 'adequate'], decline: ['unaffordable', 'weak'] }[recommendation];
+  const concerns = { approve: [], conditional: ['The deposit leaves little margin.'], decline: ['The repayments are not affordable on this income.'] }[recommendation];
+  const conditions = recommendation === 'conditional' ? ['Confirm employment before the loan is drawn down.'] : [];
+  // The seeded HELOC is the run where the agents disagree: it has no asking price, so the valuation agent only goes as far as Conditionally Approve.
+  const heloc = app.doc.loanType === 'heloc';
+  const valuationVote = heloc && word === 'Approve' ? 'Conditionally Approve' : word;
+  const agent = (name, extra) => {
+    const a = AGENTS.find((x) => x.agent === name);
+    return { provider: a.provider, model: a.model, promptVersion: PROMPT_VERSIONS[name], report: `Seeded ${name} report for ${app.id}.`, ...extra };
+  };
+  const agents = {
+    affordability: agent('affordability', { recommendation: word, rating: ratings[0], concerns, conditions: [] }),
+    valuation: agent('valuation', {
+      recommendation: valuationVote, rating: valuationVote === word ? ratings[1] : 'adequate',
+      concerns: valuationVote === word ? [] : ['There is no asking price, so the value rests on the model estimate alone.'], conditions: [],
+    }),
+    strategist: agent('strategist', { recommendation: gate.original, rating: null, concerns: null, conditions }),
+    market: agent('market', { recommendation: null, rating: null, concerns: null, conditions: null }),
+  };
+  const votes = { affordability: word, valuation: valuationVote, strategist: gate.original };
+
   const run = {
     applicationId: app.id, brokerId: app.doc.brokerId, status: 'complete', trigger: 'submit',
-    startedAt, finishedAt, recommendation, creditMemo,
-    policyGate: app.review.policyGate, // the same result as review/underwriting.policyGate: the two are written in one batch
+    startedAt, finishedAt, rerunOf: null, failedStep: null, failureReason: null,
+    agents, creditMemo,
+    originalRecommendation: gate.original, effectiveRecommendation: gate.effective,
+    consensus: { votes, disagreement: new Set(Object.values(votes)).size > 1 },
+    policyGate: gate, // the same result as review/underwriting.policyGate: the two are written in one batch
   };
   return { runId, run, calls, creditMemo };
 }
