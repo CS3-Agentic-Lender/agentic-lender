@@ -20,7 +20,7 @@ import pytest
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 import test_committee as tc
-from app import auto_start, committee
+from app import approval_likelihood, auto_start, committee, rates
 
 EMULATOR = os.getenv("FIRESTORE_EMULATOR_HOST")
 pytestmark = pytest.mark.skipif(not EMULATOR, reason="needs the Firestore emulator (set FIRESTORE_EMULATOR_HOST)")
@@ -44,12 +44,12 @@ def applied(db, **changes) -> str:
     return application_id
 
 
-def factory(providers=None):
+def factory(providers=None, get_rate=tc.get_rate):
     providers = providers or tc.Providers()
 
     def make(store):
         return committee.Deps(
-            store=store, report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
+            store=store, report_store=tc.a_report_for_today(), get_rate=get_rate, today=tc.TODAY,
             agents=tc.AGENTS, transport=providers, env=tc.ENV, sleep=lambda seconds: None,
             search=lambda *a, **k: pytest.fail("the day's report exists, so no search should run"),
         )
@@ -277,3 +277,67 @@ def test_the_listener_picks_up_an_application_that_was_submitted_while_it_was_no
         assert wait_for(lambda: application(db, waiting).get("aiRunStatus") == "complete")
     finally:
         listener.stop()
+
+
+# ---- AL-63: the borrower's indicative figures, written on submit before the committee runs ----------------
+
+FIGURES = ("approvalLikelihood", "dtiPct", "purchaseLtvPct", "ltvPct")
+FAILING = tc.Providers(ollama=(500, b"boom"))  # a failed run keeps the figures from submit, so these show the submit write on its own
+
+
+def figures(document):
+    return {key: document[key] for key in FIGURES if key in document}
+
+
+def expected_on_submit(sample):
+    return approval_likelihood.application_fields(sample, benchmark_rate_pct=tc.RATES["mortgage_ie"].pct)
+
+
+def test_submit_writes_the_figures_with_the_claim_at_the_benchmark_rate(db):
+    application_id = applied(db)
+    auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    stored = figures(application(db, application_id))
+    assert stored == expected_on_submit(tc.MORTGAGE)
+    assert set(stored) == {"approvalLikelihood", "dtiPct", "purchaseLtvPct"}
+
+
+def test_the_figures_are_there_before_the_committee_runs(db):
+    application_id = applied(db)
+    seen = {}
+
+    def watching(store):
+        seen.update(figures(application(db, application_id)))  # the deps (and the rate) are got first, then the claim writes the figures
+        return factory(FAILING)(store)
+
+    auto_start.process(db, application_id, deps_factory=watching)
+    assert seen == {}  # built before the claim: nothing written yet ...
+    assert figures(application(db, application_id)) == expected_on_submit(tc.MORTGAGE)  # ... and the claim wrote them
+
+
+def test_a_heloc_is_unknown_on_submit_but_its_dti_is_written(db):
+    application_id = applied(db, **{key: None for key in tc.MORTGAGE if key not in tc.HELOC}, **tc.HELOC)
+    auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    stored = figures(application(db, application_id))
+    assert stored["approvalLikelihood"] == "Unknown" and "dtiPct" in stored
+    assert "purchaseLtvPct" not in stored and "ltvPct" not in stored
+
+
+def test_no_figures_are_written_when_the_benchmark_rate_is_not_available(db):
+    def no_rate(name):
+        raise rates.RateUnavailable("the ECB is down and the cached rate is too old")
+
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    stored = application(db, application_id)
+    assert figures(stored) == {}
+    assert record["status"] == "failed" and record["failed_step"] == "market"  # the run fails on the same missing rate and says why
+
+
+def test_a_crash_building_the_run_still_claims_and_fails_it_with_no_figures(db):
+    def broken(store):
+        raise RuntimeError("no settings")
+
+    application_id = applied(db)
+    assert auto_start.process(db, application_id, deps_factory=broken) is None
+    stored = application(db, application_id)
+    assert stored["aiRunStatus"] == "failed" and figures(stored) == {}

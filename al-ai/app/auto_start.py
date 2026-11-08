@@ -29,7 +29,7 @@ from google.cloud import firestore
 from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import committee
+from app import approval_likelihood, committee, official_rates
 
 log = logging.getLogger("al-ai.auto-start")
 
@@ -120,18 +120,50 @@ def _crashed(run_id: str, application_id: str, exc: Exception) -> dict:
     }
 
 
-def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None, extra_fields: ExtraFields | None = None) -> dict | None:
+def figures_on_claim(deps: committee.Deps | None) -> ExtraFields | None:
+    """The borrower's indicative figures to write with the claim (AL-63): LTV, DTI at the benchmark rate and the approval likelihood.
+
+    No valuation exists yet, so a HELOC is Unknown here and gets its full figures when the run completes. If the benchmark rate
+    cannot be had, nothing is written: a rate is never guessed, and the run then fails on the same missing rate and says why.
+    Working the figures out never stops the claim: an error leaves them unwritten and the run goes ahead.
+    """
+    if deps is None:
+        return None
+    try:
+        rate = deps.get_rate(official_rates.BENCHMARK).pct
+    except Exception as exc:  # RateUnavailable, or the cache itself failing
+        log.warning("no benchmark rate for the borrower's figures, so none are written: %s", exc)
+        return None
+
+    def fields(application: dict) -> dict:
+        try:
+            return approval_likelihood.application_fields(application, benchmark_rate_pct=rate)
+        except Exception:
+            log.exception("could not work out the borrower's figures on claim")
+            return {}
+
+    return fields
+
+
+def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None) -> dict | None:
     """Claim the application and run the committee for it. Returns the run record, or None if the claim was not won.
 
-    The committee turns its own step failures into a failed record. This also turns a crash outside the steps (for example the
-    save itself failing) into a failed run, so an application is not left `running` because of a bug.
+    The deps come first, because the figures written with the claim need the benchmark rate. The committee turns its own step
+    failures into a failed record. This also turns a crash outside the steps (building the deps, or the save itself failing)
+    into a failed run, so an application is not left `running` because of a bug.
     """
     run_id = str(uuid.uuid4())
-    application = claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=extra_fields)
+    try:
+        deps, deps_error = deps_factory(FirestoreRunStore(db)), None
+    except Exception as exc:
+        deps, deps_error = None, exc
+    application = claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=figures_on_claim(deps))
     if application is None:
         return None
     try:
-        return committee.run_committee(application, deps=deps_factory(FirestoreRunStore(db)), application_id=application_id, run_id=run_id, rerun_of=rerun_of)
+        if deps_error is not None:
+            raise deps_error
+        return committee.run_committee(application, deps=deps, application_id=application_id, run_id=run_id, rerun_of=rerun_of)
     except Exception as exc:
         log.exception("committee run %s for %s crashed", run_id, application_id)
         finish(db, _crashed(run_id, application_id, exc))
