@@ -47,7 +47,7 @@ def run_with_budget_spent_inside(step, monkeypatch):
         return search_results()[0]
 
     deps = committee.Deps(
-        store=tc.MemoryRunStore(), report_store=market_store, official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=tc.MemoryRunStore(), report_store=market_store, get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=clock.sleep, clock=clock, search=search,
     )
     return committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1")
