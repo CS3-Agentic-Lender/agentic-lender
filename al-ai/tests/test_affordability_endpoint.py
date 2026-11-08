@@ -1,9 +1,10 @@
 import json
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import auth
+from app import auth, rates
 from app.main import app
 
 client = TestClient(app)
@@ -16,10 +17,9 @@ KEYS = {
 
 @pytest.fixture(autouse=True)
 def signed_in_with_a_rate(monkeypatch):
-    # The reference cases use a 4.00% test rate. The rate is a stand-in setting until the ECB rate tool exists.
+    # The reference cases use a 4.00% test rate, from the August 2026 observation, handed in through the ECB rate tool's entry point.
     monkeypatch.setattr(auth.fb_auth, "verify_id_token", lambda token, check_revoked: {"uid": "u1", "role": "borrower"})
-    monkeypatch.setenv("BENCHMARK_RATE_PCT", "4.0")
-    monkeypatch.setenv("BENCHMARK_RATE_DATE", "2026-08")
+    monkeypatch.setattr(rates, "get_rate", lambda name, **kw: rates.Rate(name, 4.0, "2026-08", 4.4, "2025-08", datetime(2026, 9, 1, tzinfo=UTC)))
 
 
 def body(**changes):
@@ -120,11 +120,26 @@ def test_a_missing_field_is_422_and_names_the_field(field):
 
 # ---- the rate is never made up --------------------------------------------------------------
 
-@pytest.mark.parametrize("missing", ["BENCHMARK_RATE_PCT", "BENCHMARK_RATE_DATE"])
-def test_a_missing_rate_setting_is_503_not_a_guess(monkeypatch, missing):
-    monkeypatch.delenv(missing)
+def test_the_benchmark_rate_is_the_ecb_mortgage_rate_and_its_month(monkeypatch):
+    asked = []
+    monkeypatch.setattr(rates, "get_rate", lambda name, **kw: asked.append(name) or rates.Rate(name, 3.52, "2026-09", None, None, datetime(2026, 10, 1, tzinfo=UTC)))
+    j = post(body()).json()
+    assert asked == ["mortgage_ie"] and (j["benchmark_rate_pct"], j["rate_date"]) == (3.52, "2026-09")
+
+
+def test_a_rate_the_tool_cannot_give_is_503_not_a_guess(monkeypatch):
+    def unavailable(name, **kw):
+        raise rates.RateUnavailable("the ECB could not be reached; and there is no cached mortgage_ie rate")
+
+    monkeypatch.setattr(rates, "get_rate", unavailable)
     r = post(body())
     assert r.status_code == 503 and r.json()["error"]["code"] == "UPSTREAM_UNAVAILABLE"
+
+
+def test_the_old_rate_settings_are_ignored(monkeypatch):
+    monkeypatch.setenv("BENCHMARK_RATE_PCT", "9.9")
+    monkeypatch.setenv("BENCHMARK_RATE_DATE", "2020-01")
+    assert post(body()).json()["benchmark_rate_pct"] == 4.0
 
 
 # ---- HELOC: a credit line against a home the borrower owns ---------------------------------------

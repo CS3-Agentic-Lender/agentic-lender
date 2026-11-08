@@ -49,7 +49,7 @@ def factory(providers=None):
 
     def make(store):
         return committee.Deps(
-            store=store, report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+            store=store, report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
             agents=tc.AGENTS, transport=providers, env=tc.ENV, sleep=lambda seconds: None,
             search=lambda *a, **k: pytest.fail("the day's report exists, so no search should run"),
         )

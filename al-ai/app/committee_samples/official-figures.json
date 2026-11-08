@@ -1,5 +1,0 @@
-{
-  "what": "A STAND-IN for the cached ECB rates until the ECB rate tool exists. Not a live figure.",
-  "as_of": "2026-10-23",
-  "figures": {"ecb_main_refinancing_rate_pct": 2.15}
-}

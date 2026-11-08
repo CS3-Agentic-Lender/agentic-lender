@@ -128,7 +128,7 @@ def test_when_the_budget_runs_out_mid_run_the_run_is_saved_as_failed_with_the_ev
 
     store = tc.MemoryRunStore()
     deps = committee.Deps(
-        store=store, report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=store, report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=Slow(), env=tc.ENV, sleep=clock.sleep, clock=clock,
     )
     record = committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1")
@@ -143,7 +143,7 @@ def test_a_step_reached_after_the_budget_is_spent_is_recorded_as_failed_without_
     clock = Clock()
     clock.now = 1000.0
     deps = committee.Deps(
-        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0,
+        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate,
         today=tc.TODAY, agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=clock.sleep, clock=clock, budget_s=0,
     )
     record = committee.run_committee(tc.MORTGAGE, deps=deps, application_id="app-1")
@@ -157,7 +157,7 @@ def test_a_re_run_has_a_new_run_id_linked_to_the_failed_run_and_leaves_the_faile
     before = json.dumps(failed, sort_keys=True)
     store = tc.MemoryRunStore()
     deps = committee.Deps(
-        store=store, report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0, today=tc.TODAY,
+        store=store, report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
         agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=lambda s: None,
     )
     again = committee.rerun_committee(failed, tc.MORTGAGE, deps=deps)
@@ -168,7 +168,7 @@ def test_a_re_run_has_a_new_run_id_linked_to_the_failed_run_and_leaves_the_faile
 
 def test_only_a_failed_run_can_be_re_run():
     complete, _, _ = tc.go(tc.MORTGAGE)
-    deps = committee.Deps(store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), official=tc.OFFICIAL, benchmark_rate_pct=4.0)
+    deps = committee.Deps(store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate)
     with pytest.raises(ValueError, match="did not fail"):
         committee.rerun_committee(complete, tc.MORTGAGE, deps=deps)
 
