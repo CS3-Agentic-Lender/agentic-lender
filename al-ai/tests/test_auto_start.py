@@ -20,7 +20,7 @@ import pytest
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 import test_committee as tc
-from app import auto_start, committee
+from app import approval_likelihood, auto_start, committee, rates
 
 EMULATOR = os.getenv("FIRESTORE_EMULATOR_HOST")
 pytestmark = pytest.mark.skipif(not EMULATOR, reason="needs the Firestore emulator (set FIRESTORE_EMULATOR_HOST)")
@@ -44,12 +44,12 @@ def applied(db, **changes) -> str:
     return application_id
 
 
-def factory(providers=None):
+def factory(providers=None, get_rate=tc.get_rate):
     providers = providers or tc.Providers()
 
     def make(store):
         return committee.Deps(
-            store=store, report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
+            store=store, report_store=tc.a_report_for_today(), get_rate=get_rate, today=tc.TODAY,
             agents=tc.AGENTS, transport=providers, env=tc.ENV, sleep=lambda seconds: None,
             search=lambda *a, **k: pytest.fail("the day's report exists, so no search should run"),
         )
@@ -122,13 +122,21 @@ def test_the_listener_never_claims_an_application_that_has_already_had_a_run(db,
 
 
 def test_the_claim_writes_the_extra_fields_in_the_same_transaction(db):
-    """The place the approval likelihood fields go (AL-63): they land with the claim, or not at all."""
+    """The place the approval likelihood fields go (AL-63): worked out from the application the claim read, and written with it or not at all."""
+    seen = []
+
+    def fields(data):
+        seen.append(data["loanAmountEur"])
+        return {"approvalLikelihood": "High"}
+
     application_id = applied(db)
-    auto_start.claim(db, application_id, run_id="run-1", extra_fields={"approvalLikelihood": "High"})
+    auto_start.claim(db, application_id, run_id="run-1", extra_fields=fields)
     assert application(db, application_id)["approvalLikelihood"] == "High"
+    assert seen == [tc.MORTGAGE["loanAmountEur"]]
     other = applied(db, status="Draft")
-    auto_start.claim(db, other, run_id="run-2", extra_fields={"approvalLikelihood": "High"})
+    auto_start.claim(db, other, run_id="run-2", extra_fields=fields)
     assert "approvalLikelihood" not in application(db, other)
+    assert len(seen) == 1  # a claim that is refused works nothing out
 
 
 # ---- criterion 3: a complete run moves the status, a failed run leaves it ------------------------
@@ -269,3 +277,140 @@ def test_the_listener_picks_up_an_application_that_was_submitted_while_it_was_no
         assert wait_for(lambda: application(db, waiting).get("aiRunStatus") == "complete")
     finally:
         listener.stop()
+
+
+# ---- AL-63: the borrower's indicative figures, written on submit before the committee runs ----------------
+
+FIGURES = ("approvalLikelihood", "dtiPct", "purchaseLtvPct", "ltvPct")
+FAILING = tc.Providers(ollama=(500, b"boom"))  # a failed run keeps the figures from submit, so these show the submit write on its own
+
+
+def figures(document):
+    return {key: document[key] for key in FIGURES if key in document}
+
+
+def expected_on_submit(sample):
+    return approval_likelihood.application_fields(sample, benchmark_rate_pct=tc.RATES["mortgage_ie"].pct)
+
+
+def test_submit_writes_the_figures_with_the_claim_at_the_benchmark_rate(db):
+    application_id = applied(db)
+    auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    stored = figures(application(db, application_id))
+    assert stored == expected_on_submit(tc.MORTGAGE)
+    assert set(stored) == {"approvalLikelihood", "dtiPct", "purchaseLtvPct"}
+
+
+def test_the_figures_are_there_before_the_committee_runs(db, monkeypatch):
+    application_id = applied(db)
+    seen = {}
+    real_run = committee.run_committee
+
+    def watching(*args, **kwargs):
+        seen.update(figures(application(db, application_id)))  # what is stored as the committee starts
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(committee, "run_committee", watching)
+    auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    assert seen == expected_on_submit(tc.MORTGAGE)
+
+
+def test_a_heloc_is_unknown_on_submit_but_its_dti_is_written(db):
+    application_id = applied(db, **{key: None for key in tc.MORTGAGE if key not in tc.HELOC}, **tc.HELOC)
+    auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    stored = figures(application(db, application_id))
+    assert stored["approvalLikelihood"] == "Unknown" and "dtiPct" in stored
+    assert "purchaseLtvPct" not in stored and "ltvPct" not in stored
+
+
+def test_no_figures_are_written_when_the_benchmark_rate_is_not_available(db):
+    def no_rate(name):
+        raise rates.RateUnavailable("the ECB is down and the cached rate is too old")
+
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    stored = application(db, application_id)
+    assert figures(stored) == {}
+    assert record["status"] == "failed" and record["failed_step"] == "market"  # the run fails on the same missing rate and says why
+
+
+def test_a_crash_building_the_run_still_claims_and_fails_it_with_no_figures(db):
+    def broken(store):
+        raise RuntimeError("no settings")
+
+    application_id = applied(db)
+    assert auto_start.process(db, application_id, deps_factory=broken) is None
+    stored = application(db, application_id)
+    assert stored["aiRunStatus"] == "failed" and figures(stored) == {}
+
+
+# ---- AL-63 criterion 4: recalculated when a run completes, with that run's rate and valuation -----------------
+
+def expected_after(sample, record):
+    rate, findings = approval_likelihood.from_run(record)
+    return approval_likelihood.application_fields(sample, benchmark_rate_pct=rate, valuation=findings)
+
+
+def heloc_applied(db):
+    return applied(db, **{key: None for key in tc.MORTGAGE if key not in tc.HELOC}, **tc.HELOC)
+
+
+def stale_before_save(db, application_id):
+    """A deps factory whose store marks the figures stale just before the run is saved, so a test sees the save rewrite them."""
+
+    def make(store):
+        real_save = store.save
+
+        def save(record):
+            db.collection("applications").document(application_id).update({"approvalLikelihood": "stale", "dtiPct": -1})
+            real_save(record)
+
+        store.save = save
+        return factory()(store)
+
+    return make
+
+
+def test_a_complete_run_recalculates_the_figures_with_its_valuation(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=stale_before_save(db, application_id))
+    stored = application(db, application_id)
+    assert stored["status"] == "AI Deliberated"
+    assert figures(stored) == expected_after(tc.MORTGAGE, record)
+
+
+def test_a_complete_heloc_run_turns_unknown_into_a_label_and_writes_its_combined_ltv(db):
+    application_id = heloc_applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    stored = figures(application(db, application_id))
+    assert stored == expected_after(tc.HELOC, record)
+    assert stored["approvalLikelihood"] != "Unknown" and "ltvPct" in stored and "purchaseLtvPct" not in stored
+
+
+def test_a_re_run_that_completes_recalculates_the_figures(db):
+    application_id = heloc_applied(db)
+    failed = auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    assert figures(application(db, application_id))["approvalLikelihood"] == "Unknown"  # the failed run kept the submit figures
+    again = auto_start.rerun(db, application_id, failed["run_id"], deps_factory=factory())
+    assert figures(application(db, application_id)) == expected_after(tc.HELOC, again)
+
+
+def test_a_run_that_was_replaced_does_not_write_figures(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    db.collection("applications").document(application_id).update({"aiRunId": "run-2", "approvalLikelihood": "Low"})
+    auto_start.finish(db, record)  # the old run's save arriving late
+    assert application(db, application_id)["approvalLikelihood"] == "Low"
+
+
+def test_a_crash_working_out_the_figures_never_stops_the_status_moving(db, monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("bug in the rule")
+
+    monkeypatch.setattr(approval_likelihood, "application_fields", broken)
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    stored = application(db, application_id)
+    assert record["status"] == "complete" and stored["status"] == "AI Deliberated"
+    assert figures(stored) == {}

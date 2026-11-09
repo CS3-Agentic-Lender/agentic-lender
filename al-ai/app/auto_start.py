@@ -29,7 +29,7 @@ from google.cloud import firestore
 from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import committee
+from app import approval_likelihood, committee, official_rates
 
 log = logging.getLogger("al-ai.auto-start")
 
@@ -39,13 +39,16 @@ TRANSACTION_ATTEMPTS = 10  # the client retries a transaction that lost a fight 
 WORKERS = 2  # committee runs at once in one service: each makes several provider calls, so a small number keeps us inside their rate limits
 
 DepsFactory = Callable[[committee.RunStore], committee.Deps]
+ExtraFields = Callable[[dict], dict]  # the application as the claim read it -> more fields to write with the claim
 
 
-def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, extra_fields: dict | None = None, now: datetime | None = None) -> dict | None:
+def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, extra_fields: ExtraFields | None = None, now: datetime | None = None) -> dict | None:
     """Take the application for one run. Returns the application document, or None when someone else already has it (or it is not Applied).
 
     A first run needs an application that has never had an AI run. A re-run (`rerun_of`) needs one whose last run is that failed run.
-    `extra_fields` are written to the application in the same transaction: the place the approval likelihood fields go (AL-63).
+    `extra_fields` works out more fields from the application as this transaction read it, and they are written in the same
+    transaction: the place the approval likelihood fields go (AL-63). It runs inside the transaction function, which Firestore
+    may run again on a retry, including attempts that then lose: so it must be a pure calculation with no other side effects.
     """
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
@@ -61,7 +64,7 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
             return None
         if rerun_of is not None and (data.get("aiRunStatus") != "failed" or data.get("aiRunId") != rerun_of):
             return None
-        transaction.update(application, {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields or {})})
+        transaction.update(application, {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields(data) if extra_fields else {})})
         transaction.set(run, {
             "applicationId": application_id, "brokerId": data.get("brokerId"), "status": "running",
             "trigger": "rerun" if rerun_of else "submit", "rerunOf": rerun_of, "startedAt": started,
@@ -76,12 +79,14 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     """Write the end of a run: its `ai_runs` document, and the application's `aiRunStatus` (and, if it is complete, its status).
 
     The status only moves while the application is still Applied and this run is still the one that holds it, so a late write
-    from a run that was replaced can never move an application that has moved on.
+    from a run that was replaced can never move an application that has moved on. A complete run also rewrites the borrower's
+    figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit.
     """
     run_id, application_id = record["run_id"], record["application_id"]
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
     finished = now or datetime.fromisoformat(record["finished_at"])
+    recalculate = figures_on_finish(record)
 
     @firestore.transactional
     def write(transaction):
@@ -93,6 +98,8 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
         if data.get("aiRunId") != run_id:
             return
         update = {"aiRunStatus": record["status"], "updatedAt": SERVER_TIMESTAMP}
+        if recalculate:
+            update.update(recalculate(data))
         if record["status"] == "complete" and data.get("status") == APPLIED:
             entry = {"from": APPLIED, "to": AI_DELIBERATED, "actor": "committee", "actorId": "al-ai", "at": finished}  # a real datetime: Firestore refuses a server timestamp inside an array
             update.update({"status": AI_DELIBERATED, "statusHistory": ArrayUnion([entry])})
@@ -118,18 +125,75 @@ def _crashed(run_id: str, application_id: str, exc: Exception) -> dict:
     }
 
 
-def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None, extra_fields: dict | None = None) -> dict | None:
+def figures_on_claim(deps: committee.Deps | None) -> ExtraFields | None:
+    """The borrower's indicative figures to write with the claim (AL-63): LTV, DTI at the benchmark rate and the approval likelihood.
+
+    No valuation exists yet, so a HELOC is Unknown here and gets its full figures when the run completes. If the benchmark rate
+    cannot be had, nothing is written: a rate is never guessed, and the run then fails on the same missing rate and says why.
+    Working the figures out never stops the claim: an error leaves them unwritten and the run goes ahead.
+    """
+    if deps is None:
+        return None
+    try:
+        rate = deps.get_rate(official_rates.BENCHMARK).pct
+    except Exception as exc:  # RateUnavailable, or the cache itself failing
+        log.warning("no benchmark rate for the borrower's figures, so none are written: %s", exc)
+        return None
+
+    def fields(application: dict) -> dict:
+        try:
+            return approval_likelihood.application_fields(application, benchmark_rate_pct=rate)
+        except Exception:
+            log.exception("could not work out the borrower's figures on claim")
+            return {}
+
+    return fields
+
+
+def figures_on_finish(record: dict) -> ExtraFields | None:
+    """The borrower's figures recalculated from a complete run (AL-63 criterion 4), or None for a run that did not get that far.
+
+    Uses the rate the run used, so the figures match its credit memo, and adds the valuation concern. A HELOC gets its label and
+    combined LTV here. An error leaves the figures from submit and never stops the status moving.
+    """
+    try:
+        found = approval_likelihood.from_run(record)
+    except Exception:
+        log.exception("could not read the valuation from run %s, so the figures from submit stay", record.get("run_id"))
+        return None
+    if found is None:
+        return None
+    rate, valuation = found
+
+    def fields(application: dict) -> dict:
+        try:
+            return approval_likelihood.application_fields(application, benchmark_rate_pct=rate, valuation=valuation)
+        except Exception:
+            log.exception("could not recalculate the borrower's figures for run %s", record.get("run_id"))
+            return {}
+
+    return fields
+
+
+def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None) -> dict | None:
     """Claim the application and run the committee for it. Returns the run record, or None if the claim was not won.
 
-    The committee turns its own step failures into a failed record. This also turns a crash outside the steps (for example the
-    save itself failing) into a failed run, so an application is not left `running` because of a bug.
+    The deps come first, because the figures written with the claim need the benchmark rate. The committee turns its own step
+    failures into a failed record. This also turns a crash outside the steps (building the deps, or the save itself failing)
+    into a failed run, so an application is not left `running` because of a bug.
     """
     run_id = str(uuid.uuid4())
-    application = claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=extra_fields)
+    try:
+        deps, deps_error = deps_factory(FirestoreRunStore(db)), None
+    except Exception as exc:
+        deps, deps_error = None, exc
+    application = claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=figures_on_claim(deps))
     if application is None:
         return None
     try:
-        return committee.run_committee(application, deps=deps_factory(FirestoreRunStore(db)), application_id=application_id, run_id=run_id, rerun_of=rerun_of)
+        if deps_error is not None:
+            raise deps_error
+        return committee.run_committee(application, deps=deps, application_id=application_id, run_id=run_id, rerun_of=rerun_of)
     except Exception as exc:
         log.exception("committee run %s for %s crashed", run_id, application_id)
         finish(db, _crashed(run_id, application_id, exc))
