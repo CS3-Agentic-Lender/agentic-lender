@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- Nic: one or two lines in your own words, then delete this comment. -->
+I built the credit committee as one fixed LangGraph flow, so the steps always run in the same order and every result ends up in one run record. If a step keeps failing the run is saved as failed with the reason and no recommendation. A Firestore listener starts the run when an application goes to Applied and moves it to AI Deliberated when it's done.
 
 ## Pull requests
 

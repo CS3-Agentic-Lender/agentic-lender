@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- Nic: one or two lines in your own words, then delete this comment. -->
+Dumi built the ECB rate tool that gets the two rates and caches them in Firestore. I built the market and macro agent and the wiring: it does two Serper searches, sees only the official figures and those results on Gemini and the code checks every link, date and number in its reply. I also made the committee load both rates from Dumi's tool, so a bad rate stops the run before any model is called and the report is reused for the day unless the figures change.
 
 ## Pull requests
 

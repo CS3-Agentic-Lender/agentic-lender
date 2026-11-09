@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- Nic: one or two lines in your own words, then delete this comment. -->
+I built the valuation checks in code first, so the price gap, the "price needs review" flag and both LTVs never come from the LLM. The agent only gets those results to explain, so it can't make up a figure or recommend Approve over a flag the code set. It runs on Groq gpt-oss-120b instead of Mistral (no free API), with Gemini Flash-Lite as the backup a person switches to by hand.
 
 ## Pull requests
 

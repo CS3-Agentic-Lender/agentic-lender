@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- Nic: one or two lines in your own words, then delete this comment. -->
+I built one small client per provider and one agents.json file that pins each agent to an exact model, so nothing switches model on its own and the log always shows the model that really answered. Valuation runs on Groq's gpt-oss-120b instead of Mistral because Mistral's API isn't free. I also added a test that a dead Ollama fails the affordability step instead of sending the borrower's figures to a cloud model.
 
 ## Pull requests
 

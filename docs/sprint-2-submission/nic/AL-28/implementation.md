@@ -2,7 +2,7 @@
 
 ## What was built
 
-<!-- Nic: one or two lines in your own words, then delete this comment. -->
+I built the strategist step on Gemini that reads the three agents' reports and a loan summary with no name or contact details, then writes a recommendation and a credit memo under six fixed headings. Code works out if the two voting agents disagree and if they do the memo has to name both. After that a policy gate in code adds an exception review condition for any Central Bank limit breach and turns an Approve into Conditionally Approve, while the run keeps both the original and the effective recommendation.
 
 ## Pull requests
 
