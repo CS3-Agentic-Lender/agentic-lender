@@ -4,7 +4,8 @@
 
 **Tested by:** Ibrahima Toure  
 **Date run:** 6 Nov 2026  
-**Build:** `main` at commit `66e32f0`
+**Build:** `main` at commit `66e32f0`  
+**Step 2 run again:** 10 Nov 2026, on the build from PR #196 (commit `f778244`, not merged yet)
 
 ## Preconditions
 
@@ -16,7 +17,7 @@
 | # | Criterion | Steps | Expected result | Automated check | Result |
 |---|---|---|---|---|---|
 | 1 | 1 | Open the submitted application. | LTV and DTI as percentages and approval likelihood as High, Medium, Low or Unknown. | LoanFiguresTests: APurchaseReadsItsPurchasePriceLTV, EveryLikelihoodLabelIsRead | ☑ Pass ☐ Fail |
-| 2 | 2 | Read the text under each figure. | Each figure has a one-line plain-English explanation. | LoanFiguresTests.EachFigureHasAPlainExplanation | ☐ Pass ☑ Fail |
+| 2 | 2 | Read the text under each figure. | Each figure has a one-line plain-English explanation. | LoanFiguresTests: EachFigureHasAPlainExplanation, EveryExplanationIsOneSentence | ☑ Pass ☐ Fail |
 | 3 | 3 | Look at the approval likelihood. | It is labelled "indicative" and is never a percentage. | LoanFiguresTests: APercentageForLikelihoodIsNeverShown, LikelihoodIsLabelledIndicativeInItsTone | ☑ Pass ☐ Fail |
 | 4 | 4 | With the screen open, change `approvalLikelihood` or `dtiPct` in the Emulator UI. | The card updates without a refresh. | ApplicationStatusViewModelTests.TheFiguresUpdateLiveWithTheRecord | ☑ Pass ☐ Fail |
 
@@ -24,11 +25,14 @@
 
 iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulator (iOS 26.5), 6 Nov 2026: **651 passed, 0 failed, 0 skipped**. The UI tests named above (`AgenticLenderUITests`) need the emulators running and were not part of this run.
 
+On the PR #196 build (`f778244`), 10 Nov 2026: **654 passed, 0 failed, 0 skipped**, including `EveryExplanationIsOneSentence`, which is new in that PR.
+
 ## Notes
 
 - Ran on `app-declined` because Alice's submitted application has no figures yet (the backend write on submit is AL-63, still in progress). Home shows the newest-created application, so its `createdAt` was set to 6 Oct for the run and put back to 20 Sep after.
 - Step 1: LTV 90.7% (limit 90%), DTI 50.8% of income, likelihood Low. The LTV shown is `purchaseLtvPct`; the older `ltvPct` field (95) is not read, as the ticket names `purchaseLtvPct`.
-- Step 2: the explanations are in the "What do these mean?" sheet. The likelihood one runs to about four lines rather than one, so the criterion's "one-line" is not met and this step is a Fail. To fix: shorten the likelihood explanation in the app, then run this step again.
+- Step 2: the explanations are in the "What do these mean?" sheet. On 6 Nov this step failed: the likelihood explanation ran to about four lines against the criterion's "one-line". The explanations were then cut to one sentence each (subtask AL-303, PR #196). "One-line" is read as one sentence, because one sentence can still wrap to two lines on a phone.
+- Step 2, run again on 10 Nov on the PR #196 build: on Alice's `app-applied` (mortgage, likelihood Unknown) the sheet read "Your loan as a share of the property price.", "Your monthly debts, including this loan, as a share of your monthly income before tax." and "We can't estimate this yet because some details are missing." On Ben's `app-approved` (HELOC, High) it read "What you still owe plus the credit line, as a share of your home's estimated value." and "An indicative guide to how likely approval looks from your application's figures, not a decision." The tiles still showed limit 90% and limit 80%. Pass. For this run `app-approved` had its `createdAt` set to 6 Oct in the emulator, which is not saved.
 - Step 4: changed `dtiPct` 50.8 → 42.0 and `approvalLikelihood` Low → Medium in the emulator; the tiles and the open sheet updated within 5 seconds with no refresh. Put back afterwards. A change made by the backend itself (an edit or a committee re-run) is tested once AL-63 lands.
 - Also seen on a HELOC (`app-approved`): the first tile reads Combined LTV 57.8%, limit 80%, instead of the purchase LTV.
 - Since this run: the backend write on submit merged on 9 Nov (#185). Running these steps again on a freshly submitted application is still to do.
