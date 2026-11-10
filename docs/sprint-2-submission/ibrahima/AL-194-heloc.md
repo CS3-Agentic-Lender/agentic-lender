@@ -6,7 +6,7 @@
 
 - **The borrower side is built (AL-195, Done).** The HELOC check (AL-207, #112) and the HELOC application with submit (AL-208, #143) are merged, on top of the Sprint 1 choice (AL-206, #62).
 - **The HELOC fields are in al-core (AL-197, Dumi, Done).** A HELOC is saved with `loanType: heloc` and needs no asking price (#120).
-- **After submitting,** the status screen shows the HELOC's combined LTV against the 80% limit, with DTI and approval likelihood (AL-31). (Main flow step 9.)
+- **After submitting,** once the AI committee has run, the status screen shows the HELOC's combined LTV against the 80% limit, with DTI and approval likelihood (AL-31, In Progress). The backend that writes these figures merged on 9 Nov (#185): on submit a HELOC's likelihood is Unknown, and the combined LTV and a likelihood label are written when the committee run completes. On 6 Nov I saw the figures on a seeded HELOC, not yet on a freshly submitted one. (Main flow step 9.)
 - **Checked end to end on 6 Nov:** the reference home gave a €59,883 line, matching the endpoint, and a submitted HELOC was saved with `loanType: heloc` and status Applied.
 - **Still to come:** the underwriter's HELOC review in the portal (AL-196, Nikoloz, In Progress on 10 Nov: the first part of its subtask AL-213 is merged, #141, showing the loan type in the queue and the HELOC collateral in the loan file, and the rest is in review).
 
@@ -17,7 +17,7 @@
 | Epic | AL-194 Home equity line of credit (HELOC) |
 | Feature (from the brief) | The platform covers "mortgage or HELOC", and the loan note represents "mortgages/HELOCs". |
 | Owner | Ibrahima Toure (iOS, AL-195). The underwriter review is Nikoloz's (AL-196); the HELOC calculations are Nic's (AL-198) and the HELOC fields Dumi's (AL-197). |
-| Sprint | Sprint 1 (8 to 25 Oct 2026) built the wireframes and the mortgage-or-HELOC choice. Sprint 2 (27 Oct to 15 Nov 2026) built the check and the application; the underwriter review is still to do. |
+| Sprint | Sprint 1 (8 to 25 Oct 2026) built the wireframes and the mortgage-or-HELOC choice. Sprint 2 (27 Oct to 15 Nov 2026) built the check and the application; the underwriter review is in progress. |
 | Wireframes | Figma "AL-80 Borrower app", section HELOC (AL-205): https://www.figma.com/design/l1dzCYxViJsNVEceRstuH1?node-id=393-1604. Also `AL-195/wireframe.png` in this folder. |
 
 ## Goal
@@ -49,7 +49,7 @@ As a homeowner, I want to apply for a credit line against the value of my home, 
 6. They add the credit line they want, take-home pay, living costs, employment and years in the job, and save it as a Draft.
 7. They review and submit. al-core saves it with `loanType: heloc` and status Applied, and the app shows a reference.
 8. The AI committee and the underwriter review it like a mortgage, with the HELOC rules below.
-9. The borrower follows it on the status screen like a mortgage (AL-5), where the first figure is the combined LTV against the 80% limit.
+9. The borrower follows it on the status screen like a mortgage (AL-5), where the first figure is the combined LTV against the 80% limit. The figure appears once the AI committee run has completed, because the backend writes it then (AL-31, In Progress).
 
 ## Alternative flows
 
@@ -71,7 +71,7 @@ As a homeowner, I want to apply for a credit line against the value of my home, 
 ## Business rules
 
 - Combined LTV is (existing balance + requested line) / estimated value, capped at 80%. The brief gives no number, so 80% is our prototype assumption.
-- The maximum line is the lower of 80% of the value minus the balance, and the debt cap (stressed repayment plus debts at 40% of gross income). Never below zero, and no income multiple.
+- The maximum line is 80% of the estimated value minus the mortgage balance. Never below zero, and no income multiple. Equity is the only limit, so the result always reads "Limited by equity". Income and monthly debts are asked for on the form but do not reduce the line: debts are judged by the credit committee.
 - The stress test assumes the line is fully drawn and repaid over the term at the benchmark rate plus 2 points.
 - The valuation model's estimate is the collateral value. It is indicative (trained on 2024 asking prices), so the screens say "estimated value", never "asking price", and a surveyor valuation condition is always added.
 - The HELOC check takes no Eircode, so its estimate can differ from a property check of the same house that includes one (€262,354 against €273,000 for the reference home on 6 Nov).
