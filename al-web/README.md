@@ -75,6 +75,40 @@ AL_EMULATOR_TEST_PASSWORD=<local-seed-password> npm run test:clients-emulator
 
 A broker missing from the seed is reported as `SKIP`, not as a pass.
 
+## Production build and Firebase Hosting
+
+The portal is set up for Firebase Hosting but **not deployed yet**: the hosted Firebase project and the
+deployed API do not exist yet, so there is no project id or API URL to use.
+
+`firebase.json` in this folder serves `dist/` and rewrites every path to `index.html`, so reloading a
+deep link such as `/underwriter/applications/<id>` loads the app and the route guard runs as usual.
+Files that exist in `dist/`, such as `/assets/*.js`, are served as they are.
+
+A production build needs the four `VITE_FIREBASE_*` values above and `VITE_API_BASE_URL`, the
+deployed gateway. `src/services/apiClient.ts` refuses a missing, non-https or localhost
+`VITE_API_BASE_URL` in a production build, the same way `firebase.ts` refuses missing Firebase
+values, so the hosted site can never call a laptop. The Firebase web config values are public; never put
+a service-account key, model provider key or wallet key in a `VITE_*` variable.
+
+Once the hosted project exists, from `al-web/` with those five values in `.env.production.local`:
+
+```sh
+npm ci
+npm test
+npm run build
+npx firebase-tools@15.32.0 deploy --only hosting --project <hosted project id>
+```
+
+The hosted API must also allow the portal's origin in its CORS settings (`CORS_ALLOWED_ORIGINS` in
+al-core).
+
+To check the hosting setup locally without deploying anything, build with test values and serve `dist/`
+with the Hosting emulator:
+
+```sh
+npx firebase-tools@15.32.0 emulators:start --only hosting --project demo-al
+```
+
 ## Routes
 
 - `/` — redirects to sign in

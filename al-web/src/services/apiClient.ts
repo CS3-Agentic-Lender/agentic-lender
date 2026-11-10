@@ -42,11 +42,41 @@ function errorDetail(body: unknown): string | null {
   return typeof first?.msg === 'string' && first.msg.trim() ? first.msg : null;
 }
 
+const LOCAL_GATEWAY = 'http://localhost:8000';
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// The gateway the portal calls. A development build falls back to the local gateway; a production
+// build must be given VITE_API_BASE_URL and refuses a localhost one, so the hosted site can never
+// call a laptop. Same fail-fast rule as the Firebase settings in firebase.ts.
+export function apiBaseUrl(configured: string | undefined, development: boolean): string {
+  const value = configured?.trim();
+  if (!value) {
+    if (development) {
+      return LOCAL_GATEWAY;
+    }
+    throw new Error('Missing required API configuration: VITE_API_BASE_URL');
+  }
+
+  if (!development) {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new Error('VITE_API_BASE_URL must be an absolute https:// URL');
+    }
+    if (url.protocol !== 'https:' || LOCAL_HOSTS.has(url.hostname)) {
+      throw new Error('VITE_API_BASE_URL must be an https:// URL that is not localhost in a production build');
+    }
+  }
+
+  return value;
+}
+
 // Auth and transport are injected at the boundary; no retries or token persistence.
 export function createApiClient({
   authService = firebaseAuthService,
   fetcher = fetch,
-  baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  baseUrl = apiBaseUrl(import.meta.env.VITE_API_BASE_URL, import.meta.env.DEV),
 }: ApiClientOptions = {}): ApiClient {
   return {
     async request<T>(path: string, { method, body }: JsonRequest): Promise<T> {

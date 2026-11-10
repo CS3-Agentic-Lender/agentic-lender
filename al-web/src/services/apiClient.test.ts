@@ -1,5 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError, createApiClient } from './apiClient';
+import { ApiError, apiBaseUrl, createApiClient } from './apiClient';
+
+describe('API base URL', () => {
+  it('falls back to the local gateway only in a development build', () => {
+    expect(apiBaseUrl(undefined, true)).toBe('http://localhost:8000');
+    expect(apiBaseUrl('  ', true)).toBe('http://localhost:8000');
+    expect(() => apiBaseUrl(undefined, false)).toThrow('Missing required API configuration: VITE_API_BASE_URL');
+  });
+
+  it('accepts a configured https gateway in a production build', () => {
+    expect(apiBaseUrl('https://api.example.test', false)).toBe('https://api.example.test');
+  });
+
+  it.each(['http://api.example.test', 'https://localhost:8000', 'http://127.0.0.1:8000', 'api.example.test'])(
+    'refuses %s in a production build',
+    (configured) => {
+      expect(() => apiBaseUrl(configured, false)).toThrow(/VITE_API_BASE_URL must be/);
+    },
+  );
+
+  it('keeps any configured gateway in a development build', () => {
+    expect(apiBaseUrl('http://localhost:8001', true)).toBe('http://localhost:8001');
+  });
+});
 
 function setup(response: Response = Response.json({ saved: true })) {
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response);
