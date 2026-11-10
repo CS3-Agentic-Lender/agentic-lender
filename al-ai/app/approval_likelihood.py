@@ -1,8 +1,9 @@
 """The borrower's indicative figures, worked out by code: purchase-price LTV, DTI at the benchmark rate and the approval likelihood.
 
 `application_fields` is the one function that says what goes on `applications/{id}`. The Firestore listener that starts the
-committee calls it twice: on submit, before the committee runs (no valuation yet), and again after an edit or a re-run, with
-the model's findings (AL-63 criterion 4). It only returns the fields; writing them is the listener's job.
+committee calls it twice: on submit, before the committee runs (no valuation yet), and again when a run (or re-run) completes,
+with that run's rate and the model's findings from `from_run` (AL-63 criterion 4). Only a Draft can be edited, so an edit is
+always followed by a new submit and needs no trigger of its own. It only returns the fields; writing them is the listener's job.
 
 The label is separate from the committee's recommendation and is never a percentage. The rule order, first match wins:
   Unknown  the inputs are incomplete or unsupported, or a HELOC has no valuation yet to judge its combined LTV against
@@ -17,7 +18,7 @@ from dataclasses import dataclass
 from pydantic import ValidationError
 
 from app import affordability as aff
-from app import committee_input, policy_gate
+from app import committee_input, policy_gate, risk_tier
 
 UNKNOWN, LOW, MEDIUM, HIGH = "Unknown", "Low", "Medium", "High"
 
@@ -37,7 +38,8 @@ def application_fields(
     """The fields to write to the application. `application` is the Firestore document (camelCase, see committee_input.py).
 
     Always has `approvalLikelihood`. Has `dtiPct` (one decimal place) and, for a mortgage, `purchaseLtvPct` (one decimal place)
-    whenever the application is valid. An invalid or unsupported application gets `Unknown` and no figures.
+    whenever the application is valid. A HELOC with a valuation also has `ltvPct`, its combined LTV against the estimate (one
+    decimal place), which is the LTV the borrower's app shows for a HELOC. An invalid or unsupported application gets `Unknown` and no figures.
     """
     try:
         a = committee_input.Application.model_validate(application)
@@ -59,6 +61,7 @@ def application_fields(
         return fields
 
     if heloc:
+        fields["ltvPct"] = round(aff.combined_ltv(a.existing_mortgage_balance_eur, a.loan_amount_eur, valuation.estimate_eur) * 100, 1)
         breaches = policy_gate.heloc_breaches(
             existing_balance=a.existing_mortgage_balance_eur, line=a.loan_amount_eur,
             home_value=valuation.estimate_eur, gross_annual_income=a.gross_income_eur,
@@ -81,3 +84,23 @@ def application_fields(
         label = HIGH
     fields["approvalLikelihood"] = label
     return fields
+
+
+def from_run(record: dict) -> tuple[float, ValuationFindings] | None:
+    """The benchmark rate a complete committee run used and what its valuation found, to recalculate the figures with (criterion 4).
+
+    The run's own rate, not a fresh one, so the borrower's figures match the credit memo. None for a failed run, or one that
+    did not get as far as the valuation and the calculations: the figures from submit then stay.
+    """
+    steps = record.get("steps") or {}
+    model = (steps.get("valuation_model") or {}).get("output")
+    calculations = (steps.get("calculations") or {}).get("output")
+    if record.get("status") != "complete" or not model or not calculations:
+        return None
+    facts = calculations["valuation_facts"]
+    findings = ValuationFindings(
+        estimate_eur=model["estimate_eur"],
+        price_needs_review=bool(facts.get("price_needs_review")),  # a HELOC has no asking price, so its facts never flag it
+        low_model_support=risk_tier.has_low_support(facts["support_warnings"]),
+    )
+    return calculations["benchmark_rate_pct"], findings

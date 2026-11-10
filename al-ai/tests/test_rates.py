@@ -175,6 +175,61 @@ def test_the_cutoff_is_three_calendar_months(observed, ok):
             rates.get_rate("mortgage_ie", cache=cache_with(old), transport=failing(), now=NOW)
 
 
+# ---- the main refinancing rate only has a value when it changes, so it is judged on when it was last fetched (AL-298) -----
+
+
+def mrr(observed="2025-06-11", fetched=NOW - timedelta(days=2), pct=2.15):
+    return cached(name="ecb_mrr", observed=observed, fetched=fetched, pct=pct)
+
+
+def test_a_refinancing_rate_that_has_not_changed_for_over_a_year_is_still_used_when_the_ecb_is_down_if_it_was_fetched_recently():
+    old = mrr(observed="2025-06-11")  # the real series: the last change was over a year ago and the rate is still 2.15
+    got = rates.get_rate("ecb_mrr", cache=cache_with(old), transport=failing(), now=NOW)
+    assert got == old and got.pct == 2.15
+
+
+@pytest.mark.parametrize("fetched, ok", [
+    (NOW - timedelta(days=2), True),
+    (datetime(2026, 8, 5, 9, 0, tzinfo=timezone.utc), True),  # 3 calendar months back
+    (datetime(2026, 7, 31, 9, 0, tzinfo=timezone.utc), False),  # 4 calendar months back
+    (datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc), False),
+])
+def test_the_refinancing_cutoff_is_three_calendar_months_since_it_was_fetched(fetched, ok):
+    old = mrr(fetched=fetched)
+    if ok:
+        assert rates.get_rate("ecb_mrr", cache=cache_with(old), transport=failing(), now=NOW) == old
+    else:
+        with pytest.raises(RateUnavailable, match=f"last confirmed on {fetched.date()}, more than 3 months ago"):
+            rates.get_rate("ecb_mrr", cache=cache_with(old), transport=failing(), now=NOW)
+
+
+def test_a_refinancing_rate_not_fetched_for_months_still_raises_with_both_reasons_and_no_number():
+    stale = mrr(observed="2026-09-16", fetched=NOW - timedelta(days=200))
+    with pytest.raises(RateUnavailable) as raised:
+        rates.get_rate("ecb_mrr", cache=cache_with(stale), transport=failing(), now=NOW)
+    assert "HTTP 503" in str(raised.value) and "last confirmed" in str(raised.value)
+
+
+def test_a_recent_observation_does_not_save_a_refinancing_rate_that_was_not_fetched_for_months():
+    recent_but_unconfirmed = mrr(observed="2026-10-20", fetched=NOW - timedelta(days=200))
+    with pytest.raises(RateUnavailable, match="last confirmed"):
+        rates.get_rate("ecb_mrr", cache=cache_with(recent_but_unconfirmed), transport=failing(), now=NOW)
+
+
+def test_the_monthly_mortgage_rate_is_still_judged_on_its_observation_not_on_when_it_was_fetched():
+    # fetched two days ago, but the ECB has not published a newer month for over three months: that is a series that stopped, not a rate that held
+    stopped = cached(observed="2026-05", fetched=NOW - timedelta(days=2))
+    with pytest.raises(RateUnavailable, match="from 2026-05, more than 3 months old"):
+        rates.get_rate("mortgage_ie", cache=cache_with(stopped), transport=failing(), now=NOW)
+
+
+def test_a_fresh_fetch_of_an_unchanged_refinancing_rate_is_what_counts_as_confirming_it():
+    old = mrr(observed="2025-06-11", fetched=NOW - timedelta(days=2))
+    cache = cache_with(old)
+    got = rates.get_rate("ecb_mrr", cache=cache, transport=Net(), now=NOW)  # the ECB answers: the cache is replaced and fetched_at moves to now
+    assert got.fetched_at == NOW and cache.docs["ecb_mrr"]["fetchedAt"] == NOW
+
+
 def test_if_the_fetch_fails_and_the_cached_observation_is_too_old_the_error_carries_both_reasons_and_no_number():
     old = cached(observed="2026-05", fetched=NOW - timedelta(days=30))
     with pytest.raises(RateUnavailable) as raised:

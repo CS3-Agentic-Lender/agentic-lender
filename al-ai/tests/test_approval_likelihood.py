@@ -115,3 +115,53 @@ def test_dti_is_the_debts_plus_the_repayment_at_the_benchmark_rate_over_gross_mo
 
 def test_a_heloc_has_no_purchase_price_ltv():
     assert "purchaseLtvPct" not in al.application_fields(HELOC, benchmark_rate_pct=RATE, valuation=CALM)
+
+
+# ---- AL-63 criterion 4: recalculated from a run, with the valuation it produced ------------------------
+
+def run_record(status="complete", estimate=380_000, needs_review=False, warnings=(), rate=3.9):
+    """The parts of a committee run record (committee.make_record) that the recalculation reads."""
+    steps = {
+        "valuation_model": {"ok": True, "output": {"estimate_eur": estimate, "support_warnings": list(warnings)}},
+        "calculations": {"ok": True, "output": {
+            "benchmark_rate_pct": rate, "valuation_facts": {"price_needs_review": needs_review, "support_warnings": list(warnings)},
+        }},
+    }
+    return {"status": status, "steps": steps}
+
+
+def test_a_complete_run_gives_the_rate_it_used_and_its_valuation_findings():
+    rate, findings = al.from_run(run_record(estimate=410_000, needs_review=True, rate=3.9))
+    assert rate == 3.9
+    assert findings == al.ValuationFindings(estimate_eur=410_000, price_needs_review=True, low_model_support=False)
+
+
+def test_a_support_warning_is_low_model_support_but_a_failed_breakdown_is_not():
+    from app.valuation_endpoint import BREAKDOWN_WARNING
+
+    assert al.from_run(run_record(warnings=["few homes like this in the training data"]))[1].low_model_support
+    assert not al.from_run(run_record(warnings=[BREAKDOWN_WARNING]))[1].low_model_support
+
+
+def test_a_heloc_run_has_no_price_flag_and_is_never_flagged():
+    heloc = run_record()
+    del heloc["steps"]["calculations"]["output"]["valuation_facts"]["price_needs_review"]  # the HELOC facts have no such key
+    assert al.from_run(heloc)[1].price_needs_review is False
+
+
+def test_a_failed_run_or_one_without_a_valuation_gives_nothing():
+    assert al.from_run(run_record(status="failed")) is None
+    incomplete = run_record()
+    del incomplete["steps"]["calculations"]
+    assert al.from_run(incomplete) is None
+
+
+def test_a_heloc_gets_its_combined_ltv_and_a_label_once_the_estimate_exists():
+    valuation = al.ValuationFindings(estimate_eur=380_000, price_needs_review=False, low_model_support=False)
+    fields = al.application_fields(HELOC, benchmark_rate_pct=RATE, valuation=valuation)
+    assert fields["ltvPct"] == 50.0  # (150,000 owed + 40,000 line) / 380,000
+    assert fields["approvalLikelihood"] != "Unknown" and "purchaseLtvPct" not in fields
+
+
+def test_a_mortgage_never_gets_the_heloc_ltv_field():
+    assert "ltvPct" not in al.application_fields(MORTGAGE, benchmark_rate_pct=RATE, valuation=CALM)

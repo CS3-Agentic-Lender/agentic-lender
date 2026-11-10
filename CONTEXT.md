@@ -25,3 +25,7 @@ _Avoid_: Low confidence
 **Combined LTV**:
 For a HELOC, what is owed on the existing mortgage plus the new credit line, as a share of the home's estimated value.
 _Avoid_: CLTV in prose (it is the name of a rule ID only)
+
+**Approval likelihood**:
+An indicative eligibility label shown to the borrower, one of Unknown, Low, Medium or High, worked out by code from their own numbers. It is never a percentage and is separate from the committee's recommendation.
+_Avoid_: Approval chance, approval score
