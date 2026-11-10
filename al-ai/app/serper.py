@@ -9,7 +9,9 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from typing import Callable
 
 from app.llm import clients
 
@@ -65,18 +67,21 @@ def search(
     env: dict | None = None,
     timeout: float = TIMEOUT_S,
     context: dict | None = None,
+    record: Callable[[dict], None] | None = None,
 ) -> SearchResult:
     """One Serper search. `period` is Google's recency filter: d day, w week, m month, y year. Raises clients.LlmError if it fails.
 
     `run_id` and `prompt_version` are only logged, so a search can be tied to the run and the prompt that used it. `context`
-    (run_id, application_id, broker_id) is added to the logged entry, the same as a model attempt carries it.
+    (run_id, application_id, broker_id) is added to the logged entry, the same as a model attempt carries it. `record(entry)` saves the
+    search as an `ai_calls` document when it ends (app/call_log.py); if that fails the search fails, so a decision never rests on an unlogged search.
     """
     env = os.environ if env is None else env
     key = env.get(KEY_NAME, "")
     if not key:
         raise clients.MissingKey(f"{KEY_NAME} is not set")
     entry = {"search": query, "run_id": run_id, "prompt_version": prompt_version, **(context or {}), "outcome": None, "links": []}
-    started = time.monotonic()
+    started_at, started = datetime.now(UTC).isoformat(), time.monotonic()
+    found: tuple[Hit, ...] = ()
     try:
         headers = {"X-API-KEY": key, "Content-Type": "application/json", "User-Agent": clients.USER_AGENT}
         body = json.dumps({"q": query, "num": num, "gl": country, "tbs": f"qdr:{period}"}).encode()
@@ -94,7 +99,7 @@ def search(
             raise fail(f"serper answered HTTP {status}: {raw.decode(errors='replace')[:200]}", status)
         try:
             parsed = json.loads(raw)
-            hits = _hits(parsed)
+            hits = found = _hits(parsed)
             credits = parsed.get("credits")
         except (ValueError, AttributeError, TypeError):
             raise fail("serper sent a reply in a shape we do not recognise") from None
@@ -106,3 +111,8 @@ def search(
     finally:
         entry["duration_s"] = round(time.monotonic() - started, 3)
         log.info(json.dumps(entry))
+        if record is not None:
+            try:
+                record({**entry, "started_at": started_at, "num": num, "country": country, "period": period, "hits": [asdict(h) for h in found]})
+            except Exception as exc:
+                raise clients.LlmError(f"the search could not be logged: {exc}") from None
