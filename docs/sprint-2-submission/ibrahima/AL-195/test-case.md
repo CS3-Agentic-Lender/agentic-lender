@@ -30,7 +30,7 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 
 - Steps 1 and 2: choosing HELOC opened the HELOC check; the form asked for the house details, balance, income, debts and term, and no deposit or asking price.
 - Step 3: Cork, 110 m², 3 bed, semi-detached, B3, €150,000 balance, €70,000 income, €300 debts, 20 years gave a maximum line of €59,883, "Limited by equity (80% of the estimated value, less what you owe)", estimated value €262,354, €362.88 a month fully drawn and €429.02 at +2 points, labelled "Indicative, not an offer". POST /ai/affordability with the same inputs returned 262,353.72, 59,882.97, 362.88, 429.02 and limited_by equity, so they match.
-- Step 3 (no equity): a €220,000 balance gave a €0 line and "No equity available. You owe 80% or more of the estimated value, so there's nothing to borrow against yet."
-- Step 4: Start application, then submit, showed "Application submitted" with Ref 0uG43XL5; Firestore has `0uG43XL5RqWwoqvGCu65` with `loanType: heloc`, status Applied, the €150,000 balance, and no deposit or asking price.
-- Step 5: the HELOC screens say "Estimated value of your home", never asking price.
+- Step 4 (no equity): a €220,000 balance gave a €0 line and "No equity available. You owe 80% or more of the estimated value, so there's nothing to borrow against yet."
+- Step 5: Start application, then submit, showed "Application submitted" with Ref 0uG43XL5; Firestore has `0uG43XL5RqWwoqvGCu65` with `loanType: heloc`, status Applied, the €150,000 balance, and no deposit or asking price.
+- Step 6: the HELOC screens say "Estimated value of your home", never asking price.
 - The estimate (€262k) is lower than the property check's €273k for the same house because the HELOC check doesn't take an Eircode.

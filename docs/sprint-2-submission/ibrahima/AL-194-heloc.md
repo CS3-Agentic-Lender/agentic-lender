@@ -8,7 +8,7 @@
 - **The HELOC fields are in al-core (AL-197, Dumi, Done).** A HELOC is saved with `loanType: heloc` and needs no asking price (#120).
 - **After submitting,** the status screen shows the HELOC's combined LTV against the 80% limit, with DTI and approval likelihood (AL-31). (Main flow step 9.)
 - **Checked end to end on 6 Nov:** the reference home gave a €59,883 line, matching the endpoint, and a submitted HELOC was saved with `loanType: heloc` and status Applied.
-- **Still to come:** the underwriter's HELOC review in the portal (AL-196, Nikoloz, To Do; its subtask AL-213 is in progress).
+- **Still to come:** the underwriter's HELOC review in the portal (AL-196, Nikoloz, In Progress on 10 Nov: the first part of its subtask AL-213 is merged, #141, showing the loan type in the queue and the HELOC collateral in the loan file, and the rest is in review).
 
 ## Overview
 
@@ -86,7 +86,7 @@ The check uses the same call as the mortgage check: `docs/diagrams/02-flow-affor
 | Story | What | Owner | Sprint | Status on 6 Nov |
 |---|---|---|---|---|
 | AL-195 | As a homeowner, I apply for a HELOC against my property's value | Ibrahima | Sprint 1 to 2 | Done: choice (#62), check (#112), application (#143); euro amount fixes #158 and #166 |
-| AL-196 | As an underwriter, I review a HELOC application with its combined LTV and collateral value | Nikoloz | Sprint 2 | To Do (subtask AL-213 in progress) |
+| AL-196 | As an underwriter, I review a HELOC application with its combined LTV and collateral value | Nikoloz | Sprint 2 | In Progress on 10 Nov (subtask AL-213: #141 merged, a second PR in review) |
 
 ## Notes
 

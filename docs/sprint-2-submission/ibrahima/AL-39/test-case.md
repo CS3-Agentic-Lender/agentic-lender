@@ -16,9 +16,9 @@
 | # | Criterion | Steps | Expected result | Automated check | Result |
 |---|---|---|---|---|---|
 | 1 | 4 | Open an application that is not Funded yet. | The section reads "Your loan note will appear here once the bank approves and funds your loan". | LoanNoteTests.BeforeMintingTheSectionWaits | ☑ Pass ☐ Fail |
-| 2 | 1 | Sign the application off as uma@test.com in the portal so it is minted, and watch the app. | The loan note appears: token ID, principal, APR, term and mint date. | UI: LoanNoteUITests.TheLoanNoteFillsInWhenTheApplicationIsFunded; unit: LoanNoteTests.AMintedNoteShowsItsFiveRowsAsIn14c | ☑ Pass ☐ Fail |
+| 2 | 1 | Mint the loan note as uma@test.com through al-core's mint endpoint (the portal's sign-off screen is not built yet; see Notes), and watch the app. | The loan note appears: token ID, principal, APR, term and mint date. | UI: LoanNoteUITests.TheLoanNoteFillsInWhenTheApplicationIsFunded; unit: LoanNoteTests.AMintedNoteShowsItsFiveRowsAsIn14c | ☑ Pass ☐ Fail |
 | 3 | 2 | Look for the explorer link on the local chain. | On the local chain there is no link; the full transaction hash shows instead. | LoanNoteTests: OnTheLocalChainThereIsNoLinkSoTheHashShows, WithAnExplorerSetTheLinkOpensTheMintTransaction | ☑ Pass ☐ Fail |
-| 4 | 3 | Read the note back from the contract (`noteOf(tokenId)`) and compare. | Principal, APR, term and mint date match the app. | Manual check only (planned for the demo rehearsal) | ☑ Pass ☐ Fail |
+| 4 | 3 | Read the note back from the contract (`noteOf(tokenId)`) and compare. | Principal, APR, term and mint date match the app. | Manual check only (done in this run, see Notes) | ☑ Pass ☐ Fail |
 
 ## Automated test run
 

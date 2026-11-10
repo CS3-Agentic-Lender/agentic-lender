@@ -12,7 +12,7 @@
 | Sprint | Sprint 2 (27 Oct to 15 Nov 2026). |
 | Wireframes | Borrower app Figma, frames 11 (result) and 11e (breakdown, scrolled): `AL-132/wireframe.png` in this folder. The portal's chart goes in the V2 Property Intelligence frame (AL-133). |
 
-**Built in Sprint 2.** al-ai returns the breakdown with every estimate (AL-131, Done), and the borrower app shows it on the property result (AL-132, Done). The portal's loan-file chart (AL-133) is still To Do.
+**Built in Sprint 2.** al-ai returns the breakdown with every estimate (AL-131, Done), and the borrower app shows it on the property result (AL-132, Done). The portal's loan-file chart (AL-133) is In Review on 10 Nov: the chart is merged (AL-137, #140) and the low-support warnings beside it are in review.
 
 ## Goal
 
@@ -49,7 +49,7 @@ The baseline (€577k) is the starting reference value used by the model. Each d
 
 - **A. Rounding.** Each row is shown to the nearest €1,000. When plain rounding would not add up to the estimate shown, the app moves the rows closest to the rounding line by €1,000 so the list adds up. (In the 6 Nov test, plain rounding gave €275,000 against a €273,000 estimate, so floor area showed −€90,000 instead of −€89,000 and BER +€13,000 instead of +€14,000.)
 - **B. Unfamiliar Eircode area.** The model values the home as if the area were Other, and the low-support warning shows next to the breakdown. The breakdown still shows, with an "Eircode area" row.
-- **C. Underwriter (AL-133, To Do).** The loan file shows the same breakdown as a chart, with the low-support warnings next to it, from the valuation stored for that application.
+- **C. Underwriter (AL-133, In Review).** The loan file shows the same breakdown as a chart, with the low-support warnings next to it, from the valuation stored for that application.
 
 ## Exceptions
 
@@ -83,11 +83,11 @@ The affordability check and the valuation: `docs/diagrams/02-flow-affordability-
 |---|---|---|---|---|
 | [AL-131](https://alprojectcs3.atlassian.net/browse/AL-131) | The valuation endpoint returns how much each house feature added to or took off the estimate | Nic | Sprint 2 | DONE |
 | [AL-132](https://alprojectcs3.atlassian.net/browse/AL-132) | The borrower sees how each detail of the house moved its estimated price | Ibrahima | Sprint 2 | DONE |
-| [AL-133](https://alprojectcs3.atlassian.net/browse/AL-133) | The underwriter sees the valuation breakdown in the loan file | Nikoloz | Sprint 2 | TO DO |
+| [AL-133](https://alprojectcs3.atlassian.net/browse/AL-133) | The underwriter sees the valuation breakdown in the loan file | Nikoloz | Sprint 2 | IN REVIEW on 10 Nov (chart merged, #140) |
 
 ## Notes
 
-- The epic and AL-133 still say the chart is labelled "compared with a typical listing". The app changed that wording on 27 Oct (AL-132) because the baseline is not a typical price; the portal should match before AL-133 is built.
+- The epic and AL-133 still say the chart is labelled "compared with a typical listing". The app changed that wording on 27 Oct (AL-132) because the baseline is not a typical price; the portal's chart (#140) uses the app's wording, "Starting point".
 - The epic is done when the app and the portal show the same breakdown for the same property on the seeded data. That needs AL-133.
 - How to read the numbers: `al-ai/models/valuation/MODEL_CARD.md`, "How to read the breakdown".
 - Test case for the borrower's screen: `AL-132/test-case.pdf` in this folder. On 6 Nov the app's rows matched `POST /ai/valuation` for the same home within €1,000, with the rounding in alternative flow A.

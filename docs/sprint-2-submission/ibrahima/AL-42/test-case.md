@@ -16,7 +16,7 @@
 | # | Criterion | Steps | Expected result | Automated check | Result |
 |---|---|---|---|---|---|
 | 1 | 1 | Open Messages and send "Hello". | One thread with the assigned broker. The message shows straight away and is saved in Firestore. | MessageInboxTests: ASentMessageShowsStraightAwayWhileItSends, OnceFirestoreHasTheMessageItShowsOnce | ☑ Pass ☐ Fail |
-| 2 | 2 | Reply as bob@test.com from the portal while the app is on another tab, then open Messages. | The reply arrives within 5 seconds; an unread badge shows until the thread is opened. | MessageInboxTests: ListensToTheBorrowersApplicationAndShowsNewMessagesAsTheyArrive, LeavingTheThreadClearsTheBadgeAndTheDivider | ☑ Pass ☐ Fail |
+| 2 | 2 | Reply as bob@test.com through al-core's messages endpoint (the portal's reply screen is not built yet; see Notes) while the app is on another tab, then open Messages. | The reply arrives within 5 seconds; an unread badge shows until the thread is opened. | MessageInboxTests: ListensToTheBorrowersApplicationAndShowsNewMessagesAsTheyArrive, LeavingTheThreadClearsTheBadgeAndTheDivider | ☑ Pass ☐ Fail |
 | 3 | 3 | Stop al-core and send a message, then start al-core and tap it. | Marked "Not sent: tap to try again"; tapping sends it. | MessageInboxTests.AFailedSendIsMarkedNotSentAndTappingSendsItAgain | ☑ Pass ☐ Fail |
 | 4 | 4 | Try to read another borrower's thread. | Refused. | Backend rules test (al-core, messaging subtask), plus a check on the emulators | ☑ Pass ☐ Fail |
 
