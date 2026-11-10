@@ -69,14 +69,14 @@ struct LoanFigures: Equatable, Sendable {
 
     var dti: Tile { Tile(title: "DTI", value: Self.percent(dtiPct), note: "of income") }
 
-    /// Figma 14e, one line each.
+    /// Figma 14e, one sentence each. The limit is on the tile, so it is not repeated here.
     var explanations: [Explanation] {
         [
             Explanation(
                 title: ltv.title, value: ltvPct.map { _ in ltv.value },
                 text: loanType == .heloc
-                    ? "What you still owe plus the credit line, as a share of your home's estimated value. Up to \(Self.helocLtvLimitPct)%."
-                    : "Your loan as a share of the property price. Buyers can borrow up to \(Self.purchaseLtvLimitPct)% of the price."
+                    ? "What you still owe plus the credit line, as a share of your home's estimated value."
+                    : "Your loan as a share of the property price."
             ),
             Explanation(
                 title: "DTI", value: dtiPct.map { _ in dti.value },
@@ -84,7 +84,9 @@ struct LoanFigures: Equatable, Sendable {
             ),
             Explanation(
                 title: "Approval likelihood", value: nil,
-                text: "Indicative: High, Medium, Low or Unknown, worked out from your application's figures. It isn't a decision. Unknown means some details are missing."
+                text: likelihood == .unknown
+                    ? "We can't estimate this yet because some details are missing."
+                    : "An indicative guide to how likely approval looks from your application's figures, not a decision."
             ),
         ]
     }
