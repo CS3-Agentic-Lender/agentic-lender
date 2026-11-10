@@ -11,8 +11,9 @@ background thread. The design is the one Dumi agreed on the ticket:
            the same write. A failed run sets `aiRunStatus = "failed"`, leaves `status` at `Applied` and adds no entry.
   reason   the failure reason is on the `ai_runs` document, never on the application: the borrower can read their application.
 
-The listener writes only the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
-failedStep and failureReason. The agents, the credit memo and the consensus are added by AL-62.
+The claim writes the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
+failedStep and failureReason. The finish adds the agents, the credit memo, the recommendations and the consensus (AL-62, see
+reasoning_trail.py).
 
     cd al-ai && FIRESTORE_EMULATOR_HOST=localhost:8080 uv run python -m app.auto_start
 """
@@ -29,7 +30,7 @@ from google.cloud import firestore
 from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, committee, official_rates
+from app import approval_likelihood, committee, official_rates, reasoning_trail
 
 log = logging.getLogger("al-ai.auto-start")
 
@@ -80,7 +81,8 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
 
     The status only moves while the application is still Applied and this run is still the one that holds it, so a late write
     from a run that was replaced can never move an application that has moved on. A complete run also rewrites the borrower's
-    figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit.
+    figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit. The run document also
+    gets the reasoning trail (AL-62): each agent's report and vote, the credit memo, the recommendations and the consensus.
     """
     run_id, application_id = record["run_id"], record["application_id"]
     application = db.collection(APPLICATIONS).document(application_id)
@@ -94,6 +96,7 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
         transaction.update(run, {
             "status": record["status"], "finishedAt": finished,
             "failedStep": record["failed_step"], "failureReason": record["failure_reason"],
+            **reasoning_trail.fields(record),  # each agent's report and vote and the consensus (AL-62)
         })
         if data.get("aiRunId") != run_id:
             return
@@ -109,7 +112,7 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
 
 
 class FirestoreRunStore:
-    """The committee's RunStore for the service: saving a record is finishing the run in Firestore. AL-62 adds the agent output here."""
+    """The committee's RunStore for the service: saving a record is finishing the run in Firestore, reasoning trail included."""
 
     def __init__(self, db):
         self.db = db
