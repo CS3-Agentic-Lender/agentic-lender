@@ -42,4 +42,5 @@ One thing that was red on `main` at that commit: four tests in `al-ai/tests/test
 ## Notes
 
 - I ran the checks in the Automated column, and the live script for steps 5, 6 and 8. I did not click through the Emulator UI by hand for steps 1 and 8, so those two rest on the automated tests and the script's log check.
+- On 10 Nov 2026 step 6 was also run by hand against `main` with the emulators, the API and a fresh local node: mint gave Funded (token 1); the first close gave Closed with a close time and transaction; the second close returned the same time and transaction; the Declined application closed with no loan note; the Applied one was refused with a 409 saying only a Funded or Declined application can be closed; and the note on the chain read status 2 (closed). Step 3 was not run by hand: a real committee run needs the AI models, so it rests on `test_auto_start.py`.
 - `smoke_close.py` leaves the seeded application Closed in the emulator and a note on the node, so I restarted both before running anything else.
