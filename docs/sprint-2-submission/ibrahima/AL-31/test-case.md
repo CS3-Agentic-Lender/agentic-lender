@@ -28,7 +28,7 @@ iOS unit tests (`AgenticLenderTests`) on `main` at `66e32f0`, iPhone 17 simulato
 
 - Ran on `app-declined` because Alice's submitted application has no figures yet (the backend write on submit is AL-63, still in progress). Home shows the newest-created application, so its `createdAt` was set to 6 Oct for the run and put back to 20 Sep after.
 - Step 1: LTV 90.7% (limit 90%), DTI 50.8% of income, likelihood Low. The LTV shown is `purchaseLtvPct`; the older `ltvPct` field (95) is not read, as the ticket names `purchaseLtvPct`.
-- Step 2: the explanations are in the "What do these mean?" sheet. The LTV and DTI ones are one line each. The likelihood one runs to about four lines rather than one, so the criterion's "one-line" is not met and this step is a Fail. To fix: shorten the likelihood explanation in the app, then run this step again.
+- Step 2: the explanations are in the "What do these mean?" sheet. The likelihood one runs to about four lines rather than one, so the criterion's "one-line" is not met and this step is a Fail. To fix: shorten the likelihood explanation in the app, then run this step again.
 - Step 4: changed `dtiPct` 50.8 → 42.0 and `approvalLikelihood` Low → Medium in the emulator; the tiles and the open sheet updated within 5 seconds with no refresh. Put back afterwards. A change made by the backend itself (an edit or a committee re-run) is tested once AL-63 lands.
 - Also seen on a HELOC (`app-approved`): the first tile reads Combined LTV 57.8%, limit 80%, instead of the purchase LTV.
 - Since this run: the backend write on submit merged on 9 Nov (#185). Running these steps again on a freshly submitted application is still to do.
