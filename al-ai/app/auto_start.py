@@ -27,10 +27,10 @@ from datetime import UTC, datetime
 from typing import Callable
 
 from google.cloud import firestore
-from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, committee, official_rates, reasoning_trail
+from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail
 
 log = logging.getLogger("al-ai.auto-start")
 
@@ -50,6 +50,7 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
     `extra_fields` works out more fields from the application as this transaction read it, and they are written in the same
     transaction: the place the approval likelihood fields go (AL-63). It runs inside the transaction function, which Firestore
     may run again on a retry, including attempts that then lose: so it must be a pure calculation with no other side effects.
+    Clear any old mortgage model LTV here because this run does not have its own valuation yet.
     """
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
@@ -65,7 +66,10 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
             return None
         if rerun_of is not None and (data.get("aiRunStatus") != "failed" or data.get("aiRunId") != rerun_of):
             return None
-        transaction.update(application, {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields(data) if extra_fields else {})})
+        update = {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields(data) if extra_fields else {})}
+        if data.get("loanType") == "mortgage" and "ltvPct" in data:
+            update["ltvPct"] = DELETE_FIELD
+        transaction.update(application, update)
         transaction.set(run, {
             "applicationId": application_id, "brokerId": data.get("brokerId"), "status": "running",
             "trigger": "rerun" if rerun_of else "submit", "rerunOf": rerun_of, "startedAt": started,
@@ -156,8 +160,8 @@ def figures_on_claim(deps: committee.Deps | None) -> ExtraFields | None:
 def figures_on_finish(record: dict) -> ExtraFields | None:
     """The borrower's figures recalculated from a complete run (AL-63 criterion 4), or None for a run that did not get that far.
 
-    Uses the rate the run used, so the figures match its credit memo, and adds the valuation concern. A HELOC gets its label and
-    combined LTV here. An error leaves the figures from submit and never stops the status moving.
+    Uses the run's rate and valuation concern so the figures match its credit memo. A mortgage gets its LTV against the
+    estimate, and a HELOC gets its label and combined LTV. An error leaves the figures from submit and never stops the status moving.
     """
     try:
         found = approval_likelihood.from_run(record)
@@ -240,13 +244,19 @@ class Listener:
             log.exception("could not start a committee run for %s", application_id)
 
 
+def deps_factory_for(db, env: dict) -> DepsFactory:
+    """What each run is built from: the real providers, and every AI call of the run saved in `ai_calls` on the same database (AL-140)."""
+    sink = call_log.FirestoreSink(db)
+    return lambda store: committee.local_deps(store, env, call_sink=sink)
+
+
 def start_from_env() -> Listener:
     """A started listener on the real Firestore (or the emulator, when FIRESTORE_EMULATOR_HOST is set), with the real providers."""
     from app.llm import smoke
 
     env = smoke.load_env()
     db = firestore.Client(project=os.getenv("FIREBASE_PROJECT_ID", "demo-al"))
-    listener = Listener(db, lambda store: committee.local_deps(store, env))
+    listener = Listener(db, deps_factory_for(db, env))
     listener.start()
     return listener
 

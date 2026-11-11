@@ -301,6 +301,42 @@ def test_submit_writes_the_figures_with_the_claim_at_the_benchmark_rate(db):
     assert set(stored) == {"approvalLikelihood", "dtiPct", "purchaseLtvPct"}
 
 
+@pytest.mark.parametrize("stale_ltv", [None, 0, 72.5])
+def test_a_mortgage_claim_has_no_model_ltv_before_the_committee_runs(db, stale_ltv):
+    application_id = applied(db, ltvPct=stale_ltv, estimatedValueEur=500_000)
+    deps = factory()(auto_start.FirestoreRunStore(db))
+    auto_start.claim(db, application_id, run_id="run-1", extra_fields=auto_start.figures_on_claim(deps))
+    stored = application(db, application_id)
+    assert stored["purchaseLtvPct"] == 80.0
+    assert "ltvPct" not in stored
+
+
+@pytest.mark.parametrize("status,has_valuation,expected_ltv", [
+    ("complete", True, 94.7),
+    ("complete", False, None),
+    ("failed", True, None),
+])
+def test_a_mortgage_only_saves_model_ltv_from_a_complete_run_with_a_valuation(db, status, has_valuation, expected_ltv):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    record = {
+        "run_id": "run-1", "application_id": application_id, "status": status,
+        "finished_at": "2026-11-10T12:00:00+00:00", "failed_step": None, "failure_reason": None,
+        "steps": {
+            "calculations": {"output": {"benchmark_rate_pct": 4.0, "valuation_facts": {"support_warnings": []}}},
+        },
+    }
+    if has_valuation:
+        record["steps"]["valuation_model"] = {"output": {"estimate_eur": 380_000}}
+    auto_start.finish(db, record)
+    stored = application(db, application_id)
+    if expected_ltv is None:
+        assert "ltvPct" not in stored
+    else:
+        assert stored["ltvPct"] == expected_ltv
+        assert stored["purchaseLtvPct"] == 80.0
+
+
 def test_the_figures_are_there_before_the_committee_runs(db, monkeypatch):
     application_id = applied(db)
     seen = {}
