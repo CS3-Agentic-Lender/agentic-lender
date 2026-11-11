@@ -233,7 +233,7 @@ const users = [
 
 // One property per application; each gets an indicative valuation.
 const baseProperty = {
-  county: 'Cork', propertyType: 'Semi-D', bedrooms: 3, floorAreaSqm: 98, berRating: 'C2',
+  county: 'Cork', eircode: 'T12 K2F4', propertyType: 'Semi-D', bedrooms: 3, floorAreaSqm: 98, berRating: 'C2',
 };
 
 // What al-ai's write_valuation saves on review/underwriting (al-ai/app/valuation_review.py): the model's estimate, the gap to the asking
