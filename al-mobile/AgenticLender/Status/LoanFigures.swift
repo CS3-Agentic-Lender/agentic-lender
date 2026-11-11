@@ -85,7 +85,7 @@ struct LoanFigures: Equatable, Sendable {
             Explanation(
                 title: "Approval likelihood", value: nil,
                 text: likelihood == .unknown
-                    ? "We can't estimate this yet because some details are missing."
+                    ? "We can't estimate this yet: either some details are missing or your home's valuation isn't ready."
                     : "An indicative guide to how likely approval looks from your application's figures, not a decision."
             ),
         ]

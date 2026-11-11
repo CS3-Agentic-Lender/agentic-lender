@@ -98,7 +98,7 @@ final class LoanFiguresTests: XCTestCase {
         let figures = try record(["loanType": "heloc"]).figures
 
         XCTAssertEqual(figures.likelihood, .unknown)
-        XCTAssertEqual(figures.explanations[2].text, "We can't estimate this yet because some details are missing.")
+        XCTAssertEqual(figures.explanations[2].text, "We can't estimate this yet: either some details are missing or your home's valuation isn't ready.")
     }
 
     func testEveryExplanationIsOneSentence() throws {
