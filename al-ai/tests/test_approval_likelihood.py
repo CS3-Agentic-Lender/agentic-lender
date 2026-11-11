@@ -163,5 +163,13 @@ def test_a_heloc_gets_its_combined_ltv_and_a_label_once_the_estimate_exists():
     assert fields["approvalLikelihood"] != "Unknown" and "purchaseLtvPct" not in fields
 
 
-def test_a_mortgage_never_gets_the_heloc_ltv_field():
-    assert "ltvPct" not in al.application_fields(MORTGAGE, benchmark_rate_pct=RATE, valuation=CALM)
+def test_a_mortgage_gets_model_ltv_beside_purchase_ltv_once_the_estimate_exists():
+    valuation = al.ValuationFindings(estimate_eur=380_000, price_needs_review=False, low_model_support=False)
+    fields = al.application_fields(MORTGAGE, benchmark_rate_pct=RATE, valuation=valuation)
+    assert fields["ltvPct"] == 94.7  # 360,000 loan / 380,000 estimate, to one decimal
+    assert fields["purchaseLtvPct"] == 80.0  # the asking price stays 450,000
+
+
+def test_a_mortgage_without_a_valuation_has_no_model_ltv_even_if_the_document_has_an_old_one():
+    fields = al.application_fields(mortgage(ltvPct=0, estimatedValueEur=380_000), benchmark_rate_pct=RATE)
+    assert "ltvPct" not in fields
