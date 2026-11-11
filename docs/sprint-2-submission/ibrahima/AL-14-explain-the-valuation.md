@@ -79,11 +79,11 @@ The affordability check and the valuation: `docs/diagrams/02-flow-affordability-
 
 ## Stories in this epic
 
-| Story | What | Owner | Sprint | Status on 6 Nov |
+| Story | What | Owner | Sprint | Status |
 |---|---|---|---|---|
-| [AL-131](https://alprojectcs3.atlassian.net/browse/AL-131) | The valuation endpoint returns how much each house feature added to or took off the estimate | Nic | Sprint 2 | DONE |
-| [AL-132](https://alprojectcs3.atlassian.net/browse/AL-132) | The borrower sees how each detail of the house moved its estimated price | Ibrahima | Sprint 2 | DONE |
-| [AL-133](https://alprojectcs3.atlassian.net/browse/AL-133) | The underwriter sees the valuation breakdown in the loan file | Nikoloz | Sprint 2 | IN REVIEW on 10 Nov (chart merged, #140) |
+| [AL-131](https://alprojectcs3.atlassian.net/browse/AL-131) | The valuation endpoint returns how much each house feature added to or took off the estimate | Nic | Sprint 2 | Done on 6 Nov |
+| [AL-132](https://alprojectcs3.atlassian.net/browse/AL-132) | The borrower sees how each detail of the house moved its estimated price | Ibrahima | Sprint 2 | Done on 6 Nov |
+| [AL-133](https://alprojectcs3.atlassian.net/browse/AL-133) | The underwriter sees the valuation breakdown in the loan file | Nikoloz | Sprint 2 | In Review on 10 Nov (chart merged, #140) |
 
 ## Notes
 

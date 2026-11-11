@@ -6,9 +6,9 @@
 
 - **Following the application is built (AL-21, Done).** After submitting, the borrower follows the status live: a vertical timeline with dates, an application card on Home, an "Offline" banner when the phone loses its connection, and the decline reason when there is one. (Main flow step 12, alternative flows E and F.)
 - **The home can come from a saved property check (AL-22).** At step 7 the borrower can pick a saved check to fill the home's details, or open Check a property from the form and come back to it. (Alternative flow G.)
-- **LTV, DTI and approval likelihood** show on the status screen after submitting (AL-31, In Progress until the backend writes them on submit).
+- **LTV, DTI and approval likelihood** show on the status screen after submitting (AL-31, In Progress). The backend writes them on submit since 9 Nov (#185).
 - **The rate:** the ECB rate tool is merged (AL-124, 6 Nov) but the affordability endpoint still uses a stand-in benchmark of 4.0% (Aug 2026) until it is wired in.
-- **The AI committee starting by itself** on submit (AL-141) is in review, not merged yet.
+- **The AI committee starts by itself** on submit since 7 Nov (AL-141, #176).
 
 ## Overview
 
