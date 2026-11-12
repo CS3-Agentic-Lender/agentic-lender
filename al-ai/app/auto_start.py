@@ -127,19 +127,29 @@ POLICY_GATE_REVIEW_FIELDS = ["applicationId", "brokerId", "updatedAt", "policyGa
 
 
 def policy_gate_of(record: dict) -> dict | None:
-    """The policy gate step's output exactly as the committee returned it, or None for a run that stopped before the gate."""
-    return (record.get("steps") or {}).get("policy_gate", {}).get("output")
+    """The policy gate step's output exactly as the committee returned it, or None when there is no gate result to save.
+
+    That is a run that stopped before the gate, a step stored as None, or a gate step that did not succeed (`ok` is not True):
+    a failed gate's output is never saved as the result.
+    """
+    step = (record.get("steps") or {}).get("policy_gate") or {}
+    return step.get("output") if step.get("ok") is True else None
 
 
 def save_policy_gate(transaction, application, application_id: str, data: dict, gate: dict) -> None:
     """Write the gate's result on `applications/{id}/review/underwriting`, in the caller's transaction (al-core/SCHEMA.md `policyGate`).
 
-    applicationId and brokerId are copied there for the security rules, the same as the valuation and risk tier writes.
+    applicationId and brokerId are copied there for the security rules, the same as the valuation and risk tier writes. An
+    application with no brokerId is skipped and logged, never written with brokerId None: that would overwrite a good value.
     """
+    broker_id = data.get("brokerId")
+    if not broker_id:
+        log.warning("application %s has no brokerId, so its policy gate result is not saved on review/underwriting", application_id)
+        return
     review = application.collection("review").document("underwriting")
     transaction.set(
         review,
-        {"applicationId": application_id, "brokerId": data.get("brokerId"), "updatedAt": SERVER_TIMESTAMP, "policyGate": gate},
+        {"applicationId": application_id, "brokerId": broker_id, "updatedAt": SERVER_TIMESTAMP, "policyGate": gate},
         merge=POLICY_GATE_REVIEW_FIELDS,
     )
 

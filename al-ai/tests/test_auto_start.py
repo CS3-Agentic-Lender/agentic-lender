@@ -467,7 +467,7 @@ def test_a_complete_run_saves_every_agent_the_memo_the_recommendations_and_the_c
     assert run["consensus"] == {
         "votes": {"affordability": "Conditionally Approve", "valuation": "Conditionally Approve", "strategist": "Approve"}, "disagreement": True,
     }
-    assert "policyGate" not in run and run["brokerId"] == "broker-1"  # the rules check this copy for broker access
+    assert run["policyGate"] == record["steps"]["policy_gate"]["output"] and run["brokerId"] == "broker-1"  # the rules check this copy for broker access
 
 
 def test_a_failed_run_saves_the_agents_that_finished_and_nulls_for_the_rest(db):
@@ -565,3 +565,24 @@ def test_a_run_that_was_replaced_keeps_its_gate_result_on_its_record_but_not_on_
     auto_start.finish(db, finished("run-1", application_id, GATE_1))  # the old run's save arriving late
     assert review(db, application_id)["policyGate"] == GATE_2
     assert {run["id"]: run["policyGate"] for run in runs_for(db, application_id)} == {"run-1": GATE_1, "run-2": GATE_2}
+
+
+def test_an_application_with_no_broker_saves_the_gate_on_the_run_record_but_not_on_the_review_document(db, caplog):
+    application_id = applied(db, brokerId=None)
+    auto_start.claim(db, application_id, run_id="run-1")
+    with caplog.at_level("WARNING", logger="al-ai.auto-start"):
+        auto_start.finish(db, finished("run-1", application_id, GATE_1))
+    assert review(db, application_id) is None  # no document, so no brokerId None written over a good value
+    assert runs_for(db, application_id)[0]["policyGate"] == GATE_1
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert "no brokerId" in caplog.text
+
+
+@pytest.mark.parametrize("steps", [{"policy_gate": None}, {"policy_gate": {"ok": False, "output": GATE_1}}, {"policy_gate": {"ok": True, "output": None}}, {"policy_gate": {"ok": True}}],
+                         ids=["step-is-none", "gate-not-ok", "output-is-none", "no-output"])
+def test_a_missing_or_failed_gate_step_saves_no_gate_result_and_the_run_still_finishes(db, steps):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    auto_start.finish(db, {**finished("run-1", application_id, GATE_1), "steps": steps})
+    assert "policyGate" not in runs_for(db, application_id)[0] and review(db, application_id) is None
+    assert application(db, application_id)["status"] == "AI Deliberated"  # finish did not raise, so process() does not mark it failed
