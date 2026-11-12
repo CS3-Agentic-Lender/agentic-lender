@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
+import { CommitteeConsole } from '../../components/lending/CommitteeConsole';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
 import { MortgageCollateral } from '../../components/lending/MortgageCollateral';
+import { SignOffPanel, decisionLabels } from '../../components/lending/SignOffPanel';
+import type { DecisionResult } from '../../services/decisionService';
 import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
 import {
@@ -238,6 +242,35 @@ function LoanFile({ application, review }: LoanFileProps) {
       <div className="mt-6">
         <DtiBreakdown application={application} review={review} />
       </div>
+      <CommitteeConsole applicationId={application.id} />
+    </>
+  );
+}
+
+function ReadyLoanFile({ application, review, viewer }: {
+  application: LoanFileApplication;
+  review: LoanFileReview;
+  viewer: LoanFileViewer;
+}) {
+  // Keep the receipt outside the panel: Firestore can remove the controls before HTTP returns.
+  const [recorded, setRecorded] = useState<DecisionResult | null>(null);
+
+  return (
+    <>
+      <LoanFile application={application} review={review} />
+      {recorded ? (
+        <p className="mt-6 rounded-lg bg-success-soft p-4 text-success" role="status">
+          Decision recorded: {decisionLabels[recorded.decision.outcome]}. Saved status: {recorded.status}.
+        </p>
+      ) : null}
+      {viewer === 'underwriter' && application.status === 'AI Deliberated' && !recorded ? (
+        <SignOffPanel
+          applicationId={application.id}
+          borrowerName={application.borrowerName ?? null}
+          onRecorded={setRecorded}
+          policyGate={review.state === 'available' ? review.policyGate : null}
+        />
+      ) : null}
     </>
   );
 }
@@ -266,7 +299,12 @@ export function LoanFilePage({ viewer }: LoanFilePageProps) {
 
         <div className="mt-8">
           {state.status === 'ready' ? (
-            <LoanFile application={state.application} review={state.review} />
+            <ReadyLoanFile
+              application={state.application}
+              key={state.application.id}
+              review={state.review}
+              viewer={viewer}
+            />
           ) : (
             <NotReady state={state} viewer={viewer} />
           )}

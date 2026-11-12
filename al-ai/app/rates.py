@@ -6,7 +6,9 @@ Two series, both from the ECB data portal:
 
 Each rate comes back with the date it is from, the value 12 months before that and the time it was fetched. Results are cached in Firestore
 (rates_cache/{name}) and fetched again once the cache is more than a day old. If the ECB cannot be reached we
-fall back to the cached rate only while its observation is at most 3 calendar months old; past that we raise, because a rate that old is not one to price on.
+fall back to the cached rate only while it is at most 3 calendar months old; past that we raise, because a rate that old is not one to price on. "Old" is
+the age of the observation for the monthly mortgage series, and the time since we last fetched it for the main refinancing rate, which only has a value
+when it changes and so can have an old observation while still being the current rate.
 
     from app import rates
     rate = rates.get_rate("mortgage_ie")      # rate.pct 3.52, rate.month "2026-09"
@@ -44,11 +46,15 @@ class Series:
     flow: str
     key: str
     label: str
+    # How an outage fallback decides the cached rate is still good enough (see get_rate):
+    #   "observation"  a series with a value every period: the cached rate's own period must be recent, so a series the ECB has stopped publishing is refused
+    #   "fetched"      a series with a value only on the days it changes: its period can be old while the rate is current, so what counts is when we last confirmed it
+    judged_on: str = "observation"
 
 
 SERIES = {
     "mortgage_ie": Series("MIR", "M.IE.B.A2C.A.R.A.2250.EUR.P", "Benchmark mortgage rate, Ireland, new house-purchase loans"),
-    "ecb_mrr": Series("FM", "B.U2.EUR.4F.KR.MRR_FR.LEV", "ECB main refinancing rate"),
+    "ecb_mrr": Series("FM", "B.U2.EUR.4F.KR.MRR_FR.LEV", "ECB main refinancing rate", judged_on="fetched"),
 }
 
 
@@ -195,6 +201,10 @@ def fetch(name: str, *, transport: Transport = urllib_get, now: datetime | None 
     return Rate(name, value, period, before[2] if before else None, before[1] if before else None, now)
 
 
+def _months_since(moment: datetime, now: datetime) -> int:
+    return (now.year * 12 + now.month) - (moment.year * 12 + moment.month)
+
+
 def _months_old(period: str, now: datetime) -> int:
     day = _period_start(period)
     return (now.year * 12 + now.month) - (day.year * 12 + day.month)
@@ -209,7 +219,9 @@ def get_rate(
 ) -> Rate:
     """The current rate: from the cache if it was fetched within the last day, else from the ECB.
 
-    If the ECB cannot be reached the cached rate is returned only while its observation is at most 3 months old.
+    If the ECB cannot be reached the cached rate is returned only while it is at most 3 calendar months old. For `mortgage_ie`, which has
+    a value every month, that is the age of its observation. For `ecb_mrr`, which has a value only on the days the rate changes, the
+    observation can be old while the rate is still current, so it is the time since we last fetched it (and so confirmed it).
     Otherwise this raises RateUnavailable with the reason; it never returns a rate it cannot date.
     """
     if name not in SERIES:
@@ -229,6 +241,13 @@ def get_rate(
     try:
         rate = fetch(name, transport=transport, now=now)
     except RateUnavailable as exc:
+        if cached and SERIES[name].judged_on == "fetched":
+            if _months_since(cached.fetched_at, now) <= MAX_OBSERVATION_AGE_MONTHS:
+                log.warning("ECB fetch for %s failed (%s); using the cached rate, last confirmed %s", name, exc, cached.fetched_at.date())
+                return cached
+            raise RateUnavailable(
+                f"{exc}; the last rate we have for {name} was last confirmed on {cached.fetched_at.date()}, more than {MAX_OBSERVATION_AGE_MONTHS} months ago"
+            ) from None
         if cached and _months_old(cached.observed, now) <= MAX_OBSERVATION_AGE_MONTHS:
             log.warning("ECB fetch for %s failed (%s); using the cached rate from %s", name, exc, cached.observed)
             return cached

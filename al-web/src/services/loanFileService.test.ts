@@ -164,6 +164,30 @@ describe('loan file application parser', () => {
 });
 
 describe('loan file review parser', () => {
+  it('reads the effective policy recommendation and filters non-string list entries', () => {
+    expect(toLoanFileReview({ policyGate: {
+      original: 'Approve', effective: 'Conditionally Approve',
+      conditions: ['Requires lender exception review (LTV)', null, 12],
+      breaches: [false, 'LTV'], changed: true,
+    } })).toMatchObject({ policyGate: {
+      original: 'Approve', effective: 'Conditionally Approve',
+      conditions: ['Requires lender exception review (LTV)'], breaches: ['LTV'],
+    } });
+  });
+
+  it('treats unknown recommendations as null without falling back to the original', () => {
+    expect(toLoanFileReview({ policyGate: { original: 'Approve', effective: 'approved' } })).toMatchObject({
+      policyGate: { original: 'Approve', effective: null, conditions: [], breaches: [] },
+    });
+    expect(toLoanFileReview({ policyGate: { original: 'unknown', effective: 'Decline' } })).toMatchObject({
+      policyGate: { original: null, effective: 'Decline' },
+    });
+  });
+
+  it.each([undefined, null, [], 'Approve', 42])('treats a missing or malformed gate as null (%j)', (policyGate) => {
+    expect(toLoanFileReview({ policyGate })).toMatchObject({ policyGate: null });
+  });
+
   it('reads the monthly DTI breakdown and the review tier', () => {
     expect(
       toLoanFileReview({
