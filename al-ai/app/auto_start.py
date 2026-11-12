@@ -13,7 +13,7 @@ background thread. The design is the one Dumi agreed on the ticket:
 
 The claim writes the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
 failedStep and failureReason. The finish adds the agents, the credit memo, the recommendations and the consensus (AL-62, see
-reasoning_trail.py).
+reasoning_trail.py), and the policy gate's result (policyGate, AL-305).
 
     cd al-ai && FIRESTORE_EMULATOR_HOST=localhost:8080 uv run python -m app.auto_start
 """
@@ -88,12 +88,15 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     from a run that was replaced can never move an application that has moved on. A complete run also rewrites the borrower's
     figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit. The run document also
     gets the reasoning trail (AL-62): each agent's report and vote, the credit memo, the recommendations and the consensus.
+    A run that reached the policy gate saves the gate's result on its `ai_runs` document and on `review/underwriting` (AL-305),
+    in the same transaction; a replaced run saves it on its own `ai_runs` document only.
     """
     run_id, application_id = record["run_id"], record["application_id"]
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
     finished = now or datetime.fromisoformat(record["finished_at"])
     recalculate = figures_on_finish(record)
+    gate = policy_gate_of(record)
 
     @firestore.transactional
     def write(transaction):
@@ -102,9 +105,12 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
             "status": record["status"], "finishedAt": finished,
             "failedStep": record["failed_step"], "failureReason": record["failure_reason"],
             **reasoning_trail.fields(record),  # each agent's report and vote and the consensus (AL-62)
+            **({"policyGate": gate} if gate is not None else {}),
         })
         if data.get("aiRunId") != run_id:
             return
+        if gate is not None:
+            save_policy_gate(transaction, application, application_id, data, gate)
         update = {"aiRunStatus": record["status"], "updatedAt": SERVER_TIMESTAMP}
         if recalculate:
             update.update(recalculate(data))
@@ -114,6 +120,39 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
         transaction.update(application, update)
 
     write(db.transaction(max_attempts=TRANSACTION_ATTEMPTS))
+
+
+# Everything the gate save owns on review/underwriting. `merge=` takes these field paths as a mask, the same as valuation_review:
+# policyGate is replaced whole (no key from the last run's map is left behind) and no other field on the document is touched.
+POLICY_GATE_REVIEW_FIELDS = ["applicationId", "brokerId", "updatedAt", "policyGate"]
+
+
+def policy_gate_of(record: dict) -> dict | None:
+    """The policy gate step's output exactly as the committee returned it, or None when there is no gate result to save.
+
+    That is a run that stopped before the gate, a step stored as None, or a gate step that did not succeed (`ok` is not True):
+    a failed gate's output is never saved as the result.
+    """
+    step = (record.get("steps") or {}).get("policy_gate") or {}
+    return step.get("output") if step.get("ok") is True else None
+
+
+def save_policy_gate(transaction, application, application_id: str, data: dict, gate: dict) -> None:
+    """Write the gate's result on `applications/{id}/review/underwriting`, in the caller's transaction (al-core/SCHEMA.md `policyGate`).
+
+    applicationId and brokerId are copied there for the security rules, the same as the valuation and risk tier writes. An
+    application with no brokerId is skipped and logged, never written with brokerId None: that would overwrite a good value.
+    """
+    broker_id = data.get("brokerId")
+    if not broker_id:
+        log.warning("application %s has no brokerId, so its policy gate result is not saved on review/underwriting", application_id)
+        return
+    review = application.collection("review").document("underwriting")
+    transaction.set(
+        review,
+        {"applicationId": application_id, "brokerId": broker_id, "updatedAt": SERVER_TIMESTAMP, "policyGate": gate},
+        merge=POLICY_GATE_REVIEW_FIELDS,
+    )
 
 
 class FirestoreRunStore:

@@ -467,7 +467,7 @@ def test_a_complete_run_saves_every_agent_the_memo_the_recommendations_and_the_c
     assert run["consensus"] == {
         "votes": {"affordability": "Conditionally Approve", "valuation": "Conditionally Approve", "strategist": "Approve"}, "disagreement": True,
     }
-    assert "policyGate" not in run and run["brokerId"] == "broker-1"  # the rules check this copy for broker access
+    assert run["policyGate"] == record["steps"]["policy_gate"]["output"] and run["brokerId"] == "broker-1"  # the rules check this copy for broker access
 
 
 def test_a_failed_run_saves_the_agents_that_finished_and_nulls_for_the_rest(db):
@@ -476,3 +476,113 @@ def test_a_failed_run_saves_the_agents_that_finished_and_nulls_for_the_rest(db):
     [run] = runs_for(db, application_id)
     assert "market" in run["agents"] and "affordability" not in run["agents"]
     assert (run["creditMemo"], run["originalRecommendation"], run["effectiveRecommendation"], run["consensus"]) == (None, None, None, None)
+
+
+# ---- AL-305: the policy gate's result on review/underwriting and on the run record, in one write ------------------
+
+def review(db, application_id):
+    return db.collection("applications").document(application_id).collection("review").document("underwriting").get().to_dict()
+
+
+def finished(run_id, application_id, gate):
+    """A complete record as the committee saves it, holding only the policy gate step (all finish reads)."""
+    return {
+        "run_id": run_id, "application_id": application_id, "status": "complete", "finished_at": datetime.now(auto_start.UTC).isoformat(),
+        "failed_step": None, "failure_reason": None, "steps": {"policy_gate": {"ok": True, "output": gate}},
+    }
+
+
+GATE_1 = {"original": "Approve", "effective": "Conditionally Approve", "conditions": ["Requires lender exception review (LTV_CAP)"], "breaches": ["LTV_CAP"], "changed": True}
+GATE_2 = {"original": "Approve", "effective": "Approve", "conditions": [], "breaches": [], "changed": False}
+
+
+@pytest.mark.parametrize("make", [applied, heloc_applied], ids=["mortgage", "heloc"])
+def test_a_complete_run_saves_the_gate_result_on_the_review_document_and_the_run_record(db, make):
+    application_id = make(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    gate = record["steps"]["policy_gate"]["output"]
+    [run] = runs_for(db, application_id)
+    stored = review(db, application_id)
+    assert run["policyGate"] == gate and stored["policyGate"] == gate
+    assert set(gate) == {"original", "effective", "conditions", "breaches", "changed"}
+    assert (stored["applicationId"], stored["brokerId"]) == (application_id, "broker-1")  # copied for the security rules
+    assert isinstance(stored["updatedAt"], datetime)
+
+
+def test_a_failed_run_before_the_gate_saves_no_gate_result(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    assert record["status"] == "failed" and "policy_gate" not in record["steps"]
+    [run] = runs_for(db, application_id)
+    assert "policyGate" not in run
+    assert review(db, application_id) is None
+
+
+def test_a_crash_outside_the_steps_saves_no_gate_result(db):
+    application_id = applied(db)
+
+    def broken(store):
+        raise RuntimeError("no settings")
+
+    auto_start.process(db, application_id, deps_factory=broken)
+    assert "policyGate" not in runs_for(db, application_id)[0] and review(db, application_id) is None
+
+
+def test_the_gate_result_leaves_the_other_review_fields_as_they_are(db):
+    application_id = applied(db)
+    underwriting = db.collection("applications").document(application_id).collection("review").document("underwriting")
+    underwriting.set({"riskTier": "B", "valuationDetail": {"estimatedValueEur": 400000}, "policyGate": {"original": "Decline", "stale": True}})
+    auto_start.claim(db, application_id, run_id="run-1")
+    auto_start.finish(db, finished("run-1", application_id, GATE_1))
+    stored = review(db, application_id)
+    assert stored["policyGate"] == GATE_1  # replaced whole: no key from the old map is left behind
+    assert (stored["riskTier"], stored["valuationDetail"]) == ("B", {"estimatedValueEur": 400000})
+
+
+def rerun_claimed(db, application_id, failed_run_id, run_id):
+    """Put the application back where a failed run leaves it, then claim it for a re-run, as `rerun` does."""
+    db.collection("applications").document(application_id).update({"status": "Applied", "aiRunStatus": "failed", "aiRunId": failed_run_id})
+    assert auto_start.claim(db, application_id, run_id=run_id, rerun_of=failed_run_id) is not None
+
+
+def test_a_re_run_replaces_the_review_copy_and_the_old_run_keeps_its_own(db):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    auto_start.finish(db, finished("run-1", application_id, GATE_1))
+    rerun_claimed(db, application_id, "run-1", "run-2")
+    auto_start.finish(db, finished("run-2", application_id, GATE_2))
+    runs = {run["id"]: run for run in runs_for(db, application_id)}
+    assert review(db, application_id)["policyGate"] == GATE_2
+    assert (runs["run-1"]["policyGate"], runs["run-2"]["policyGate"]) == (GATE_1, GATE_2)
+
+
+def test_a_run_that_was_replaced_keeps_its_gate_result_on_its_record_but_not_on_the_review_document(db):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    rerun_claimed(db, application_id, "run-1", "run-2")
+    auto_start.finish(db, finished("run-2", application_id, GATE_2))
+    auto_start.finish(db, finished("run-1", application_id, GATE_1))  # the old run's save arriving late
+    assert review(db, application_id)["policyGate"] == GATE_2
+    assert {run["id"]: run["policyGate"] for run in runs_for(db, application_id)} == {"run-1": GATE_1, "run-2": GATE_2}
+
+
+def test_an_application_with_no_broker_saves_the_gate_on_the_run_record_but_not_on_the_review_document(db, caplog):
+    application_id = applied(db, brokerId=None)
+    auto_start.claim(db, application_id, run_id="run-1")
+    with caplog.at_level("WARNING", logger="al-ai.auto-start"):
+        auto_start.finish(db, finished("run-1", application_id, GATE_1))
+    assert review(db, application_id) is None  # no document, so no brokerId None written over a good value
+    assert runs_for(db, application_id)[0]["policyGate"] == GATE_1
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert "no brokerId" in caplog.text
+
+
+@pytest.mark.parametrize("steps", [{"policy_gate": None}, {"policy_gate": {"ok": False, "output": GATE_1}}, {"policy_gate": {"ok": True, "output": None}}, {"policy_gate": {"ok": True}}],
+                         ids=["step-is-none", "gate-not-ok", "output-is-none", "no-output"])
+def test_a_missing_or_failed_gate_step_saves_no_gate_result_and_the_run_still_finishes(db, steps):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    auto_start.finish(db, {**finished("run-1", application_id, GATE_1), "steps": steps})
+    assert "policyGate" not in runs_for(db, application_id)[0] and review(db, application_id) is None
+    assert application(db, application_id)["status"] == "AI Deliberated"  # finish did not raise, so process() does not mark it failed
