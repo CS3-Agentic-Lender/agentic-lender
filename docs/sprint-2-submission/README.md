@@ -69,14 +69,16 @@ For each sprint the brief asks for the sprint deliverable and the sprint documen
 
 ## Use cases (one per Epic)
 
+Each Epic has one use case and one owner; nobody else writes one for it. The owner is, in this order: whoever has already written its Sprint 2 use case, then whoever wrote its Sprint 1 use case (reuse or update it), then whoever owns most of the Epic's Sprint 2 stories.
+
 | Epic | Feature | Owner | File |
 |---|---|---|---|
-| AL-4 | Accounts & Roles | Nikoloz | carried over from Sprint 1: reuse or update |
-| AL-5 | Loan Application | Ibrahima | carried over from Sprint 1: reuse or update |
-| AL-6 | Fair-Price Property Checker | Nic | carried over from Sprint 1: reuse or update |
-| AL-7 | AI Credit Committee | Nic | carried over from Sprint 1: reuse or update |
-| AL-8 | Origination Pipeline | Nikoloz | carried over from Sprint 1: reuse or update |
-| AL-9 | On-Chain Settlement | Dumi | carried over from Sprint 1: reuse or update |
-| AL-11 | Messaging | to agree | NEW: write a use case |
-| AL-14 | Valuation breakdown | Nic | NEW: write a use case |
-| AL-194 | Home equity line of credit (HELOC) | Ibrahima | carried over from Sprint 1: reuse or update |
+| AL-4 | Accounts & Roles | Nikoloz | Sprint 1 use case: reuse or update |
+| AL-5 | Loan Application | Ibrahima | Sprint 1 use case: reuse or update |
+| AL-6 | Fair-Price Property Checker | Nic | Sprint 1 use case: reuse or update |
+| AL-7 | AI Credit Committee | Nic | done: `nic/AL-7-ai-credit-committee.pdf` |
+| AL-8 | Origination Pipeline | Dumi | done: `dumi/AL-8-origination-pipeline.pdf` |
+| AL-9 | On-Chain Settlement | Dumi | done: `dumi/AL-9-on-chain-settlement.pdf` |
+| AL-11 | Messaging | Nikoloz | NEW: write a use case |
+| AL-14 | Valuation breakdown | Ibrahima | done: `ibrahima/AL-14-explain-the-valuation.pdf` |
+| AL-194 | Home equity line of credit (HELOC) | Ibrahima | done: `ibrahima/AL-194-heloc.pdf` |
