@@ -80,14 +80,56 @@ def risk_tier(findings: RiskFindings) -> str:
     return "B" if concerns == 1 else "A"
 
 
-def write_risk(db, application_id: str, findings: RiskFindings) -> tuple[str, str]:
-    """Save the band and tier after a run or re-run: both on `applications/{id}`, and the tier again on `review/underwriting`
-    (readable by underwriters and the assigned broker, never the borrower). One batch, so the two documents never disagree.
+def findings_from_run(record: dict) -> RiskFindings | None:
+    """What a complete committee run found, read from its record (committee.make_record): the calculations step's facts.
 
-    `db` is a Firestore client. The committee flow ticket calls this after each run. Returns (ltv_band, risk_tier).
-    Raises ValueError if the application does not exist or has no brokerId.
+    Everything comes from the run itself, the figures the committee judged, so the tier always matches that run's credit memo.
+    None for a failed run, or one that did not get as far as the calculations: no tier is written then.
+    """
+    calculations = ((record.get("steps") or {}).get("calculations") or {}).get("output")
+    if record.get("status") != "complete" or not calculations:
+        return None
+    afford, valuation = calculations["affordability_facts"], calculations["valuation_facts"]
+    heloc = valuation["loan_type"] == "heloc"
+    return RiskFindings(
+        loan_type=valuation["loan_type"],
+        first_time_buyer=afford["first_time_buyer"],  # already False for a HELOC
+        gross_annual_income=afford["gross_annual_income_eur"],
+        loan=afford["loan_eur"],
+        existing_mortgage_balance=valuation["existing_mortgage_balance_eur"] if heloc else 0,
+        value=valuation["estimate_eur"] if heloc else valuation["asking_price_eur"],
+        stressed_dti_band=afford["dti_band"],  # the bands in the facts are already the stressed ones
+        surplus_band=afford["surplus_band"],
+        price_needs_review=bool(valuation.get("price_needs_review")),  # a HELOC has no asking price, so its facts never flag it
+        low_model_support=has_low_support(valuation["support_warnings"]),
+    )
+
+
+def underwriting_document(application):
+    """`applications/{id}/review/underwriting`, from the application's document reference."""
+    return application.collection("review").document("underwriting")
+
+
+def risk_writes(application_id: str, broker_id: str, findings: RiskFindings) -> tuple[dict, dict]:
+    """The two writes, worked out but not made: (fields for the application, fields to merge into review/underwriting).
+
+    Shared by `write_risk` (its own batch) and auto_start.finish (inside the transaction that ends the run), so both write the same fields.
     """
     band, tier = ltv_band(ltv_ratio(findings)), risk_tier(findings)
+    return (
+        {"ltvBand": band, "riskTier": tier},
+        {"riskTier": tier, "updatedAt": SERVER_TIMESTAMP, "applicationId": application_id, "brokerId": broker_id},
+    )
+
+
+def write_risk(db, application_id: str, findings: RiskFindings) -> tuple[str, str]:
+    """Save the band and tier on their own: both on `applications/{id}`, and the tier again on `review/underwriting`
+    (readable by underwriters and the assigned broker, never the borrower). One batch, so the two documents never disagree.
+
+    `db` is a Firestore client. After a committee run the same writes are made by auto_start.finish instead, inside its
+    transaction (AL-301), so they land only while that run still holds the application. Returns (ltv_band, risk_tier).
+    Raises ValueError if the application does not exist or has no brokerId.
+    """
     application = db.collection("applications").document(application_id)
     snapshot = application.get()
     if not snapshot.exists:
@@ -95,8 +137,9 @@ def write_risk(db, application_id: str, findings: RiskFindings) -> tuple[str, st
     broker_id = (snapshot.to_dict() or {}).get("brokerId")
     if not broker_id:
         raise ValueError(f"Application {application_id} has no brokerId")
+    on_application, on_underwriting = risk_writes(application_id, broker_id, findings)
     batch = db.batch()
-    batch.update(application, {"ltvBand": band, "riskTier": tier})
-    batch.set(application.collection("review").document("underwriting"), {"riskTier": tier, "updatedAt": SERVER_TIMESTAMP, "applicationId": application_id, "brokerId": broker_id}, merge=True)
+    batch.update(application, on_application)
+    batch.set(underwriting_document(application), on_underwriting, merge=True)
     batch.commit()
-    return band, tier
+    return on_application["ltvBand"], on_application["riskTier"]

@@ -41,6 +41,10 @@ describe('JSON API client', () => {
   });
 
   it.each([
+    [409, { error: { code: 'CONFLICT', message: 'This application is already decided.', field: null, request_id: 'r-1' } }, 'This application is already decided.'],
+    [422, { error: { code: 'INVALID_FIELD', message: 'reason: String should have at most 1000 characters', field: 'reason', request_id: 'r-2' } }, 'reason: String should have at most 1000 characters'],
+    [502, { error: { code: 'INTERNAL', message: 'a different audit hash is already stored for this application', field: null, request_id: 'r-3' } }, 'a different audit hash is already stored for this application'],
+    [500, { error: { code: 'INTERNAL', message: '  ', field: null, request_id: 'r-4' } }, 'The request failed. Please try again.'],
     [409, { detail: 'This application is already decided.' }, 'This application is already decided.'],
     [422, { detail: [{ msg: 'Reason is too long' }, { msg: 'Second issue' }] }, 'Reason is too long'],
     [500, { detail: {} }, 'The request failed. Please try again.'],
