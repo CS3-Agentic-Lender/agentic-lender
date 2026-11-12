@@ -233,13 +233,18 @@ function LoanFile({ application, review }: LoanFileProps) {
             { label: 'Bedrooms', value: count(property.bedrooms) },
             { label: 'Floor area', value: count(property.floorAreaSqm, ' m²') },
             { label: 'BER rating', value: property.berRating },
-            { label: 'Asking price', value: euro(property.askingPriceEur) },
+            ...(heloc ? [] : [{ label: 'Asking price', value: euro(property.askingPriceEur) }]),
           ]}
           title="Property"
         />
         <div className="grid gap-6">
           {heloc ? (
-            <HelocCollateral application={application} />
+            <HelocCollateral
+              application={application}
+              policyGate={
+                review.state === 'available' ? review.policyGate : review.state === 'absent' ? null : undefined
+              }
+            />
           ) : (
             <Placeholder
               detail="The collateral record for this property is not shown on the loan file yet."

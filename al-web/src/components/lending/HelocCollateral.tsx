@@ -1,4 +1,4 @@
-import type { LoanFileApplication } from '../../services/loanFileService';
+import type { LoanFileApplication, PolicyGate } from '../../services/loanFileService';
 import { formatEuro, formatPercent } from '../../utils/formatters';
 import { Figure } from './Figure';
 
@@ -6,6 +6,8 @@ const COMBINED_LTV_CAP = 80;
 
 interface HelocCollateralProps {
   application: LoanFileApplication;
+  // Undefined while the review is loading or can't be read; null when there is no stored gate.
+  policyGate?: PolicyGate | null;
 }
 
 function euro(value: number | null) {
@@ -14,7 +16,7 @@ function euro(value: number | null) {
 
 // All financial figures come from the application. The bar uses the stored percentage
 // on a 0–100% scale; overflow is clipped visually without changing the displayed figure.
-export function HelocCollateral({ application }: HelocCollateralProps) {
+export function HelocCollateral({ application, policyGate }: HelocCollateralProps) {
   const { ltvPct } = application;
   const facts = [
     {
@@ -61,6 +63,26 @@ export function HelocCollateral({ application }: HelocCollateralProps) {
           ) : null}
         </div>
       )}
+      {policyGate?.breaches.includes('CLTV_CAP') ? (
+        <p className="mt-4 rounded-lg bg-danger-soft p-3 text-sm text-error">
+          Requires lender exception review: the combined LTV is above the 80% cap (CLTV_CAP).
+        </p>
+      ) : null}
+      {policyGate === undefined ? null : policyGate === null ? (
+        <p className="mt-4 text-sm text-muted">The policy check is not stored with this application yet.</p>
+      ) : policyGate.conditions.length > 0 ? (
+        <div className="mt-6">
+          <h3 className="font-semibold">Conditions</h3>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
+            {policyGate.conditions.map((condition, index) => (
+              <li key={index}>{condition}</li>
+            ))}
+          </ul>
+          <p className="mt-3 text-sm text-muted">
+            Conditions are for the underwriter's decision; they do not approve or mint the loan.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -322,8 +322,41 @@ describe('loan file page', () => {
     expect(Boolean(within(collateral).queryByText('Above the 80% combined LTV cap'))).toBe(above);
     expect(fact('Loan', 'Combined LTV')).toHaveTextContent(`${ltvPct}%`);
     expect(screen.getByRole('region', { name: 'Loan' })).not.toHaveTextContent(/asking price|Stored LTV band/i);
-    expect(fact('Property', 'Asking price')).toHaveTextContent('€310,000');
+    expect(within(screen.getByRole('region', { name: 'Property' })).queryByText('Asking price')).not.toBeInTheDocument();
     expect(screen.getByRole('main')).not.toHaveTextContent(/deposit|price[- ]gap|requires lender exception review/i);
+  });
+
+  it('passes the stored review gate to the HELOC collateral section', async () => {
+    const conditions = [
+      'Requires lender exception review (CLTV_CAP)',
+      "Requires an independent surveyor's valuation (HELOC)",
+    ];
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', ltvPct: 82.5,
+      }, toLoanFileReview({
+        ...seededReview,
+        policyGate: { original: 'Approve', effective: 'Conditionally Approve', breaches: ['CLTV_CAP'], conditions },
+      })),
+    }));
+    const collateral = await screen.findByRole('region', { name: 'Collateral (HELOC)' });
+    expect(within(collateral).getByText(
+      'Requires lender exception review: the combined LTV is above the 80% cap (CLTV_CAP).',
+    )).toBeInTheDocument();
+    expect(within(collateral).getAllByRole('listitem').map((item) => item.textContent)).toEqual(conditions);
+  });
+
+  it.each([null, 310000])('omits the HELOC asking price row when the stored price is %s', async (askingPriceEur) => {
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', property: { ...seededApplication.property, askingPriceEur },
+      }, { state: 'absent' }),
+    }));
+    const property = await screen.findByRole('region', { name: 'Property' });
+    expect(within(property).queryByText('Asking price')).not.toBeInTheDocument();
+    const collateral = screen.getByRole('region', { name: 'Collateral (HELOC)' });
+    expect(collateral).toHaveTextContent('The policy check is not stored with this application yet.');
+    expect(collateral).not.toHaveTextContent('surveyor');
   });
 
   it.each([
