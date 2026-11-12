@@ -659,13 +659,32 @@ def test_a_run_that_was_replaced_does_not_overwrite_the_band_or_tier(db):
     assert underwriting(db, application_id)["riskTier"] == "Z"
 
 
-def test_a_crash_working_out_the_risk_never_stops_the_status_moving(db, monkeypatch):
+def assert_no_risk_written(db, application_id):
+    """Checks the fields, not whether the review document exists: another ticket's write may create that document."""
+    stored = application(db, application_id)
+    assert "ltvBand" not in stored and "riskTier" not in stored
+    assert "riskTier" not in (underwriting(db, application_id) or {})
+
+
+@pytest.mark.parametrize("broken_function", ["findings_from_run", "risk_writes"])
+def test_a_crash_working_out_the_risk_never_stops_the_status_moving(db, monkeypatch, broken_function):
     def broken(*args, **kwargs):
         raise RuntimeError("bug in the rule")
 
-    monkeypatch.setattr(risk_tier, "risk_writes", broken)
+    monkeypatch.setattr(risk_tier, broken_function, broken)
     application_id = applied(db)
     record = auto_start.process(db, application_id, deps_factory=factory())
-    stored = application(db, application_id)
-    assert record["status"] == "complete" and stored["status"] == "AI Deliberated"
-    assert "riskTier" not in stored and underwriting(db, application_id) is None
+    assert record["status"] == "complete" and application(db, application_id)["status"] == "AI Deliberated"
+    assert_no_risk_written(db, application_id)
+
+
+def test_an_application_with_no_broker_writes_no_band_or_tier_and_the_status_still_moves(db, caplog):
+    record = auto_start.process(db, applied(db), deps_factory=factory())  # a complete record; the committee itself refuses a no-broker application
+    assert record["status"] == "complete", record["failure_reason"]
+    application_id = applied(db, brokerId=None)
+    auto_start.claim(db, application_id, run_id="run-1")
+    with caplog.at_level("WARNING", logger="al-ai.auto-start"):
+        auto_start.finish(db, {**record, "run_id": "run-1", "application_id": application_id})
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert_no_risk_written(db, application_id)
+    assert "no brokerId" in caplog.text
