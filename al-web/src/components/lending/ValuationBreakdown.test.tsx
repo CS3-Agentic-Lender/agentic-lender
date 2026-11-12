@@ -4,12 +4,20 @@ import { toLoanFileApplication, toLoanFileReview, type LoanFileReview } from '..
 import { ValuationBreakdown } from './ValuationBreakdown';
 
 const application = toLoanFileApplication('LN-1001', {
-  property: { county: 'Cork', propertyType: 'Semi-D', bedrooms: 3, floorAreaSqm: 120, berRating: 'C2', eircode: 'T12 ABCD' },
+  property: { county: 'Dublin', propertyType: 'Detached', bedrooms: 4, floorAreaSqm: 120, berRating: 'A1', eircode: 'D06 ABCD' },
 });
 const detail = {
   baselineEur: 250000,
-  contributions: { ber: -1300, eircode_area: 800, county: 18500, property_type: -4600, floor_area: 31200, bedrooms: 9800, unknown_feature: -400 },
-  estimatedValueEur: 304000,
+  contributions: [
+    { feature: 'ber', value: 'C2', eur: -1300 },
+    { feature: 'eircode_area', value: 'T12', eur: 6400 },
+    { feature: 'county', value: 'Cork', eur: 18500 },
+    { feature: 'property_type', value: 'Semi-D', eur: -4600 },
+    { feature: 'floor_area', value: 98, eur: 31200 },
+    { feature: 'bedrooms', value: 3, eur: 9800 },
+  ],
+  estimatedValueEur: 310000,
+  supportWarnings: [],
 };
 
 function renderBreakdown(review: LoanFileReview = toLoanFileReview({ valuationDetail: detail })) {
@@ -28,20 +36,19 @@ describe('valuation breakdown', () => {
     expect(startingPoint).toHaveTextContent("Starting pointaverage of the model's sample homes");
     expect(startingPoint.nextElementSibling).toHaveTextContent('€250,000');
     expect(screen.queryByText(/typical listing/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Estimate').nextElementSibling).toHaveTextContent('€304,000');
+    expect(screen.getByText('Estimate').nextElementSibling).toHaveTextContent('€310,000');
     expect(screen.getByText(/Starts from the average/)).toHaveTextContent(
       "Starts from the average of the model's sample homes, not a typical price. It doesn't say what changing the house would do. It is an estimate of a 2024 asking price, not a valuation. Amounts are rounded to the nearest euro, so the rows can add up to a euro or two more or less than the estimate.",
     );
 
     const rows = within(screen.getByRole('list', { name: 'Valuation contributions' })).getAllByRole('listitem');
     const expected = [
-      ['Floor area', '120 m²', '+€31,200'],
+      ['Floor area', '98 m²', '+€31,200'],
       ['County', 'Cork', '+€18,500'],
       ['Bedrooms', '3', '+€9,800'],
+      ['Eircode area', 'T12', '+€6,400'],
       ['Property type', 'Semi-D', '−€4,600'],
       ['BER rating', 'C2', '−€1,300'],
-      ['Eircode area', 'T12', '+€800'],
-      ['unknown_feature', null, '−€400'],
     ];
     expect(rows).toHaveLength(expected.length);
     expected.forEach(([label, input, amount], index) => {
@@ -60,7 +67,11 @@ describe('valuation breakdown', () => {
   it('draws proportional bars to either side of zero and hides only the graphics from screen readers', () => {
     renderBreakdown(toLoanFileReview({ valuationDetail: {
       baselineEur: 250000,
-      contributions: { county: 100, ber: -50, bedrooms: 0 },
+      contributions: [
+        { feature: 'county', value: 'Cork', eur: 100 },
+        { feature: 'ber', value: 'C2', eur: -50 },
+        { feature: 'bedrooms', value: 3, eur: 0 },
+      ],
     } }));
 
     const rows = screen.getAllByRole('listitem');
@@ -76,7 +87,10 @@ describe('valuation breakdown', () => {
   it('handles all-zero effects without inventing input values or dividing by zero', () => {
     render(<ValuationBreakdown
       application={toLoanFileApplication('empty', {})}
-      review={toLoanFileReview({ valuationDetail: { baselineEur: 0, contributions: { floor_area: 0, bedrooms: 0 }, estimatedValueEur: 0 } })}
+      review={toLoanFileReview({ valuationDetail: { baselineEur: 0, contributions: [
+        { feature: 'floor_area', value: null, eur: 0 },
+        { feature: 'bedrooms', value: null, eur: 0 },
+      ], estimatedValueEur: 0 } })}
     />);
 
     const rows = screen.getAllByRole('listitem');
@@ -92,10 +106,11 @@ describe('valuation breakdown', () => {
     ['t12abcd', 'T12'],
     ['XY1 2345', null],
     [null, null],
+    [123, null],
   ])('shows only the routing key of the Eircode %s', (eircode, shown) => {
     render(<ValuationBreakdown
-      application={toLoanFileApplication('area', { property: { eircode } })}
-      review={toLoanFileReview({ valuationDetail: { baselineEur: 250000, contributions: { eircode_area: 800 } } })}
+      application={application}
+      review={toLoanFileReview({ valuationDetail: { baselineEur: 250000, contributions: [{ feature: 'eircode_area', value: eircode, eur: 800 }] } })}
     />);
     const row = screen.getByText('Eircode area').closest('li')!;
     expect(row).toHaveTextContent(`Eircode area${shown ?? ''}+€800`);
@@ -104,7 +119,7 @@ describe('valuation breakdown', () => {
   it('keeps a stored zero input', () => {
     render(<ValuationBreakdown
       application={toLoanFileApplication('studio', { property: { bedrooms: 0 } })}
-      review={toLoanFileReview({ valuationDetail: detail })}
+      review={toLoanFileReview({ valuationDetail: { ...detail, contributions: [{ feature: 'bedrooms', value: 0, eur: 0 }] } })}
     />);
     expect(within(screen.getByText('Bedrooms').closest('li')!).getByText('0')).toBeInTheDocument();
   });
@@ -123,8 +138,12 @@ describe('valuation breakdown', () => {
     renderBreakdown(toLoanFileReview({
       valuationDetail: {
         baselineEur: 250000.4,
-        contributions: { county: 18500.4, bedrooms: 9800.4 },
+        contributions: [
+          { feature: 'county', value: 'Cork', eur: 18500.4 },
+          { feature: 'bedrooms', value: 3, eur: 9800.4 },
+        ],
         estimatedValueEur: 278301.2,
+        displayEstimateEur: 278000,
       },
     }));
 
@@ -145,8 +164,65 @@ describe('valuation breakdown', () => {
     renderBreakdown(toLoanFileReview({ valuationDetail: { ...detail, estimatedValueEur: undefined } }));
 
     expect(screen.getByText('Estimate').nextElementSibling).toHaveTextContent('Unavailable');
-    expect(screen.getAllByRole('listitem')).toHaveLength(7);
+    expect(screen.getAllByRole('listitem')).toHaveLength(6);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('shows both support warnings in stored order beside the chart', () => {
+    const supportWarnings = ['Few comparable homes.', 'The Eircode area was not seen during training.'];
+    renderBreakdown(toLoanFileReview({ valuationDetail: { ...detail, supportWarnings } }));
+
+    const warnings = screen.getByRole('complementary', { name: 'Why this estimate may be less reliable' });
+    expect(within(warnings).getAllByRole('listitem').map((item) => item.textContent)).toEqual(supportWarnings);
+    expect(screen.getByRole('list', { name: 'Valuation contributions' })).toBeInTheDocument();
+  });
+
+  it.each([[], undefined, null, 'Not a list', [null, 1, {}, '', '  ']])('omits the warning area when no usable warnings are stored (%j)', (supportWarnings) => {
+    renderBreakdown(toLoanFileReview({ valuationDetail: { ...detail, supportWarnings } }));
+    expect(screen.queryByRole('heading', { name: 'Why this estimate may be less reliable' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  it('ignores invalid warning entries and retains the model wording', () => {
+    renderBreakdown(toLoanFileReview({ valuationDetail: { ...detail, supportWarnings: [null, 'Few comparable homes.', 1, '', 'Unseen Eircode area.'] } }));
+    const warnings = screen.getByRole('complementary');
+    expect(within(warnings).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Few comparable homes.', 'Unseen Eircode area.']);
+  });
+
+  it.each([
+    { baselineEur: null, contributions: null },
+    { contributions: [...detail.contributions, { feature: 'unknown', eur: Number.NaN }] },
+    { contributions: [...detail.contributions, { value: 'Cork', eur: 20 }] },
+    { contributions: { county: 18500 } },
+  ])('keeps the estimate and warnings when the breakdown is unusable (%j)', (override) => {
+    const supportWarnings = ['Few comparable homes.', 'Unseen Eircode area.'];
+    renderBreakdown(toLoanFileReview({ valuationDetail: { ...detail, ...override, supportWarnings } }));
+    expect(screen.getByText('Estimate').nextElementSibling).toHaveTextContent('€310,000');
+    expect(screen.getByText("The breakdown of this estimate isn't available.")).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Valuation contributions' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Starting point')).not.toBeInTheDocument();
+    const warnings = screen.getByRole('complementary');
+    expect(within(warnings).getAllByRole('listitem').map((item) => item.textContent)).toEqual(supportWarnings);
+  });
+
+  it('shows warnings even when neither the estimate nor breakdown is usable', () => {
+    renderBreakdown(toLoanFileReview({ valuationDetail: { supportWarnings: ['Few comparable homes.'] } }));
+    expect(screen.getByText('Few comparable homes.')).toBeInTheDocument();
+    expect(screen.queryByText('Estimate')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Valuation contributions' })).not.toBeInTheDocument();
+  });
+
+  it('formats numeric inputs with Irish grouping and keeps unknown feature values', () => {
+    renderBreakdown(toLoanFileReview({ valuationDetail: { baselineEur: 100, contributions: [
+      { feature: 'floor_area', value: 1234.5, eur: 20 },
+      { feature: 'unknown_number', value: 5678, eur: 10 },
+      { feature: 'unknown_text', value: 'Stored wording', eur: 5 },
+      { feature: 'bedrooms', value: {}, eur: 1 },
+    ] } }));
+    expect(screen.getByText('1,234.5 m²')).toBeVisible();
+    expect(screen.getByText('5,678')).toBeVisible();
+    expect(screen.getByText('Stored wording')).toBeVisible();
+    expect(screen.getByText('Bedrooms').closest('li')).toHaveTextContent(/^Bedrooms\+€1$/);
   });
 
   it('shows a loading line while the review is pending', () => {

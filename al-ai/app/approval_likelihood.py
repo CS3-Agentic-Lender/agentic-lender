@@ -1,4 +1,4 @@
-"""The borrower's indicative figures, worked out by code: purchase-price LTV, DTI at the benchmark rate and the approval likelihood.
+"""The borrower's indicative figures: purchase-price and model LTV, DTI at the benchmark rate and the approval likelihood.
 
 `application_fields` is the one function that says what goes on `applications/{id}`. The Firestore listener that starts the
 committee calls it twice: on submit, before the committee runs (no valuation yet), and again when a run (or re-run) completes,
@@ -38,8 +38,9 @@ def application_fields(
     """The fields to write to the application. `application` is the Firestore document (camelCase, see committee_input.py).
 
     Always has `approvalLikelihood`. Has `dtiPct` (one decimal place) and, for a mortgage, `purchaseLtvPct` (one decimal place)
-    whenever the application is valid. A HELOC with a valuation also has `ltvPct`, its combined LTV against the estimate (one
-    decimal place), which is the LTV the borrower's app shows for a HELOC. An invalid or unsupported application gets `Unknown` and no figures.
+    whenever the application is valid. With a valuation, `ltvPct` is the loan against the estimate for a mortgage, or the
+    combined LTV for a HELOC (one decimal place). Without a valuation it is absent. An invalid or unsupported application
+    gets `Unknown` and no figures.
     """
     try:
         a = committee_input.Application.model_validate(application)
@@ -55,6 +56,8 @@ def application_fields(
     fields: dict = {"dtiPct": round(assessed.dti * 100, 1)}
     if not heloc:
         fields["purchaseLtvPct"] = round(a.loan_amount_eur / a.property.asking_price_eur * 100, 1)
+        if valuation is not None:
+            fields["ltvPct"] = round(a.loan_amount_eur / valuation.estimate_eur * 100, 1)
 
     if heloc and valuation is None:
         fields["approvalLikelihood"] = UNKNOWN  # a HELOC is judged against the model's estimate, which does not exist yet

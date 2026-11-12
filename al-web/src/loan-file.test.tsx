@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
+import { CommitteeServiceContext } from './context/CommitteeContext';
+import type { CommitteeService } from './services/committeeService';
 import { ClientsServiceContext } from './context/BrokerClientsContext';
 import { LoanFileServiceContext } from './context/LoanFileContext';
 import { DecisionServiceContext } from './context/DecisionContext';
@@ -135,8 +137,16 @@ const seededReview = {
   riskTier: 'B',
   valuationDetail: {
     baselineEur: 250000,
-    contributions: { county: 18500, floor_area: 31200, ber: -1300 },
-    estimatedValueEur: 298400,
+    contributions: [
+      { feature: 'floor_area', value: 98, eur: 31200 },
+      { feature: 'county', value: 'Cork', eur: 18500 },
+      { feature: 'bedrooms', value: 3, eur: 9800 },
+      { feature: 'eircode_area', value: 'T12', eur: 6400 },
+      { feature: 'property_type', value: 'Semi-D', eur: -4600 },
+      { feature: 'ber', value: 'C2', eur: -1300 },
+    ],
+    estimatedValueEur: 310000,
+    supportWarnings: [],
   },
   dtiBreakdown: { incomeMonthlyEur: 6250, existingDebtsMonthlyEur: 300, newRepaymentMonthlyEur: 1265.13 },
 };
@@ -166,23 +176,33 @@ interface Services {
   clients?: ClientsService;
 }
 
+const noCommittee: CommitteeService = {
+  subscribeToRun: (_id, _viewer, listener) => {
+    listener({ status: 'missing' });
+    return () => {};
+  },
+  subscribeToCalls: () => () => {},
+};
+
 function renderAs(uid: string, role: TrustedRole, pathname: string, services: Services) {
   return render(
     <AuthProvider service={new FakeAuthService(authUser(uid), role)}>
-      <SettlementServiceContext.Provider value={services.settlement ?? { mint: async (id) => ({ id, status: 'Funded' }) }}>
-      <DecisionServiceContext.Provider value={services.decisions ?? { signOff: async () => { throw new Error('No decision fake configured'); } }}>
-      <LoanFileServiceContext.Provider value={services.loanFiles ?? new FakeLoanFileService()}>
-        <PipelineServiceContext.Provider value={services.pipeline ?? { subscribeToPipeline: () => () => {} }}>
-          <ClientsServiceContext.Provider value={services.clients ?? { subscribeToBrokerClients: () => () => {} }}>
-            <MemoryRouter initialEntries={[pathname]}>
-              <AppRoutes />
-              <NavigationProbe />
-            </MemoryRouter>
-          </ClientsServiceContext.Provider>
-        </PipelineServiceContext.Provider>
-      </LoanFileServiceContext.Provider>
-      </DecisionServiceContext.Provider>
-      </SettlementServiceContext.Provider>
+      <CommitteeServiceContext.Provider value={noCommittee}>
+        <SettlementServiceContext.Provider value={services.settlement ?? { mint: async (id) => ({ id, status: 'Funded' }) }}>
+        <DecisionServiceContext.Provider value={services.decisions ?? { signOff: async () => { throw new Error('No decision fake configured'); } }}>
+        <LoanFileServiceContext.Provider value={services.loanFiles ?? new FakeLoanFileService()}>
+          <PipelineServiceContext.Provider value={services.pipeline ?? { subscribeToPipeline: () => () => {} }}>
+            <ClientsServiceContext.Provider value={services.clients ?? { subscribeToBrokerClients: () => () => {} }}>
+              <MemoryRouter initialEntries={[pathname]}>
+                <AppRoutes />
+                <NavigationProbe />
+              </MemoryRouter>
+            </ClientsServiceContext.Provider>
+          </PipelineServiceContext.Provider>
+        </LoanFileServiceContext.Provider>
+        </DecisionServiceContext.Provider>
+        </SettlementServiceContext.Provider>
+      </CommitteeServiceContext.Provider>
     </AuthProvider>,
   );
 }
@@ -441,6 +461,13 @@ describe('loan file page', () => {
     expect(signOff).toHaveBeenCalledExactlyOnceWith('LN-1001', 'approved', 'Reviewed.');
   });
 
+  it.each(['broker', 'underwriter'] as const)('renders the committee section for a %s', async (role) => {
+    renderAs(`${role}-1`, role, `/${role}/applications/LN-1001`, {
+      loanFiles: new FakeLoanFileService({ 'LN-1001': loanFile() }),
+    });
+    const committee = await screen.findByRole('region', { name: 'Committee' });
+    expect(await within(committee).findByText('No committee run stored yet.')).toBeInTheDocument();
+  });
   it.each([
     [100000, 62.5, false],
     [170000, 80, false],
@@ -467,8 +494,41 @@ describe('loan file page', () => {
     expect(Boolean(within(collateral).queryByText('Above the 80% combined LTV cap'))).toBe(above);
     expect(fact('Loan', 'Combined LTV')).toHaveTextContent(`${ltvPct}%`);
     expect(screen.getByRole('region', { name: 'Loan' })).not.toHaveTextContent(/asking price|Stored LTV band/i);
-    expect(fact('Property', 'Asking price')).toHaveTextContent('€310,000');
+    expect(within(screen.getByRole('region', { name: 'Property' })).queryByText('Asking price')).not.toBeInTheDocument();
     expect(screen.getByRole('main')).not.toHaveTextContent(/deposit|price[- ]gap|requires lender exception review/i);
+  });
+
+  it('passes the stored review gate to the HELOC collateral section', async () => {
+    const conditions = [
+      'Requires lender exception review (CLTV_CAP)',
+      "Requires an independent surveyor's valuation (HELOC)",
+    ];
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', ltvPct: 82.5,
+      }, toLoanFileReview({
+        ...seededReview,
+        policyGate: { original: 'Approve', effective: 'Conditionally Approve', breaches: ['CLTV_CAP'], conditions },
+      })),
+    }));
+    const collateral = await screen.findByRole('region', { name: 'Collateral (HELOC)' });
+    expect(within(collateral).getByText(
+      'Requires lender exception review: the combined LTV is above the 80% cap (CLTV_CAP).',
+    )).toBeInTheDocument();
+    expect(within(collateral).getAllByRole('listitem').map((item) => item.textContent)).toEqual(conditions);
+  });
+
+  it.each([null, 310000])('omits the HELOC asking price row when the stored price is %s', async (askingPriceEur) => {
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', property: { ...seededApplication.property, askingPriceEur },
+      }, { state: 'absent' }),
+    }));
+    const property = await screen.findByRole('region', { name: 'Property' });
+    expect(within(property).queryByText('Asking price')).not.toBeInTheDocument();
+    const collateral = screen.getByRole('region', { name: 'Collateral (HELOC)' });
+    expect(collateral).toHaveTextContent('The policy check is not stored with this application yet.');
+    expect(collateral).not.toHaveTextContent('surveyor');
   });
 
   it.each([
@@ -646,11 +706,32 @@ describe('loan file page', () => {
     const valuation = screen.getByRole('region', { name: 'Valuation' });
     expect(within(valuation).getByText('How each detail moved the estimate')).toBeInTheDocument();
     expect(within(valuation).getByText('€250,000')).toBeInTheDocument();
-    expect(within(valuation).getByText('€298,400')).toBeInTheDocument();
+    expect(within(valuation).getByText('€310,000')).toBeInTheDocument();
     const rows = within(valuation).getAllByRole('listitem');
     expect(rows[0]).toHaveTextContent('Floor area98 m²+€31,200');
     expect(rows[1]).toHaveTextContent('CountyCork+€18,500');
-    expect(rows[2]).toHaveTextContent('BER ratingC2−€1,300');
+    expect(rows).toHaveLength(6);
+    expect(rows[2]).toHaveTextContent('Bedrooms3+€9,800');
+    expect(rows[3]).toHaveTextContent('Eircode areaT12+€6,400');
+    expect(rows[4]).toHaveTextContent('Property typeSemi-D−€4,600');
+    expect(rows[5]).toHaveTextContent('BER ratingC2−€1,300');
+  });
+
+  it('keeps the valuation estimate and support warnings when the stored breakdown failed', async () => {
+    const review = toLoanFileReview({ ...seededReview, valuationDetail: {
+      ...seededReview.valuationDetail,
+      baselineEur: null,
+      contributions: null,
+      supportWarnings: ['Few comparable homes.', 'Unseen Eircode area.'],
+    } });
+    renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', seededApplication, review) }));
+    await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
+
+    const valuation = screen.getByRole('region', { name: 'Valuation' });
+    expect(within(valuation).getByText('€310,000')).toBeInTheDocument();
+    expect(within(valuation).getByText("The breakdown of this estimate isn't available.")).toBeInTheDocument();
+    expect(within(valuation).queryByRole('list', { name: 'Valuation contributions' })).not.toBeInTheDocument();
+    expect(within(valuation).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Few comparable homes.', 'Unseen Eircode area.']);
   });
 
   it('shows Unavailable for every missing figure, never 0 or a dash', async () => {

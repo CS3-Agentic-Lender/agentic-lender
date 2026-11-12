@@ -69,8 +69,16 @@ export function auditPackRows(pack: AuditPack): AuditRow[] {
   return rows;
 }
 
+// A text cell that starts like a formula (=, +, -, @, tab or carriage return) would run as one when
+// the CSV is opened in Excel, so it gets a leading apostrophe. Plain numbers such as -1300 are left
+// alone so they stay numbers.
+function neutraliseFormula(value: string) {
+  return /^[=+\-@\t\r]/.test(value) && !/^[+-]?\d+(\.\d+)?$/.test(value) ? `'${value}` : value;
+}
+
 function csvCell(value: string) {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  const safe = neutraliseFormula(value);
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 // RFC 4180: CRLF line endings, quoted cells for commas, quotes and line breaks. The byte order

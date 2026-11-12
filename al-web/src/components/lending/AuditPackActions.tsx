@@ -20,10 +20,11 @@ export function verificationSummary(verification: AuditPackVerification) {
   if (verification.computed_hash !== verification.stored_hash) {
     problems.push('the record does not match its stored hash');
   }
-  if (verification.loan_note_hash !== verification.stored_hash) {
+  // Compared with computed_hash, as al-core does when it sets `verified`.
+  if (verification.loan_note_hash !== verification.computed_hash) {
     problems.push('the loan note holds a different hash');
   }
-  if (verification.on_chain_checked && verification.on_chain_hash !== verification.stored_hash) {
+  if (verification.on_chain_checked && verification.on_chain_hash !== verification.computed_hash) {
     problems.push(verification.on_chain_hash === null ? 'the registry holds no hash' : 'the registry holds a different hash');
   }
   if (!verification.calls_match) {
