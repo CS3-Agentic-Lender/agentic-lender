@@ -135,4 +135,20 @@ describe('mortgage collateral panel', () => {
 
     expect(screen.getByText('Loading the model estimate.')).toBeInTheDocument();
   });
+
+  it('says the estimate could not be read, not that it is missing, when the review read was refused or failed', () => {
+    renderPanel(valuationDetail, application(), { state: 'unavailable' });
+
+    expect(screen.getByText('The model estimate could not be read from the underwriting review.')).toBeInTheDocument();
+    expect(screen.queryByText('The model estimate is not stored with this application yet.')).not.toBeInTheDocument();
+    expect(screen.getByText('Gap unavailable')).toBeInTheDocument();
+    expect(fact('Purchase-price LTV')).toHaveTextContent('79.5%');
+  });
+
+  it('says the estimate will appear once the review is written when there is no review yet', () => {
+    renderPanel(valuationDetail, application(), { state: 'absent' });
+
+    expect(screen.getByText('The model estimate will appear once the underwriting review is written.')).toBeInTheDocument();
+    expect(screen.queryByText('The model estimate is not stored with this application yet.')).not.toBeInTheDocument();
+  });
 });

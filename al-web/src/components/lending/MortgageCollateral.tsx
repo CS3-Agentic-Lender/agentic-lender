@@ -59,11 +59,21 @@ function LtvRow({ label, note, value }: { label: string; note: string; value: nu
   );
 }
 
+// Same split as the valuation breakdown: a review that could not be read is not the same as
+// a review with no estimate in it, so a refused or failed read never says "not stored".
+const estimateNotices = {
+  pending: 'Loading the model estimate.',
+  absent: 'The model estimate will appear once the underwriting review is written.',
+  unavailable: 'The model estimate could not be read from the underwriting review.',
+  missing: 'The model estimate is not stored with this application yet.',
+};
+
 // The backend supplies the comparison and flag. Bars use the stored LTVs on a 0–100%
 // scale, clipped visually without changing the figures or their denominators.
 export function MortgageCollateral({ application, review }: MortgageCollateralProps) {
   const valuation = review.state === 'available' && review.valuation.state === 'available' ? review.valuation : null;
   const estimate = valuation?.displayEstimateEur ?? valuation?.estimatedValueEur ?? null;
+  const notice = review.state === 'available' ? (estimate === null ? 'missing' : null) : review.state;
 
   return (
     <section aria-label="Collateral" className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
@@ -88,13 +98,11 @@ export function MortgageCollateral({ application, review }: MortgageCollateralPr
           </dd>
         </div>
       </dl>
-      {review.state === 'pending' ? (
-        <p className="mt-4 text-sm text-muted" role="status">Loading the model estimate.</p>
-      ) : estimate === null ? (
+      {notice === null ? null : (
         <p className="mt-4 text-sm text-muted" role="status">
-          The model estimate is not stored with this application yet.
+          {estimateNotices[notice]}
         </p>
-      ) : null}
+      )}
       <p className="mt-4 text-sm">{gapText(valuation?.askingPriceGap ?? null)}</p>
       {valuation?.priceNeedsReview === true ? (
         <span className="mt-2 inline-flex rounded-full bg-danger-soft px-3 py-1 text-xs font-medium text-error">
