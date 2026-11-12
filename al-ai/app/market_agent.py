@@ -242,7 +242,7 @@ class ReportStore(Protocol):
 
 
 class MemoryReportStore:
-    """Reports kept in memory. A Firestore store that matches this interface comes with the committee flow ticket."""
+    """Reports kept in memory, in one process. A restart starts with an empty store, so the first run after it makes a new report."""
 
     def __init__(self):
         self._reports: dict[str, dict] = {}

@@ -358,11 +358,12 @@ def rerun_committee(failed: dict, application: dict, *, deps: Deps) -> dict:
     return run_committee(application, deps=deps, application_id=failed["application_id"], rerun_of=failed["run_id"])
 
 
-def local_deps(store: RunStore, env: dict, call_sink: call_log.Sink | None = None) -> Deps:
+def local_deps(store: RunStore, env: dict, report_store: ma.ReportStore, call_sink: call_log.Sink | None = None) -> Deps:
     """The real providers, for the Firestore listener: the ECB rates come from the shared Firestore cache (`rates_cache`).
 
+    `report_store` is the day's market reports. The caller makes one and hands the same one to every run, so a run can reuse an earlier run's report.
     `call_sink` is where every AI call of the run is saved as an ai_calls document (AL-140); the runner has none, the listener passes Firestore."""
-    return Deps(store=store, report_store=ma.MemoryReportStore(), env=env, call_sink=call_sink)
+    return Deps(store=store, report_store=report_store, env=env, call_sink=call_sink)
 
 
 def main(argv: list[str]) -> int:

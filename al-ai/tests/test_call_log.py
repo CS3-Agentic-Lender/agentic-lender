@@ -308,4 +308,4 @@ def test_the_listeners_deps_save_every_call_to_ai_calls_on_the_database_it_liste
 
 
 def test_the_local_runner_has_no_call_sink():
-    assert committee.local_deps(tc.MemoryRunStore(), {}).call_sink is None
+    assert committee.local_deps(tc.MemoryRunStore(), {}, ma.MemoryReportStore()).call_sink is None
