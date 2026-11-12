@@ -21,7 +21,7 @@ Each Epic has one use case and one owner (see the use case table in `../README.m
 
 | Epic | Feature | File | What to do |
 |---|---|---|---|
-| AL-5 | Loan Application | `Ibrahima/AL-5-loan-application.pdf` (in the Sprint 1 zip) | reuse or update |
+| AL-5 | Loan Application | `ibrahima/AL-5-loan-application.pdf` | done |
 | AL-14 | Valuation breakdown | `ibrahima/AL-14-explain-the-valuation.pdf` | done |
 | AL-194 | Home equity line of credit (HELOC) | `ibrahima/AL-194-heloc.pdf` | done |
 

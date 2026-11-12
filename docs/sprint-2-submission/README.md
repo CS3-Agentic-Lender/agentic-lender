@@ -74,7 +74,7 @@ Each Epic has one use case and one owner; nobody else writes one for it. The own
 | Epic | Feature | Owner | File |
 |---|---|---|---|
 | AL-4 | Accounts & Roles | Nikoloz | Sprint 1 use case: reuse or update |
-| AL-5 | Loan Application | Ibrahima | Sprint 1 use case: reuse or update |
+| AL-5 | Loan Application | Ibrahima | done: `ibrahima/AL-5-loan-application.pdf` |
 | AL-6 | Fair-Price Property Checker | Nic | Sprint 1 use case: reuse or update |
 | AL-7 | AI Credit Committee | Nic | done: `nic/AL-7-ai-credit-committee.pdf` |
 | AL-8 | Origination Pipeline | Dumi | done: `dumi/AL-8-origination-pipeline.pdf` |
