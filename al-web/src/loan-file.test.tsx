@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
+import { CommitteeServiceContext } from './context/CommitteeContext';
+import type { CommitteeService } from './services/committeeService';
 import { ClientsServiceContext } from './context/BrokerClientsContext';
 import { LoanFileServiceContext } from './context/LoanFileContext';
 import { PipelineServiceContext } from './context/PipelineContext';
@@ -166,19 +168,29 @@ interface Services {
   clients?: ClientsService;
 }
 
+const noCommittee: CommitteeService = {
+  subscribeToRun: (_id, _viewer, listener) => {
+    listener({ status: 'missing' });
+    return () => {};
+  },
+  subscribeToCalls: () => () => {},
+};
+
 function renderAs(uid: string, role: TrustedRole, pathname: string, services: Services) {
   return render(
     <AuthProvider service={new FakeAuthService(authUser(uid), role)}>
-      <LoanFileServiceContext.Provider value={services.loanFiles ?? new FakeLoanFileService()}>
-        <PipelineServiceContext.Provider value={services.pipeline ?? { subscribeToPipeline: () => () => {} }}>
-          <ClientsServiceContext.Provider value={services.clients ?? { subscribeToBrokerClients: () => () => {} }}>
-            <MemoryRouter initialEntries={[pathname]}>
-              <AppRoutes />
-              <NavigationProbe />
-            </MemoryRouter>
-          </ClientsServiceContext.Provider>
-        </PipelineServiceContext.Provider>
-      </LoanFileServiceContext.Provider>
+      <CommitteeServiceContext.Provider value={noCommittee}>
+        <LoanFileServiceContext.Provider value={services.loanFiles ?? new FakeLoanFileService()}>
+          <PipelineServiceContext.Provider value={services.pipeline ?? { subscribeToPipeline: () => () => {} }}>
+            <ClientsServiceContext.Provider value={services.clients ?? { subscribeToBrokerClients: () => () => {} }}>
+              <MemoryRouter initialEntries={[pathname]}>
+                <AppRoutes />
+                <NavigationProbe />
+              </MemoryRouter>
+            </ClientsServiceContext.Provider>
+          </PipelineServiceContext.Provider>
+        </LoanFileServiceContext.Provider>
+      </CommitteeServiceContext.Provider>
     </AuthProvider>,
   );
 }
@@ -215,6 +227,13 @@ function fact(section: string, label: string) {
 afterEach(cleanup);
 
 describe('loan file page', () => {
+  it.each(['broker', 'underwriter'] as const)('renders the committee section for a %s', async (role) => {
+    renderAs(`${role}-1`, role, `/${role}/applications/LN-1001`, {
+      loanFiles: new FakeLoanFileService({ 'LN-1001': loanFile() }),
+    });
+    const committee = await screen.findByRole('region', { name: 'Committee' });
+    expect(await within(committee).findByText('No committee run stored yet.')).toBeInTheDocument();
+  });
   it.each([
     [100000, 62.5, false],
     [170000, 80, false],

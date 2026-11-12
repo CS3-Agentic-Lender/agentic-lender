@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
+import { CommitteeConsole } from '../../components/lending/CommitteeConsole';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
@@ -249,6 +250,7 @@ function LoanFile({ application, review }: LoanFileProps) {
       <div className="mt-6">
         <DtiBreakdown application={application} review={review} />
       </div>
+      <CommitteeConsole applicationId={application.id} />
     </>
   );
 }
