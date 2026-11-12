@@ -33,7 +33,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail
 from app import market_agent as ma
 
-log =logging.getLogger("al-ai.auto-start")
+log = logging.getLogger("al-ai.auto-start")
 
 APPLICATIONS, AI_RUNS = "applications", "ai_runs"
 APPLIED, AI_DELIBERATED = "Applied", "AI Deliberated"
