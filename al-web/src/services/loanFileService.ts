@@ -41,6 +41,15 @@ export interface LoanFileDecision {
   decidedAt: Date | null;
 }
 
+export interface LoanNote {
+  tokenId: string;
+  contractAddress: string;
+  txHash: string;
+  auditHash: string;
+  network: string | null;
+  mintedAt: Date;
+}
+
 // Every figure is null when it is missing or unusable, so the page can say "Unavailable"
 // instead of showing 0 or a made-up value.
 export interface LoanFileApplication extends ApplicationSummary {
@@ -60,6 +69,8 @@ export interface LoanFileApplication extends ApplicationSummary {
   createdAt: Date | null;
   submittedAt: Date | null;
   decision: LoanFileDecision | null;
+  loanNote: LoanNote | null;
+  auditTxHash: string | null;
 }
 
 // applications/{id}/review/underwriting dtiBreakdown, monthly euro figures at the offered rate.
@@ -173,6 +184,27 @@ function readDecision(value: unknown): LoanFileDecision | null {
   };
 }
 
+function readNonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function readLoanNote(value: unknown): LoanNote | null {
+  const note = readMap(value);
+  const tokenId = readNonEmptyString(note.tokenId);
+  const contractAddress = readNonEmptyString(note.contractAddress);
+  const txHash = readNonEmptyString(note.txHash);
+  const auditHash = readNonEmptyString(note.auditHash);
+  const network = readNonEmptyString(note.network);
+  const mintedAt = readDate(note.mintedAt);
+
+  // Only network is optional on older notes. Preserve identifiers exactly as stored.
+  if (!tokenId || !contractAddress || !txHash || !auditHash || !mintedAt ||
+      (note.network != null && network === null)) {
+    return null;
+  }
+  return { tokenId, contractAddress, txHash, auditHash, network, mintedAt };
+}
+
 export function toLoanFileApplication(id: string, data: DocumentData): LoanFileApplication {
   const property = readMap(data.property);
 
@@ -207,6 +239,8 @@ export function toLoanFileApplication(id: string, data: DocumentData): LoanFileA
     createdAt: readDate(data.createdAt),
     submittedAt: readDate(data.submittedAt),
     decision: readDecision(data.decision),
+    loanNote: readLoanNote(data.loanNote),
+    auditTxHash: readNonEmptyString(data.auditTxHash),
   };
 }
 
