@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from app import affordability as aff
-from app.risk_tier import RiskFindings, has_low_support, ltv_band, ltv_ratio, risk_tier, write_risk
+from app.risk_tier import RiskFindings, findings_from_run, has_low_support, ltv_band, ltv_ratio, risk_tier, write_risk
 from app.valuation_endpoint import BREAKDOWN_WARNING
 
 SHARED_CASES = Path(__file__).resolve().parents[2] / "al-core" / "test" / "risk-tier-examples.json"
@@ -208,3 +208,37 @@ def test_a_re_run_overwrites_with_the_new_answer():
     db = FakeDb()
     write_risk(db, "app-1", mortgage(surplus_band="Adverse"))
     assert db.last_batch.writes[0][2] == {"ltvBand": "80_or_less", "riskTier": "D"}
+
+
+# ---- AL-301: the findings read from a committee run record ---------------------------------
+
+def run_record(loan_type="mortgage", status="complete", **valuation_changes) -> dict:
+    """The parts of a run record (committee.make_record) that the findings come from: the calculations step's facts."""
+    affordability = {"loan_eur": 270_000.0, "gross_annual_income_eur": 75_000.0, "first_time_buyer": True, "dti_band": "Caution", "surplus_band": "Comfortable"}
+    if loan_type == "heloc":
+        affordability |= {"loan_eur": 40_000.0, "gross_annual_income_eur": 100_000.0, "first_time_buyer": False}
+        valuation = {"loan_type": "heloc", "estimate_eur": 400_000.0, "existing_mortgage_balance_eur": 300_000.0, "line_eur": 40_000.0, "support_warnings": []}
+    else:
+        valuation = {"loan_type": "mortgage", "estimate_eur": 330_000.0, "asking_price_eur": 337_500.0, "loan_eur": 270_000.0, "price_needs_review": False, "support_warnings": []}
+    valuation |= valuation_changes
+    return {"status": status, "steps": {"calculations": {"ok": True, "output": {"affordability_facts": affordability, "valuation_facts": valuation}}}}
+
+
+def test_a_complete_mortgage_run_gives_findings_judged_against_the_asking_price():
+    assert findings_from_run(run_record()) == mortgage(stressed_dti_band="Caution")
+
+
+def test_a_complete_heloc_run_gives_findings_judged_against_the_estimate_with_the_existing_balance():
+    assert findings_from_run(run_record("heloc")) == heloc(stressed_dti_band="Caution")
+
+
+def test_the_run_valuation_concerns_reach_the_findings():
+    found = findings_from_run(run_record(price_needs_review=True, support_warnings=["few similar homes"]))
+    assert found.price_needs_review and found.low_model_support
+    assert not findings_from_run(run_record(support_warnings=[BREAKDOWN_WARNING])).low_model_support
+
+
+def test_a_failed_run_or_one_without_calculations_has_no_findings():
+    assert findings_from_run(run_record(status="failed")) is None
+    assert findings_from_run({"status": "complete", "steps": {}}) is None
+    assert findings_from_run({"status": "failed", "steps": {}}) is None
