@@ -301,6 +301,42 @@ def test_submit_writes_the_figures_with_the_claim_at_the_benchmark_rate(db):
     assert set(stored) == {"approvalLikelihood", "dtiPct", "purchaseLtvPct"}
 
 
+@pytest.mark.parametrize("stale_ltv", [None, 0, 72.5])
+def test_a_mortgage_claim_has_no_model_ltv_before_the_committee_runs(db, stale_ltv):
+    application_id = applied(db, ltvPct=stale_ltv, estimatedValueEur=500_000)
+    deps = factory()(auto_start.FirestoreRunStore(db))
+    auto_start.claim(db, application_id, run_id="run-1", extra_fields=auto_start.figures_on_claim(deps))
+    stored = application(db, application_id)
+    assert stored["purchaseLtvPct"] == 80.0
+    assert "ltvPct" not in stored
+
+
+@pytest.mark.parametrize("status,has_valuation,expected_ltv", [
+    ("complete", True, 94.7),
+    ("complete", False, None),
+    ("failed", True, None),
+])
+def test_a_mortgage_only_saves_model_ltv_from_a_complete_run_with_a_valuation(db, status, has_valuation, expected_ltv):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    record = {
+        "run_id": "run-1", "application_id": application_id, "status": status,
+        "finished_at": "2026-11-10T12:00:00+00:00", "failed_step": None, "failure_reason": None,
+        "steps": {
+            "calculations": {"output": {"benchmark_rate_pct": 4.0, "valuation_facts": {"support_warnings": []}}},
+        },
+    }
+    if has_valuation:
+        record["steps"]["valuation_model"] = {"output": {"estimate_eur": 380_000}}
+    auto_start.finish(db, record)
+    stored = application(db, application_id)
+    if expected_ltv is None:
+        assert "ltvPct" not in stored
+    else:
+        assert stored["ltvPct"] == expected_ltv
+        assert stored["purchaseLtvPct"] == 80.0
+
+
 def test_the_figures_are_there_before_the_committee_runs(db, monkeypatch):
     application_id = applied(db)
     seen = {}
@@ -414,3 +450,139 @@ def test_a_crash_working_out_the_figures_never_stops_the_status_moving(db, monke
     stored = application(db, application_id)
     assert record["status"] == "complete" and stored["status"] == "AI Deliberated"
     assert figures(stored) == {}
+
+
+# ---- AL-62: the reasoning trail is on the ai_runs document ----------------------------------------
+
+def test_a_complete_run_saves_every_agent_the_memo_the_recommendations_and_the_consensus(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    [run] = runs_for(db, application_id)
+    assert set(run["agents"]) == {"affordability", "valuation", "strategist", "market"}
+    for agent in run["agents"].values():
+        assert set(agent) == {"provider", "model", "promptVersion", "report", "recommendation", "rating", "concerns", "conditions"}
+    assert run["agents"]["market"]["recommendation"] is None and run["agents"]["strategist"]["rating"] is None
+    assert run["creditMemo"] == record["steps"]["strategist"]["memo"]
+    assert (run["originalRecommendation"], run["effectiveRecommendation"]) == ("Approve", "Approve")
+    assert run["consensus"] == {
+        "votes": {"affordability": "Conditionally Approve", "valuation": "Conditionally Approve", "strategist": "Approve"}, "disagreement": True,
+    }
+    assert run["policyGate"] == record["steps"]["policy_gate"]["output"] and run["brokerId"] == "broker-1"  # the rules check this copy for broker access
+
+
+def test_a_failed_run_saves_the_agents_that_finished_and_nulls_for_the_rest(db):
+    application_id = applied(db)
+    auto_start.process(db, application_id, deps_factory=factory(tc.Providers(ollama=(500, b"boom"))))
+    [run] = runs_for(db, application_id)
+    assert "market" in run["agents"] and "affordability" not in run["agents"]
+    assert (run["creditMemo"], run["originalRecommendation"], run["effectiveRecommendation"], run["consensus"]) == (None, None, None, None)
+
+
+# ---- AL-305: the policy gate's result on review/underwriting and on the run record, in one write ------------------
+
+def review(db, application_id):
+    return db.collection("applications").document(application_id).collection("review").document("underwriting").get().to_dict()
+
+
+def finished(run_id, application_id, gate):
+    """A complete record as the committee saves it, holding only the policy gate step (all finish reads)."""
+    return {
+        "run_id": run_id, "application_id": application_id, "status": "complete", "finished_at": datetime.now(auto_start.UTC).isoformat(),
+        "failed_step": None, "failure_reason": None, "steps": {"policy_gate": {"ok": True, "output": gate}},
+    }
+
+
+GATE_1 = {"original": "Approve", "effective": "Conditionally Approve", "conditions": ["Requires lender exception review (LTV_CAP)"], "breaches": ["LTV_CAP"], "changed": True}
+GATE_2 = {"original": "Approve", "effective": "Approve", "conditions": [], "breaches": [], "changed": False}
+
+
+@pytest.mark.parametrize("make", [applied, heloc_applied], ids=["mortgage", "heloc"])
+def test_a_complete_run_saves_the_gate_result_on_the_review_document_and_the_run_record(db, make):
+    application_id = make(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    gate = record["steps"]["policy_gate"]["output"]
+    [run] = runs_for(db, application_id)
+    stored = review(db, application_id)
+    assert run["policyGate"] == gate and stored["policyGate"] == gate
+    assert set(gate) == {"original", "effective", "conditions", "breaches", "changed"}
+    assert (stored["applicationId"], stored["brokerId"]) == (application_id, "broker-1")  # copied for the security rules
+    assert isinstance(stored["updatedAt"], datetime)
+
+
+def test_a_failed_run_before_the_gate_saves_no_gate_result(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    assert record["status"] == "failed" and "policy_gate" not in record["steps"]
+    [run] = runs_for(db, application_id)
+    assert "policyGate" not in run
+    assert review(db, application_id) is None
+
+
+def test_a_crash_outside_the_steps_saves_no_gate_result(db):
+    application_id = applied(db)
+
+    def broken(store):
+        raise RuntimeError("no settings")
+
+    auto_start.process(db, application_id, deps_factory=broken)
+    assert "policyGate" not in runs_for(db, application_id)[0] and review(db, application_id) is None
+
+
+def test_the_gate_result_leaves_the_other_review_fields_as_they_are(db):
+    application_id = applied(db)
+    underwriting = db.collection("applications").document(application_id).collection("review").document("underwriting")
+    underwriting.set({"riskTier": "B", "valuationDetail": {"estimatedValueEur": 400000}, "policyGate": {"original": "Decline", "stale": True}})
+    auto_start.claim(db, application_id, run_id="run-1")
+    auto_start.finish(db, finished("run-1", application_id, GATE_1))
+    stored = review(db, application_id)
+    assert stored["policyGate"] == GATE_1  # replaced whole: no key from the old map is left behind
+    assert (stored["riskTier"], stored["valuationDetail"]) == ("B", {"estimatedValueEur": 400000})
+
+
+def rerun_claimed(db, application_id, failed_run_id, run_id):
+    """Put the application back where a failed run leaves it, then claim it for a re-run, as `rerun` does."""
+    db.collection("applications").document(application_id).update({"status": "Applied", "aiRunStatus": "failed", "aiRunId": failed_run_id})
+    assert auto_start.claim(db, application_id, run_id=run_id, rerun_of=failed_run_id) is not None
+
+
+def test_a_re_run_replaces_the_review_copy_and_the_old_run_keeps_its_own(db):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    auto_start.finish(db, finished("run-1", application_id, GATE_1))
+    rerun_claimed(db, application_id, "run-1", "run-2")
+    auto_start.finish(db, finished("run-2", application_id, GATE_2))
+    runs = {run["id"]: run for run in runs_for(db, application_id)}
+    assert review(db, application_id)["policyGate"] == GATE_2
+    assert (runs["run-1"]["policyGate"], runs["run-2"]["policyGate"]) == (GATE_1, GATE_2)
+
+
+def test_a_run_that_was_replaced_keeps_its_gate_result_on_its_record_but_not_on_the_review_document(db):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    rerun_claimed(db, application_id, "run-1", "run-2")
+    auto_start.finish(db, finished("run-2", application_id, GATE_2))
+    auto_start.finish(db, finished("run-1", application_id, GATE_1))  # the old run's save arriving late
+    assert review(db, application_id)["policyGate"] == GATE_2
+    assert {run["id"]: run["policyGate"] for run in runs_for(db, application_id)} == {"run-1": GATE_1, "run-2": GATE_2}
+
+
+def test_an_application_with_no_broker_saves_the_gate_on_the_run_record_but_not_on_the_review_document(db, caplog):
+    application_id = applied(db, brokerId=None)
+    auto_start.claim(db, application_id, run_id="run-1")
+    with caplog.at_level("WARNING", logger="al-ai.auto-start"):
+        auto_start.finish(db, finished("run-1", application_id, GATE_1))
+    assert review(db, application_id) is None  # no document, so no brokerId None written over a good value
+    assert runs_for(db, application_id)[0]["policyGate"] == GATE_1
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert "no brokerId" in caplog.text
+
+
+@pytest.mark.parametrize("steps", [{"policy_gate": None}, {"policy_gate": {"ok": False, "output": GATE_1}}, {"policy_gate": {"ok": True, "output": None}}, {"policy_gate": {"ok": True}}],
+                         ids=["step-is-none", "gate-not-ok", "output-is-none", "no-output"])
+def test_a_missing_or_failed_gate_step_saves_no_gate_result_and_the_run_still_finishes(db, steps):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    auto_start.finish(db, {**finished("run-1", application_id, GATE_1), "steps": steps})
+    assert "policyGate" not in runs_for(db, application_id)[0] and review(db, application_id) is None
+    assert application(db, application_id)["status"] == "AI Deliberated"  # finish did not raise, so process() does not mark it failed

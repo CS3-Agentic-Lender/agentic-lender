@@ -11,8 +11,9 @@ background thread. The design is the one Dumi agreed on the ticket:
            the same write. A failed run sets `aiRunStatus = "failed"`, leaves `status` at `Applied` and adds no entry.
   reason   the failure reason is on the `ai_runs` document, never on the application: the borrower can read their application.
 
-The listener writes only the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
-failedStep and failureReason. The agents, the credit memo and the consensus are added by AL-62.
+The claim writes the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
+failedStep and failureReason. The finish adds the agents, the credit memo, the recommendations and the consensus (AL-62, see
+reasoning_trail.py), and the policy gate's result (policyGate, AL-305).
 
     cd al-ai && FIRESTORE_EMULATOR_HOST=localhost:8080 uv run python -m app.auto_start
 """
@@ -26,10 +27,11 @@ from datetime import UTC, datetime
 from typing import Callable
 
 from google.cloud import firestore
-from google.cloud.firestore import SERVER_TIMESTAMP, ArrayUnion
+from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, committee, official_rates
+from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail
+from app import market_agent as ma
 
 log = logging.getLogger("al-ai.auto-start")
 
@@ -49,6 +51,7 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
     `extra_fields` works out more fields from the application as this transaction read it, and they are written in the same
     transaction: the place the approval likelihood fields go (AL-63). It runs inside the transaction function, which Firestore
     may run again on a retry, including attempts that then lose: so it must be a pure calculation with no other side effects.
+    Clear any old mortgage model LTV here because this run does not have its own valuation yet.
     """
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
@@ -64,7 +67,10 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
             return None
         if rerun_of is not None and (data.get("aiRunStatus") != "failed" or data.get("aiRunId") != rerun_of):
             return None
-        transaction.update(application, {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields(data) if extra_fields else {})})
+        update = {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields(data) if extra_fields else {})}
+        if data.get("loanType") == "mortgage" and "ltvPct" in data:
+            update["ltvPct"] = DELETE_FIELD
+        transaction.update(application, update)
         transaction.set(run, {
             "applicationId": application_id, "brokerId": data.get("brokerId"), "status": "running",
             "trigger": "rerun" if rerun_of else "submit", "rerunOf": rerun_of, "startedAt": started,
@@ -80,13 +86,17 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
 
     The status only moves while the application is still Applied and this run is still the one that holds it, so a late write
     from a run that was replaced can never move an application that has moved on. A complete run also rewrites the borrower's
-    figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit.
+    figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit. The run document also
+    gets the reasoning trail (AL-62): each agent's report and vote, the credit memo, the recommendations and the consensus.
+    A run that reached the policy gate saves the gate's result on its `ai_runs` document and on `review/underwriting` (AL-305),
+    in the same transaction; a replaced run saves it on its own `ai_runs` document only.
     """
     run_id, application_id = record["run_id"], record["application_id"]
     application = db.collection(APPLICATIONS).document(application_id)
     run = db.collection(AI_RUNS).document(run_id)
     finished = now or datetime.fromisoformat(record["finished_at"])
     recalculate = figures_on_finish(record)
+    gate = policy_gate_of(record)
 
     @firestore.transactional
     def write(transaction):
@@ -94,9 +104,13 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
         transaction.update(run, {
             "status": record["status"], "finishedAt": finished,
             "failedStep": record["failed_step"], "failureReason": record["failure_reason"],
+            **reasoning_trail.fields(record),  # each agent's report and vote and the consensus (AL-62)
+            **({"policyGate": gate} if gate is not None else {}),
         })
         if data.get("aiRunId") != run_id:
             return
+        if gate is not None:
+            save_policy_gate(transaction, application, application_id, data, gate)
         update = {"aiRunStatus": record["status"], "updatedAt": SERVER_TIMESTAMP}
         if recalculate:
             update.update(recalculate(data))
@@ -108,8 +122,41 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     write(db.transaction(max_attempts=TRANSACTION_ATTEMPTS))
 
 
+# Everything the gate save owns on review/underwriting. `merge=` takes these field paths as a mask, the same as valuation_review:
+# policyGate is replaced whole (no key from the last run's map is left behind) and no other field on the document is touched.
+POLICY_GATE_REVIEW_FIELDS = ["applicationId", "brokerId", "updatedAt", "policyGate"]
+
+
+def policy_gate_of(record: dict) -> dict | None:
+    """The policy gate step's output exactly as the committee returned it, or None when there is no gate result to save.
+
+    That is a run that stopped before the gate, a step stored as None, or a gate step that did not succeed (`ok` is not True):
+    a failed gate's output is never saved as the result.
+    """
+    step = (record.get("steps") or {}).get("policy_gate") or {}
+    return step.get("output") if step.get("ok") is True else None
+
+
+def save_policy_gate(transaction, application, application_id: str, data: dict, gate: dict) -> None:
+    """Write the gate's result on `applications/{id}/review/underwriting`, in the caller's transaction (al-core/SCHEMA.md `policyGate`).
+
+    applicationId and brokerId are copied there for the security rules, the same as the valuation and risk tier writes. An
+    application with no brokerId is skipped and logged, never written with brokerId None: that would overwrite a good value.
+    """
+    broker_id = data.get("brokerId")
+    if not broker_id:
+        log.warning("application %s has no brokerId, so its policy gate result is not saved on review/underwriting", application_id)
+        return
+    review = application.collection("review").document("underwriting")
+    transaction.set(
+        review,
+        {"applicationId": application_id, "brokerId": broker_id, "updatedAt": SERVER_TIMESTAMP, "policyGate": gate},
+        merge=POLICY_GATE_REVIEW_FIELDS,
+    )
+
+
 class FirestoreRunStore:
-    """The committee's RunStore for the service: saving a record is finishing the run in Firestore. AL-62 adds the agent output here."""
+    """The committee's RunStore for the service: saving a record is finishing the run in Firestore, reasoning trail included."""
 
     def __init__(self, db):
         self.db = db
@@ -153,8 +200,8 @@ def figures_on_claim(deps: committee.Deps | None) -> ExtraFields | None:
 def figures_on_finish(record: dict) -> ExtraFields | None:
     """The borrower's figures recalculated from a complete run (AL-63 criterion 4), or None for a run that did not get that far.
 
-    Uses the rate the run used, so the figures match its credit memo, and adds the valuation concern. A HELOC gets its label and
-    combined LTV here. An error leaves the figures from submit and never stops the status moving.
+    Uses the run's rate and valuation concern so the figures match its credit memo. A mortgage gets its LTV against the
+    estimate, and a HELOC gets its label and combined LTV. An error leaves the figures from submit and never stops the status moving.
     """
     try:
         found = approval_likelihood.from_run(record)
@@ -237,13 +284,23 @@ class Listener:
             log.exception("could not start a committee run for %s", application_id)
 
 
+def deps_factory_for(db, env: dict) -> DepsFactory:
+    """What each run is built from: the real providers, and every AI call of the run saved in `ai_calls` on the same database (AL-140).
+
+    The market report store is made here, once, so every run and re-run this listener starts shares it and reuses the day's report.
+    It lives in memory: a restart empties it, so the first run after a restart makes a new report."""
+    sink = call_log.FirestoreSink(db)
+    reports = ma.MemoryReportStore()
+    return lambda store: committee.local_deps(store, env, reports, call_sink=sink)
+
+
 def start_from_env() -> Listener:
     """A started listener on the real Firestore (or the emulator, when FIRESTORE_EMULATOR_HOST is set), with the real providers."""
     from app.llm import smoke
 
     env = smoke.load_env()
     db = firestore.Client(project=os.getenv("FIREBASE_PROJECT_ID", "demo-al"))
-    listener = Listener(db, lambda store: committee.local_deps(store, env))
+    listener = Listener(db, deps_factory_for(db, env))
     listener.start()
     return listener
 

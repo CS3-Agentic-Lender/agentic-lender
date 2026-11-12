@@ -91,10 +91,16 @@ export type ValuationDetail =
   | { state: 'missing' }
   | {
       state: 'available';
-      baselineEur: number;
       estimatedValueEur: number | null;
-      contributions: { feature: string; eur: number }[];
-      discrepancyEur: number | null;
+      supportWarnings: string[];
+      breakdown:
+        | { state: 'unavailable' }
+        | {
+            state: 'available';
+            baselineEur: number;
+            contributions: { feature: string; value: string | number | null; eur: number }[];
+            discrepancyEur: number | null;
+          };
     };
 
 export const AI_RECOMMENDATIONS = ['Approve', 'Conditionally Approve', 'Decline'] as const;
@@ -233,31 +239,49 @@ export function readStressTest(review: DocumentData): StressTest {
 
 function readValuationDetail(review: DocumentData): ValuationDetail {
   const detail = readMap(review.valuationDetail);
-  const baselineEur = readNumber(detail.baselineEur);
-  const entries = Object.entries(readMap(detail.contributions));
+  const estimatedValueEur = readNumber(detail.estimatedValueEur);
+  const supportWarnings: string[] = Array.isArray(detail.supportWarnings)
+    ? detail.supportWarnings.filter((warning: unknown): warning is string => typeof warning === 'string' && warning.trim() !== '')
+    : [];
+  const breakdown = readValuationBreakdown(detail, estimatedValueEur);
 
-  if (baselineEur === null || entries.length === 0) {
+  if (estimatedValueEur === null && breakdown.state === 'unavailable' && supportWarnings.length === 0) {
     return { state: 'missing' };
   }
 
-  const contributions: { feature: string; eur: number }[] = [];
+  return { state: 'available', estimatedValueEur, supportWarnings, breakdown };
+}
 
-  for (const [feature, value] of entries) {
-    // Effects can be negative. One unusable piece makes the whole breakdown unavailable.
-    const eur = readNumber(value);
-    if (eur === null) {
-      return { state: 'missing' };
-    }
-    contributions.push({ feature, eur });
+function readValuationBreakdown(
+  detail: DocumentData,
+  estimatedValueEur: number | null,
+): Extract<ValuationDetail, { state: 'available' }>['breakdown'] {
+  const baselineEur = readNumber(detail.baselineEur);
+  const entries = detail.contributions;
+
+  if (baselineEur === null || !Array.isArray(entries) || entries.length === 0) {
+    return { state: 'unavailable' };
   }
 
-  const estimatedValueEur = readNumber(detail.estimatedValueEur);
+  const contributions: { feature: string; value: string | number | null; eur: number }[] = [];
+
+  for (const entry of entries) {
+    const piece = readMap(entry);
+    const feature = readString(piece.feature);
+    // Effects can be negative. One unusable piece makes the whole breakdown unavailable.
+    const eur = readNumber(piece.eur);
+    if (feature === null || feature.trim() === '' || eur === null) {
+      return { state: 'unavailable' };
+    }
+    const value = typeof piece.value === 'string' ? piece.value : readNumber(piece.value);
+    contributions.push({ feature, value, eur });
+  }
+
   const total = baselineEur + contributions.reduce((sum, { eur }) => sum + eur, 0);
 
   return {
     state: 'available',
     baselineEur,
-    estimatedValueEur,
     // Stable sorting keeps the stored order when two effects have the same magnitude.
     contributions: contributions.sort((a, b) => Math.abs(b.eur) - Math.abs(a.eur)),
     // Report a difference without changing any stored figure.
