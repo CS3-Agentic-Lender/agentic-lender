@@ -450,3 +450,29 @@ def test_a_crash_working_out_the_figures_never_stops_the_status_moving(db, monke
     stored = application(db, application_id)
     assert record["status"] == "complete" and stored["status"] == "AI Deliberated"
     assert figures(stored) == {}
+
+
+# ---- AL-62: the reasoning trail is on the ai_runs document ----------------------------------------
+
+def test_a_complete_run_saves_every_agent_the_memo_the_recommendations_and_the_consensus(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    [run] = runs_for(db, application_id)
+    assert set(run["agents"]) == {"affordability", "valuation", "strategist", "market"}
+    for agent in run["agents"].values():
+        assert set(agent) == {"provider", "model", "promptVersion", "report", "recommendation", "rating", "concerns", "conditions"}
+    assert run["agents"]["market"]["recommendation"] is None and run["agents"]["strategist"]["rating"] is None
+    assert run["creditMemo"] == record["steps"]["strategist"]["memo"]
+    assert (run["originalRecommendation"], run["effectiveRecommendation"]) == ("Approve", "Approve")
+    assert run["consensus"] == {
+        "votes": {"affordability": "Conditionally Approve", "valuation": "Conditionally Approve", "strategist": "Approve"}, "disagreement": True,
+    }
+    assert "policyGate" not in run and run["brokerId"] == "broker-1"  # the rules check this copy for broker access
+
+
+def test_a_failed_run_saves_the_agents_that_finished_and_nulls_for_the_rest(db):
+    application_id = applied(db)
+    auto_start.process(db, application_id, deps_factory=factory(tc.Providers(ollama=(500, b"boom"))))
+    [run] = runs_for(db, application_id)
+    assert "market" in run["agents"] and "affordability" not in run["agents"]
+    assert (run["creditMemo"], run["originalRecommendation"], run["effectiveRecommendation"], run["consensus"]) == (None, None, None, None)
