@@ -20,7 +20,7 @@ import pytest
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 import test_committee as tc
-from app import approval_likelihood, auto_start, committee, rates
+from app import approval_likelihood, auto_start, committee, rates, risk_tier
 
 EMULATOR = os.getenv("FIRESTORE_EMULATOR_HOST")
 pytestmark = pytest.mark.skipif(not EMULATOR, reason="needs the Firestore emulator (set FIRESTORE_EMULATOR_HOST)")
@@ -586,3 +586,105 @@ def test_a_missing_or_failed_gate_step_saves_no_gate_result_and_the_run_still_fi
     auto_start.finish(db, {**finished("run-1", application_id, GATE_1), "steps": steps})
     assert "policyGate" not in runs_for(db, application_id)[0] and review(db, application_id) is None
     assert application(db, application_id)["status"] == "AI Deliberated"  # finish did not raise, so process() does not mark it failed
+
+
+# ---- AL-301: the risk tier and LTV band are written when a run completes -------------------------
+
+def underwriting(db, application_id):
+    return db.collection("applications").document(application_id).collection("review").document("underwriting").get().to_dict()
+
+
+def expected_risk(record):
+    findings = risk_tier.findings_from_run(record)
+    return risk_tier.ltv_band(risk_tier.ltv_ratio(findings)), risk_tier.risk_tier(findings)
+
+
+def assert_risk_written(db, application_id, record):
+    band, tier = expected_risk(record)
+    stored = application(db, application_id)
+    assert (stored["ltvBand"], stored["riskTier"]) == (band, tier)
+    review = underwriting(db, application_id)
+    assert review["riskTier"] == tier
+    assert (review["applicationId"], review["brokerId"]) == (application_id, "broker-1")
+    assert isinstance(review["updatedAt"], datetime)
+
+
+def test_a_complete_run_writes_the_band_and_tier_to_the_application_and_the_underwriting_copy(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    assert_risk_written(db, application_id, record)
+
+
+def test_a_complete_heloc_run_writes_its_band_and_tier(db):
+    application_id = heloc_applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    assert_risk_written(db, application_id, record)
+
+
+def test_a_re_run_that_completes_writes_the_band_and_tier(db):
+    application_id = applied(db)
+    failed = auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    again = auto_start.rerun(db, application_id, failed["run_id"], deps_factory=factory())
+    assert again["status"] == "complete"
+    assert_risk_written(db, application_id, again)
+
+
+def test_the_underwriting_copy_keeps_the_fields_other_writers_put_there(db):
+    application_id = applied(db)
+    db.collection("applications").document(application_id).collection("review").document("underwriting").set({"note": "kept"})
+    auto_start.process(db, application_id, deps_factory=factory())
+    assert underwriting(db, application_id)["note"] == "kept"
+
+
+def test_a_failed_run_writes_neither_the_band_nor_the_tier(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(FAILING))
+    assert record["status"] == "failed"
+    stored = application(db, application_id)
+    assert "ltvBand" not in stored and "riskTier" not in stored
+    assert underwriting(db, application_id) is None
+
+
+def test_a_run_that_was_replaced_does_not_overwrite_the_band_or_tier(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    reference = db.collection("applications").document(application_id)
+    reference.update({"aiRunId": "run-2", "ltvBand": "over_90", "riskTier": "Z"})  # the newer run's answer
+    reference.collection("review").document("underwriting").set({"riskTier": "Z"}, merge=True)
+    auto_start.finish(db, record)  # the old run's save arriving late
+    stored = application(db, application_id)
+    assert (stored["ltvBand"], stored["riskTier"]) == ("over_90", "Z")
+    assert underwriting(db, application_id)["riskTier"] == "Z"
+
+
+def assert_no_risk_written(db, application_id):
+    """Checks the fields, not whether the review document exists: another ticket's write may create that document."""
+    stored = application(db, application_id)
+    assert "ltvBand" not in stored and "riskTier" not in stored
+    assert "riskTier" not in (underwriting(db, application_id) or {})
+
+
+@pytest.mark.parametrize("broken_function", ["findings_from_run", "risk_writes"])
+def test_a_crash_working_out_the_risk_never_stops_the_status_moving(db, monkeypatch, broken_function):
+    def broken(*args, **kwargs):
+        raise RuntimeError("bug in the rule")
+
+    monkeypatch.setattr(risk_tier, broken_function, broken)
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete" and application(db, application_id)["status"] == "AI Deliberated"
+    assert_no_risk_written(db, application_id)
+
+
+def test_an_application_with_no_broker_writes_no_band_or_tier_and_the_status_still_moves(db, caplog):
+    record = auto_start.process(db, applied(db), deps_factory=factory())  # a complete record; the committee itself refuses a no-broker application
+    assert record["status"] == "complete", record["failure_reason"]
+    application_id = applied(db, brokerId=None)
+    auto_start.claim(db, application_id, run_id="run-1")
+    with caplog.at_level("WARNING", logger="al-ai.auto-start"):
+        auto_start.finish(db, {**record, "run_id": "run-1", "application_id": application_id})
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert_no_risk_written(db, application_id)
+    assert "no brokerId" in caplog.text

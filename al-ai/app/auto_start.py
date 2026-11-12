@@ -30,7 +30,7 @@ from google.cloud import firestore
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail
+from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail, risk_tier
 from app import market_agent as ma
 
 log = logging.getLogger("al-ai.auto-start")
@@ -86,7 +86,8 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
 
     The status only moves while the application is still Applied and this run is still the one that holds it, so a late write
     from a run that was replaced can never move an application that has moved on. A complete run also rewrites the borrower's
-    figures with its valuation (AL-63), in the same write; a failed run leaves the figures from submit. The run document also
+    figures with its valuation (AL-63), and writes its LTV band and risk tier (on the application and on `review/underwriting`,
+    AL-301), in the same transaction; a failed run leaves the figures from submit and writes no tier. The run document also
     gets the reasoning trail (AL-62): each agent's report and vote, the credit memo, the recommendations and the consensus.
     A run that reached the policy gate saves the gate's result on its `ai_runs` document and on `review/underwriting` (AL-305),
     in the same transaction; a replaced run saves it on its own `ai_runs` document only.
@@ -97,6 +98,7 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     finished = now or datetime.fromisoformat(record["finished_at"])
     recalculate = figures_on_finish(record)
     gate = policy_gate_of(record)
+    risk = risk_on_finish(record)
 
     @firestore.transactional
     def write(transaction):
@@ -114,6 +116,8 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
         update = {"aiRunStatus": record["status"], "updatedAt": SERVER_TIMESTAMP}
         if recalculate:
             update.update(recalculate(data))
+        if risk:
+            update.update(risk(transaction, application, data))
         if record["status"] == "complete" and data.get("status") == APPLIED:
             entry = {"from": APPLIED, "to": AI_DELIBERATED, "actor": "committee", "actorId": "al-ai", "at": finished}  # a real datetime: Firestore refuses a server timestamp inside an array
             update.update({"status": AI_DELIBERATED, "statusHistory": ArrayUnion([entry])})
@@ -220,6 +224,38 @@ def figures_on_finish(record: dict) -> ExtraFields | None:
             return {}
 
     return fields
+
+
+def risk_on_finish(record: dict):
+    """The LTV band and risk tier from a complete run (AL-301), or None for a run that did not get as far as the calculations.
+
+    The returned function runs inside finish's transaction, after the check that this run still holds the application: it stages
+    the `review/underwriting` write on the transaction and returns the application's fields, so both documents change in the
+    same commit as the status, or not at all. Like the figures, an error (or an application with no brokerId) writes no tier
+    and never stops the status moving.
+    """
+    try:
+        findings = risk_tier.findings_from_run(record)
+    except Exception:
+        log.exception("could not read the risk findings from run %s, so no tier is written", record.get("run_id"))
+        return None
+    if findings is None:
+        return None
+
+    def write(transaction, application, data: dict) -> dict:
+        broker_id = data.get("brokerId")
+        if not broker_id:
+            log.warning("application %s has no brokerId, so no tier is written for run %s", application.id, record.get("run_id"))
+            return {}
+        try:
+            on_application, on_underwriting = risk_tier.risk_writes(application.id, broker_id, findings)
+        except Exception:
+            log.exception("could not work out the risk tier for run %s", record.get("run_id"))
+            return {}
+        transaction.set(risk_tier.underwriting_document(application), on_underwriting, merge=True)
+        return on_application
+
+    return write
 
 
 def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None) -> dict | None:
