@@ -31,8 +31,9 @@ from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail
+from app import market_agent as ma
 
-log = logging.getLogger("al-ai.auto-start")
+log =logging.getLogger("al-ai.auto-start")
 
 APPLICATIONS, AI_RUNS = "applications", "ai_runs"
 APPLIED, AI_DELIBERATED = "Applied", "AI Deliberated"
@@ -245,9 +246,13 @@ class Listener:
 
 
 def deps_factory_for(db, env: dict) -> DepsFactory:
-    """What each run is built from: the real providers, and every AI call of the run saved in `ai_calls` on the same database (AL-140)."""
+    """What each run is built from: the real providers, and every AI call of the run saved in `ai_calls` on the same database (AL-140).
+
+    The market report store is made here, once, so every run and re-run this listener starts shares it and reuses the day's report.
+    It lives in memory: a restart empties it, so the first run after a restart makes a new report."""
     sink = call_log.FirestoreSink(db)
-    return lambda store: committee.local_deps(store, env, call_sink=sink)
+    reports = ma.MemoryReportStore()
+    return lambda store: committee.local_deps(store, env, reports, call_sink=sink)
 
 
 def start_from_env() -> Listener:
