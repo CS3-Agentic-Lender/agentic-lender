@@ -1,4 +1,5 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { Timestamp } from 'firebase/firestore';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +9,9 @@ import type { CommitteeService } from './services/committeeService';
 import { ClientsServiceContext } from './context/BrokerClientsContext';
 import { LoanFileServiceContext } from './context/LoanFileContext';
 import { DecisionServiceContext } from './context/DecisionContext';
+import { SettlementServiceContext } from './context/SettlementContext';
+import { ApiError } from './services/apiClient';
+import type { SettlementResult, SettlementService } from './services/settlementService';
 import type { DecisionResult, DecisionService } from './services/decisionService';
 import { PipelineServiceContext } from './context/PipelineContext';
 import { AppRoutes } from './routes';
@@ -165,6 +169,7 @@ function NavigationProbe() {
 }
 
 interface Services {
+  settlement?: SettlementService;
   decisions?: DecisionService;
   loanFiles?: LoanFileService;
   pipeline?: PipelineService;
@@ -183,6 +188,7 @@ function renderAs(uid: string, role: TrustedRole, pathname: string, services: Se
   return render(
     <AuthProvider service={new FakeAuthService(authUser(uid), role)}>
       <CommitteeServiceContext.Provider value={noCommittee}>
+        <SettlementServiceContext.Provider value={services.settlement ?? { mint: async (id) => ({ id, status: 'Funded' }) }}>
         <DecisionServiceContext.Provider value={services.decisions ?? { signOff: async () => { throw new Error('No decision fake configured'); } }}>
         <LoanFileServiceContext.Provider value={services.loanFiles ?? new FakeLoanFileService()}>
           <PipelineServiceContext.Provider value={services.pipeline ?? { subscribeToPipeline: () => () => {} }}>
@@ -195,6 +201,7 @@ function renderAs(uid: string, role: TrustedRole, pathname: string, services: Se
           </PipelineServiceContext.Provider>
         </LoanFileServiceContext.Provider>
         </DecisionServiceContext.Provider>
+        </SettlementServiceContext.Provider>
       </CommitteeServiceContext.Provider>
     </AuthProvider>,
   );
@@ -230,6 +237,155 @@ function fact(section: string, label: string) {
 }
 
 afterEach(cleanup);
+
+describe('loan file minting', () => {
+  const storedNote = {
+    tokenId: '27', txHash: '0xMintTransaction', contractAddress: '0xContract', auditHash: 'AuditHash',
+    network: 'localhost', mintedAt: Timestamp.fromDate(new Date('2026-10-01T12:00:00Z')),
+  };
+  const approval: DecisionResult = { id: 'LN-1001', status: 'Underwriter Approved', decision: { outcome: 'approved' } };
+
+  function setup(status = 'AI Deliberated', role: 'underwriter' | 'broker' = 'underwriter') {
+    const loanFiles = new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', { ...seededApplication, status }) });
+    const signOff = vi.fn<DecisionService['signOff']>().mockResolvedValue(approval);
+    let resolveMint!: (result: SettlementResult) => void;
+    const mint = vi.fn<SettlementService['mint']>(() => new Promise((resolve) => { resolveMint = resolve; }));
+    const view = renderAs(`${role}-1`, role, `/${role}/applications/LN-1001`, {
+      loanFiles, decisions: { signOff }, settlement: { mint },
+    });
+    return {
+      ...view, loanFiles, signOff, mint,
+      finishMint: () => act(async () => resolveMint({ id: 'LN-1001', status: 'Funded' })),
+      push: (data: Record<string, unknown>) => act(() => loanFiles.push(loanFile('LN-1001', { ...seededApplication, ...data }))),
+    };
+  }
+
+  async function decide(outcome: 'Approve' | 'Decline' = 'Approve') {
+    const reason = await screen.findByRole('textbox', { name: /Justification/ });
+    fireEvent.change(reason, { target: { value: 'Reviewed.' } });
+    fireEvent.click(screen.getByRole('button', { name: outcome }));
+    fireEvent.click(screen.getByRole('button', { name: outcome === 'Approve' ? 'Confirm approval' : 'Confirm decline' }));
+  }
+
+  it('automatically mints once after approval and waits for the listener before showing Funded or a note', async () => {
+    const { mint, push, finishMint } = setup();
+    await decide();
+    expect(await screen.findByText('Minting…')).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Minting…')).toHaveAttribute('aria-live', 'polite');
+    expect(mint).toHaveBeenCalledExactlyOnceWith('LN-1001');
+    push({ status: 'Underwriter Approved', decision: { outcome: 'approved' } });
+    const button = screen.getByRole('button', { name: 'Mint loan note' });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    await finishMint();
+    expect(screen.getByText('Loan note minted. Waiting for the loan file to update…')).toBeInTheDocument();
+    expect(screen.queryByText('Minting…')).not.toBeInTheDocument();
+    expect(screen.getByText('Underwriter Approved', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText('Funded', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Loan note' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /mint/i })).not.toBeInTheDocument();
+    push({ status: 'Funded', loanNote: storedNote, auditTxHash: '0xAuditTransaction' });
+    expect(screen.getByText('Funded', { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Loan note' })).toHaveTextContent(storedNote.txHash);
+    expect(screen.queryByText(/Waiting for the loan file/)).not.toBeInTheDocument();
+    expect(mint).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a listener-confirmed note when the mint response arrives later', async () => {
+    const { mint, push, finishMint } = setup();
+    await decide();
+    await screen.findByText('Minting…');
+    push({ status: 'Funded', loanNote: storedNote });
+    await finishMint();
+    expect(screen.getByText('Funded', { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Loan note' })).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for the loan file/)).not.toBeInTheDocument();
+    expect(mint).toHaveBeenCalledOnce();
+  });
+
+  it('never mints a decline', async () => {
+    const { mint, signOff, push } = setup();
+    signOff.mockResolvedValue({ id: 'LN-1001', status: 'Declined', decision: { outcome: 'declined' } });
+    await decide('Decline');
+    await screen.findByText(/Decision recorded: Declined/);
+    push({ status: 'Declined', decision: { outcome: 'declined' } });
+    expect(mint).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /mint/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a 502 detail, leaves approval intact and sends only one retry on a double click', async () => {
+    const { mint, push, finishMint } = setup();
+    mint.mockRejectedValueOnce(new ApiError('http', 'The chain refused the mint.', 502));
+    await decide();
+    expect(await screen.findByRole('alert')).toHaveTextContent('The chain refused the mint.');
+    push({ status: 'Underwriter Approved' });
+    expect(screen.getByText('Underwriter Approved', { exact: true })).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: 'Retry mint' });
+    act(() => { fireEvent.click(retry); fireEvent.click(retry); });
+    expect(mint).toHaveBeenCalledTimes(2);
+    expect(mint.mock.calls).toEqual([['LN-1001'], ['LN-1001']]);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('Minting…')).toBeInTheDocument();
+    await finishMint();
+  });
+
+  it.each([
+    [new ApiError('http', 'Missing rate.', 409), 'Missing rate.'],
+    [new ApiError('http', 'No chain settings.', 503), 'No chain settings.'],
+    [new ApiError('http', 'Unauthorized', 401), 'You are not allowed to mint this loan note.'],
+    [new ApiError('http', 'Forbidden', 403), 'You are not allowed to mint this loan note.'],
+    [new ApiError('network', 'offline'), 'Could not reach the server. Check your connection and try again.'],
+  ])('shows the mapped mint error %s', async (error, message) => {
+    const { mint } = setup('Underwriter Approved');
+    mint.mockRejectedValueOnce(error);
+    fireEvent.click(await screen.findByRole('button', { name: 'Mint loan note' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('button', { name: 'Retry mint' })).toBeEnabled();
+  });
+
+  it('offers an explicit mint after refresh and locks two synchronous clicks', async () => {
+    const { mint, finishMint } = setup('Underwriter Approved');
+    const button = await screen.findByRole('button', { name: 'Mint loan note' });
+    expect(mint).not.toHaveBeenCalled();
+    act(() => { fireEvent.click(button); fireEvent.click(button); });
+    expect(mint).toHaveBeenCalledExactlyOnceWith('LN-1001');
+    expect(button).toBeDisabled();
+    await finishMint();
+  });
+
+  it('does not offer mint or retry to a broker on a refreshed approval', async () => {
+    const { mint } = setup('Underwriter Approved', 'broker');
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('button', { name: /mint/i })).not.toBeInTheDocument();
+    expect(mint).not.toHaveBeenCalled();
+  });
+
+  it.each(['Draft', 'Applied', 'AI Deliberated', 'Declined', 'Funded', 'Closed'])('does not offer manual mint on %s', async (status) => {
+    const { mint } = setup(status);
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('button', { name: /mint/i })).not.toBeInTheDocument();
+    expect(mint).not.toHaveBeenCalled();
+  });
+
+  it.each(['Funded', 'Closed'])('shows a broker the loan note on a %s file', async (status) => {
+    const { push, mint } = setup(status, 'broker');
+    await screen.findByRole('region', { name: 'Borrower' });
+    push({ status, loanNote: storedNote });
+    expect(screen.getByRole('region', { name: 'Loan note' })).toHaveTextContent(storedNote.tokenId);
+    expect(screen.queryByRole('button', { name: /mint/i })).not.toBeInTheDocument();
+    expect(mint).not.toHaveBeenCalled();
+  });
+
+  it('does not start a mint when an approval resolves after leaving the file', async () => {
+    const { mint, signOff, unmount } = setup();
+    let resolve!: (result: DecisionResult) => void;
+    signOff.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    await decide();
+    unmount();
+    await act(async () => resolve(approval));
+    expect(mint).not.toHaveBeenCalled();
+  });
+});
 
 describe('loan file page', () => {
   it('offers sign-off to an underwriter on an AI Deliberated application', async () => {
@@ -322,8 +478,41 @@ describe('loan file page', () => {
     expect(Boolean(within(collateral).queryByText('Above the 80% combined LTV cap'))).toBe(above);
     expect(fact('Loan', 'Combined LTV')).toHaveTextContent(`${ltvPct}%`);
     expect(screen.getByRole('region', { name: 'Loan' })).not.toHaveTextContent(/asking price|Stored LTV band/i);
-    expect(fact('Property', 'Asking price')).toHaveTextContent('€310,000');
+    expect(within(screen.getByRole('region', { name: 'Property' })).queryByText('Asking price')).not.toBeInTheDocument();
     expect(screen.getByRole('main')).not.toHaveTextContent(/deposit|price[- ]gap|requires lender exception review/i);
+  });
+
+  it('passes the stored review gate to the HELOC collateral section', async () => {
+    const conditions = [
+      'Requires lender exception review (CLTV_CAP)',
+      "Requires an independent surveyor's valuation (HELOC)",
+    ];
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', ltvPct: 82.5,
+      }, toLoanFileReview({
+        ...seededReview,
+        policyGate: { original: 'Approve', effective: 'Conditionally Approve', breaches: ['CLTV_CAP'], conditions },
+      })),
+    }));
+    const collateral = await screen.findByRole('region', { name: 'Collateral (HELOC)' });
+    expect(within(collateral).getByText(
+      'Requires lender exception review: the combined LTV is above the 80% cap (CLTV_CAP).',
+    )).toBeInTheDocument();
+    expect(within(collateral).getAllByRole('listitem').map((item) => item.textContent)).toEqual(conditions);
+  });
+
+  it.each([null, 310000])('omits the HELOC asking price row when the stored price is %s', async (askingPriceEur) => {
+    renderUnderwriterFile(new FakeLoanFileService({
+      'LN-1001': loanFile('LN-1001', {
+        ...seededApplication, loanType: 'heloc', property: { ...seededApplication.property, askingPriceEur },
+      }, { state: 'absent' }),
+    }));
+    const property = await screen.findByRole('region', { name: 'Property' });
+    expect(within(property).queryByText('Asking price')).not.toBeInTheDocument();
+    const collateral = screen.getByRole('region', { name: 'Collateral (HELOC)' });
+    expect(collateral).toHaveTextContent('The policy check is not stored with this application yet.');
+    expect(collateral).not.toHaveTextContent('surveyor');
   });
 
   it.each([
