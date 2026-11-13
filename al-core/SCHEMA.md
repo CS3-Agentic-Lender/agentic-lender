@@ -106,13 +106,13 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `estimatedValueEur` | number | no | From `POST /ai/valuation` |
-| `ltvPct` | number | no | Loan to value, against the valuation estimate: (loanAmountEur / estimatedValueEur) * 100 for a mortgage, and (existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur * 100 (combined LTV) for a HELOC. **Which figure a card shows:** a purchase reads `purchaseLtvPct`, a HELOC reads `ltvPct`. Whether to use the lower of the valuation and the asking price is an open question |
-| `dtiPct` | number | no | Debt to income at the benchmark rate, to one decimal place. The stressed figure and every other part are in `review/underwriting.dtiBreakdown` |
+| `ltvPct` | number | no | Loan to value, against the valuation estimate: (loanAmountEur / estimatedValueEur) * 100 for a mortgage, and (existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur * 100 (combined LTV) for a HELOC. **Which figure a card shows:** a purchase reads `purchaseLtvPct`, a HELOC reads `ltvPct`. Whether to use the lower of the valuation and the asking price is an open question. **When it is written:** al-ai writes it when a complete run with a valuation finishes. It is absent before that: when a new run starts, a mortgage's old value is removed (the new run has no valuation yet), and a failed run, or one with no valuation, leaves it absent. A HELOC keeps its last value until the next run finishes |
+| `dtiPct` | number | no | Debt to income at the benchmark rate, to one decimal place. The stressed figure and every other part are in `review/underwriting.dtiBreakdown`. Written by al-ai when the application is submitted and again when each complete run finishes (with that run's rate) |
 | `aprPct` | number | no | Rate offered. Until pricing exists it is the benchmark rate used (`dtiBreakdown.benchmarkRatePct`). If it is still unset when the loan note is minted, the mint saves the rate it put on the note here, in the same write as `loanNote`, so a borrower (who can't read `review/underwriting`) always sees the rate on their note |
-| `purchaseLtvPct` | number | no | Purchases only: (loanAmountEur / property.askingPriceEur) * 100, to one decimal place. Set by al-ai after each run. A HELOC has none, because it has no asking price |
-| `approvalLikelihood` | string | no | What the borrower is shown, never a percentage: `Unknown`, `Low`, `Medium` or `High`. Set by al-ai after each run, by its rule order: incomplete or unsupported inputs give `Unknown`, adverse stressed affordability `Low`, any caution band or limit breach `Medium`, otherwise `High`. Indicative, and separate from the committee's recommendation. Absent until the first run, and the app treats an absent label as `Unknown`. There is no percentage field: al-ai does not write `approvalLikelihoodPct` any more (agreed on the LTV, DTI and approval likelihood ticket, 29 Oct) |
-| `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the LTV the underwriter judges the loan on: against the asking price for a mortgage (`loanAmountEur / property.askingPriceEur`), and against the valuation estimate for a HELOC (`(existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur`, because a HELOC has no asking price). Set by al-ai with the tier. The underwriter's queue filters on it with `status` |
-| `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai after each run, with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
+| `purchaseLtvPct` | number | no | Purchases only: (loanAmountEur / property.askingPriceEur) * 100, to one decimal place. Written by al-ai when the application is submitted and again when each complete run finishes. A HELOC has none, because it has no asking price |
+| `approvalLikelihood` | string | no | What the borrower is shown, never a percentage: `Unknown`, `Low`, `Medium` or `High`. Set by al-ai when the application is submitted (a HELOC is `Unknown` until a run has a valuation) and again when each complete run finishes, by its rule order: incomplete or unsupported inputs give `Unknown`, adverse stressed affordability `Low`, any caution band or limit breach `Medium`, otherwise `High`. Indicative, and separate from the committee's recommendation. Absent on an application the committee listener has not picked up yet, and the app treats an absent label as `Unknown`. There is no percentage field: al-ai does not write `approvalLikelihoodPct` any more (agreed on the LTV, DTI and approval likelihood ticket, 29 Oct) |
+| `ltvBand` | string | no | `80_or_less`, `80_to_90` (over 80 up to 90) or `over_90`, from the LTV the underwriter judges the loan on: against the asking price for a mortgage (`loanAmountEur / property.askingPriceEur`), and against the valuation estimate for a HELOC (`(existingMortgageBalanceEur + loanAmountEur) / estimatedValueEur`, because a HELOC has no asking price). Set by al-ai with the tier when a complete run finishes, in the same transaction as the move to AI Deliberated (AL-301); a failed run writes none, and a run that was replaced never overwrites a newer one. The underwriter's queue filters on it with `status` |
+| `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai when a complete run finishes (same transaction and rules as `ltvBand`), with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
 | `decision` | map | no | Set by the underwriter. See below |
 | `loanNote` | map | no | Set at mint. See below |
 | `feeStatus` | string | no | `unpaid` or `paid` (EUR 150 appraisal fee) |
@@ -131,8 +131,8 @@ Underwriter-only details, kept in a separate document so borrowers can't read th
 |---|---|---|
 | `applicationId` | string | The parent application's id |
 | `brokerId` | string | Copied from the application, so a collection-group query and its rule can check broker access |
-| `riskTier` | string | `A`, `B`, `C` or `D` |
-| `policyGate` | map | What the policy gate returned for the run (al-ai `policy_gate.py`), saved exactly as returned. See below |
+| `riskTier` | string | `A`, `B`, `C` or `D`. Written when a complete run finishes (AL-301), in the same transaction as the application's copy |
+| `policyGate` | map | What the policy gate returned for the run (al-ai `policy_gate.py`), saved exactly as returned, when a run that reached the policy gate finishes (AL-305). A run that was replaced keeps its result only on its own `ai_runs` record. See below |
 | `dtiBreakdown` | map | Every part of the debt-to-income calculation, at the benchmark rate and at the stressed rate. See below |
 | `valuationDetail` | map | What the valuation model returned for the home, as al-ai saves it after each run. See below |
 | `updatedAt` | timestamp | |
@@ -252,7 +252,7 @@ One document per committee run, so the portal's deliberation console can show ea
 | `originalRecommendation` | string | The strategist's own: `Approve`, `Conditionally Approve` or `Decline` |
 | `effectiveRecommendation` | string | The one after the policy gate, same values. It can only be less favourable than the original |
 | `consensus` | map | `votes` (the three voting agents side by side: `affordability`, `valuation`, `strategist`, each a recommendation) and `disagreement` (true when they do not all give the same one). There is no majority rule |
-| `policyGate` | map | What the policy gate returned for this run, the same map as `review/underwriting.policyGate` (see there). Both are written in one batch, so a run record always keeps what the gate said, even after a re-run replaces the review document's copy |
+| `policyGate` | map | What the policy gate returned for this run, the same map as `review/underwriting.policyGate` (see there). Both are written in the same transaction when the run finishes, so a run record always keeps what the gate said, even after a re-run replaces the review document's copy |
 
 `agents.<name>` always holds `provider`, `model`, `promptVersion` and `report` (the text the agent wrote). The three voting agents also hold `recommendation` (its vote), `rating` (`affordability`: `strong`, `adequate`, `weak` or `unaffordable`; `valuation`: `strong`, `adequate`, `weak` or `unsupported`), `concerns` and `conditions` (lists of text). A field an agent's reply does not have is null: the strategist has no `rating` and no `concerns`. Market & Macro does not vote, so its `recommendation`, `rating`, `concerns` and `conditions` are all null.
 
@@ -330,7 +330,7 @@ The client sends the valuation result it already has and the API validates and s
 
 ## Open questions
 
-1. **ai_runs fields:** Nic to confirm or replace (the `ai_calls` fields are confirmed).
+1. **ai_runs fields:** resolved. al-ai writes them as documented (the reasoning trail on AL-62, the policy gate on AL-305), and the `ai_calls` fields are confirmed too.
 2. **Loan terms for HELOC:** resolved. A HELOC uses `loanAmountEur` for the credit limit plus `existingMortgageBalanceEur`, and its LTV is the combined LTV.
 3. **Stress-test results:** stored, or calculated on demand by `/ai/portfolio/*`?
 4. **Custom feature:** extra fields once the team chooses it.
