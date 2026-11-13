@@ -65,6 +65,7 @@ export interface LoanFileApplication extends ApplicationSummary {
   dtiPct: number | null;
   existingMortgageBalanceEur: number | null;
   estimatedValueEur: number | null;
+  purchaseLtvPct: number | null;
   property: LoanFileProperty;
   createdAt: Date | null;
   submittedAt: Date | null;
@@ -103,6 +104,10 @@ export type ValuationDetail =
   | {
       state: 'available';
       estimatedValueEur: number | null;
+      displayEstimateEur: number | null;
+      askingPriceGap: number | null;
+      priceNeedsReview: boolean | null;
+      modelVersion: string | null;
       supportWarnings: string[];
       breakdown:
         | { state: 'unavailable' }
@@ -212,6 +217,7 @@ export function toLoanFileApplication(id: string, data: DocumentData): LoanFileA
     ...toApplicationSummary(id, data),
     loanAmountEur: readAmount(data.loanAmountEur),
     ltvPct: readAmount(data.ltvPct),
+    purchaseLtvPct: readAmount(data.purchaseLtvPct),
     borrowerId: readString(data.borrowerId),
     brokerId: readString(data.brokerId),
     applicants: readOneOf(data.applicants, APPLICANT_TYPES),
@@ -274,16 +280,28 @@ export function readStressTest(review: DocumentData): StressTest {
 function readValuationDetail(review: DocumentData): ValuationDetail {
   const detail = readMap(review.valuationDetail);
   const estimatedValueEur = readNumber(detail.estimatedValueEur);
+  const displayAmount = readAmount(detail.displayEstimateEur);
+  const displayEstimateEur = displayAmount !== null && Number.isInteger(displayAmount) ? displayAmount : null;
+  const askingPriceGap = readNumber(detail.askingPriceGap);
+  const priceNeedsReview = typeof detail.priceNeedsReview === 'boolean' ? detail.priceNeedsReview : null;
+  const modelVersion = readString(detail.modelVersion)?.trim() || null;
   const supportWarnings: string[] = Array.isArray(detail.supportWarnings)
     ? detail.supportWarnings.filter((warning: unknown): warning is string => typeof warning === 'string' && warning.trim() !== '')
     : [];
   const breakdown = readValuationBreakdown(detail, estimatedValueEur);
 
-  if (estimatedValueEur === null && breakdown.state === 'unavailable' && supportWarnings.length === 0) {
+  if (
+    estimatedValueEur === null && displayEstimateEur === null && askingPriceGap === null &&
+    priceNeedsReview === null && modelVersion === null &&
+    breakdown.state === 'unavailable' && supportWarnings.length === 0
+  ) {
     return { state: 'missing' };
   }
 
-  return { state: 'available', estimatedValueEur, supportWarnings, breakdown };
+  return {
+    state: 'available', estimatedValueEur, displayEstimateEur, askingPriceGap,
+    priceNeedsReview, modelVersion, supportWarnings, breakdown,
+  };
 }
 
 function readValuationBreakdown(

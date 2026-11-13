@@ -458,6 +458,49 @@ describe('valuation detail parser', () => {
       });
     },
   );
+
+  it('reads the collateral fields, keeping a negative gap, even when the breakdown is unavailable', () => {
+    expect(toLoanFileReview({
+      valuationDetail: {
+        estimatedValueEur: 343968.2,
+        displayEstimateEur: 344000,
+        askingPriceGap: -0.0525,
+        priceNeedsReview: false,
+        modelVersion: 'v2',
+        baselineEur: null,
+        contributions: null,
+      },
+    })).toMatchObject({
+      valuation: {
+        state: 'available',
+        displayEstimateEur: 344000,
+        askingPriceGap: -0.0525,
+        priceNeedsReview: false,
+        modelVersion: 'v2',
+        breakdown: { state: 'unavailable' },
+      },
+    });
+  });
+
+  it('leaves unusable collateral fields null, as a HELOC stores them', () => {
+    expect(toLoanFileReview({
+      valuationDetail: {
+        ...detail,
+        displayEstimateEur: 344000.5,
+        askingPriceGap: null,
+        priceNeedsReview: 'yes',
+        modelVersion: '  ',
+      },
+    })).toMatchObject({
+      valuation: { displayEstimateEur: null, askingPriceGap: null, priceNeedsReview: null, modelVersion: null },
+    });
+  });
+
+  it('reads the purchase-price LTV from the application', () => {
+    expect(toLoanFileApplication('a', { purchaseLtvPct: 79.5 }).purchaseLtvPct).toBe(79.5);
+    expect(toLoanFileApplication('a', { purchaseLtvPct: -1 }).purchaseLtvPct).toBeNull();
+    expect(toLoanFileApplication('a', {}).purchaseLtvPct).toBeNull();
+  });
 });
 
 describe('loan file risk tier', () => {

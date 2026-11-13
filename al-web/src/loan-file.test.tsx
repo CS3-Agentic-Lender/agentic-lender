@@ -565,12 +565,13 @@ describe('loan file page', () => {
     expect(collateral).not.toHaveTextContent('62.5%');
   });
 
-  it.each(['mortgage', null])('keeps the collateral placeholder and header for loan type %s', async (loanType) => {
+  it.each(['mortgage', null])('shows the mortgage collateral panel and header for loan type %s', async (loanType) => {
     renderUnderwriterFile(new FakeLoanFileService({
       'LN-1001': loanFile('LN-1001', { ...seededApplication, loanType }),
     }));
     const collateral = await screen.findByRole('region', { name: 'Collateral' });
-    expect(collateral).toHaveTextContent('The collateral record for this property is not shown on the loan file yet.');
+    expect(within(collateral).getByText('Purchase-price LTV')).toBeInTheDocument();
+    expect(within(collateral).getByText('Indicative LTV on the estimate')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Collateral (HELOC)' })).not.toBeInTheDocument();
     expect(screen.getByText(loanType === 'mortgage' ? 'Mortgage' : 'Loan type unavailable')).toBeInTheDocument();
   });
@@ -695,13 +696,13 @@ describe('loan file page', () => {
     expect(screen.getByText('AI Deliberated')).toBeInTheDocument();
   });
 
-  it('shows the stored valuation breakdown and keeps collateral as a placeholder', async () => {
+  it('shows the stored valuation breakdown beside the mortgage collateral panel', async () => {
     renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile() }));
     await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
 
     const collateral = screen.getByRole('region', { name: 'Collateral' });
     expect(within(collateral).getByRole('heading', { name: 'Collateral' })).toBeInTheDocument();
-    expect(collateral).not.toHaveTextContent(/€|\d/);
+    expect(within(collateral).getByText('Asking price').nextElementSibling).toHaveTextContent('€310,000');
 
     const valuation = screen.getByRole('region', { name: 'Valuation' });
     expect(within(valuation).getByText('How each detail moved the estimate')).toBeInTheDocument();
