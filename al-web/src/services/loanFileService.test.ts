@@ -320,24 +320,37 @@ describe('loan file review parser', () => {
 describe('valuation detail parser', () => {
   const detail = {
     baselineEur: 250000,
-    contributions: { ber: -1300, county: 18500, property_type: -4600, floor_area: 31200, bedrooms: 9800 },
-    estimatedValueEur: 303600,
+    contributions: [
+      { feature: 'ber', value: 'C2', eur: -1300 },
+      { feature: 'county', value: 'Cork', eur: 18500 },
+      { feature: 'property_type', value: 'Semi-D', eur: -4600 },
+      { feature: 'floor_area', value: 98, eur: 31200 },
+      { feature: 'bedrooms', value: 3, eur: 9800 },
+      { feature: 'eircode_area', value: 'T12', eur: 6400 },
+    ],
+    estimatedValueEur: 310000,
+    supportWarnings: ['Few comparable homes.', 'The Eircode area was not seen during training.'],
   };
 
   it('keeps signed effects and sorts by magnitude', () => {
     expect(toLoanFileReview({ valuationDetail: detail })).toMatchObject({
       valuation: {
         state: 'available',
-        baselineEur: 250000,
-        estimatedValueEur: 303600,
-        contributions: [
-          { feature: 'floor_area', eur: 31200 },
-          { feature: 'county', eur: 18500 },
-          { feature: 'bedrooms', eur: 9800 },
-          { feature: 'property_type', eur: -4600 },
-          { feature: 'ber', eur: -1300 },
-        ],
-        discrepancyEur: 0,
+        estimatedValueEur: 310000,
+        supportWarnings: detail.supportWarnings,
+        breakdown: {
+          state: 'available',
+          baselineEur: 250000,
+          contributions: [
+            { feature: 'floor_area', value: 98, eur: 31200 },
+            { feature: 'county', value: 'Cork', eur: 18500 },
+            { feature: 'bedrooms', value: 3, eur: 9800 },
+            { feature: 'eircode_area', value: 'T12', eur: 6400 },
+            { feature: 'property_type', value: 'Semi-D', eur: -4600 },
+            { feature: 'ber', value: 'C2', eur: -1300 },
+          ],
+          discrepancyEur: 0,
+        },
       },
     });
   });
@@ -345,16 +358,23 @@ describe('valuation detail parser', () => {
   it('keeps unknown keys, zero effects and stored order for tied magnitudes', () => {
     expect(toLoanFileReview({ valuationDetail: {
       baselineEur: 0,
-      contributions: { unknown_feature: -20, county: 20, ber: 0 },
+      contributions: [
+        { feature: 'unknown_feature', value: 'stored input', eur: -20 },
+        { feature: 'county', value: 'Cork', eur: 20 },
+        { feature: 'ber', value: null, eur: 0 },
+      ],
       estimatedValueEur: 0,
     } })).toMatchObject({ valuation: {
       state: 'available',
-      contributions: [
-        { feature: 'unknown_feature', eur: -20 },
-        { feature: 'county', eur: 20 },
-        { feature: 'ber', eur: 0 },
-      ],
-      discrepancyEur: 0,
+      breakdown: {
+        state: 'available',
+        contributions: [
+          { feature: 'unknown_feature', value: 'stored input', eur: -20 },
+          { feature: 'county', value: 'Cork', eur: 20 },
+          { feature: 'ber', value: null, eur: 0 },
+        ],
+        discrepancyEur: 0,
+      },
     } });
   });
 
@@ -366,29 +386,67 @@ describe('valuation detail parser', () => {
     'requires a finite numeric baseline (%s)',
     (baselineEur) => {
       expect(toLoanFileReview({ valuationDetail: { ...detail, baselineEur } })).toMatchObject({
-        valuation: { state: 'missing' },
+        valuation: { state: 'available', estimatedValueEur: 310000, supportWarnings: detail.supportWarnings, breakdown: { state: 'unavailable' } },
       });
     },
   );
 
-  it.each([undefined, null, {}, [], 'county'])('requires a nonempty contributions map (%j)', (contributions) => {
+  it.each([undefined, null, {}, [], 'county', { county: 18500 }])('requires a nonempty contributions list, rejecting the old map shape (%j)', (contributions) => {
     expect(toLoanFileReview({ valuationDetail: { ...detail, contributions } })).toMatchObject({
-      valuation: { state: 'missing' },
+      valuation: { state: 'available', estimatedValueEur: 310000, supportWarnings: detail.supportWarnings, breakdown: { state: 'unavailable' } },
     });
   });
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, '10', null, {}])(
     'rejects the whole breakdown when one contribution is unusable (%s)',
     (eur) => {
-      expect(toLoanFileReview({ valuationDetail: { ...detail, contributions: { county: 18500, ber: eur } } })).toMatchObject({
-        valuation: { state: 'missing' },
+      expect(toLoanFileReview({ valuationDetail: { ...detail, contributions: [...detail.contributions, { feature: 'unknown', eur }] } })).toMatchObject({
+        valuation: { state: 'available', estimatedValueEur: 310000, supportWarnings: detail.supportWarnings, breakdown: { state: 'unavailable' } },
       });
     },
   );
 
+  it.each([undefined, null, '', '  ', 12])('rejects a missing or unusable feature (%j)', (feature) => {
+    expect(toLoanFileReview({ valuationDetail: { ...detail, contributions: [...detail.contributions, { feature, eur: 1 }] } })).toMatchObject({
+      valuation: { state: 'available', estimatedValueEur: 310000, supportWarnings: detail.supportWarnings, breakdown: { state: 'unavailable' } },
+    });
+  });
+
+  it.each([null, [], 'county', 12])('rejects a malformed contribution item (%j)', (piece) => {
+    expect(toLoanFileReview({ valuationDetail: { ...detail, contributions: [piece] } })).toMatchObject({
+      valuation: { state: 'available', breakdown: { state: 'unavailable' } },
+    });
+  });
+
+  it.each([undefined, null, {}, [], true, Number.NaN, Number.POSITIVE_INFINITY])('hides an unusable input value without discarding its effect (%j)', (value) => {
+    expect(toLoanFileReview({ valuationDetail: { baselineEur: 100, estimatedValueEur: 120, contributions: [{ feature: 'county', value, eur: 20 }] } })).toMatchObject({
+      valuation: { state: 'available', breakdown: { state: 'available', contributions: [{ feature: 'county', value: null, eur: 20 }], discrepancyEur: 0 } },
+    });
+  });
+
+  it('keeps the estimate and warnings when both breakdown fields are null', () => {
+    expect(toLoanFileReview({ valuationDetail: { ...detail, baselineEur: null, contributions: null } })).toMatchObject({
+      valuation: { state: 'available', estimatedValueEur: 310000, supportWarnings: detail.supportWarnings, breakdown: { state: 'unavailable' } },
+    });
+  });
+
+  it('keeps warnings alone, preserving their words and order while skipping unusable entries', () => {
+    const supportWarnings = [' Few comparable homes. ', null, '', 42, '  ', {}, 'Unseen Eircode area.'];
+    expect(toLoanFileReview({ valuationDetail: { supportWarnings } })).toMatchObject({
+      valuation: { state: 'available', estimatedValueEur: null, supportWarnings: [' Few comparable homes. ', 'Unseen Eircode area.'], breakdown: { state: 'unavailable' } },
+    });
+  });
+
+  it.each([undefined, null, [], 'A warning', {}, [null, '', '  ', 42]])('ignores unusable warnings (%j)', (supportWarnings) => {
+    expect(toLoanFileReview({ valuationDetail: { ...detail, supportWarnings } })).toMatchObject({
+      valuation: { state: 'available', supportWarnings: [] },
+    });
+    expect(toLoanFileReview({ valuationDetail: { supportWarnings } })).toMatchObject({ valuation: { state: 'missing' } });
+  });
+
   it('reports the discrepancy without changing the stored estimate or contributions', () => {
-    expect(toLoanFileReview({ valuationDetail: { ...detail, estimatedValueEur: 304100 } })).toMatchObject({
-      valuation: { state: 'available', baselineEur: 250000, estimatedValueEur: 304100, discrepancyEur: 500 },
+    expect(toLoanFileReview({ valuationDetail: { ...detail, estimatedValueEur: 310500 } })).toMatchObject({
+      valuation: { state: 'available', estimatedValueEur: 310500, breakdown: { baselineEur: 250000, discrepancyEur: 500, contributions: [...detail.contributions].sort((a, b) => Math.abs(b.eur) - Math.abs(a.eur)) } },
     });
   });
 
@@ -396,10 +454,53 @@ describe('valuation detail parser', () => {
     'leaves the estimate and discrepancy null when the estimate is unusable (%s)',
     (estimatedValueEur) => {
       expect(toLoanFileReview({ valuationDetail: { ...detail, estimatedValueEur } })).toMatchObject({
-        valuation: { state: 'available', estimatedValueEur: null, discrepancyEur: null },
+        valuation: { state: 'available', estimatedValueEur: null, breakdown: { state: 'available', discrepancyEur: null } },
       });
     },
   );
+
+  it('reads the collateral fields, keeping a negative gap, even when the breakdown is unavailable', () => {
+    expect(toLoanFileReview({
+      valuationDetail: {
+        estimatedValueEur: 343968.2,
+        displayEstimateEur: 344000,
+        askingPriceGap: -0.0525,
+        priceNeedsReview: false,
+        modelVersion: 'v2',
+        baselineEur: null,
+        contributions: null,
+      },
+    })).toMatchObject({
+      valuation: {
+        state: 'available',
+        displayEstimateEur: 344000,
+        askingPriceGap: -0.0525,
+        priceNeedsReview: false,
+        modelVersion: 'v2',
+        breakdown: { state: 'unavailable' },
+      },
+    });
+  });
+
+  it('leaves unusable collateral fields null, as a HELOC stores them', () => {
+    expect(toLoanFileReview({
+      valuationDetail: {
+        ...detail,
+        displayEstimateEur: 344000.5,
+        askingPriceGap: null,
+        priceNeedsReview: 'yes',
+        modelVersion: '  ',
+      },
+    })).toMatchObject({
+      valuation: { displayEstimateEur: null, askingPriceGap: null, priceNeedsReview: null, modelVersion: null },
+    });
+  });
+
+  it('reads the purchase-price LTV from the application', () => {
+    expect(toLoanFileApplication('a', { purchaseLtvPct: 79.5 }).purchaseLtvPct).toBe(79.5);
+    expect(toLoanFileApplication('a', { purchaseLtvPct: -1 }).purchaseLtvPct).toBeNull();
+    expect(toLoanFileApplication('a', {}).purchaseLtvPct).toBeNull();
+  });
 });
 
 describe('loan file risk tier', () => {

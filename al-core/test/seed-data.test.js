@@ -37,6 +37,20 @@ describe('loan term', () => {
   });
 });
 
+describe('property Eircode', () => {
+  // The same rule as the API (app/applications.py) and al-ai's committee input: capitals with a space, for example A65 F4E2 (EIRCODE in app/me.py).
+  test.each(applications.map((a) => [a.path, a.data]))('%s has an Eircode the API and the committee accept', (_path, app) => {
+    expect(app.property.eircode).toMatch(/^[A-Z][0-9][0-9W] [A-Z0-9]{4}$/);
+  });
+
+  test('the valuation breakdown shows the routing key of the property it belongs to', () => {
+    for (const { data } of applications.filter((a) => a.data.valuationDetail?.contributions)) {
+      const area = data.valuationDetail.contributions.find((c) => c.feature === 'eircode_area');
+      expect(area.value).toBe(data.property.eircode.slice(0, 3));
+    }
+  });
+});
+
 describe('property type', () => {
   test.each(applications.map((a) => [a.path, a.data]))("%s uses one of the valuation model's property types", (_path, app) => {
     expect(PROPERTY_TYPES).toContain(app.property.propertyType);

@@ -32,8 +32,13 @@ def run_step(
     env: dict | None = None,
     sleep: Callable[[float], None] = time.sleep,
     budget: retry_policy.Budget | None = None,
+    record: Callable[[dict, dict], None] | None = None,
 ) -> va.AgentResult:
-    """`check` raises va.ReplyRejected with a message the model can act on. `context` is added to every logged attempt."""
+    """`check` raises va.ReplyRejected with a message the model can act on. `context` is added to every logged attempt.
+
+    `record(attempt, request)` saves each attempt as an `ai_calls` document (app/call_log.py) right after it ends, before any retry.
+    If it raises, the step fails: no decision should rest on a call that cannot be shown.
+    """
     attempts: list[dict] = []
     error = None  # why the last reply was rejected, shown to the model on the retry
     invalid_retries = provider_retries = 0
@@ -70,6 +75,11 @@ def run_step(
         attempt["duration_s"] = round(time.monotonic() - t0, 3)
         attempts.append(attempt)
         log.info(json.dumps(attempt))
+        if record is not None:
+            try:
+                record(attempt, {"system": system, "prompt": sent, "schema": schema})
+            except Exception as exc:
+                return va.AgentResult(False, None, f"the AI call could not be logged: {exc}", attempts)
         if attempt["outcome"] == "ok":
             return va.AgentResult(True, attempt["parsed_reply"], None, attempts)
         if not retry:

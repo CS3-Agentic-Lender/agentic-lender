@@ -115,6 +115,13 @@ describe('verification summary', () => {
     });
   });
 
+  it('compares the loan note and registry with the computed hash, as al-core does', () => {
+    expect(verificationSummary({
+      computed_hash: 'c', stored_hash: 's', loan_note_hash: 'c', on_chain_hash: 'c',
+      on_chain_checked: true, calls_match: true, verified: false,
+    }).problems).toEqual(['the record does not match its stored hash']);
+  });
+
   it('lists every check that failed', () => {
     expect(verificationSummary({
       computed_hash: 'x', stored_hash: 'h', loan_note_hash: 'y', on_chain_hash: null,

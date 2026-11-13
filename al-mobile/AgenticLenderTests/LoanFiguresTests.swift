@@ -81,13 +81,50 @@ final class LoanFiguresTests: XCTestCase {
     }
 
     func testEachFigureHasAPlainExplanation() throws {
+        let purchase = try record(["loanType": "mortgage", "approvalLikelihood": "High"]).figures
+        let heloc = try record(["loanType": "heloc", "approvalLikelihood": "Medium"]).figures
+
+        XCTAssertEqual(purchase.explanations.map(\.title), ["LTV", "DTI", "Approval likelihood"])
+        XCTAssertEqual(purchase.explanations[0].text, "Your loan as a share of the property price.")
+        XCTAssertEqual(heloc.explanations[0].text, "What you still owe plus the credit line, as a share of your home's estimated value.")
+        XCTAssertEqual(purchase.explanations[1].text, "Your monthly debts, including this loan, as a share of your monthly income before tax.")
+        XCTAssertEqual(
+            purchase.explanations[2].text,
+            "An indicative guide to how likely approval looks from your application's figures, not a decision."
+        )
+    }
+
+    func testAnUnknownLikelihoodSaysWhyThereIsNoEstimate() throws {
+        let figures = try record(["loanType": "heloc"]).figures
+
+        XCTAssertEqual(figures.likelihood, .unknown)
+        XCTAssertEqual(figures.explanations[2].text, "We can't estimate this yet: either some details are missing or your home's valuation isn't ready.")
+    }
+
+    func testEveryExplanationIsOneSentence() throws {
+        let sentenceEnds: Set<Character> = [".", "!", "?"]
+
+        for loanType in ["mortgage", "heloc"] {
+            for likelihood in ApprovalLikelihood.allCases {
+                let figures = try record(["loanType": loanType, "approvalLikelihood": likelihood.rawValue]).figures
+
+                for explanation in figures.explanations {
+                    let ends = explanation.text.filter(sentenceEnds.contains)
+                    XCTAssertEqual(ends, ".", "\(explanation.title) (\(loanType), \(likelihood.label)): \(explanation.text)")
+                    XCTAssertTrue(explanation.text.hasSuffix("."), explanation.text)
+                    XCTAssertFalse(explanation.text.contains(";") || explanation.text.contains("\n"), explanation.text)
+                }
+            }
+        }
+    }
+
+    func testTheLimitStaysOnTheTileNotInTheExplanation() throws {
         let purchase = try record(["loanType": "mortgage"]).figures
         let heloc = try record(["loanType": "heloc"]).figures
 
-        XCTAssertEqual(purchase.explanations.map(\.title), ["LTV", "DTI", "Approval likelihood"])
-        XCTAssertEqual(purchase.explanations[0].text, "Your loan as a share of the property price. Buyers can borrow up to 90% of the price.")
-        XCTAssertEqual(heloc.explanations[0].text, "What you still owe plus the credit line, as a share of your home's estimated value. Up to 80%.")
-        XCTAssertEqual(purchase.explanations[1].text, "Your monthly debts, including this loan, as a share of your monthly income before tax.")
-        XCTAssertEqual(purchase.explanations[2].text, "Indicative: High, Medium, Low or Unknown, worked out from your application's figures. It isn't a decision. Unknown means some details are missing.")
+        XCTAssertEqual(purchase.ltv.note, "limit 90%")
+        XCTAssertEqual(heloc.ltv.note, "limit 80%")
+        XCTAssertFalse(purchase.explanations[0].text.contains("90"))
+        XCTAssertFalse(heloc.explanations[0].text.contains("80"))
     }
 }

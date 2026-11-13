@@ -28,8 +28,25 @@ interface ApiClientOptions {
   baseUrl?: string;
 }
 
+function nonEmpty(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+// al-core answers every error as {"error": {"code", "message", "field", "request_id"}} (app/errors.py);
+// FastAPI's own {"detail": ...} shape is still read for any service that does not wrap its errors.
 function errorDetail(body: unknown): string | null {
-  if (typeof body !== 'object' || body === null || !('detail' in body)) {
+  if (typeof body !== 'object' || body === null) {
+    return null;
+  }
+
+  if ('error' in body && typeof body.error === 'object' && body.error !== null && 'message' in body.error) {
+    const message = nonEmpty(body.error.message);
+    if (message) {
+      return message;
+    }
+  }
+
+  if (!('detail' in body)) {
     return null;
   }
 

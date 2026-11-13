@@ -392,6 +392,23 @@ describe('ai_runs and ai_calls', () => {
     assertSucceeds(broker1().collection('ai_calls').where('brokerId', '==', 'broker1').get()));
   test("a borrower can't read an AI call", () =>
     assertFails(borrower1().doc('ai_calls/call1').get()));
+  test("a broker can read the AI call of their own client by id", () =>
+    assertSucceeds(broker1().doc('ai_calls/call1').get()));
+  test("a broker can't read another broker's client's AI call, by id", () =>
+    assertFails(broker1().doc('ai_calls/call2').get()));
+  test("a broker can't list another broker's AI calls", () =>
+    assertFails(broker1().collection('ai_calls').where('brokerId', '==', 'broker2').get()));
+  test('an underwriter can read every AI call', async () => {
+    await assertSucceeds(underwriter().doc('ai_calls/call1').get());
+    await assertSucceeds(underwriter().doc('ai_calls/call2').get());
+  });
+  test('nobody can write, change or delete an AI call from a client', async () => {
+    await assertFails(underwriter().doc('ai_calls/call3').set({ runId: 'run1', applicationId: 'app1', brokerId: 'broker1' }));
+    await assertFails(underwriter().doc('ai_calls/call1').update({ outcome: 'changed' }));
+    await assertFails(underwriter().doc('ai_calls/call1').delete());
+    await assertFails(broker1().doc('ai_calls/call3').set({ runId: 'run1', applicationId: 'app1', brokerId: 'broker1' }));
+    await assertFails(broker1().doc('ai_calls/call1').update({ outcome: 'changed' }));
+  });
   test("an underwriter can't write an AI run directly", () =>
     assertFails(underwriter().doc('ai_runs/run1').update({ status: 'failed' })));
 });

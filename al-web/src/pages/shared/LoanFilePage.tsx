@@ -3,9 +3,11 @@ import { Link, useParams } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { AuditPackActions } from '../../components/lending/AuditPackActions';
+import { CommitteeConsole } from '../../components/lending/CommitteeConsole';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
 import { Figure } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
+import { MortgageCollateral } from '../../components/lending/MortgageCollateral';
 import { LoanNotePanel } from '../../components/lending/LoanNotePanel';
 import { MessageBorrower } from '../../components/messaging/MessageBorrower';
 import { SignOffPanel, decisionLabels } from '../../components/lending/SignOffPanel';
@@ -162,15 +164,6 @@ function NotReady({ state, viewer }: { state: Exclude<LoanFileState, { status: '
   );
 }
 
-function Placeholder({ title, detail }: { title: string; detail: string }) {
-  return (
-    <section aria-label={title} className={`${sectionClass} border-dashed`}>
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="mt-3 text-sm leading-6 text-muted">{detail}</p>
-    </section>
-  );
-}
-
 interface LoanFileProps {
   application: LoanFileApplication;
   review: LoanFileReview;
@@ -237,18 +230,20 @@ function LoanFile({ application, review }: LoanFileProps) {
             { label: 'Bedrooms', value: count(property.bedrooms) },
             { label: 'Floor area', value: count(property.floorAreaSqm, ' m²') },
             { label: 'BER rating', value: property.berRating },
-            { label: 'Asking price', value: euro(property.askingPriceEur) },
+            ...(heloc ? [] : [{ label: 'Asking price', value: euro(property.askingPriceEur) }]),
           ]}
           title="Property"
         />
         <div className="grid gap-6">
           {heloc ? (
-            <HelocCollateral application={application} />
-          ) : (
-            <Placeholder
-              detail="The collateral record for this property is not shown on the loan file yet."
-              title="Collateral"
+            <HelocCollateral
+              application={application}
+              policyGate={
+                review.state === 'available' ? review.policyGate : review.state === 'absent' ? null : undefined
+              }
             />
+          ) : (
+            <MortgageCollateral application={application} review={review} />
           )}
           <ValuationBreakdown application={application} review={review} />
         </div>
@@ -257,6 +252,7 @@ function LoanFile({ application, review }: LoanFileProps) {
       <div className="mt-6">
         <DtiBreakdown application={application} review={review} />
       </div>
+      <CommitteeConsole applicationId={application.id} />
     </>
   );
 }

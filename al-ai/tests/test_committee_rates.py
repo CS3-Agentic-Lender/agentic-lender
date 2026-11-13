@@ -128,12 +128,13 @@ def test_a_missing_rate_with_the_ecb_down_stops_the_run_naming_the_rate_and_call
 
 def test_a_rate_older_than_three_months_with_the_ecb_down_stops_the_run():
     cache = rates.MemoryCache()
-    for name in ("ecb_mrr", "mortgage_ie"):
-        cache.save(name, rates.Rate(name, 3.9, "2026-06", 4.2, "2025-06", NOW - timedelta(days=5)).to_doc())
+    # ecb_mrr is judged on when it was fetched (AL-298), so it has to be fetched long ago; mortgage_ie is judged on its observation
+    cache.save("ecb_mrr", rates.Rate("ecb_mrr", 3.9, "2026-06", 4.2, "2025-06", NOW - timedelta(days=130)).to_doc())
+    cache.save("mortgage_ie", rates.Rate("mortgage_ie", 3.9, "2026-06", 4.2, "2025-06", NOW - timedelta(days=5)).to_doc())
     providers = tc.Providers()
     record = run(deps_with(through_the_tool(cache), providers))
     assert_stopped_by_the_rate(record, providers, "ecb_mrr")
-    assert "more than 3 months old" in record["failure_reason"]
+    assert "more than 3 months" in record["failure_reason"]
 
 
 def test_the_benchmark_rate_missing_stops_the_run_naming_that_rate():

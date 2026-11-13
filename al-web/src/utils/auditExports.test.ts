@@ -92,6 +92,21 @@ describe('audit pack CSV', () => {
     expect(csv).toContain('agent_call,1.output,"Approve, €290,000"\r\n');
     expect(csv).toContain('record,decision,approved\r\n');
   });
+
+  it.each([
+    ['=HYPERLINK("http://x","click")', `"'=HYPERLINK(""http://x"",""click"")"`],
+    ['+cmd|calc', "'+cmd|calc"],
+    ['-2+3', "'-2+3"],
+    ['@SUM(A1:A2)', "'@SUM(A1:A2)"],
+    ['\tTab first', "'\tTab first"],
+  ])('stops a text cell starting %j from running as a formula in Excel', (value, cell) => {
+    const out = toCsv([{ section: 'application', field: 'borrower_name', value }]);
+    expect(out).toContain(`application,borrower_name,${cell}\r\n`);
+  });
+
+  it.each(['-1300', '+31200', '0', '21.6'])('leaves the number %s as it is', (value) => {
+    expect(toCsv([{ section: 'valuation', field: 'eur', value }])).toContain(`valuation,eur,${value}\r\n`);
+  });
 });
 
 describe('audit pack PDF', () => {
