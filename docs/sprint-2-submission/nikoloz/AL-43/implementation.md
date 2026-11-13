@@ -8,7 +8,7 @@ A Messages page for brokers: one thread per client application, unread first, wi
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#193](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/193) | AL-164 Add the broker messages inbox with unread threads first | open, approved | Nikoloz |
+| [#193](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/193) | AL-164 Add the broker messages inbox with unread threads first | 2026-11-13 | Nikoloz |
 
 ## Pull requests: backend this story depends on
 

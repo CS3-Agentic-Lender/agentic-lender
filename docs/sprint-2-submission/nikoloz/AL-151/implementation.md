@@ -8,7 +8,7 @@ A Sign off panel on AI Deliberated applications for underwriters only: the AI re
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#189](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/189) | AL-165 Add the sign-off panel and the API client | open, review fix pushed | Nikoloz |
+| [#189](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/189) | AL-165 Add the sign-off panel and the API client | 2026-11-12 | Nikoloz |
 
 ## Pull requests: backend this story depends on
 

@@ -8,7 +8,7 @@ On a funded loan file, Download PDF and Download CSV build both files from one a
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#192](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/192) | AL-160 Download the audit pack as PDF and CSV | open, review fix pushed | Nikoloz |
+| [#192](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/192) | AL-160 Download the audit pack as PDF and CSV | 2026-11-12 | Nikoloz |
 
 ## Pull requests: backend this story depends on
 

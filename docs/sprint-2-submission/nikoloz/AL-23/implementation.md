@@ -8,7 +8,7 @@ A Collateral panel in the mortgage loan file: asking price, the model estimate (
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#188](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/188) | AL-155 Add the mortgage collateral panel to the loan file | open, approved | Nikoloz |
+| [#188](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/188) | AL-155 Add the mortgage collateral panel to the loan file | 2026-11-13 | Nikoloz |
 
 ## Pull requests: backend this story depends on
 

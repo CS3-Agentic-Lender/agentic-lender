@@ -8,7 +8,7 @@ A Committee section in the loan file that reads the latest stored committee run:
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#195](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/195) | AL-156 Add the committee deliberation console to the loan file | open, approved | Nikoloz |
+| [#195](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/195) | AL-156 Add the committee deliberation console to the loan file | 2026-11-12 | Nikoloz |
 
 ## Pull requests: backend this story depends on
 

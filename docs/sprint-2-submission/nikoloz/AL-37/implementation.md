@@ -8,7 +8,7 @@ After approval the loan file mints the loan note through al-core and shows "Mint
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#191](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/191) | AL-159 Mint the loan note after approval and show its result | open, approved | Nikoloz |
+| [#191](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/191) | AL-159 Mint the loan note after approval and show its result | 2026-11-12 | Nikoloz |
 
 ## Pull requests: backend this story depends on
 

@@ -8,7 +8,7 @@ A "Message borrower" button in the underwriter's loan file opens the borrower's 
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#194](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/194) | AL-167 Let the underwriter message the borrower from the loan file | open, approved | Nikoloz |
+| [#194](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/194) | AL-167 Let the underwriter message the borrower from the loan file | open, in review | Nikoloz |
 
 ## Pull requests: backend this story depends on
 
