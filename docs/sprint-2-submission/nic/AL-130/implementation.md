@@ -2,7 +2,7 @@
 
 ## What was built
 
-I built the credit committee as one fixed LangGraph flow, so the steps always run in the same order and every result ends up in one run record. If a step keeps failing the run is saved as failed with the reason and no recommendation. A Firestore listener starts the run when an application goes to Applied and moves it to AI Deliberated when it's done.
+I built the credit committee as one fixed LangGraph flow, so the steps always run in the same order and every result goes into one run record. If a step keeps failing, the run is saved as failed with the reason and no recommendation. A Firestore listener starts the run when an application becomes Applied and moves it to AI Deliberated when the run finishes. Dumi's part saves every call as an `ai_calls` document, and my part passes it the IDs it needs.
 
 ## Pull requests
 
@@ -15,8 +15,8 @@ I built the credit committee as one fixed LangGraph flow, so the steps always ru
 | [#173](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/173) | AL-290 Pass the run, application and broker IDs to every committee step | 2026-11-06 | Nic |
 | [#176](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/176) | AL-141 Start the committee automatically when an application becomes Applied | 2026-11-07 | Nic |
 
-## Pull requests: backend this story depends on
+## Pull request this story depends on
 
 | PR | Title | Merged | By |
 |---|---|---|---|
-| [#177](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/177) | AL-140 Save every AI call as an ai_calls document | not merged yet | Dumi |
+| [#177](https://github.com/CS3-Agentic-Lender/agentic-lender/pull/177) | AL-140 Save every AI call as an ai_calls document | 2026-11-10 | Dumi |
