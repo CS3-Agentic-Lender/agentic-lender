@@ -9,6 +9,7 @@ import { PortalPage } from './pages/PortalPage';
 import { LoanFilePage } from './pages/shared/LoanFilePage';
 import { ClientDetailPage } from './pages/broker/ClientDetailPage';
 import { ClientsPage } from './pages/broker/ClientsPage';
+import { MessagesPage } from './pages/broker/MessagesPage';
 import { PipelinePage } from './pages/underwriter/PipelinePage';
 
 export const appRoutes: RouteObject[] = [
@@ -28,6 +29,7 @@ export const appRoutes: RouteObject[] = [
         children: [
           { path: '/broker/clients', element: <ClientsPage /> },
           { path: '/broker/clients/:clientId', element: <ClientDetailPage /> },
+          { path: '/broker/messages', element: <MessagesPage /> },
         ],
       },
       { path: '/broker/applications/:applicationId', element: <LoanFilePage viewer="broker" /> },
