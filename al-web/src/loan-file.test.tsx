@@ -10,6 +10,8 @@ import { ClientsServiceContext } from './context/BrokerClientsContext';
 import { LoanFileServiceContext } from './context/LoanFileContext';
 import { DecisionServiceContext } from './context/DecisionContext';
 import { SettlementServiceContext } from './context/SettlementContext';
+import { MessagesServiceContext } from './context/MessagesContext';
+import type { MessagesService, ThreadSnapshot } from './services/messagesService';
 import { ApiError } from './services/apiClient';
 import type { SettlementResult, SettlementService } from './services/settlementService';
 import type { DecisionResult, DecisionService } from './services/decisionService';
@@ -174,7 +176,14 @@ interface Services {
   loanFiles?: LoanFileService;
   pipeline?: PipelineService;
   clients?: ClientsService;
+  messages?: MessagesService;
 }
+
+const noMessages: MessagesService = {
+  subscribeToThread: () => () => {},
+  send: async () => {},
+  markRead: async () => {},
+};
 
 const noCommittee: CommitteeService = {
   subscribeToRun: (_id, _viewer, listener) => {
@@ -188,6 +197,7 @@ function renderAs(uid: string, role: TrustedRole, pathname: string, services: Se
   return render(
     <AuthProvider service={new FakeAuthService(authUser(uid), role)}>
       <CommitteeServiceContext.Provider value={noCommittee}>
+        <MessagesServiceContext.Provider value={services.messages ?? noMessages}>
         <SettlementServiceContext.Provider value={services.settlement ?? { mint: async (id) => ({ id, status: 'Funded' }) }}>
         <DecisionServiceContext.Provider value={services.decisions ?? { signOff: async () => { throw new Error('No decision fake configured'); } }}>
         <LoanFileServiceContext.Provider value={services.loanFiles ?? new FakeLoanFileService()}>
@@ -202,6 +212,7 @@ function renderAs(uid: string, role: TrustedRole, pathname: string, services: Se
         </LoanFileServiceContext.Provider>
         </DecisionServiceContext.Provider>
         </SettlementServiceContext.Provider>
+        </MessagesServiceContext.Provider>
       </CommitteeServiceContext.Provider>
     </AuthProvider>,
   );
@@ -871,6 +882,71 @@ describe('loan file page', () => {
 
     act(() => loanFiles.push(loanFile('LN-2002', { ...seededApplication, borrowerName: 'Brian Walsh' })));
     expect(screen.getByRole('heading', { level: 1, name: 'Brian Walsh' })).toBeInTheDocument();
+  });
+});
+
+describe('message borrower from the loan file', () => {
+  class FakeMessages implements MessagesService {
+    subscribed: string[] = [];
+    listener: ((snapshot: ThreadSnapshot) => void) | null = null;
+    send = vi.fn<MessagesService['send']>().mockResolvedValue(undefined);
+    markRead = vi.fn<MessagesService['markRead']>().mockResolvedValue(undefined);
+
+    subscribeToThread: MessagesService['subscribeToThread'] = (id, _uid, listener) => {
+      this.subscribed.push(id);
+      this.listener = listener;
+      return () => {};
+    };
+  }
+
+  function setup(role: 'underwriter' | 'broker' = 'underwriter', status = 'AI Deliberated') {
+    const messages = new FakeMessages();
+    const loanFiles = new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', { ...seededApplication, status }) });
+    renderAs(`${role}-1`, role, `/${role}/applications/LN-1001`, { loanFiles, messages });
+    return messages;
+  }
+
+  it('opens the borrower\'s own thread for the underwriter and replies through the shared thread', async () => {
+    const messages = setup();
+    const button = await screen.findByRole('button', { name: 'Message borrower' });
+    expect(messages.subscribed).toEqual([]);
+    expect(messages.markRead).not.toHaveBeenCalled();
+
+    fireEvent.click(button);
+    expect(messages.subscribed).toEqual(['LN-1001']);
+    expect(screen.getByRole('region', { name: 'Messages: Alice Byrne' })).toBeInTheDocument();
+    expect(screen.getByText("You reply as the bank lending officer, in the borrower's own thread.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reply' }), { target: { value: 'We need a recent payslip.' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })));
+    expect(messages.send).toHaveBeenCalledExactlyOnceWith('LN-1001', 'We need a recent payslip.');
+  });
+
+  it('labels an underwriter message as the bank lending officer for the other participants', async () => {
+    const messages = setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Message borrower' }));
+    act(() => messages.listener?.({
+      messages: [
+        { id: 'm1', senderId: 'borrower-1', senderRole: 'borrower', text: 'Is anything missing?', sentAt: new Date('2026-11-01T10:00:00Z') },
+        { id: 'm2', senderId: 'underwriter-2', senderRole: 'underwriter', text: 'Please send a payslip.', sentAt: new Date('2026-11-01T11:00:00Z') },
+        { id: 'm3', senderId: 'underwriter-1', senderRole: 'underwriter', text: 'Received, thanks.', sentAt: new Date('2026-11-02T09:00:00Z') },
+      ],
+      lastReadAt: null,
+    }));
+
+    const items = within(screen.getByRole('list', { name: 'Messages' })).getAllByRole('listitem');
+    expect(items.map((item) => item.querySelector('span')?.textContent)).toEqual(['Borrower', 'Bank lending officer', 'You']);
+  });
+
+  it('shows no message button to a broker or on a Draft', async () => {
+    setup('broker');
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('button', { name: 'Message borrower' })).not.toBeInTheDocument();
+    cleanup();
+
+    setup('underwriter', 'Draft');
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('button', { name: 'Message borrower' })).not.toBeInTheDocument();
   });
 });
 
