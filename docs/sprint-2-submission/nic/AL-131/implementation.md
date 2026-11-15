@@ -2,7 +2,7 @@
 
 ## What was built
 
-I added exact Shapley values to the valuation endpoint, so every estimate comes with a baseline and a euro piece for each of the six inputs. There are only six inputs, so it's just 64 combinations and I could work them out exactly instead of approximating. If the breakdown fails the estimate still comes back with a warning.
+I added exact Shapley values to the valuation endpoint. Every estimate now comes with a baseline and a euro piece for each of the six inputs. There are only six inputs, so there are just 64 combinations. I could work them out exactly instead of approximating. If the breakdown fails, the estimate still comes back with a warning.
 
 ## Pull requests
 

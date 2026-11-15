@@ -14,7 +14,7 @@ As an underwriter, the credit committee runs end to end on each application and 
 
 ## What this tests
 
-The committee runs its steps in a fixed order and saves one record per run. A step that keeps failing ends the run as failed with no recommendation, and a failed run can be re-run. When an application becomes Applied the run starts by itself, and a finished run moves it to AI Deliberated. Every call the run makes is saved in `ai_calls`.
+The committee runs its steps in a fixed order and saves one record per run. If a step keeps failing, the run ends as failed with no recommendation, and a failed run can be re-run. When an application becomes Applied, the run starts by itself. A finished run moves the application to AI Deliberated. Every call the run makes is saved in `ai_calls`.
 
 ## Wireframe
 
@@ -52,7 +52,7 @@ No run called a real model, Serper or the ECB.
 
 ## Notes
 
-1. I made no live run, because it calls Gemini, Groq, Ollama and Serper. The live evidence is the two run records from 4 Nov 2026 in `al-ai/docs/committee-evidence/` (mortgage: Approve to Approve, HELOC: Approve to Conditionally Approve). The runner test swaps `run_committee` for a fake, so it checks the runner's setup and not a whole run.
-2. `rerun()` works in the tests, but nothing in the app calls it, because we haven't decided what triggers a re-run. The local runner can re-run with `--rerun <failed run id>`. The criterion only says a re-run gets a new linked ID, so it is met as worded.
-3. The listener is off by default. It starts only when the service runs with `AUTO_START_COMMITTEE=true`.
-4. The access rule for `ai_calls` is tested in `al-core/test/rules.test.js` (Dumi's work). I read the rule but did not run that test for this document. The `ai_calls` collection comes from Dumi's PR #177, merged on 10 Nov, after the first version of this test case.
+1. I made no live run, because a live run calls Gemini, Groq, Ollama and Serper. The live evidence is the two run records from 4 Nov 2026 in `al-ai/docs/committee-evidence/` (mortgage: Approve to Approve, HELOC: Approve to Conditionally Approve). The runner test swaps `run_committee` for a fake. So it checks the runner's setup, and it does not check a whole run.
+2. `rerun()` works in the tests, but nothing in the app calls it. We have not decided what triggers a re-run. The local runner can re-run with `--rerun <failed run id>`. The criterion only says a re-run gets a new linked ID, so it is met as worded.
+3. The listener is off by default. It only starts when the service runs with `AUTO_START_COMMITTEE=true`.
+4. The access rule for `ai_calls` is tested in `al-core/test/rules.test.js` (Dumi's work). I read the rule but did not run that test for this document. The `ai_calls` collection comes from Dumi's PR #177. It was merged on 10 Nov, after the first version of this test case.

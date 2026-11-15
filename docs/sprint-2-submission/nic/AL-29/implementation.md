@@ -2,7 +2,7 @@
 
 ## What was built
 
-I wrote one small client per provider and one `agents.json` file that pins each agent to an exact model. Nothing switches model on its own, so the run record always shows which model answered. Valuation runs on Groq gpt-oss-120b instead of Mistral, because Mistral has no free API, and Gemini Flash-Lite is the backup a person switches to by hand. I also added a test that an unreachable Ollama fails the affordability step instead of sending the borrower's figures to a cloud model.
+I wrote one small client per provider and one `agents.json` file that pins each agent to an exact model. Nothing switches model on its own, so the run record always shows which model answered. Valuation runs on Groq gpt-oss-120b instead of Mistral, because Mistral has no free API. Gemini Flash-Lite is the backup, and a person switches to it by hand. I also added a test that fails the affordability step when Ollama is unreachable. This stops the borrower's figures going to a cloud model.
 
 ## Pull requests
 

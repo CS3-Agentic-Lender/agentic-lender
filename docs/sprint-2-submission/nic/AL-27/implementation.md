@@ -2,7 +2,7 @@
 
 ## What was built
 
-Dumi built the ECB rate tool, which gets the two rates and caches them in Firestore, and the `ai_calls` logging. I built the market agent and the wiring. The agent does two Serper searches and sees only the official figures and those results, on Gemini. The code checks every link, date and number in its reply. I also made the committee read both rates from Dumi's tool, so a missing rate, or an old cached one when the ECB is down, stops the run before any model is called. The day's report is reused unless the figures change, and the listener shares it across its runs.
+Dumi built the ECB rate tool, which gets the two rates and caches them in Firestore. He also built the `ai_calls` logging. I built the market agent and the wiring. On Gemini, the agent does two Serper searches. It sees only the official figures and those results. The code checks every link, date and number in its reply. I also made the committee read both rates from Dumi's tool. If a rate is missing, or the cached one is old while the ECB is down, the run stops before any model is called. The day's report is reused unless the figures change. The listener shares it across its runs.
 
 ## Pull requests
 

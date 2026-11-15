@@ -2,7 +2,7 @@
 
 ## What was built
 
-I built the credit committee as one fixed LangGraph flow, so the steps always run in the same order and every result goes into one run record. If a step keeps failing, the run is saved as failed with the reason and no recommendation. A Firestore listener starts the run when an application becomes Applied and moves it to AI Deliberated when the run finishes. Dumi's part saves every call as an `ai_calls` document, and my part passes it the IDs it needs.
+I built the credit committee as one fixed LangGraph flow. The steps always run in the same order, and every result goes into one run record. If a step keeps failing, the run is saved as failed with the reason and no recommendation. A Firestore listener starts the run when an application becomes Applied. When the run finishes, the listener moves the application to AI Deliberated. Dumi's part saves every call as an `ai_calls` document. My part passes it the IDs it needs.
 
 ## Pull requests
 
