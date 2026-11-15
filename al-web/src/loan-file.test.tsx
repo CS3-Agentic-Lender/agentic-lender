@@ -387,6 +387,14 @@ describe('loan file minting', () => {
     expect(mint).not.toHaveBeenCalled();
   });
 
+  it.each([['heloc', 'HELOC'], ['mortgage', 'Mortgage']])('shows the loan type on the loan note of a funded %s', async (loanType, label) => {
+    const { push } = setup('Funded');
+    await screen.findByRole('region', { name: 'Borrower' });
+    push({ status: 'Funded', loanType, loanNote: storedNote });
+    const note = within(screen.getByRole('region', { name: 'Loan note' }));
+    expect(note.getByText('Loan type', { selector: 'dt' }).nextElementSibling).toHaveTextContent(label);
+  });
+
   it.each(['underwriter', 'broker'] as const)('offers the audit pack downloads to the %s once the note is stored', async (role) => {
     const { push } = setup('Underwriter Approved', role);
     await screen.findByRole('region', { name: 'Borrower' });

@@ -33,10 +33,10 @@ function row(label: string) {
 
 describe('loan note panel', () => {
   it('shows every stored field with full hashes and separately labelled Amoy links', () => {
-    render(<LoanNotePanel note={note} auditTxHash={auditTxHash} />);
+    render(<LoanNotePanel note={note} auditTxHash={auditTxHash} loanType="mortgage" />);
     expect(screen.getByRole('heading', { name: 'Loan note' })).toBeInTheDocument();
     const expected = {
-      'Token ID': note.tokenId, Network: 'Polygon Amoy testnet', 'Mint transaction': note.txHash,
+      'Token ID': note.tokenId, 'Loan type': 'Mortgage', Network: 'Polygon Amoy testnet', 'Mint transaction': note.txHash,
       'Loan note contract': note.contractAddress, 'Audit hash': note.auditHash,
       'Audit registry transaction': auditTxHash, Minted: formatDate(note.mintedAt),
     };
@@ -53,14 +53,21 @@ describe('loan note panel', () => {
   it.each([
     ['localhost', 'Local Hardhat chain'], ['unknown-chain', 'unknown-chain'], [null, 'Not recorded'],
   ])('has no explorer link on network %s', (network, label) => {
-    render(<LoanNotePanel note={{ ...note, network }} auditTxHash={null} />);
+    render(<LoanNotePanel note={{ ...note, network }} auditTxHash={null} loanType="mortgage" />);
     expect(row('Network')).toHaveTextContent(label!);
     expect(row('Audit registry transaction')).toHaveTextContent('Not recorded');
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
+  it.each([
+    ['heloc', 'HELOC'], ['mortgage', 'Mortgage'], ['bridging', 'bridging'], [null, 'Not recorded'],
+  ])('shows the application\'s loan type %s on the note', (loanType, label) => {
+    render(<LoanNotePanel note={note} auditTxHash={null} loanType={loanType} />);
+    expect(row('Loan type')).toHaveTextContent(label);
+  });
+
   it('does not link a missing audit transaction on Amoy', () => {
-    render(<LoanNotePanel note={note} auditTxHash={null} />);
+    render(<LoanNotePanel note={note} auditTxHash={null} loanType="mortgage" />);
     expect(screen.getAllByRole('link')).toHaveLength(1);
     expect(row('Audit registry transaction')).toHaveTextContent('Not recorded');
   });
@@ -68,7 +75,7 @@ describe('loan note panel', () => {
   it('copies the complete mint transaction', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     setClipboard({ writeText });
-    render(<LoanNotePanel note={note} auditTxHash={null} />);
+    render(<LoanNotePanel note={note} auditTxHash={null} loanType="mortgage" />);
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Mint transaction copied.');
     expect(writeText).toHaveBeenCalledExactlyOnceWith(note.txHash);
@@ -76,14 +83,14 @@ describe('loan note panel', () => {
 
   it('handles clipboard rejection with manual copy guidance', async () => {
     setClipboard({ writeText: vi.fn().mockRejectedValue(new Error('Denied')) });
-    render(<LoanNotePanel note={note} auditTxHash={null} />);
+    render(<LoanNotePanel note={note} auditTxHash={null} loanType="mortgage" />);
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Could not copy. Select and copy the mint transaction manually.');
   });
 
   it('keeps the full hash readable without a clipboard API', () => {
     setClipboard(undefined);
-    render(<LoanNotePanel note={note} auditTxHash={null} />);
+    render(<LoanNotePanel note={note} auditTxHash={null} loanType="mortgage" />);
     expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
     expect(row('Mint transaction')).toHaveTextContent(note.txHash);
   });
