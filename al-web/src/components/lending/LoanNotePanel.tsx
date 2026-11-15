@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import type { LoanNote } from '../../services/loanFileService';
-import { formatDate } from '../../utils/formatters';
+import { formatDate, loanTypeLabel } from '../../utils/formatters';
 
 interface LoanNotePanelProps {
   note: LoanNote;
   auditTxHash: string | null;
+  // The application's own loanType: the mint puts it on the note, and the stored loanNote map has no copy.
+  loanType: string | null;
 }
 
 const networkLabels: Record<string, string> = {
@@ -12,11 +14,12 @@ const networkLabels: Record<string, string> = {
   amoy: 'Polygon Amoy testnet',
 };
 
-export function LoanNotePanel({ note, auditTxHash }: LoanNotePanelProps) {
+export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProps) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const canCopy = typeof navigator.clipboard?.writeText === 'function';
   const rows = [
     { label: 'Token ID', value: note.tokenId, mono: true },
+    { label: 'Loan type', value: loanTypeLabel(loanType) ?? 'Not recorded' },
     { label: 'Network', value: note.network === null ? 'Not recorded' : networkLabels[note.network] ?? note.network },
     { label: 'Mint transaction', value: note.txHash, mono: true, transaction: true, copy: true },
     { label: 'Loan note contract', value: note.contractAddress, mono: true },

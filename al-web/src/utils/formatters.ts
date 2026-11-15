@@ -14,6 +14,13 @@ const shortDate = new Intl.DateTimeFormat('en-IE', {
   year: 'numeric',
 });
 
+const loanTypeLabels: Record<string, string> = { mortgage: 'Mortgage', heloc: 'HELOC' };
+
+// The stored loanType as a label. An unknown type is shown as stored; a missing one is null, so each screen words it.
+export function loanTypeLabel(loanType: string | null) {
+  return loanType ? loanTypeLabels[loanType] ?? loanType : null;
+}
+
 export function formatEuro(amountEur: number | null) {
   return amountEur === null ? UNAVAILABLE : euro.format(amountEur);
 }

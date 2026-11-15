@@ -21,7 +21,7 @@ import {
   type LoanFileApplication,
   type LoanFileReview,
 } from '../../services/loanFileService';
-import { formatDate, formatEuro, formatPercent } from '../../utils/formatters';
+import { formatDate, formatEuro, formatPercent, loanTypeLabel } from '../../utils/formatters';
 import { INVALID_RISK_TIER, applicationLtvBand, formatLtv, NO_LTV, NO_LTV_FIGURE } from '../underwriter/pipelineGroups';
 
 export type LoanFileViewer = 'broker' | 'underwriter';
@@ -39,8 +39,6 @@ interface Fact {
 
 const backLinkClass = 'font-medium text-pine underline-offset-4 hover:underline';
 const sectionClass = 'rounded-2xl border border-line bg-surface p-6 sm:p-8';
-
-const loanTypeLabels: Record<string, string> = { mortgage: 'Mortgage', heloc: 'HELOC' };
 
 function euro(value: number | null) {
   return value === null ? null : formatEuro(value);
@@ -183,7 +181,7 @@ function LoanFile({ application, review }: LoanFileProps) {
         <span className="font-mono text-sm">{application.id}</span>
         <StatusBadge status={application.status} />
         <span className="text-sm text-muted">
-          {application.loanType ? loanTypeLabels[application.loanType] ?? application.loanType : 'Loan type unavailable'}
+          {loanTypeLabel(application.loanType) ?? 'Loan type unavailable'}
         </span>
       </div>
 
@@ -358,7 +356,11 @@ function ReadyLoanFile({ application, review, viewer }: {
       ) : null}
       {application.loanNote ? (
         <>
-          <LoanNotePanel auditTxHash={application.auditTxHash} note={application.loanNote} />
+          <LoanNotePanel
+            auditTxHash={application.auditTxHash}
+            loanType={application.loanType}
+            note={application.loanNote}
+          />
           <AuditPackActions applicationId={application.id} />
         </>
       ) : null}
