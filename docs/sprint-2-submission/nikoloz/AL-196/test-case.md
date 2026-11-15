@@ -4,7 +4,8 @@
 
 **Tested by:** Nikoloz Chilachava  
 **Date run:** 29 Oct 2026 (step 1) and 10 Nov 2026 (steps 2 to 5)  
-**Build:** step 1 on the HELOC queue and collateral work merged into `main` on 30 Oct 2026 (PR #141); steps 2 to 5 on `feature/AL-213-heloc-policy-conditions` at commit `d5acc93` (PR #190, open)
+**Build:** step 1 on the HELOC queue and collateral work merged into `main` on 30 Oct 2026 (PR #141); steps 2 to 5 on `feature/AL-213-heloc-policy-conditions` at commit `d5acc93` (PR #190, merged on 12 Nov)  
+**Re-run:** 15 Nov 2026 (step 5) with `main` at `f41a283` for the emulators and the al-core API, and a local Hardhat node.
 
 ## Preconditions
 
@@ -33,4 +34,5 @@ al-web Vitest on `feature/AL-213-heloc-policy-conditions` at `d5acc93`, 10 Nov 2
 - Step 3: the DTI breakdown showed 20.1% and 21%. The Committee section showed the HELOC's run with the same console as a mortgage; the console's own gaps are in the AL-30 test case.
 - Step 4: with `CLTV_CAP` added by hand, "Requires lender exception review: the combined LTV is above the 80% cap (CLTV_CAP)." showed in the conditions.
 - Step 5: the mint and the audit pack worked on this HELOC (AL-37 and AL-38 test cases: token id 2, and the CSV holds `loan_type` `heloc`). Sign-off uses the same panel as a mortgage; `app-approved` is already Underwriter Approved in the seed, so sign-off was not run on a HELOC in the browser. Fail: the Loan note card does not show the loan type yet.
+- Step 5, re-run on 15 Nov: still a fail on `main`, where the Loan note card has no loan type row for any loan (the panel never had one, so mortgages are missing it too). The fix is on the branch `feature/AL-213-loan-note-loan-type` (commit `82444c1`, not merged yet): the card gets a "Loan type" row filled from the application's stored `loanType`, the same value the mint puts on the note. On that branch I minted `app-approved` on a local chain and the card showed "Loan type: HELOC" with token id 1; the seeded mortgages `app-funded` and `app-closed` showed "Loan type: Mortgage"; and the audit pack for the HELOC came back with `loan_type` `heloc` and `verified` true. al-web Vitest on the branch: 721 passed, 0 failed, and the build passed. This step passes once that branch is merged.
 - The emulator edits were made by hand. Re-import the seed data to reset them.
