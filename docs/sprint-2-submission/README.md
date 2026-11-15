@@ -18,7 +18,7 @@ This folder follows the Sprint 1 zip. Nic puts the final zip together.
 |---|---|
 | `sprint-backlog/` | `Jira.csv`: the 53 issues in Sprint 2, taken from Jira on 15 Nov (key, type, summary, status, assignee, priority, parent, labels, dates). |
 | `nic/`, `nikoloz/`, `ibrahima/`, `dumi/` | One folder per team member. The **use case** for each Epic is a PDF at the top of the folder. Each **Story** has its own folder named by its Jira key, with `wireframe.png`, `test-case.pdf` and `implementation.pdf`. Stories with no screen use a flow diagram as the wireframe. |
-| `retrospective/` | The Sprint 2 retrospective and review: `Sprint-2-retrospective.docx` (one Word document, like Sprint 1) and each person's section as a PDF. |
+| `retrospective/` | The Sprint 2 retrospective and review: `Sprint-2-retrospective.docx`: one Word document with everyone's retrospective, like Sprint 1. |
 | `code/` | The code on `main` at the end of the sprint (`git archive`, then a secret scan). Nic does this last. |
 
 ## What the submission asks for
