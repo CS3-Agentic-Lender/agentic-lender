@@ -7,6 +7,51 @@ function timestamp(value: Date | null) {
   return value?.toLocaleString('en-IE') ?? 'Not stored';
 }
 
+interface MemoSection {
+  heading: string | null;
+  body: string;
+}
+
+// The strategist stores the memo as one text, each section a "## heading" line and then its text (al-ai's render_memo).
+// The headings are read from the text, not listed here, so the portal shows whatever was stored and hashed.
+function memoSections(memo: string): MemoSection[] {
+  const sections: MemoSection[] = [];
+  let current: { heading: string | null; lines: string[] } = { heading: null, lines: [] };
+  const close = () => {
+    const body = current.lines.join('\n').trim();
+    if (current.heading !== null || body) sections.push({ heading: current.heading, body });
+  };
+  for (const line of memo.split(/\r?\n/)) {
+    const heading = /^##\s+(\S.*)$/.exec(line);
+    if (heading) {
+      close();
+      current = { heading: heading[1].trim(), lines: [] };
+    } else {
+      current.lines.push(line);
+    }
+  }
+  close();
+  return sections;
+}
+
+function CreditMemo({ memo }: { memo: string }) {
+  const sections = memoSections(memo);
+  // A memo with no headings (an older or hand-written one) stays exactly as stored.
+  if (!sections.some((section) => section.heading !== null)) {
+    return <p className="mt-3 whitespace-pre-wrap break-words leading-7">{memo}</p>;
+  }
+  return (
+    <>
+      {sections.map((section, index) => (
+        <div className="mt-4" key={index}>
+          {section.heading === null ? null : <h4 className="font-semibold">{section.heading}</h4>}
+          <p className="mt-1 whitespace-pre-wrap break-words leading-7">{section.body}</p>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function CallsList({ runId }: { runId: string }) {
   const state = useCommitteeCalls(runId);
   if (state.status !== 'ready') {
@@ -136,7 +181,11 @@ function RunDetails({ run }: { run: CommitteeRun }) {
       </section>
       <section aria-label="Credit memo">
         <h3 className="text-lg font-semibold">Credit memo</h3>
-        <p className="mt-3 whitespace-pre-wrap break-words leading-7">{run.creditMemo ?? 'Credit memo not stored yet'}</p>
+        {run.creditMemo === null ? (
+          <p className="mt-3 whitespace-pre-wrap break-words leading-7">Credit memo not stored yet</p>
+        ) : (
+          <CreditMemo memo={run.creditMemo} />
+        )}
       </section>
       <section aria-label="Policy gate" className="rounded-xl border border-line p-5">
         <h3 className="text-lg font-semibold">Policy gate</h3>

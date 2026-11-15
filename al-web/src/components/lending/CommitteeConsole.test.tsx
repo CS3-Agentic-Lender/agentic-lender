@@ -129,6 +129,34 @@ describe('committee console', () => {
     expect(gate).toHaveTextContent('CLTV_CAP');
   });
 
+  it('shows a stored memo under its own headings, in the stored order', () => {
+    // The text al-ai's strategist stores: one "## heading" line, then that section's text, with a blank line between sections.
+    const sections = [
+      ['Application summary', 'A couple buying a three-bed semi in Cork.'],
+      ['Affordability', 'Repayments fit the budget.\nThe stressed rate still leaves a surplus.'],
+      ['Property assessment', 'The estimate is close to the asking price.'],
+      ['Market context', 'Rates are stable.'],
+      ['Disagreements', 'The valuation agent asked for a condition.'],
+      ['Recommendation and conditions', 'Approve with a surveyor valuation.'],
+    ];
+    const creditMemo = `${sections.map(([heading, body]) => `## ${heading}\n${body}`).join('\n\n')}\n`;
+    render(consoleWith(fakeService({ status: 'ready', run: { ...sampleRun(), creditMemo } }).service));
+
+    const memo = screen.getByRole('region', { name: 'Credit memo' });
+    const headings = within(memo).getAllByRole('heading', { level: 4 });
+    expect(headings.map((heading) => heading.textContent)).toEqual(sections.map(([heading]) => heading));
+    headings.forEach((heading, index) => expect(heading.nextElementSibling?.textContent).toBe(sections[index][1]));
+    expect(memo).not.toHaveTextContent('##');
+  });
+
+  it('keeps memo text that comes before the first heading', () => {
+    const run = { ...sampleRun(), creditMemo: 'Draft memo.\n\n## Affordability\nRepayments fit the budget.' };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    const memo = screen.getByRole('region', { name: 'Credit memo' });
+    expect(memo.querySelector('p')?.textContent).toBe('Draft memo.');
+    expect(within(memo).getByRole('heading', { level: 4, name: 'Affordability' }).nextElementSibling?.textContent).toBe('Repayments fit the budget.');
+  });
+
   it('shows a failed step, reason and a disabled re-run with its explanation', () => {
     const run = { ...sampleRun(), status: 'failed' as const, failedStep: 'valuation_agent', failureReason: 'Provider quota exceeded.' };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
