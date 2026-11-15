@@ -17,6 +17,6 @@ sequenceDiagram
     X-->>AI: reply (checked against our schema)
     AI->>FS: log the call in ai_calls
   end
-  AI->>FS: run record, valuation and affordability fields, status AI Deliberated
+  AI->>FS: run record, gate result, risk tier and borrower figures, status AI Deliberated
   FS-->>M: listener shows the result to the borrower
   Note over AI,FS: If a required step still fails after its retries<br/>the run is saved as failed and the application stays Applied.
