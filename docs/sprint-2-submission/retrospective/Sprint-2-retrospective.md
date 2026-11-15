@@ -107,3 +107,35 @@ None of these stopped the sprint goals being met, but they caused avoidable rewo
 3. Write the test case and do the live check while building each ticket, not at the end of the sprint.
 4. Move the parent story in Jira whenever a subtask moves.
 5. Get #194 merged early. Start the Firebase Hosting deploy (AL-182) once the hosted project exists. Ask Dumi about the shape of the stress-test endpoints before building the rate-shock and downturn views (AL-162, AL-163).
+
+<div style="page-break-before: always"></div>
+
+# Sprint 2 retrospective: Dumi (database and blockchain)
+
+## Check on the Sprint 1 actions
+
+1. **No stacking:** this worked. All 102 PRs since 27 October went into `main`. The second half, no re-approvals, did not hold: whenever `main` moved, approvals were dropped (mine on #177 several times).
+2. **Jira to Done the same day:** partly. The automation came back on 3 November but still missed moves, and I moved at least four by hand. Also, 9 Stories in Sprint 2 are still In Review or In Progress although their subtasks merged (AL-23, AL-30, AL-37, AL-38, AL-43, AL-133, AL-151, AL-152, AL-196). The burndown only drops when a whole Story reaches Done, so we should close them or say why they stay open.
+3. **Post the retro and submission dates at sprint start:** this was mine and Nic's, and it did not happen. The submission dates went up on 6 November, about ten days in, and the retro was booked on 14 November. I should have posted it on day one.
+
+## What went well
+
+- Mint and close work on a real local chain, with a script that runs 16 checks against the real API, the emulators and the chain.
+- The audit hash change (AL-283) was agreed before any real loan had been hashed.
+- Reviews caught real bugs again.
+
+## What did not go well
+
+- AL-140 sat for about a week: I left five questions on the ticket and did not push for the two that mattered.
+- `main` went red when two green al-ai PRs merged one after the other (AL-300).
+- I wrote my sprint summary late, in pieces.
+
+## Actions for Sprint 3
+
+| Action | Owner |
+|---|---|
+| When a PR merges, the next open one merges `main` in and re-runs its tests before approval. | Everyone |
+| Put the one or two blocking questions at the top of the ticket and ask in `#dev` the same day. | Everyone |
+| A ticket on day one of the sprint to post the dates in `#announcements` and book the retro. | Nic and Dumi |
+
+First in Sprint 3: the contracts on a public testnet (AL-183) and the al-core Docker image for AWS (AL-212).
