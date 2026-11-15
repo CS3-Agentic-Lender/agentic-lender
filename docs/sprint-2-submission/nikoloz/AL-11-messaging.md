@@ -6,8 +6,8 @@
 
 - **The backend is built (AL-70, AL-71, Dumi, Done).** Messages live under each application. Clients only read them; every message is sent through al-core, which sets the sender from the sign-in token. Each person has their own read position, so the borrower, the broker and each underwriter get their own unread count.
 - **The borrower's side is built (AL-42, Ibrahima, Done).** The iOS app shows a live thread with the broker, sends messages through al-core, marks replies read and offers "try again" on a failed send.
-- **The broker's inbox is in review (AL-43, PR #193, approved, not merged).** One thread per client application, unread first, with a reply box.
-- **The underwriter's reply is in review (AL-152, PR #194, approved, not merged).** "Message borrower" on the loan file opens the same thread; the message is labelled "Bank lending officer".
+- **The broker's inbox is built (AL-43, PR #193, merged 13 Nov).** One thread per client application, unread first, with a reply box.
+- **The underwriter's reply is built (AL-152, PR #194, merged 15 Nov).** "Message borrower" on the loan file opens the same thread; the message is labelled "Bank lending officer".
 
 ## Overview
 
@@ -95,19 +95,18 @@ As a borrower, I want to message my broker or lending officer inside the app, so
 
 ## Stories in this epic
 
-| Story | What | Owner | Sprint | Status on 12 Nov |
+| Story | What | Owner | Sprint | Status on 15 Nov |
 |---|---|---|---|---|
 | AL-42 | As a borrower, I message my assigned broker or lending officer in the app | Ibrahima | Sprint 2 | Done: live thread (#132), send and mark read through al-core (#151) |
-| AL-43 | As a broker, I reply to borrower messages from the portal | Nikoloz | Sprint 2 | In Review: PR #193 open, approved |
-| AL-152 | As an underwriter, I reply to a borrower's messages as the bank lending officer | Nikoloz | Sprint 2 | In Review: PR #194 open, approved |
+| AL-43 | As a broker, I reply to borrower messages from the portal | Nikoloz | Sprint 2 | Code merged (#193, 13 Nov); story In Review until its acceptance criteria are confirmed |
+| AL-152 | As an underwriter, I reply to a borrower's messages as the bank lending officer | Nikoloz | Sprint 2 | Code merged (#194, 15 Nov); story In Review until its acceptance criteria are confirmed |
 
 Backend subtasks: AL-70 messages model and endpoints (Dumi, PR #150, merged 30 Oct) and AL-71 per-person read state (Dumi, PR #164, merged 5 Nov). Both Done.
 
 ## Not built yet, and known limits
 
-- The portal side (AL-43, AL-152) is not on `main` until PRs #193 and #194 merge.
 - The Epic's "done when" check, a message from the seeded borrower showing in the broker's inbox and the reply showing in the app with no refresh on either side, has not been run end to end. The borrower's side was checked by Ibrahima (AL-42 test case); the portal side was checked against seeded messages and the underwriter's reply (AL-43 and AL-152 test cases).
-- On the local emulator, the broker inbox previews once stayed on "Loading..." until other listeners started; Dumi could not reproduce it (12 Nov). It is noted in the AL-43 test case.
+- On the local emulator, the broker inbox previews once stayed on "Loading..." until other listeners started; neither Dumi nor I could reproduce it on a clean start (13 Nov), so it is treated as resolved. It is noted in the AL-43 test case.
 - Whether the iOS app labels an underwriter's message with its role has not been checked in the app.
 - No push notifications and no attachments.
 
