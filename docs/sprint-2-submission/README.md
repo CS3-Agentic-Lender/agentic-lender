@@ -42,7 +42,7 @@ For each sprint the brief asks for the sprint deliverable and the sprint documen
 |---|---|---|---|---|
 | AL-21 As a borrower, I see the current status of my application | Ibrahima | AL-5 Loan Application | Done | `ibrahima/AL-21/` |
 | AL-22 As a borrower, I enter property specs (county, size, bedrooms, type, BER) and get a fair valuation | Ibrahima | AL-6 Fair-Price Property Checker | Done | `ibrahima/AL-22/` |
-| AL-23 As an underwriter, I compare the seller's asking price against the model's valuation | Nikoloz | AL-6 Fair-Price Property Checker | In Review | `nikoloz/AL-23/` |
+| AL-23 As an underwriter, I compare the seller's asking price against the model's valuation | Nikoloz | AL-6 Fair-Price Property Checker | Done | `nikoloz/AL-23/` |
 | AL-26 As an underwriter, a valuation agent flags overvalued collateral and computes LTV | Nic | AL-7 AI Credit Committee | Done | `nic/AL-26/` |
 | AL-27 As an underwriter, a market research agent pulls current central bank rates and mortgage trends | Nic | AL-7 AI Credit Committee | Done | `nic/AL-27/` |
 | AL-28 As an underwriter, a strategist agent decides Approve / Conditionally Approve / Decline and writes a credit memo | Nic | AL-7 AI Credit Committee | Done | `nic/AL-28/` |
@@ -61,7 +61,7 @@ For each sprint the brief asks for the sprint deliverable and the sprint documen
 | AL-131 As a data scientist, the valuation endpoint returns how much each house feature added to or took off the estimate | Nic | AL-14 Valuation breakdown | Done | `nic/AL-131/` |
 | AL-132 As a borrower, I see how each detail of the house moved its estimated price | Ibrahima | AL-14 Valuation breakdown | Done | `ibrahima/AL-132/` |
 | AL-133 As an underwriter, I see the valuation breakdown in the loan file | Nikoloz | AL-14 Valuation breakdown | In Review | `nikoloz/AL-133/` |
-| AL-151 As an underwriter, I sign off an application and my decision is recorded | Nikoloz | AL-9 On-Chain Settlement | In Review | `nikoloz/AL-151/` |
+| AL-151 As an underwriter, I sign off an application and my decision is recorded | Nikoloz | AL-9 On-Chain Settlement | Done | `nikoloz/AL-151/` |
 | AL-152 As an underwriter, I reply to a borrower's messages as the bank lending officer | Nikoloz | AL-11 Messaging | In Review | `nikoloz/AL-152/` |
 | AL-195 As a homeowner, I apply for a home equity line of credit against my property's value | Ibrahima | AL-194 Home equity line of credit (HELOC) | Done | `ibrahima/AL-195/` |
 | AL-196 As an underwriter, I review a HELOC application with its combined LTV and collateral value | Nikoloz | AL-194 Home equity line of credit (HELOC) | In Progress | `nikoloz/AL-196/` |
