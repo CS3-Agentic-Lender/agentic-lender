@@ -1,0 +1,54 @@
+Key,Type,Summary,Status,Assignee,Priority,Parent,Labels,Created,Resolved
+AL-21,Story,"As a borrower, I see the current status of my application",Done,Ibrahima Toure,Highest,AL-5,core mobile,2026-09-17,2026-10-30
+AL-22,Story,"As a borrower, I enter property specs (county, size, bedrooms, type, BER) and get a fair valuation",Done,Ibrahima Toure,Highest,AL-6,ai mobile,2026-09-17,2026-10-29
+AL-23,Story,"As an underwriter, I compare the seller's asking price against the model's valuation",In Review,Nikoloz Chilachava,Highest,AL-6,ai web,2026-09-17,
+AL-26,Story,"As an underwriter, a valuation agent flags overvalued collateral and computes LTV",Done,Nicholas Groenewald,Highest,AL-7,ai,2026-09-17,2026-11-04
+AL-27,Story,"As an underwriter, a market research agent pulls current central bank rates and mortgage trends",Done,Nicholas Groenewald,Highest,AL-7,ai,2026-09-17,2026-11-12
+AL-28,Story,"As an underwriter, a strategist agent decides Approve / Conditionally Approve / Decline and writes a credit memo",Done,Nicholas Groenewald,Highest,AL-7,ai,2026-09-17,2026-11-04
+AL-29,Story,"As a developer, the agents run on two cloud LLM APIs plus a local Ollama model",Done,Nicholas Groenewald,Highest,AL-7,ai,2026-09-17,2026-11-06
+AL-30,Story,"As an underwriter, I read each agent's reasoning trail and the committee's consensus",In Progress,Nikoloz Chilachava,Highest,AL-7,ai web,2026-09-17,
+AL-31,Story,"As a borrower, I see my estimated LTV, DTI and approval likelihood",Done,Ibrahima Toure,High,AL-7,ai mobile,2026-09-17,2026-11-13
+AL-33,Story,"As an underwriter, I open a loan file with the borrower's full DTI breakdown",Done,Nikoloz Chilachava,Highest,AL-8,core web,2026-09-17,2026-11-10
+AL-34,Story,"As an underwriter, an application moves through Applied, AI Deliberated, Approved, Funded, Closed",Done,Solomon,Highest,AL-8,core,2026-09-17,2026-11-07
+AL-36,Story,"As an auditor, a SHA-256 hash of the credit memo, valuation and approval is stored on-chain",Done,Solomon,Highest,AL-9,core,2026-09-17,2026-11-10
+AL-37,Story,"As an underwriter, signing off an application from the portal triggers the loan note mint",In Review,Nikoloz Chilachava,Highest,AL-9,core web,2026-09-17,
+AL-38,Story,"As an underwriter, I download a PDF/CSV audit pack for a decision",In Review,Nikoloz Chilachava,Highest,AL-9,core web,2026-09-17,
+AL-39,Story,"As a borrower, I see my loan note's on-chain lifecycle status",Done,Ibrahima Toure,Highest,AL-9,core mobile,2026-09-17,2026-11-05
+AL-42,Story,"As a borrower, I message my assigned broker or lending officer in the app",Done,Ibrahima Toure,Highest,AL-11,core mobile,2026-09-17,2026-10-31
+AL-43,Story,"As a broker, I reply to borrower messages from the portal",In Review,Nikoloz Chilachava,Highest,AL-11,core web,2026-09-17,
+AL-130,Story,"As an underwriter, the credit committee runs end to end on each application and saves one run record",Done,Nicholas Groenewald,Highest,AL-7,ai ready-agent-assisted,2026-09-29,2026-11-12
+AL-131,Story,"As a data scientist, the valuation endpoint returns how much each house feature added to or took off the estimate",Done,Nicholas Groenewald,Highest,AL-14,ai,2026-09-29,2026-10-29
+AL-132,Story,"As a borrower, I see how each detail of the house moved its estimated price",Done,Ibrahima Toure,Highest,AL-14,ai mobile,2026-09-29,2026-10-29
+AL-133,Story,"As an underwriter, I see the valuation breakdown in the loan file",In Review,Nikoloz Chilachava,High,AL-14,ai web,2026-09-29,
+AL-151,Story,"As an underwriter, I sign off an application and my decision is recorded",In Review,Nikoloz Chilachava,Highest,AL-9,core web,2026-09-29,
+AL-152,Story,"As an underwriter, I reply to a borrower's messages as the bank lending officer",In Review,Nikoloz Chilachava,High,AL-11,core needs-triage web,2026-09-29,
+AL-173,Task,Sprint 2 retrospective,To Do,Ibrahima Toure,Highest,AL-15,docs,2026-09-29,
+AL-195,Story,"As a homeowner, I apply for a home equity line of credit against my property's value",Done,Ibrahima Toure,High,AL-194,mobile,2026-10-06,2026-10-30
+AL-196,Story,"As an underwriter, I review a HELOC application with its combined LTV and collateral value",In Progress,Nikoloz Chilachava,High,AL-194,needs-triage web,2026-10-06,
+AL-203,Task,Sprint 2 submission: zip the deliverables and upload to Canvas,In Progress,Nicholas Groenewald,Highest,,docs,2026-10-07,
+AL-248,Task,Web: broker client list polish from the PR 68 review,Done,Nikoloz Chilachava,Medium,,needs-triage web,2026-10-19,2026-10-28
+AL-250,Bug,iOS: euro amount fields show the wrong thousands grouping after deleting a digit,Done,Ibrahima Toure,Low,,mobile,2026-10-19,2026-11-03
+AL-256,Story,iOS: sign out from Your details,Done,Ibrahima Toure,Medium,AL-4,mobile needs-triage,2026-10-19,2026-10-27
+AL-259,Task,Mobile CI: stop the iOS test job crashing and hanging,Done,Ibrahima Toure,Medium,,mobile needs-triage,2026-10-20,2026-10-27
+AL-263,Task,Backend: brokers cannot read Draft applications in the Firestore rules,Done,Solomon,Medium,,core,2026-10-22,2026-10-28
+AL-268,Task,Backend: add a non-ASCII test vector for the audit hash,Done,Solomon,Medium,,core needs-triage,2026-10-27,2026-10-28
+AL-269,Task,AI: make the valuation endpoint use check_valuation for the price gap and review flag,Done,Nicholas Groenewald,Medium,,ai needs-triage,2026-10-27,2026-10-27
+AL-270,Task,AI: return the estimate when only the breakdown fails,Done,Nicholas Groenewald,Medium,,ai needs-triage,2026-10-27,2026-10-27
+AL-271,Bug,"iOS: show the application reference as stored, not in capitals",Done,Ibrahima Toure,Medium,,mobile,2026-10-27,2026-10-30
+AL-276,Bug,iOS: Sign out test can hang CI,Done,Ibrahima Toure,Medium,,mobile,2026-10-30,2026-10-30
+AL-277,Bug,iOS: status screen stops listening after a real Firestore error,Done,Ibrahima Toure,Low,,mobile,2026-10-30,2026-11-03
+AL-278,Task,Document the borrower card fields and the policy gate result in SCHEMA.md,Done,Solomon,Medium,,core,2026-10-30,2026-10-31
+AL-282,Bug,"iOS: ""Check a property"" in the application form goes back to the affordability form",Done,Ibrahima Toure,Medium,,mobile,2026-10-31,2026-11-03
+AL-285,Bug,iOS: loan note transaction hash wraps with a hyphen that isn't part of the hash,Done,Ibrahima Toure,Low,,mobile ready-agent-assisted,2026-11-03,2026-11-06
+AL-286,Bug,iOS: euro amount field can show the wrong grouping when digits are typed quickly,Done,Ibrahima Toure,Medium,,mobile ready-agent-assisted,2026-11-03,2026-11-06
+AL-287,Task,Document and seed the stored valuation fields and the HELOC surveyor condition,Done,Solomon,Medium,,core,2026-11-03,2026-11-06
+AL-292,Task,Backend: document and seed the ai_runs reasoning-trail layout,Done,Solomon,High,,core,2026-11-06,2026-11-08
+AL-297,Task,Backend: limit the loan term to 5 to 35 years,Done,Solomon,Medium,,core,2026-11-07,2026-11-08
+AL-298,Bug,AI: an ECB outage stops every committee run when the main refinancing rate has not changed for 3 months,Done,Solomon,High,,ai,2026-11-07,2026-11-10
+AL-299,Task,Local stack: give the al-ai container the Firestore emulator and drop the stand-in rate settings,Done,Solomon,High,,core,2026-11-07,2026-11-08
+AL-301,Task,AI: call write_risk after each committee run so the risk tier and LTV band reach the application,Done,Nicholas Groenewald,Medium,AL-7,ai,2026-11-08,2026-11-12
+AL-302,Task,AI: cap the threads the al-ai test suite uses so a run doesn't take every core,Done,Nicholas Groenewald,Medium,AL-15,ai,2026-11-08,2026-11-09
+AL-304,Task,AI: write ltvPct for a mortgage after each committee run,Done,Nicholas Groenewald,Medium,AL-7,ai,2026-11-10,2026-11-11
+AL-305,Task,AI: save the policy gate result to review/underwriting and the run record,Done,Nicholas Groenewald,Medium,AL-7,ai,2026-11-10,2026-11-12
+AL-306,Task,Seed: every seeded property has an Eircode so the committee can run on it,Done,Solomon,Medium,,core,2026-11-11,2026-11-13
+AL-308,Task,Schema: bring SCHEMA.md in line with what al-ai now writes,Done,Solomon,Medium,,core docs,2026-11-13,2026-11-13
