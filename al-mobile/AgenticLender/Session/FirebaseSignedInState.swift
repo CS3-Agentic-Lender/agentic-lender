@@ -31,9 +31,25 @@ private final class LastUser: @unchecked Sendable {
 extension SessionCheck {
     /// A refused token forces a refresh. If the account was deleted or disabled the refresh fails and
     /// Firebase signs the borrower out itself, which `AppSession` reports as an ended session (AL-315).
+    /// Firebase doesn't always sign out by itself when the refresh fails (the emulator answers
+    /// INVALID_REFRESH_TOKEN and the user stays signed in), so the app does, which `AppSession` then reports.
     static func useFirebase() {
         tokenRefused = {
-            _ = try? await Auth.auth().currentUser?.getIDTokenResult(forcingRefresh: true)
+            guard let user = Auth.auth().currentUser else { return }
+            do {
+                _ = try await user.getIDTokenResult(forcingRefresh: true)
+            } catch where accountIsGone(error) {
+                try? Auth.auth().signOut()
+            } catch {
+                // A network failure: the screen keeps its own Retry.
+            }
         }
+    }
+
+    /// The refresh failed because the account was deleted or disabled, not because of the network.
+    nonisolated static func accountIsGone(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == AuthErrorDomain, let code = AuthErrorCode(rawValue: nsError.code) else { return false }
+        return [.userNotFound, .userDisabled, .userTokenExpired, .invalidUserToken].contains(code)
     }
 }

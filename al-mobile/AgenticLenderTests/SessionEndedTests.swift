@@ -63,6 +63,14 @@ final class SessionEndedTests: XCTestCase {
         XCTAssertEqual(checks, 0, "the screen keeps its own Retry")
     }
 
+    func testOnlyAnAccountThatIsGoneEndsTheSessionNotTheNetwork() {
+        for code in [AuthErrorCode.userNotFound, .userDisabled, .userTokenExpired, .invalidUserToken] {
+            XCTAssertTrue(SessionCheck.accountIsGone(authError(code)), "\(code)")
+        }
+        XCTAssertFalse(SessionCheck.accountIsGone(authError(.networkError)))
+        XCTAssertFalse(SessionCheck.accountIsGone(URLError(.timedOut)))
+    }
+
     func testSigningInWithADisabledAccountSaysItsDisabled() {
         XCTAssertEqual(SignInError(authError: authError(.userDisabled)), .accountDisabled)
         XCTAssertEqual(SignInError.accountDisabled.message, "This account has been disabled.")
