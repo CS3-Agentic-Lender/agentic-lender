@@ -1,0 +1,8 @@
+# Terraform working files: plugins, and state while it is still local (it moves to S3, see foundations/backend.tf).
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# The one-off local backend for the very first apply (see README step 2).
+first_run_override.tf
