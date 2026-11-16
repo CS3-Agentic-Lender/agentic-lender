@@ -22,6 +22,8 @@ final class HomeGateViewModel {
     static let loadFailedMessage = "Couldn't load your details. Try again."
     /// AL-258: with no email, a profile can't be saved, so "Your details" can't help.
     static let noEmailMessage = "This account has no email address. Please sign in with email or Google."
+    /// AL-295: the saved login's account was deleted or disabled.
+    static let sessionEndedMessage = AccountError.sessionEnded.message
 
     private(set) var state = State.loading
 
@@ -38,6 +40,10 @@ final class HomeGateViewModel {
             let profile = try await service.loadProfile()
             state = profile.needsBroker ? .chooseBroker : .home(profile)
         } catch {
+            if error as? AccountError == .sessionEnded {
+                state = .mustSignOut(Self.sessionEndedMessage)
+                return
+            }
             if error as? AccountError == .noProfile {
                 // `signedInUser` is nil when Firebase's user has no email.
                 state = service.signedInUser.map(State.needsDetails) ?? .mustSignOut(Self.noEmailMessage)

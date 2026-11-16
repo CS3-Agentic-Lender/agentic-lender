@@ -104,6 +104,7 @@ extension AccountError {
         case .invalidEmail: self = .invalidEmail
         case .weakPassword: self = .weakPassword
         case .networkError: self = .network
+        case .userNotFound, .userDisabled, .userTokenExpired: self = .sessionEnded
         default: self = .unknown
         }
     }
