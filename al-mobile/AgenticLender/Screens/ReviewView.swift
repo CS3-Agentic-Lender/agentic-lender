@@ -49,8 +49,8 @@ struct ReviewView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
                 FormField("Comment (optional)", error: model.form.commentError) {
                     VStack(alignment: .trailing, spacing: 4) {
                         TextField("", text: $model.form.comment, axis: .vertical)
@@ -109,8 +109,8 @@ struct ReviewView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(16)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
             .accessibilityElement(children: .combine)
             Spacer()
             SecondaryButton(title: "Edit review") { model.edit() }
