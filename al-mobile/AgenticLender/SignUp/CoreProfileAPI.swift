@@ -48,9 +48,12 @@ struct CoreProfileAPI: Sendable {
     }
 
     /// The signed-in borrower's profile: their name for the greeting and their broker, if chosen.
+    /// A 401 means al-core refused a token Firebase still refreshed, as just after the account was
+    /// deleted or disabled; retrying sends the same token, so the session has ended (AL-295).
     func profile(idToken: String) async throws -> CoreProfile {
         let (data, status) = try await perform(request(Self.path, idToken: idToken))
         if status == 404 { throw AccountError.noProfile }
+        if status == 401 { throw AccountError.sessionEnded }
         return try decode(CoreProfile.self, from: data, status: status, call: "GET /core/me")
     }
 

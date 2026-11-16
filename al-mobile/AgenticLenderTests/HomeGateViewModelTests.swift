@@ -77,6 +77,17 @@ final class HomeGateViewModelTests: XCTestCase {
         XCTAssertEqual(gate.state, .needsDetails(GoogleUser(email: "gina@gmail.com", name: "Gina Walsh")))
     }
 
+    func testAnAccountThatNoLongerExistsIsSignedOutNotLeftOnRetry() async {
+        let service = FakeProfileService()
+        service.profileResult = .failure(.sessionEnded) // the token refresh failed: account gone or disabled
+        let gate = HomeGateViewModel(service: service)
+
+        await gate.load()
+
+        XCTAssertEqual(gate.state, .mustSignOut(HomeGateViewModel.sessionEndedMessage))
+        XCTAssertEqual(HomeGateViewModel.sessionEndedMessage, "Your session has ended. Please sign in again.")
+    }
+
     func testASignedInUserWithNoEmailAndNoProfileIsSignedOutNotLeftOnRetry() async {
         let service = FakeProfileService()
         service.profileResult = .failure(.noProfile)

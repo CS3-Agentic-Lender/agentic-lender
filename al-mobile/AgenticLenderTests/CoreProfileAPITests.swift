@@ -192,6 +192,21 @@ final class CoreProfileAPITests: XCTestCase {
         }
     }
 
+    /// AL-295: just after the account is deleted or disabled, the cached token still refreshes, and
+    /// al-core refuses it instead. Retrying sends the same token, so the session has ended.
+    func testProfileRefusedTokenMeansTheSessionHasEnded() async throws {
+        let network = FakeNetwork()
+        network.status = 401
+        network.body = #"{"error": {"code": "UNAUTHENTICATED", "message": "The token is missing, expired or invalid"}}"#
+
+        do {
+            _ = try await api(network).profile(idToken: "test-token")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? AccountError, .sessionEnded)
+        }
+    }
+
     func testProfileFailsOnABadAnswer() async throws {
         for (status, body) in [(500, "{}"), (200, "not json"), (200, #"{"uid": "u1"}"#)] {
             let network = FakeNetwork()

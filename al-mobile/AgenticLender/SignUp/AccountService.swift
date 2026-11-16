@@ -26,6 +26,9 @@ enum AccountError: Error, Equatable {
     case profileNotSaved
     /// Signed in, but al-core has no profile for this user yet (`GET /core/me` 404).
     case noProfile
+    /// The saved login's account no longer exists or is disabled, so its token can't be refreshed
+    /// (AL-295). Trying again can't help; only signing in again can.
+    case sessionEnded
     case unknown
 
     var message: String {
@@ -42,6 +45,8 @@ enum AccountError: Error, Equatable {
             "Your details couldn't be saved. Try again."
         case .noProfile:
             "Finish your details to continue."
+        case .sessionEnded:
+            "Your session has ended. Please sign in again."
         case .unknown:
             "Something went wrong creating your account. Try again."
         }
@@ -52,7 +57,7 @@ enum AccountError: Error, Equatable {
         switch self {
         case .emailAlreadyInUse, .invalidEmail: .email
         case .weakPassword: .password
-        case .network, .profileNotSaved, .noProfile, .unknown: nil
+        case .network, .profileNotSaved, .noProfile, .sessionEnded, .unknown: nil
         }
     }
 }
