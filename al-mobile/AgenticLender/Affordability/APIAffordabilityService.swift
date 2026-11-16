@@ -5,6 +5,9 @@ import os
 /// for a mortgage or, with `loan_type: heloc`, a HELOC.
 struct APIAffordabilityService: AffordabilityService, HELOCService {
     static let path = "ai/affordability"
+    /// A request that hangs shows "Check your connection" after this, not URLSession's 60 seconds
+    /// (AL-261). A timeout is a `URLError`, so it reads as a dropped connection, with Retry.
+    static let timeout: TimeInterval = 15
 
     let baseURL: URL
     let session: URLSession
@@ -38,7 +41,7 @@ struct APIAffordabilityService: AffordabilityService, HELOCService {
         let idToken = idToken
         return APIGateway(
             baseURL: baseURL, session: session, idToken: { try await idToken(forcingRefresh) },
-            logger: Logger(category: "Affordability")
+            logger: Logger(category: "Affordability"), timeout: Self.timeout
         )
     }
 }
