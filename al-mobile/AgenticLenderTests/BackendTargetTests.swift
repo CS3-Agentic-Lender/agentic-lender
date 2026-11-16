@@ -1,0 +1,54 @@
+import XCTest
+@testable import AgenticLender
+
+/// The demo build switch: the `AL_BACKEND` build setting points the app at the local emulators
+/// and gateway (`LOCAL`, the default) or the hosted Firebase project and API (`HOSTED`).
+final class BackendTargetTests: XCTestCase {
+    private let complete = HostedFirebase(projectID: "al-demo", apiKey: "key", appID: "1:2:ios:3", senderID: "2")
+
+    // MARK: - The API address
+
+    func testAnOrdinaryBuildIsLocal() {
+        XCTAssertEqual(BackendTarget.current, .local, "unit tests run on a build without AL_BACKEND=HOSTED")
+    }
+
+    func testAHostedBuildCallsTheDeployedAPI() {
+        let config = BackendConfig(environment: [:], target: .hosted)
+
+        XCTAssertEqual(config.apiBaseURL.absoluteString, "https://api.agentic-lender.com")
+    }
+
+    func testAHostedBuildIgnoresTheEmulatorHost() {
+        let config = BackendConfig(environment: ["EMULATOR_HOST": "192.168.1.20"], target: .hosted)
+
+        XCTAssertEqual(config.apiBaseURL.absoluteString, "https://api.agentic-lender.com")
+    }
+
+    func testALocalBuildStillCallsTheLocalGateway() {
+        let config = BackendConfig(environment: ["EMULATOR_HOST": "192.168.1.20"], target: .local)
+
+        XCTAssertEqual(config.apiBaseURL.absoluteString, "http://192.168.1.20:8000")
+    }
+
+    // MARK: - Firebase
+
+    func testALocalBuildUsesTheEmulators() {
+        let plan = FirebaseSetup.plan(for: BackendConfig(environment: ["EMULATOR_HOST": "mac.local"], target: .local))
+
+        XCTAssertEqual(plan, .emulators(host: "mac.local"))
+    }
+
+    func testAHostedBuildUsesTheHostedProject() {
+        let plan = FirebaseSetup.plan(for: BackendConfig(environment: [:], target: .hosted), hosted: complete)
+
+        XCTAssertEqual(plan, .hosted(complete))
+    }
+
+    func testAHostedBuildNamesEveryMissingFirebaseSetting() {
+        let partial = HostedFirebase(projectID: "al-demo", apiKey: " ", appID: "", senderID: "2")
+
+        let plan = FirebaseSetup.plan(for: BackendConfig(environment: [:], target: .hosted), hosted: partial)
+
+        XCTAssertEqual(plan, .missing(["apiKey", "appID"]))
+    }
+}

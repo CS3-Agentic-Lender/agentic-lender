@@ -1,6 +1,7 @@
 import Foundation
 
-/// Where the app finds the local Firebase emulators started from `al-core/`, and the local API gateway.
+/// Where the app finds the local Firebase emulators started from `al-core/`, and the local API gateway,
+/// or for the demo build (`BackendTarget.hosted`) the deployed API.
 ///
 /// The iOS Simulator shares the Mac's network, so `localhost` works there.
 /// A real iPhone can't see the Mac as `localhost`: set `EMULATOR_HOST` to the
@@ -13,13 +14,16 @@ struct BackendConfig: Equatable {
     // The local API gateway, which forwards /ai/* and /core/* (docs/infrastructure.md).
     static let apiGatewayPort = 8000
 
+    let target: BackendTarget
     let emulatorHost: String
     /// The block explorer's transaction address, such as "https://amoy.polygonscan.com/tx/", for the loan
     /// note's "View on block explorer". Nil on the local Hardhat chain, which has no explorer.
     let blockExplorerTxURL: String?
 
-    /// Where the app sends API calls: the local gateway on the same host as the emulators.
+    /// Where the app sends API calls: the deployed API on a hosted build, otherwise the local gateway
+    /// on the same host as the emulators.
     var apiBaseURL: URL {
+        if target == .hosted { return URL(string: HostedBackend.apiBaseURL)! }
         var components = URLComponents()
         components.scheme = "http"
         components.host = emulatorHost
@@ -27,7 +31,8 @@ struct BackendConfig: Equatable {
         return components.url!
     }
 
-    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+    init(environment: [String: String] = ProcessInfo.processInfo.environment, target: BackendTarget = .current) {
+        self.target = target
         let host = environment["EMULATOR_HOST"]?.trimmingCharacters(in: .whitespaces) ?? ""
         emulatorHost = host.isEmpty ? Self.defaultEmulatorHost : host
         let explorer = environment["BLOCK_EXPLORER_TX_URL"]?.trimmingCharacters(in: .whitespaces) ?? ""

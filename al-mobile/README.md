@@ -63,6 +63,17 @@ The app talks to the Firebase emulators started from `al-core/` (see [al-core/RE
 
 No `GoogleService-Info.plist` or API key is needed: local development uses the `demo-al` emulator project.
 
+## Demo build
+
+The `AL_BACKEND` build setting picks the backend: `LOCAL` (the default) uses the emulators and the local gateway above, and `HOSTED` uses the hosted Firebase project and the deployed API at `https://api.agentic-lender.com`. It's built into the app, so it holds when the app is opened from the home screen.
+
+```bash
+xcodebuild build -project AgenticLender.xcodeproj -scheme AgenticLender \
+  -destination 'platform=iOS Simulator,name=iPhone 17' AL_BACKEND=HOSTED
+```
+
+The hosted Firebase settings go in `HostedBackend.firebase` (`AgenticLender/Config/BackendTarget.swift`), from the iOS app registered in the hosted Firebase project. Until they're filled in, a `HOSTED` build stops at launch and names the missing ones.
+
 ## Running on your own iPhone
 
 1. Plug the iPhone into the Mac and select it as the run destination.
