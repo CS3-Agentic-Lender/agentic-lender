@@ -8,6 +8,8 @@ import os
 /// A dropped connection or server error on the save is tried once more (`ProfileSaveStep`). If the
 /// profile still can't be saved, the new login is deleted again so the borrower can retry with the
 /// same email instead of being left with half an account.
+///
+/// Once the account is complete, Firebase emails a link to verify the address (AL-249).
 struct FirebaseAccountService: AccountService {
     let profileAPI: CoreProfileAPI
 
@@ -61,6 +63,12 @@ struct FirebaseAccountService: AccountService {
         ).run()
 
         await refreshRole(of: user)
+        await VerificationEmailStep(
+            send: { try await user.sendEmailVerification() },
+            logFailure: { error in
+                logger.error("Requesting the verification email failed: \(error.localizedDescription, privacy: .public)")
+            }
+        ).run()
         return user.uid
     }
 
