@@ -437,6 +437,23 @@ describe('reviews', () => {
     assertFails(broker1().doc('reviews/borrower1').get()));
   test("a borrower can't write their review directly", () =>
     assertFails(borrower1().doc('reviews/borrower1').set({ userId: 'borrower1', rating: 1 })));
+  test("a borrower can't change or delete their own review directly", async () => {
+    await assertFails(borrower1().doc('reviews/borrower1').update({ rating: 1 }));
+    await assertFails(borrower1().doc('reviews/borrower1').delete());
+  });
+  test("a borrower can't write someone else's review, or a review with 6 stars or a long comment", async () => {
+    await assertFails(borrower2().doc('reviews/borrower1').set({ userId: 'borrower1', rating: 1 }));
+    await assertFails(borrower2().doc('reviews/borrower2').set({ userId: 'borrower2', rating: 6 }));
+    await assertFails(borrower2().doc('reviews/borrower2').set({ userId: 'borrower2', rating: 5, comment: 'x'.repeat(501) }));
+  });
+  test("an underwriter can't write a review directly", async () => {
+    await assertFails(underwriter().doc('reviews/borrower1').update({ rating: 1 }));
+    await assertFails(underwriter().doc('reviews/borrower1').delete());
+  });
+  test("a borrower can't list everyone's reviews", () =>
+    assertFails(borrower1().collection('reviews').get()));
+  test("a signed-out visitor can't read a review", () =>
+    assertFails(signedOut().doc('reviews/borrower1').get()));
 });
 
 // Real-time status (AL-59): clients listen to the application and see each status change as it is
