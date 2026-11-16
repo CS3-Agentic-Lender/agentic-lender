@@ -67,7 +67,7 @@ struct MessagesView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Text(Self.initials(of: brokerName))
+            Text(PersonName.initials(of: brokerName))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.pine)
                 .frame(width: 40, height: 40)
@@ -133,12 +133,6 @@ struct MessagesView: View {
         .padding(32)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("messages.note")
-    }
-
-    /// "BB" for Bob Byrne.
-    static func initials(of name: String?) -> String {
-        let letters = (name ?? "").split(whereSeparator: \.isWhitespace).prefix(2).compactMap(\.first)
-        return letters.isEmpty ? "?" : String(letters).uppercased()
     }
 
     private static func firstName(of name: String?) -> String? {

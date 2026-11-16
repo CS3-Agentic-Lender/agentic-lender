@@ -24,7 +24,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `applications/{id}/readState/{uid}` | That person only | al-core | When that person last opened the thread |
 | `ai_runs/{runId}` | The assigned broker, underwriters | al-ai | One record per committee run |
 | `ai_calls/{callId}` | The assigned broker, underwriters | al-ai | One record per AI call |
-| `support_requests/{requestId}` | The user who sent it, underwriters | al-core (`POST /core/support-requests`) | A support request from a user |
+| `support_requests/{reference}` | The user who sent it, underwriters | al-core (`POST /core/support-requests`) | A support request from a user |
 | `reviews/{uid}` | That user, underwriters | al-core (`PUT /core/reviews/me`) | One review per user |
 | `users/{uid}/saved_checks/{checkId}` | That user | al-core (`POST` and `DELETE /core/saved-checks`) | A borrower's saved property checks |
 
@@ -289,16 +289,18 @@ One document for every call behind a decision, so the demo can prove each was re
 
 If a call cannot be saved twice, the step fails, because no decision should rest on a call that cannot be shown.
 
-## support_requests/{requestId} (proposal, from the API design doc's endpoints)
+## support_requests/{reference}
 
-Who reads it: the user who sent it, underwriters. Written by al-core (`POST /core/support-requests`).
+A support request a borrower sent from the app. The document id is the reference number the borrower sees (`SR-` and 8 characters, for example `SR-7KQ2M9XD`), so it is unique: al-core creates the document and never replaces one. Who reads it: the user who sent it, underwriters. Written by al-core only (`POST /core/support-requests`), never by a client.
 
 | Field | Type | Notes |
 |---|---|---|
-| `userId` | string | uid of the sender |
-| `subject` | string | |
-| `message` | string | |
-| `status` | string | `open` or `closed` |
+| `userId` | string | uid of the sender, taken from the token |
+| `category` | string | `application`, `payment`, `account` or `other` |
+| `subject` | string | 1 to 100 characters |
+| `message` | string | 1 to 2000 characters |
+| `applicationId` | string or null | The id of one of the sender's own applications, when they chose to include it, so whoever answers can open it. Null otherwise. al-core checks it belongs to the sender before saving |
+| `status` | string | `open` when sent. Nothing closes a request yet, so `closed` is not written by anything |
 | `createdAt` | timestamp | |
 
 ## reviews/{uid}

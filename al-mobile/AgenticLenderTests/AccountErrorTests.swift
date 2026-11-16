@@ -14,6 +14,12 @@ final class AccountErrorTests: XCTestCase {
         XCTAssertEqual(AccountError(authError: authError(.networkError)), .network)
     }
 
+    func testAnAccountThatIsGoneOrDisabledMeansTheSessionHasEnded() {
+        XCTAssertEqual(AccountError(authError: authError(.userNotFound)), .sessionEnded)
+        XCTAssertEqual(AccountError(authError: authError(.userDisabled)), .sessionEnded)
+        XCTAssertEqual(AccountError(authError: authError(.userTokenExpired)), .sessionEnded)
+    }
+
     func testOtherFirebaseCodesAreUnknown() {
         XCTAssertEqual(AccountError(authError: authError(.internalError)), .unknown)
     }

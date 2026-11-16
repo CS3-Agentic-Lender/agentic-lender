@@ -424,6 +424,24 @@ describe('support_requests', () => {
     assertFails(broker1().doc('support_requests/req1').get()));
   test("a borrower can't create a support request directly", () =>
     assertFails(borrower1().collection('support_requests').add({ userId: 'borrower1', subject: 'Hi' })));
+  test("a borrower can't create one under a reference of their choosing", () =>
+    assertFails(borrower1().doc('support_requests/SR-AAAAAAAA').set({
+      userId: 'borrower1', category: 'other', subject: 'Hi', message: 'Hi', status: 'open',
+    })));
+  test("a borrower can't change or delete their own support request", async () => {
+    await assertFails(borrower1().doc('support_requests/req1').update({ status: 'closed' }));
+    await assertFails(borrower1().doc('support_requests/req1').delete());
+  });
+  test("an underwriter can't write a support request directly", async () => {
+    await assertFails(underwriter().doc('support_requests/req1').update({ status: 'closed' }));
+    await assertFails(underwriter().doc('support_requests/req1').delete());
+  });
+  test("a borrower can't list everyone's support requests", () =>
+    assertFails(borrower1().collection('support_requests').get()));
+  test("a borrower can list their own support requests", () =>
+    assertSucceeds(borrower1().collection('support_requests').where('userId', '==', 'borrower1').get()));
+  test("a signed-out visitor can't read a support request", () =>
+    assertFails(signedOut().doc('support_requests/req1').get()));
 });
 
 describe('reviews', () => {

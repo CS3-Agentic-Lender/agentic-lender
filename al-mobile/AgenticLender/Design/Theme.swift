@@ -22,6 +22,8 @@ enum Theme {
     static let dangerBadge = Color(hex: 0xFEE2E2)
 
     static let cornerRadius: CGFloat = 10
+    /// The cards on Figma Home and Profile (frames Home and 19).
+    static let cardCornerRadius: CGFloat = 16
     static let fieldHeight: CGFloat = 50
     static let screenPadding: CGFloat = 16
     /// Apple's minimum touch target.
