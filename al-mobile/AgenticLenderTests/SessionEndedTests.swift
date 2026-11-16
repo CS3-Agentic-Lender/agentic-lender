@@ -68,6 +68,17 @@ final class SessionEndedTests: XCTestCase {
             XCTAssertTrue(SessionCheck.accountIsGone(authError(code)), "\(code)")
         }
         XCTAssertFalse(SessionCheck.accountIsGone(authError(.networkError)))
+
+        // How FirebaseAuth wraps a server message it has no code for, such as the emulator's.
+        func wrapped(_ message: String) -> NSError {
+            let server = NSError(domain: "FIRAuthInternalErrorDomain", code: 3,
+                                 userInfo: ["FIRAuthErrorUserInfoDeserializedResponseKey": ["code": 400, "message": message]])
+            return NSError(domain: AuthErrorDomain, code: AuthErrorCode.internalError.rawValue,
+                           userInfo: [NSUnderlyingErrorKey: server])
+        }
+        XCTAssertTrue(SessionCheck.accountIsGone(wrapped("INVALID_REFRESH_TOKEN")))
+        XCTAssertTrue(SessionCheck.accountIsGone(wrapped("USER_DISABLED")))
+        XCTAssertFalse(SessionCheck.accountIsGone(wrapped("QUOTA_EXCEEDED")))
         XCTAssertFalse(SessionCheck.accountIsGone(URLError(.timedOut)))
     }
 

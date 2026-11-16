@@ -1,4 +1,5 @@
 import FirebaseAuth
+import os
 
 /// Firebase Auth's saved login, kept in the keychain between launches.
 struct FirebaseSignedInState: SignedInState {
@@ -38,10 +39,12 @@ extension SessionCheck {
             guard let user = Auth.auth().currentUser else { return }
             do {
                 _ = try await user.getIDTokenResult(forcingRefresh: true)
-            } catch where accountIsGone(error) {
-                try? Auth.auth().signOut()
+                Logger(category: "Session").info("Token refresh after a 401 succeeded")
             } catch {
-                // A network failure: the screen keeps its own Retry.
+                let nsError = error as NSError
+                Logger(category: "Session").error("Token refresh after a 401 failed: \(nsError.domain, privacy: .public) \(nsError.code, privacy: .public)")
+                // A network failure keeps the screen's own Retry.
+                if accountIsGone(error) { try? Auth.auth().signOut() }
             }
         }
     }
@@ -50,6 +53,20 @@ extension SessionCheck {
     nonisolated static func accountIsGone(_ error: Error) -> Bool {
         let nsError = error as NSError
         guard nsError.domain == AuthErrorDomain, let code = AuthErrorCode(rawValue: nsError.code) else { return false }
+        if code == .internalError, let message = serverMessage(in: nsError) {
+            return refusedSessionMessages.contains(message)
+        }
         return [.userNotFound, .userDisabled, .userTokenExpired, .invalidUserToken].contains(code)
+    }
+
+    /// Server answers FirebaseAuth has no error code for, so it reports them as `internalError`. The Auth
+    /// emulator answers a deleted user's refresh with INVALID_REFRESH_TOKEN.
+    private nonisolated static let refusedSessionMessages: Set<String> = ["INVALID_REFRESH_TOKEN", "USER_DISABLED", "USER_NOT_FOUND"]
+
+    /// The server's message, which FirebaseAuth keeps inside the `internalError`'s underlying error.
+    private nonisolated static func serverMessage(in error: NSError) -> String? {
+        let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError
+        let response = underlying?.userInfo["FIRAuthErrorUserInfoDeserializedResponseKey"] as? [String: Any]
+        return (response?["message"] as? String).map { $0.components(separatedBy: ":")[0].trimmingCharacters(in: .whitespaces) }
     }
 }
