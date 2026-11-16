@@ -8,10 +8,10 @@ extension APIAffordabilityService {
     }
 
     @Sendable
-    private static func currentIDToken() async throws -> String {
+    private static func currentIDToken(forcingRefresh: Bool) async throws -> String {
         guard let user = Auth.auth().currentUser else { throw AffordabilityError.signedOut }
         do {
-            return try await user.getIDToken()
+            return try await user.getIDTokenResult(forcingRefresh: forcingRefresh).token
         } catch {
             let code = AuthErrorCode(rawValue: (error as NSError).code)
             throw code == .networkError ? AffordabilityError.network : AffordabilityError.signedOut
