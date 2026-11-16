@@ -113,6 +113,27 @@ final class APIAffordabilityServiceTests: XCTestCase {
         await assertThrows(.network) { try await self.service().calculate(self.request()) }
     }
 
+    // MARK: - AL-261: 15 second timeout
+
+    func testTheRequestGivesUpAfter15Seconds() async throws {
+        StubURLProtocol.response = (200, TestFixtures.affordabilityJSON())
+
+        _ = try await service().calculate(request())
+
+        XCTAssertEqual(try XCTUnwrap(StubURLProtocol.lastRequest).timeoutInterval, 15)
+        XCTAssertEqual(APIAffordabilityService.timeout, 15)
+    }
+
+    func testATimedOutRequestShowsTheSameMessageAsADroppedConnection() async {
+        StubURLProtocol.failure = URLError(.timedOut)
+
+        await assertThrows(.network) { try await self.service().calculate(self.request()) }
+        XCTAssertEqual(
+            AffordabilityError.network.message,
+            "We couldn't calculate right now. Check your connection and try again."
+        )
+    }
+
     func testAServerErrorIsUnavailable() async {
         for status in [422, 500, 503] {
             StubURLProtocol.response = (status, #"{"error": {"code": "INTERNAL"}}"#)

@@ -18,6 +18,8 @@ struct APIGateway {
     /// The signed-in user's ID token. Whatever it throws reaches the caller unchanged.
     let idToken: @Sendable () async throws -> String
     let logger: Logger
+    /// How long to wait for an answer before giving up as `.network`; URLSession's 60 seconds if nil.
+    var timeout: TimeInterval?
 
     /// Sends the body and decodes a 2xx answer. A 401 is `.signedOut`; any other status, or an answer
     /// that doesn't decode, is `.unavailable`.
@@ -28,6 +30,7 @@ struct APIGateway {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
+        if let timeout { request.timeoutInterval = timeout }
 
         let (data, response) = try await send(request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
