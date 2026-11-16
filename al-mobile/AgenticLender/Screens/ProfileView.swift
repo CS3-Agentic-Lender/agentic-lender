@@ -12,6 +12,7 @@ struct ProfileView: View {
     var applicationID: String?
     @State private var isChangingBroker = false
     @State private var isShowingSupport = false
+    @State private var isShowingReview = false
 
     private var summary: ProfileSummary { ProfileSummary(profile: model.profile, email: email) }
 
@@ -36,6 +37,9 @@ struct ProfileView: View {
                 model.brokerChanged(profile)
                 isChangingBroker = false
             }
+        }
+        .navigationDestination(isPresented: $isShowingReview) {
+            ReviewView(service: APIReviewService.live())
         }
         .navigationDestination(isPresented: $isShowingSupport) {
             SupportFormView(
@@ -99,6 +103,12 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("profile.support")
+        case .rateTheApp:
+            Button { isShowingReview = true } label: {
+                rowLabel("Rate the app", value: nil)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("profile.review")
         }
     }
 

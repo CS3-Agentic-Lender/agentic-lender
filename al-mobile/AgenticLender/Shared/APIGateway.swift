@@ -24,9 +24,18 @@ struct APIGateway {
     /// Sends the body and decodes a 2xx answer. A 401 is `.signedOut`; any other status, or an answer
     /// that doesn't decode, is `.unavailable`.
     func post<Result>(_ path: String, body: Data, decode: (Data) throws -> Result) async throws -> Result {
+        try await call("POST", path, body: body, decode: decode)
+    }
+
+    /// As `post`, for an endpoint that replaces what's there, such as `PUT /core/reviews/me`.
+    func put<Result>(_ path: String, body: Data, decode: (Data) throws -> Result) async throws -> Result {
+        try await call("PUT", path, body: body, decode: decode)
+    }
+
+    private func call<Result>(_ method: String, _ path: String, body: Data, decode: (Data) throws -> Result) async throws -> Result {
         let token = try await idToken()
         var request = URLRequest(url: baseURL.appending(path: path))
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
