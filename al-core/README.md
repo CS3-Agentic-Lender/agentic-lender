@@ -135,6 +135,8 @@ These need no emulator.
 | `POST /core/applications/{id}/messages/read` | The same three | No body. Also records the caller's own last-read time, the send time of the newest message when they opened the thread (nothing is written again if nothing is new), together with the flags or not at all, so `GET .../messages/unread` gives `0` afterwards. Marks the unread messages sent *to the caller's side* as read and returns `{"marked": n}`: the borrower clears what the broker and the underwriters sent, and a broker or an underwriter clears what the borrower sent. So a broker opening the thread never clears an underwriter's message to the borrower, and the borrower's unread count stays right. The `read` flag of a message between the broker and an underwriter is left alone: use `GET .../messages/unread` for a per-person count, which does count it for the one it was sent to. The messages are updated together, all or none. Safe to repeat. The apps read the messages straight from Firestore (`applications/{id}/messages`); this is the only way to change `read` |
 | `POST /core/saved-checks` | Borrower | Keeps a property check the borrower ran. Send `property` (`county`, `eircode`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and an optional `asking_price_eur`, the application's names and limits) plus the result you already have: `estimated_value_eur`, `asking_price_gap`, `price_needs_review`, `support_warnings` and `model_version`. al-core validates and stores it and does not call al-ai again. `201` with the saved check and its `id`. The gap and the flag must be null or left out when there is no asking price. At most 20 per borrower: the 21st is `409`. `422` names the field (`property.eircode`) |
 | `POST /core/support-requests` | Borrower | Sends a support request. Send `category` (`application`, `payment`, `account` or `other`), `subject` (1 to 100 characters) and `message` (1 to 2000), all required, and optionally `application_id`, one of the borrower's own applications (someone else's or an unknown id is `404`). `201` with `reference` (for example `SR-7KQ2M9XD`, unique, also the document id), the fields, `application_id` (null if none), `status` (`open`) and `created_at`. The borrower's id comes from the token. The borrower reads their own requests from Firestore, underwriters read all. `422` names the field |
+| `POST /core/applications/{id}/fee-intent` | Borrower (their own) | Starts the EUR 150 fast-track fee for an application that is Applied or AI Deliberated. No body. `200` with `client_secret` (for the payment sheet), `payment_intent_id` and `amount_eur` (150). Saves `feeIntentId` and `feeStatus: "unpaid"` on the application. Asking again returns the same intent. `409` for a Draft, a decided application, or one already paid; `404` for someone else's; `502` if Stripe cannot be reached; `503` if the Stripe settings are missing. Test keys only |
+| `POST /core/webhooks/stripe` | Stripe (no Firebase token) | The only thing that marks the fee paid. Believed only when Stripe's signature on the raw body is valid (`400` otherwise). On `payment_intent.succeeded` for the saved intent, EUR 150, it sets `feeStatus: "paid"`, `feePaidAt` and `fastTrack: true` in one write. Anything else is acknowledged with `200` and changes nothing. See "The fast-track fee" below |
 | `DELETE /core/saved-checks/{id}` | Borrower (their own) | Removes a saved check: `204`, and `404` for someone else's or an unknown id. There is no list endpoint: read `users/{uid}/saved_checks` from Firestore |
 | `GET /core/applications/{id}` | Borrower, broker, underwriter | One application: the borrower's own, a broker's assigned client's, or any for an underwriter. Anything else is `404`. It includes `ltv_band` (`80_or_less`, `80_to_90` or `over_90`) and `risk_tier` (`A` to `D`), which are `null` until al-ai sets them after a run. `POST` and `PATCH` ignore them if sent |
 
@@ -274,6 +276,28 @@ The close endpoint has its own end-to-end check against the emulators **and** a 
 ```
 uv run python scripts/smoke_close.py
 ```
+
+## The fast-track fee (Stripe test mode)
+
+A borrower with a submitted application can pay EUR 150 to be flagged fast-track. The app calls `POST /core/applications/{id}/fee-intent`, shows Stripe's payment sheet with the `client_secret`, and then waits for `feeStatus` on the application (read from Firestore) to become `paid`. Only Stripe's webhook sets it, together with `feePaidAt` and `fastTrack`.
+
+Test keys only: the server refuses a key that is not `sk_test_…` or `rk_test_…`. Put these in `.env` (names are in `.env.example`; never commit the values):
+
+```
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+To try it locally, with the emulators and the API running (see "Running the API"):
+
+```bash
+stripe login                                              # once, with the team's Stripe test account
+stripe listen --forward-to localhost:5002/core/webhooks/stripe
+# it prints "Your webhook signing secret is whsec_..." : put that in STRIPE_WEBHOOK_SECRET and restart the API
+stripe trigger payment_intent.succeeded                   # a payment that is not our fee: acknowledged, nothing changes
+```
+
+These Stripe CLI steps were written from Stripe's documentation and have not been run yet, because they need the team's Stripe test account. For a real run, call `fee-intent` as a borrower, then pay the intent with Stripe's test card `4242 4242 4242 4242` (any future expiry, any CVC): `stripe payment_intents confirm <payment_intent_id> --payment-method pm_card_visa`. The CLI forwards the success event and the application becomes `paid` and fast-track. `pm_card_chargeDeclined` is the declined card: the fee stays `unpaid`.
 
 ## Browser origins (CORS)
 

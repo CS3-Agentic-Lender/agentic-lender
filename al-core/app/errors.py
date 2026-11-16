@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException  # base class, so unknown-route 404s get the shape too
 
 CODES = {
+    400: "BAD_REQUEST",
     401: "UNAUTHENTICATED",
     403: "FORBIDDEN",
     404: "NOT_FOUND",
