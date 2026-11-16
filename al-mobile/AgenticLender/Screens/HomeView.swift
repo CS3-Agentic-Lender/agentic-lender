@@ -81,8 +81,8 @@ struct HomeView: View {
         .padding(Theme.screenPadding)
         .frame(maxWidth: .infinity, minHeight: Theme.minTapTarget, alignment: .leading)
         .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.line))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
         .contentShape(Rectangle())
     }
 }

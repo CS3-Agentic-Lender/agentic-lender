@@ -10,8 +10,8 @@ struct HomeApplicationCard: View {
         content
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Theme.screenPadding)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.6))
-            .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius * 1.6).stroke(Theme.line))
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
             .onAppear { model.start() }
     }
 
