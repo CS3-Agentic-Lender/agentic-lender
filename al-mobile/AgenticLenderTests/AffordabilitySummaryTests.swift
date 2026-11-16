@@ -104,7 +104,7 @@ final class AffordabilitySummaryTests: XCTestCase {
         XCTAssertEqual(summary.cantBorrow, AffordabilitySummary.CantBorrow(
             title: "You can't borrow yet",
             reason: "Your monthly debts already use up the 40% of income that can go on repayments, so there's nothing left for a mortgage.",
-            whatWouldChange: "Paying down your debts, or a higher income, would change this."
+            whatWouldChange: "Paying down your debts, or a higher income, would help."
         ))
     }
 
@@ -116,7 +116,7 @@ final class AffordabilitySummaryTests: XCTestCase {
         )
 
         XCTAssertEqual(summary.cantBorrow?.reason, "A mortgage needs a deposit of at least 10% of the price (90% LTV), so with no deposit there's nothing to lend.")
-        XCTAssertEqual(summary.cantBorrow?.whatWouldChange, "Saving a deposit would change this.")
+        XCTAssertEqual(summary.cantBorrow?.whatWouldChange, "Saving a deposit would help.")
     }
 
     func testNoIncomeToBorrowAgainstSaysSo() {
@@ -126,7 +126,7 @@ final class AffordabilitySummaryTests: XCTestCase {
         )
 
         XCTAssertEqual(summary.cantBorrow?.reason, "Lenders can lend up to 4× your income, and this income doesn't allow a loan.")
-        XCTAssertEqual(summary.cantBorrow?.whatWouldChange, "A higher income would change this.")
+        XCTAssertEqual(summary.cantBorrow?.whatWouldChange, "A higher income would help.")
     }
 
     /// Anything that shows as €0 counts, not only an exact zero.

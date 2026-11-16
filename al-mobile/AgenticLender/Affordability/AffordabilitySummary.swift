@@ -42,19 +42,21 @@ struct AffordabilitySummary: Hashable {
         }
     }
 
+    /// al-ai sends one `limited_by` (on a tie: income, then deposit, then debts), so another limit may be
+    /// at €0 too. The last line says what would help, never that one change alone is enough (AL-281).
     private static func cantBorrow(_ limit: AffordabilityResult.Limit, isFirstTimeBuyer: Bool) -> CantBorrow {
         let (reason, whatWouldChange) = switch limit {
         case .debts: (
             "Your monthly debts already use up the 40% of income that can go on repayments, so there's nothing left for a mortgage.",
-            "Paying down your debts, or a higher income, would change this."
+            "Paying down your debts, or a higher income, would help."
         )
         case .deposit: (
             "A mortgage needs a deposit of at least 10% of the price (90% LTV), so with no deposit there's nothing to lend.",
-            "Saving a deposit would change this."
+            "Saving a deposit would help."
         )
         case .income: (
             "Lenders can lend up to \(isFirstTimeBuyer ? "4" : "3.5")× your income, and this income doesn't allow a loan.",
-            "A higher income would change this."
+            "A higher income would help."
         )
         }
         return CantBorrow(title: "You can't borrow yet", reason: reason, whatWouldChange: whatWouldChange)
