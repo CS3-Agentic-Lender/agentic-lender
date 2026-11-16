@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var statusApplicationID: String?
     @State private var isChangingBroker = false
     @State private var isShowingMessages = false
+    @State private var isShowingProfile = false
     private let service: ProfileService
 
     /// `profile` is the one the gate loaded; `service` saves a change of broker; `messages` reads the
@@ -43,6 +44,20 @@ struct HomeView: View {
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarBackButtonHidden()
         .navigationBarTitleDisplayMode(.inline)
+        // Profile (AL-312, Figma 19) until the app has a tab bar.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { isShowingProfile = true } label: {
+                    Image(systemName: "person.crop.circle")
+                        .foregroundStyle(Theme.pine)
+                }
+                .accessibilityLabel("Profile")
+                .accessibilityIdentifier("home.profile")
+            }
+        }
+        .navigationDestination(isPresented: $isShowingProfile) {
+            ProfileView(model: model, email: service.signedInUser?.email, service: service)
+        }
         .navigationDestination(isPresented: $isChangingBroker) {
             BrokerPickerView(mode: .change(current: model.profile), service: service) { profile in
                 model.brokerChanged(profile)
