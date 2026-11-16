@@ -8,8 +8,8 @@
 # Costs nothing: this file creates no AWS resources.
 
 terraform {
-  # 1.10 is the first version that can lock the state with S3 alone (see state-bucket.tf).
-  required_version = ">= 1.10"
+  # 1.10 added locking the state with S3 alone (backend.tf); 1.15 added reading `aws login` sign-ins.
+  required_version = ">= 1.15"
 
   required_providers {
     aws = {

@@ -20,7 +20,6 @@ set -euo pipefail
 
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$DEPLOY_DIR/app"
-PLAN_FILE="$APP_DIR/al.tfplan"
 TARGET="aws"
 STATE_BUCKET="" # set by connect()
 
@@ -28,7 +27,7 @@ STATE_BUCKET="" # set by connect()
 
 say()  { printf '\n%s\n' "$*"; }
 fail() { printf '\nStopped: %s\n' "$*" >&2; exit 1; }
-tf()   { terraform -chdir="$APP_DIR" "$@"; }
+tf()   { TF_DATA_DIR="$APP_DIR/.terraform-$TARGET" terraform -chdir="$APP_DIR" "$@"; } # one working dir per target, so Floci and AWS runs never share settings
 
 ask() { # ask "question" "word the answer must be"
   local answer
@@ -38,23 +37,36 @@ ask() { # ask "question" "word the answer must be"
 
 # ---- connect to the right AWS --------------------------------------------------------------------
 
+# Each run gets its own plan file, deleted however the script ends (yes, no, an error or Ctrl-C),
+# so two runs at once can never apply each other's plan.
+PLAN_FILE="$(mktemp -t al-plan)"
+trap 'rm -f "$PLAN_FILE"' EXIT
+
 connect() {
   if [[ "$TARGET" == "floci" ]]; then
     curl -s -m 3 http://localhost:4566/_floci/health >/dev/null \
       || fail "Floci isn't reachable on localhost:4566. Open the tunnel first: ssh -f -N pc-aws"
     STATE_BUCKET="agentic-lender-tfstate-000000000000"
-    tf init -input=false -reconfigure -backend-config="$DEPLOY_DIR/backend-floci.hcl" >/dev/null
+    tf init -input=false -backend-config="$DEPLOY_DIR/backend-floci.hcl" >/dev/null
   else
-    aws sts get-caller-identity --profile agentic-lender >/dev/null 2>&1 \
+    # On a laptop, sign in with the agentic-lender profile. In GitHub Actions the OIDC credentials are
+    # already in the environment, so no profile is set.
+    if [[ -z "${GITHUB_ACTIONS:-}" ]]; then export AWS_PROFILE="${AWS_PROFILE:-agentic-lender}"; fi
+    local account
+    account="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)" \
       || fail "not signed in to the team account. Run: aws login --profile agentic-lender"
-    STATE_BUCKET="$(terraform -chdir="$DEPLOY_DIR/foundations" output -raw state_bucket 2>/dev/null)" \
-      || fail "can't find the state bucket. Has deploy/foundations been applied?"
-    tf init -input=false -reconfigure -backend-config="$DEPLOY_DIR/backend-aws.hcl" -backend-config="bucket=$STATE_BUCKET" >/dev/null
+    STATE_BUCKET="agentic-lender-tfstate-$account" # the name state-bucket.tf gives it
+    tf init -input=false -backend-config="$DEPLOY_DIR/backend-aws.hcl" -backend-config="bucket=$STATE_BUCKET" >/dev/null \
+      || fail "can't open the state bucket $STATE_BUCKET. Has deploy/foundations been applied?"
   fi
 }
 
 # The commit that is deployed now, or nothing if nothing is.
 deployed_tag() { tf output -raw image_tag 2>/dev/null || true; }
+
+# Whether Terraform's state holds anything at all. Checked instead of the tag, so a deploy that broke
+# half way (resources made, tag not recorded yet) still shows up and can still be taken down.
+has_resources() { [[ -n "$(tf state list 2>/dev/null)" ]]; }
 
 # The last build that was deployed, kept in the state bucket as app/last-release, so `up` still
 # knows which build to bring back after `down` has removed everything in deploy/app.
@@ -62,7 +74,7 @@ aws_cli() {
   if [[ "$TARGET" == "floci" ]]; then
     AWS_ENDPOINT_URL=http://localhost:4566 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=eu-west-1 aws "$@"
   else
-    aws --profile agentic-lender "$@"
+    aws "$@" # AWS_PROFILE (laptop) or the OIDC credentials (GitHub Actions), set in connect()
   fi
 }
 remember_tag()   { printf '%s' "$1" | aws_cli s3 cp - "s3://$STATE_BUCKET/app/last-release" --quiet; }
@@ -73,7 +85,7 @@ remembered_tag() { aws_cli s3 cp "s3://$STATE_BUCKET/app/last-release" - 2>/dev/
 # Prints one plain line per change in the saved plan, e.g. "  + create  aws_ssm_parameter.release".
 explain_plan() {
   tf show -json "$PLAN_FILE" | jq -r '
-    .resource_changes[]
+    (.resource_changes // [])[]
     | select(.change.actions != ["no-op"] and .change.actions != ["read"])
     | (.change.actions | if . == ["create"] then "+ create "
                          elif . == ["delete"] then "- remove "
@@ -90,7 +102,6 @@ plan_and_apply() {
   changes="$(explain_plan)"
   if [[ -z "$changes" ]]; then
     say "Nothing to do: AWS already matches. $summary"
-    rm -f "$PLAN_FILE"
     return
   fi
 
@@ -104,7 +115,6 @@ plan_and_apply() {
   fi
 
   tf apply -input=false "$PLAN_FILE"
-  rm -f "$PLAN_FILE"
 }
 
 where() { [[ "$TARGET" == "floci" ]] && echo "Floci (practice)" || echo "the real team AWS account"; }
@@ -129,10 +139,12 @@ cmd_deploy() {
 cmd_status() {
   say "Target:   $(where)"
   local tag; tag="$(deployed_tag)"
-  echo "Deployed: ${tag:-nothing}"
-  [[ -n "$tag" ]] || return 0
+  echo "Deployed: ${tag:-nothing recorded}"
+  has_resources || { echo "Resources: none"; return 0; }
   echo "Resources:"
   tf state list | sed 's/^/  /'
+  [[ -n "$tag" ]] || tag="$(remembered_tag)"
+  [[ -n "$tag" ]] || { echo "Drift:    can't check, no build recorded. Run ./deploy/al down to clean up."; return 0; }
   # -detailed-exitcode: 0 = AWS matches the code, 2 = something changed outside Terraform.
   local code=0
   tf plan -input=false -detailed-exitcode -var "target=$TARGET" -var "image_tag=$tag" >/dev/null || code=$?
@@ -144,10 +156,11 @@ cmd_status() {
 }
 
 cmd_down() {
-  local tag; tag="$(deployed_tag)"
-  [[ -n "$tag" ]] || { say "Nothing is deployed on $(where)."; return; }
+  has_resources || { say "Nothing is deployed on $(where)."; return; }
+  # A destroy ignores the tag's value, but the variable still needs a valid one.
+  local tag; tag="$(deployed_tag)"; [[ -n "$tag" ]] || tag="$(remembered_tag)"
   DOWN=1 plan_and_apply "down: remove everything billed by the hour. foundations (state, DNS, certificate) stays." \
-    -destroy -var "image_tag=$tag"
+    -destroy -var "image_tag=${tag:-0000000}"
 }
 
 # ---- read the command line -----------------------------------------------------------------------

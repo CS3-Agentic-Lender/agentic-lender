@@ -26,3 +26,8 @@ output "api_certificate_arn" {
   description = "The validated certificate for api.agentic-lender.com, used by the load balancer in deploy/app."
   value       = aws_acm_certificate_validation.api.certificate_arn
 }
+
+output "guardrails_boundary_arn" {
+  description = "deploy/app sets this as permissions_boundary on every IAM role it creates (named agentic-lender-app-*)."
+  value       = aws_iam_policy.guardrails.arn
+}

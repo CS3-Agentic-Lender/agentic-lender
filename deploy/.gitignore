@@ -1,5 +1,6 @@
 # Terraform working files: plugins, and state while it is still local (it moves to S3, see foundations/backend.tf).
 .terraform/
+.terraform-*/
 *.tfstate
 *.tfstate.*
 *.tfplan

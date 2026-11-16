@@ -17,9 +17,9 @@ variable "target" {
 }
 
 variable "aws_profile" {
-  description = "The AWS CLI profile to sign in with on the real account (the one `aws login` uses). Ignored for Floci."
+  description = "The AWS CLI profile to sign in with on the real account, e.g. \"agentic-lender\". null uses AWS_PROFILE or, in GitHub Actions, the OIDC credentials. Ignored for Floci."
   type        = string
-  default     = "agentic-lender"
+  default     = null
 }
 
 variable "region" {

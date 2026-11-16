@@ -47,57 +47,18 @@ resource "aws_iam_role" "github_deploy" {
   description          = "Used by GitHub Actions on main to push images and run deploys. Nothing else can use it."
   assume_role_policy   = data.aws_iam_policy_document.github_trust.json
   max_session_duration = 3600 # the temporary keys last at most 1 hour
+
+  # The ceiling from guardrails.tf. Whatever policies are attached, this role can never do what the
+  # ceiling denies, and it can't remove the ceiling.
+  permissions_boundary = aws_iam_policy.guardrails.arn
 }
 
 # WHAT the role may do. A deploy runs Terraform on deploy/app, which creates load balancers, ECS
 # services and their IAM roles, so it needs wide permissions; a tight list would break each time
 # deploy/app grows. The risk is kept small another way: only main can use it, keys last an hour, and
 # the budget action (AL-224) attaches a deny-everything policy to this role if spending runs away.
+# On top of that, the permissions boundary (guardrails.tf) caps what admin can actually do.
 resource "aws_iam_role_policy_attachment" "github_deploy_admin" {
   role       = aws_iam_role.github_deploy.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
-
-# ...but never against its own guardrails. In AWS an explicit Deny always beats an Allow, even
-# AdministratorAccess, so a deploy can't loosen the main-only rule above, delete this role, remove
-# the state bucket or switch off the budget kill switch. Nic's own login (which runs this folder)
-# isn't this role, so these stay changeable on purpose, through Terraform.
-data "aws_iam_policy_document" "github_deploy_guardrails" {
-  statement {
-    sid    = "CannotChangeItsOwnTrustOrPermissions"
-    effect = "Deny"
-    actions = [
-      "iam:UpdateAssumeRolePolicy", "iam:UpdateRole", "iam:DeleteRole",
-      "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy",
-      "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary",
-    ]
-    resources = [aws_iam_role.github_deploy.arn]
-  }
-
-  statement {
-    sid       = "CannotChangeWhoGitHubIs"
-    effect    = "Deny"
-    actions   = ["iam:*OpenIDConnectProvider*"]
-    resources = [aws_iam_openid_connect_provider.github.arn]
-  }
-
-  statement {
-    sid       = "CannotDeleteTheState"
-    effect    = "Deny"
-    actions   = ["s3:DeleteBucket", "s3:DeleteBucketPolicy", "s3:PutBucketVersioning", "s3:PutLifecycleConfiguration"]
-    resources = [aws_s3_bucket.state.arn]
-  }
-
-  statement {
-    sid       = "CannotTouchTheBudgetKillSwitch"
-    effect    = "Deny"
-    actions   = ["budgets:*"]
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_role_policy" "github_deploy_guardrails" {
-  name   = "guardrails"
-  role   = aws_iam_role.github_deploy.id
-  policy = data.aws_iam_policy_document.github_deploy_guardrails.json
 }
