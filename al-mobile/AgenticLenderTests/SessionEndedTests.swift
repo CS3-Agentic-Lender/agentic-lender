@@ -37,6 +37,21 @@ final class SessionEndedTests: XCTestCase {
         XCTAssertEqual(checks, 1)
     }
 
+    func testA401FromAClientOutsideTheGatewayChecksTheSessionToo() async {
+        var checks = 0
+        SessionCheck.tokenRefused = { checks += 1 }
+        StubURLProtocol.response = (401, #"{"error": {"code": "UNAUTHENTICATED"}}"#)
+        let client = APISavedCheckClient(baseURL: baseURL, session: StubURLProtocol.session, idToken: { "token" })
+
+        do {
+            try await client.delete(id: "check1")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? SavedCheckError, .signedOut)
+        }
+        XCTAssertEqual(checks, 1)
+    }
+
     func testANetworkFailureDoesntCheckTheSession() async {
         var checks = 0
         SessionCheck.tokenRefused = { checks += 1 }
