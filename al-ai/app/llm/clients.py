@@ -1,4 +1,4 @@
-"""One small client for each model provider: Gemini, Mistral, Groq and Ollama.
+"""One small client for each model provider: Gemini, Mistral, Groq, Ollama and Amazon Bedrock.
 
 Each call sends one structured-output request and returns the raw reply, the parsed JSON, the token counts when the
 provider gives them and the provider's request ID. There is no retry and no fallback: if the provider fails the call
@@ -6,6 +6,9 @@ raises LlmError and the caller decides what to do. Moving an agent to another pr
 
 Keys come from the environment and only ever go in a request header. They are never logged, and they are scrubbed
 from any error message in case a provider echoes them back.
+
+Bedrock has no key: its requests are signed with the AWS credentials of whoever runs the service (the ECS task role on
+the deployed app), and only the deployed app uses it (agents.aws.json). Local runs keep Ollama.
 """
 
 import json
@@ -24,6 +27,7 @@ TIMEOUT_S = 60
 # Groq sits behind Cloudflare, which answers HTTP 403 (error 1010) to Python's default "Python-urllib" User-Agent.
 USER_AGENT = "al-ai/0.1 (+https://github.com/CS3-Agentic-Lender/agentic-lender)"
 DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+DEFAULT_AWS_REGION = "eu-west-1"  # Ireland, where the deployment runs and where Qwen3 32B is served in-Region
 
 
 class LlmError(Exception):
@@ -159,11 +163,56 @@ def _read_ollama(headers: dict, body: dict):
     return body["message"]["content"], body.get("prompt_eval_count"), body.get("eval_count"), None  # Ollama has no request ID
 
 
+def _aws_region(env) -> str:
+    return (env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION") or DEFAULT_AWS_REGION).strip()
+
+
+def _build_bedrock(model, system, user, schema, key, env):
+    """Bedrock's Converse API with structured outputs, so the reply must match the schema like the other providers."""
+    url = f"https://bedrock-runtime.{_aws_region(env)}.amazonaws.com/model/{urllib.parse.quote(model, safe='')}/converse"
+    body = {
+        "system": [{"text": system}],
+        "messages": [{"role": "user", "content": [{"text": user}]}],
+        "inferenceConfig": {"temperature": 0},
+        "outputConfig": {"textFormat": {"type": "json_schema", "structure": {"jsonSchema": {"name": "reply", "schema": json.dumps(schema)}}}},
+    }
+    return url, {"Content-Type": "application/json"}, body
+
+
+def _read_bedrock(headers: dict, body: dict):
+    usage = body.get("usage") or {}
+    blocks = body["output"]["message"]["content"]
+    text = "".join(block["text"] for block in blocks if "text" in block)  # Qwen3 may add a reasoning block first; only the answer counts
+    return text, usage.get("inputTokens"), usage.get("outputTokens"), headers.get("x-amzn-requestid")
+
+
+def aws_credentials():
+    """The AWS credentials botocore finds: the ECS task role when deployed, a profile or `aws login` on a laptop. None if there are none."""
+    import botocore.session  # only loaded when Bedrock is used
+
+    found = botocore.session.get_session().get_credentials()
+    return found.get_frozen_credentials() if found else None
+
+
+def _sign_bedrock(url: str, headers: dict, data: bytes, env) -> dict:
+    """Signs the request with AWS Signature Version 4. The secret key is used to sign and is never sent or logged."""
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+
+    creds = aws_credentials()
+    if creds is None:
+        raise MissingKey("no AWS credentials were found for Bedrock (on ECS they come from the task role)")
+    request = AWSRequest(method="POST", url=url, data=data, headers=headers)
+    SigV4Auth(creds, "bedrock", _aws_region(env)).add_auth(request)
+    return dict(request.headers.items())
+
+
 @dataclass(frozen=True)
 class Provider:
     key_name: str | None  # the environment setting that holds the key, None when no key is needed
     build: Callable
     read: Callable
+    sign: Callable | None = None  # adds auth headers once the body is final (Bedrock's request signing)
 
 
 PROVIDERS = {
@@ -171,6 +220,7 @@ PROVIDERS = {
     "mistral": Provider("MISTRAL_API_KEY", _build_mistral, _read_openai_style),
     "groq": Provider("GROQ_API_KEY", _build_groq, _read_openai_style),
     "ollama": Provider(None, _build_ollama, _read_ollama),
+    "bedrock": Provider(None, _build_bedrock, _read_bedrock, _sign_bedrock),
 }
 
 
@@ -252,8 +302,11 @@ def complete_json(
     try:
         url, headers, body = spec.build(model, system, user, schema, key, env)
         headers = {**headers, "User-Agent": USER_AGENT}
+        data = json.dumps(body).encode()
+        if spec.sign:
+            headers = spec.sign(url, headers, data, env)
         try:
-            status, response_headers, raw = transport(url, headers, json.dumps(body).encode(), timeout)
+            status, response_headers, raw = transport(url, headers, data, timeout)
         except OSError as exc:  # no connection, a timeout, a refused connection
             raise LlmError(clean(f"{provider} could not be reached ({type(exc).__name__}: {exc})")) from None
         if status != 200:

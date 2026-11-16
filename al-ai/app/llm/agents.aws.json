@@ -1,0 +1,11 @@
+{
+  "agents": {
+    "valuation": {"provider": "groq", "model": "openai/gpt-oss-120b"},
+    "market": {"provider": "gemini", "model": "gemini-3.1-flash-lite"},
+    "strategist": {"provider": "gemini", "model": "gemini-3.1-flash-lite"},
+    "affordability": {"provider": "bedrock", "model": "qwen.qwen3-32b-v1:0"}
+  },
+  "backup": {
+    "valuation": {"provider": "gemini", "model": "gemini-3.1-flash-lite"}
+  }
+}
