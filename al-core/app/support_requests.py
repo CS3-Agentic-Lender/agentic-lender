@@ -4,13 +4,16 @@ A request is stored at support_requests/{reference} (SCHEMA.md). The reference i
 number shown to the borrower, so Firestore itself keeps it unique: create() refuses an id that exists, and the
 API tries a new reference. Only this API writes to the collection. The borrower reads their own requests, and
 underwriters read all of them, directly from Firestore (firestore.rules).
+
+A request can name one of the borrower's own applications (application_id), so whoever answers can open it.
+Someone else's application, or an unknown id, is a 404, the same as everywhere else in the API.
 """
 
 import secrets
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from google.api_core.exceptions import AlreadyExists
+from google.api_core.exceptions import AlreadyExists, InvalidArgument
 from google.cloud.firestore import SERVER_TIMESTAMP
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,6 +38,7 @@ class SupportRequestIn(BaseModel):
     category: Literal["application", "payment", "account", "other"]
     subject: str = Field(min_length=1, max_length=100)
     message: str = Field(min_length=1, max_length=2000)
+    application_id: str | None = Field(default=None, min_length=1, max_length=200)  # one of the borrower's own
 
 
 class SupportRequestOut(BaseModel):
@@ -42,6 +46,7 @@ class SupportRequestOut(BaseModel):
     category: str
     subject: str
     message: str
+    application_id: str | None
     status: str
     created_at: str | None
 
@@ -56,19 +61,34 @@ def _out(reference: str, doc: dict) -> dict:
         "category": doc["category"],
         "subject": doc["subject"],
         "message": doc["message"],
+        "application_id": doc.get("applicationId"),
         "status": doc["status"],
         "created_at": _iso(doc.get("createdAt")),
     }
 
 
+def _check_own_application(application_id: str, uid: str) -> None:
+    """404 unless the application exists and is this borrower's. Someone else's looks the same as no application."""
+    try:
+        snap = db().collection("applications").document(application_id).get()
+        found = snap.exists and snap.to_dict().get("borrowerId") == uid
+    except (ValueError, InvalidArgument):
+        found = False  # not a usable Firestore document id, so there can be no such application
+    if not found:
+        raise HTTPException(404, "No application with that id")
+
+
 @router.post("/support-requests", status_code=201, response_model=SupportRequestOut)
 def send_support_request(body: SupportRequestIn, user: dict = Depends(require_role("borrower"))):
     """Store a support request for the signed-in borrower and return it with its reference number."""
+    if body.application_id is not None:
+        _check_own_application(body.application_id, user["uid"])
     data = {
         "userId": user["uid"],
         "category": body.category,
         "subject": body.subject,
         "message": body.message,
+        "applicationId": body.application_id,
         "status": "open",
         "createdAt": SERVER_TIMESTAMP,
     }

@@ -299,6 +299,7 @@ A support request a borrower sent from the app. The document id is the reference
 | `category` | string | `application`, `payment`, `account` or `other` |
 | `subject` | string | 1 to 100 characters |
 | `message` | string | 1 to 2000 characters |
+| `applicationId` | string or null | The id of one of the sender's own applications, when they chose to include it, so whoever answers can open it. Null otherwise. al-core checks it belongs to the sender before saving |
 | `status` | string | `open` when sent. Nothing closes a request yet, so `closed` is not written by anything |
 | `createdAt` | timestamp | |
 
