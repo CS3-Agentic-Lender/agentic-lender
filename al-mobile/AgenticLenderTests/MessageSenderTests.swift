@@ -131,6 +131,16 @@ final class MessageSenderTests: XCTestCase {
         XCTAssertEqual(ThreadParticipants.headerSubtitle(brokerFirm: nil, lendingOfficerHasWritten: false), "Your broker")
     }
 
+    func testTheComposerAddressesTheBankOnceTheLendingOfficerHasWritten() {
+        XCTAssertEqual(ThreadParticipants.composerPlaceholder(brokerFirstName: "Bob", lendingOfficerHasWritten: false), "Message Bob")
+        XCTAssertEqual(ThreadParticipants.composerPlaceholder(brokerFirstName: "Bob", lendingOfficerHasWritten: true), "Message Bob and the bank")
+        XCTAssertEqual(ThreadParticipants.composerPlaceholder(brokerFirstName: nil, lendingOfficerHasWritten: false), "Message your broker")
+        XCTAssertEqual(
+            ThreadParticipants.composerPlaceholder(brokerFirstName: nil, lendingOfficerHasWritten: true),
+            "Message your broker and the bank"
+        )
+    }
+
     func testVoiceOverNamesTheSenderOfEveryReply() {
         let result = bubbles([
             message("1", from: "uw1", as: .underwriter, at: "29T09:40"),

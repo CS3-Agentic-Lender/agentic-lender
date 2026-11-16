@@ -31,7 +31,10 @@ struct MessagesView: View {
     private var composer: some View {
         let canSend = MessageInbox.canSend(draft)
         return HStack(alignment: .bottom, spacing: 8) {
-            TextField("Message \(Self.firstName(of: brokerName) ?? "your broker")", text: $draft, axis: .vertical)
+            TextField(ThreadParticipants.composerPlaceholder(
+                brokerFirstName: Self.firstName(of: brokerName),
+                lendingOfficerHasWritten: inbox.thread?.lendingOfficerHasWritten ?? false
+            ), text: $draft, axis: .vertical)
                 .lineLimit(1...5)
                 .font(.body)
                 .foregroundStyle(Theme.text)

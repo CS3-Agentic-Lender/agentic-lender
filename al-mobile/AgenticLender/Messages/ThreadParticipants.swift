@@ -31,6 +31,12 @@ enum ThreadParticipants {
         return "Talk to \(brokerName ?? "your broker") and the bank's lending officer about your application."
     }
 
+    /// The composer's placeholder: once the lending officer has written, a message reaches them too.
+    static func composerPlaceholder(brokerFirstName: String?, lendingOfficerHasWritten: Bool) -> String {
+        let broker = "Message \(brokerFirstName ?? "your broker")"
+        return lendingOfficerHasWritten ? "\(broker) and the bank" : broker
+    }
+
     /// The line under the broker's name at the top of the thread.
     static func headerSubtitle(brokerFirm: String?, lendingOfficerHasWritten: Bool) -> String {
         let broker = ["Your broker", brokerFirm].compactMap { $0 }.joined(separator: " · ")
