@@ -33,10 +33,12 @@ struct ApplicationStatusRecord: Equatable, Sendable {
     let figures: LoanFigures
     /// Set by the mint, in the same write that moves the status to Funded (Figma 14c).
     let loanNote: LoanNote?
+    /// The fast-track appraisal fee, as al-core's webhook recorded it (AL-148).
+    let fee: ApplicationFee
 
     init(
         status: ApplicationStatus, createdAt: Date?, submittedAt: Date?, decision: Decision?, history: [Move],
-        figures: LoanFigures = LoanFigures(fields: [:]), loanNote: LoanNote? = nil
+        figures: LoanFigures = LoanFigures(fields: [:]), loanNote: LoanNote? = nil, fee: ApplicationFee = ApplicationFee(fields: [:])
     ) {
         self.status = status
         self.createdAt = createdAt
@@ -45,6 +47,7 @@ struct ApplicationStatusRecord: Equatable, Sendable {
         self.history = history
         self.figures = figures
         self.loanNote = loanNote
+        self.fee = fee
     }
 
     /// Nil when the document has no status the app knows, since nothing sensible can be shown then.
@@ -57,7 +60,8 @@ struct ApplicationStatusRecord: Equatable, Sendable {
             decision: (fields["decision"] as? [String: Any]).flatMap(Self.decision),
             history: (fields["statusHistory"] as? [Any] ?? []).compactMap(Self.move),
             figures: LoanFigures(fields: fields),
-            loanNote: LoanNote(fields: fields)
+            loanNote: LoanNote(fields: fields),
+            fee: ApplicationFee(fields: fields)
         )
     }
 

@@ -13,6 +13,11 @@ final class ApplicationStatusViewModel {
     private(set) var figures: LoanFigures?
     /// The loan note under the timeline (Figma 14c); live like the timeline.
     private(set) var loanNote: LoanNoteSection = .hidden
+    /// The fast-track fee (AL-148): the offer card or "Fast-track paid", live like the timeline.
+    private(set) var fee = ApplicationFee(fields: [:])
+    private(set) var feeSection: ApplicationFee.Section?
+    /// The application this screen shows, for the fee screen.
+    var id: String { applicationID }
     private(set) var loadError: String?
     private(set) var isLoading = true
     /// Show the "Offline" banner: Firestore's last answer came from the phone's cache (or its connection
@@ -80,6 +85,8 @@ final class ApplicationStatusViewModel {
             timeline = StatusTimeline(record: update.record)
             figures = update.record.status == .draft ? nil : update.record.figures
             loanNote = LoanNoteSection(record: update.record)
+            fee = update.record.fee
+            feeSection = update.record.fee.section(for: update.record.status)
             isServedFromCache = update.isFromCache
             if !update.isFromCache {
                 // A fresh answer from the server can only come over a working connection, even if the

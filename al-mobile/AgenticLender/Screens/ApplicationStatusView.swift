@@ -6,6 +6,7 @@ import SwiftUI
 struct ApplicationStatusView: View {
     @State private var model: ApplicationStatusViewModel
     @State private var isExplaining = false
+    @State private var isShowingFee = false
 
     init(applicationID: String, service: ApplicationStatusService, network: NetworkMonitor = PathNetworkMonitor()) {
         _model = State(initialValue: ApplicationStatusViewModel(applicationID: applicationID, service: service, network: network))
@@ -35,7 +36,21 @@ struct ApplicationStatusView: View {
         .background(Theme.oat.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { model.start() }
+        .navigationDestination(isPresented: $isShowingFee) { feeDestination }
         .animation(.default, value: model.isOffline)
+    }
+
+    /// The fee screen while the fee is unpaid, the receipt once al-core has it as paid.
+    @ViewBuilder
+    private var feeDestination: some View {
+        if model.fee.isPaid {
+            FeeReceiptView(
+                receipt: FeeReceipt(amountEur: ApplicationFee.amountEur, paidAt: model.fee.paidAt, paymentIntentID: model.fee.paymentIntentID ?? ""),
+                reference: model.reference
+            )
+        } else {
+            FeeView(status: model, brokerName: nil, service: APIFeeService.live(), publishableKey: BackendConfig().stripePublishableKey)
+        }
     }
 
     @ViewBuilder
@@ -49,6 +64,10 @@ struct ApplicationStatusView: View {
                     .frame(minHeight: Theme.minTapTarget)
                     .accessibilityIdentifier("status.whatTheyMean")
                     .sheet(isPresented: $isExplaining) { FigureExplanations(figures: figures) }
+            }
+            if let feeSection = model.feeSection {
+                // Fast-track appraisal (AL-148, Figma 16a and 18a).
+                FeeOfferCard(section: feeSection) { isShowingFee = true }
             }
             TimelineCard(timeline: timeline)
             LoanNoteCard(section: model.loanNote)

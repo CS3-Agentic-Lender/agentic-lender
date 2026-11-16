@@ -19,6 +19,9 @@ struct BackendConfig: Equatable {
     /// The block explorer's transaction address, such as "https://amoy.polygonscan.com/tx/", for the loan
     /// note's "View on block explorer". Nil on the local Hardhat chain, which has no explorer.
     let blockExplorerTxURL: String?
+    /// Stripe's publishable test key (`pk_test_…`) for the appraisal fee (AL-148). Set like `EMULATOR_HOST`,
+    /// so no key is committed; nil until it is, and then Pay says the payment couldn't start.
+    let stripePublishableKey: String?
 
     /// Where the app sends API calls: the deployed API on a hosted build, otherwise the local gateway
     /// on the same host as the emulators.
@@ -37,5 +40,7 @@ struct BackendConfig: Equatable {
         emulatorHost = host.isEmpty ? Self.defaultEmulatorHost : host
         let explorer = environment["BLOCK_EXPLORER_TX_URL"]?.trimmingCharacters(in: .whitespaces) ?? ""
         blockExplorerTxURL = explorer.isEmpty ? nil : explorer
+        let stripeKey = environment["STRIPE_PUBLISHABLE_KEY"]?.trimmingCharacters(in: .whitespaces) ?? ""
+        stripePublishableKey = stripeKey.isEmpty ? nil : stripeKey
     }
 }
