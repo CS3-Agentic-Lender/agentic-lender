@@ -43,8 +43,8 @@ struct SupportSentView: View {
             Divider().overlay(Theme.line)
             row("Sent", receipt.sentAt.formatted(.dateTime.day().month(.abbreviated).hour().minute()))
         }
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
     }
 
     private func row(_ title: String, _ value: String) -> some View {
