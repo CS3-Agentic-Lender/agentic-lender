@@ -12,12 +12,33 @@ struct MessageThread: Equatable {
             case notSent
         }
 
+        /// Who wrote a reply (AL-310): the thread is shared with the broker and every underwriter.
+        enum Sender: Equatable {
+            case broker
+            case lendingOfficer
+            /// A role the app doesn't know; the message shows with no label.
+            case unknown
+
+            init(_ role: Message.Role) {
+                switch role {
+                case .broker: self = .broker
+                case .underwriter: self = .lendingOfficer
+                case .borrower, .other: self = .unknown
+                }
+            }
+        }
+
         let id: String
         let text: String
         let isMine: Bool
         /// "09:41", under the last message of a run. Nil inside a run, and while it's still sending.
         let time: String?
         var delivery: Delivery = .sent
+        /// Who wrote it, for a reply. Nil for the borrower's own.
+        var sender: Sender?
+        /// Whether the sender's label shows above it: the first reply in a row from one person, or
+        /// the first after a day label.
+        var showsSender = false
     }
 
     enum Row: Equatable {
@@ -32,6 +53,8 @@ struct MessageThread: Equatable {
     let rows: [Row]
     /// Replies sent to the borrower that they haven't read.
     let unreadCount: Int
+    /// Whether the bank's lending officer has written in the thread, not only the broker (AL-310).
+    let lendingOfficerHasWritten: Bool
 
     var isEmpty: Bool { rows.isEmpty }
 
@@ -66,21 +89,26 @@ struct MessageThread: Equatable {
             let previous = index > 0 ? ordered[index - 1] : nil
             let next = index + 1 < ordered.count ? ordered[index + 1] : nil
             var rows: [Row] = []
-            if previous.map({ !calendar.isDate($0.sentAt, inSameDayAs: message.sentAt) }) ?? true {
+            let startsDay = previous.map { !calendar.isDate($0.sentAt, inSameDayAs: message.sentAt) } ?? true
+            if startsDay {
                 rows.append(.day(labels.day(message.sentAt)))
             }
             if message.id == firstUnread {
                 rows.append(.newMessages)
             }
+            let isMine = message.senderID == myID
             let endsRun = next.map { !Self.sameRun(message, $0, calendar: calendar) } ?? true
             rows.append(.bubble(Bubble(
-                id: message.id, text: message.text, isMine: message.senderID == myID,
-                time: endsRun ? labels.time(message.sentAt) : nil
+                id: message.id, text: message.text, isMine: isMine,
+                time: endsRun ? labels.time(message.sentAt) : nil,
+                sender: isMine ? nil : Bubble.Sender(message.senderRole),
+                showsSender: !isMine && (startsDay || previous?.senderID != message.senderID)
             )))
             return rows
         }
         rows = messageRows + Self.pendingRows(pending, after: ordered.last?.sentAt, calendar: calendar, labels: labels)
         unreadCount = ordered.filter(isUnreadReply).count
+        lendingOfficerHasWritten = ordered.contains { $0.senderID != myID && $0.senderRole == .underwriter }
     }
 
     /// The borrower's own messages that aren't in Firestore yet, after the thread, with a day label

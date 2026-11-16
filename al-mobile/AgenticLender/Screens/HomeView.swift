@@ -64,7 +64,13 @@ struct HomeView: View {
         Button {
             isShowingMessages = true
         } label: {
-            card(title: "Messages", detail: model.brokerName.map { "Talk to \($0) about your application." }, badge: unreadBadge)
+            card(
+                title: "Messages",
+                detail: ThreadParticipants.homeDetail(
+                    brokerName: model.brokerName, lendingOfficerHasWritten: inbox.thread?.lendingOfficerHasWritten ?? false
+                ),
+                badge: unreadBadge
+            )
         }
         .buttonStyle(.plain)
         .accessibilityValue(inbox.unreadCount == 0 ? "" : "\(inbox.unreadCount) unread")
