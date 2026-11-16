@@ -26,6 +26,8 @@ final class AppSession {
     /// Changes on every sign-out and return home; the navigation stack is keyed on it so it starts afresh.
     private(set) var stackID = 0
     private(set) var signOutError: String?
+    /// Why the app signed the borrower out, shown on Welcome. Nil after an ordinary sign-out.
+    private(set) var welcomeNotice: String?
 
     private let state: SignedInState
     private let logger = Logger(category: "Session")
@@ -35,7 +37,8 @@ final class AppSession {
         start = state.hasSignedInUser ? .home : .welcome
     }
 
-    func signOut() {
+    /// Signs out back to Welcome. `notice` says why, when the app signs the borrower out itself.
+    func signOut(notice: String? = nil) {
         do {
             try state.signOut()
         } catch {
@@ -44,6 +47,7 @@ final class AppSession {
             return
         }
         signOutError = nil
+        welcomeNotice = notice
         start = .welcome
         stackID += 1
     }
