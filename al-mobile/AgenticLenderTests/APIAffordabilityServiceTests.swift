@@ -7,12 +7,17 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var failure: URLError?
     nonisolated(unsafe) static var lastRequest: URLRequest?
     nonisolated(unsafe) static var lastBody: Data?
+    /// Answers taken in order before `response`, for a call that is sent more than once.
+    nonisolated(unsafe) static var queued: [(status: Int, body: String)] = []
+    nonisolated(unsafe) static var requestCount = 0
 
     static func reset() {
         response = nil
         failure = nil
         lastRequest = nil
         lastBody = nil
+        queued = []
+        requestCount = 0
     }
 
     static var session: URLSession {
@@ -26,12 +31,13 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         Self.lastRequest = request
+        Self.requestCount += 1
         Self.lastBody = request.httpBody ?? request.httpBodyStream.map(Self.read)
         if let failure = Self.failure {
             client?.urlProtocol(self, didFailWithError: failure)
             return
         }
-        let (status, body) = Self.response ?? (200, "")
+        let (status, body) = Self.queued.isEmpty ? Self.response ?? (200, "") : Self.queued.removeFirst()
         let http = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: http, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(body.utf8))
@@ -62,10 +68,20 @@ final class APIAffordabilityServiceTests: XCTestCase {
         StubURLProtocol.reset()
     }
 
+    /// Each ID token asked for: true when it had to be refreshed.
+    private final class TokenLog: @unchecked Sendable {
+        var refreshes: [Bool] = []
+    }
+
+    private let tokens = TokenLog()
+
+    /// The cached token is `token`; a forced refresh gives "fresh-token".
     private func service(token: String? = "test-token") -> APIAffordabilityService {
-        APIAffordabilityService(baseURL: baseURL, session: StubURLProtocol.session, idToken: {
+        let log = tokens
+        return APIAffordabilityService(baseURL: baseURL, session: StubURLProtocol.session, idToken: { forcingRefresh in
+            log.refreshes.append(forcingRefresh)
             guard let token else { throw AffordabilityError.signedOut }
-            return token
+            return forcingRefresh ? "fresh-token" : token
         })
     }
 
@@ -132,6 +148,40 @@ final class APIAffordabilityServiceTests: XCTestCase {
             AffordabilityError.network.message,
             "We couldn't calculate right now. Check your connection and try again."
         )
+    }
+
+    // MARK: - AL-262: one retry with a refreshed token after a 401
+
+    func testA401IsRetriedOnceWithARefreshedToken() async throws {
+        StubURLProtocol.queued = [(401, #"{"error": {"code": "UNAUTHENTICATED"}}"#)]
+        StubURLProtocol.response = (200, TestFixtures.affordabilityJSON())
+
+        let result = try await service().calculate(request())
+
+        XCTAssertEqual(result.maxLoanEur, 240_000)
+        XCTAssertEqual(StubURLProtocol.requestCount, 2)
+        XCTAssertEqual(tokens.refreshes, [false, true])
+        XCTAssertEqual(StubURLProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization"), "Bearer fresh-token")
+    }
+
+    func testA401TwiceShowsTheSignedOutMessage() async {
+        StubURLProtocol.response = (401, #"{"error": {"code": "UNAUTHENTICATED"}}"#)
+
+        await assertThrows(.signedOut) { try await self.service().calculate(self.request()) }
+        XCTAssertEqual(StubURLProtocol.requestCount, 2, "at most one retry per Calculate")
+        XCTAssertEqual(tokens.refreshes, [false, true])
+    }
+
+    func testOtherFailuresAreNotRetried() async {
+        StubURLProtocol.response = (500, #"{"error": {"code": "INTERNAL"}}"#)
+        await assertThrows(.unavailable) { try await self.service().calculate(self.request()) }
+        XCTAssertEqual(StubURLProtocol.requestCount, 1)
+
+        StubURLProtocol.reset()
+        StubURLProtocol.failure = URLError(.notConnectedToInternet)
+        await assertThrows(.network) { try await self.service().calculate(self.request()) }
+        XCTAssertEqual(StubURLProtocol.requestCount, 1)
+        XCTAssertEqual(tokens.refreshes, [false, false])
     }
 
     func testAServerErrorIsUnavailable() async {

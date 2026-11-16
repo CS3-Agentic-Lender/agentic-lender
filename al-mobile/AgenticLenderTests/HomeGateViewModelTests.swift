@@ -76,4 +76,19 @@ final class HomeGateViewModelTests: XCTestCase {
 
         XCTAssertEqual(gate.state, .needsDetails(GoogleUser(email: "gina@gmail.com", name: "Gina Walsh")))
     }
+
+    func testASignedInUserWithNoEmailAndNoProfileIsSignedOutNotLeftOnRetry() async {
+        let service = FakeProfileService()
+        service.profileResult = .failure(.noProfile)
+        service.signedInUser = nil // Firebase has the user, but with no email
+        let gate = HomeGateViewModel(service: service)
+
+        await gate.load()
+
+        XCTAssertEqual(gate.state, .mustSignOut(HomeGateViewModel.noEmailMessage))
+        XCTAssertEqual(
+            HomeGateViewModel.noEmailMessage,
+            "This account has no email address. Please sign in with email or Google."
+        )
+    }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Placeholder first screen. Real design comes from the AL-80 wireframes.
 struct WelcomeView: View {
+    @Environment(AppSession.self) private var session
     let googleService: GoogleSignInService
 
     @State private var google: GoogleSignInViewModel
@@ -18,6 +19,16 @@ struct WelcomeView: View {
                 .font(.largeTitle.bold())
             Text("Borrower app")
                 .foregroundStyle(.secondary)
+            // Why the app signed the borrower out (AL-258).
+            if let notice = session.welcomeNotice {
+                Label(notice, systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.text)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.tint, in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("welcome.notice")
+            }
             NavigationLink("Create account", value: Route.signUp)
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("welcome.signUp")
@@ -76,5 +87,6 @@ private struct PreviewGoogleSignInService: GoogleSignInService {
 
 #Preview {
     NavigationStack { WelcomeView(googleService: PreviewGoogleSignInService()) }
+        .environment(AppSession(state: PreviewSignedInState()))
 }
 #endif

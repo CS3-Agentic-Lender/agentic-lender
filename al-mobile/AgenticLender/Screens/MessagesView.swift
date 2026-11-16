@@ -31,7 +31,10 @@ struct MessagesView: View {
     private var composer: some View {
         let canSend = MessageInbox.canSend(draft)
         return HStack(alignment: .bottom, spacing: 8) {
-            TextField("Message \(Self.firstName(of: brokerName) ?? "your broker")", text: $draft, axis: .vertical)
+            TextField(ThreadParticipants.composerPlaceholder(
+                brokerFirstName: Self.firstName(of: brokerName),
+                lendingOfficerHasWritten: inbox.thread?.lendingOfficerHasWritten ?? false
+            ), text: $draft, axis: .vertical)
                 .lineLimit(1...5)
                 .font(.body)
                 .foregroundStyle(Theme.text)
@@ -75,7 +78,9 @@ struct MessagesView: View {
                     .font(.headline)
                     .foregroundStyle(Theme.text)
                     .accessibilityAddTraits(.isHeader)
-                Text(["Your broker", brokerFirm].compactMap { $0 }.joined(separator: " · "))
+                Text(ThreadParticipants.headerSubtitle(
+                    brokerFirm: brokerFirm, lendingOfficerHasWritten: inbox.thread?.lendingOfficerHasWritten ?? false
+                ))
                     .font(.subheadline)
                     .foregroundStyle(Theme.mutedText)
             }
@@ -100,7 +105,7 @@ struct MessagesView: View {
             RetryMessage(message: message) { Task { await inbox.start() } }
         case .ready:
             if let thread = inbox.thread, !thread.isEmpty {
-                ThreadList(thread: thread) { id in Task { await inbox.retry(id) } }
+                ThreadList(thread: thread, brokerName: brokerName) { id in Task { await inbox.retry(id) } }
             } else {
                 // Figma 15a.
                 note(
@@ -144,6 +149,7 @@ struct MessagesView: View {
 /// The messages, oldest at the top, kept scrolled to the newest.
 private struct ThreadList: View {
     let thread: MessageThread
+    let brokerName: String?
     /// Sends a "Not sent" message again.
     let retry: (String) -> Void
 
@@ -187,22 +193,36 @@ private struct ThreadList: View {
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)
         case .bubble(let bubble):
-            BubbleView(bubble: bubble) { retry(bubble.id) }
+            BubbleView(bubble: bubble, brokerName: brokerName) { retry(bubble.id) }
         }
     }
 }
 
-/// The broker's messages on the left in Surface, the borrower's on the right in Pine (Figma 15). One
-/// still sending or not sent is a lighter Pine, and a "Not sent" one says so in red (Figma 15c).
+/// Replies on the left in Surface, the borrower's on the right in Pine (Figma 15). A reply that
+/// starts a run is labelled with who sent it (AL-310). One still sending or not sent is a lighter
+/// Pine, and a "Not sent" one says so in red (Figma 15c).
 private struct BubbleView: View {
     let bubble: MessageThread.Bubble
+    let brokerName: String?
     let retry: () -> Void
 
     /// Pine at this opacity on Oat is the muted bubble in Figma 15c.
     private static let pendingOpacity = 0.6
 
+    private var senderLabel: String? {
+        guard bubble.showsSender, let sender = bubble.sender else { return nil }
+        return ThreadParticipants.label(for: sender, brokerName: brokerName)
+    }
+
     var body: some View {
         VStack(alignment: bubble.isMine ? .trailing : .leading, spacing: 4) {
+            if let senderLabel {
+                Text(senderLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.mutedText)
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("messages.sender")
+            }
             Text(bubble.text)
                 .font(.body)
                 .foregroundStyle(bubble.isMine ? Theme.surface : Theme.text)
@@ -249,6 +269,8 @@ private struct BubbleView: View {
         case .sending: "sending"
         case .notSent: "not sent"
         }
-        return [bubble.isMine ? "You" : "Your broker", bubble.text, status].compactMap { $0 }.joined(separator: ", ")
+        return [ThreadParticipants.spokenSender(of: bubble, brokerName: brokerName), bubble.text, status]
+            .compactMap { $0 }
+            .joined(separator: ", ")
     }
 }

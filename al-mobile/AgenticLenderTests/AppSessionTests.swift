@@ -108,4 +108,40 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNil(session.signOutError)
         XCTAssertEqual(session.start, .welcome)
     }
+
+    // MARK: - Signing out with a message for Welcome (AL-258)
+
+    func testSigningOutWithAMessageShowsItOnWelcome() {
+        let state = FakeSignedInState(hasSignedInUser: true)
+        let session = AppSession(state: state)
+
+        session.signOut(notice: HomeGateViewModel.noEmailMessage)
+
+        XCTAssertEqual(state.signOutCount, 1)
+        XCTAssertEqual(session.start, .welcome)
+        XCTAssertEqual(session.welcomeNotice, HomeGateViewModel.noEmailMessage)
+    }
+
+    func testAnOrdinarySignOutLeavesNoMessageOnWelcome() {
+        let state = FakeSignedInState(hasSignedInUser: true)
+        let session = AppSession(state: state)
+        session.signOut(notice: HomeGateViewModel.noEmailMessage)
+        state.hasSignedInUser = true
+
+        session.signOut()
+
+        XCTAssertNil(session.welcomeNotice)
+    }
+
+    func testAFailedSignOutWithAMessageShowsTheUsualSignOutError() {
+        let state = FakeSignedInState(hasSignedInUser: true)
+        state.signOutFailure = KeychainTrouble()
+        let session = AppSession(state: state)
+
+        session.signOut(notice: HomeGateViewModel.noEmailMessage)
+
+        XCTAssertEqual(session.start, .home)
+        XCTAssertEqual(session.signOutError, AppSession.signOutFailedMessage)
+        XCTAssertNil(session.welcomeNotice)
+    }
 }
