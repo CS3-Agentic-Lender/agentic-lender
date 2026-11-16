@@ -16,7 +16,8 @@ final class CallGate {
         }
     }
 
-    /// Returns once a call is waiting at the gate.
+    /// Returns once a call is waiting at the gate. Call it before `open()`: a call through an open gate
+    /// never waits, so after `open()` this would wait forever.
     func waitForCall() async {
         guard waiting.isEmpty else { return }
         await withCheckedContinuation { callArrived = $0 }
