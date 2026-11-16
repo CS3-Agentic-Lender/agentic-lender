@@ -16,6 +16,19 @@ final class FakeSignedInState: SignedInState, @unchecked Sendable {
         if let signOutFailure { throw signOutFailure }
         hasSignedInUser = false
     }
+
+    private var signedOutHandler: (@MainActor () -> Void)?
+
+    func onSignedOut(_ handler: @escaping @MainActor () -> Void) {
+        signedOutHandler = handler
+    }
+
+    /// Firebase signing the user out by itself, as when a token refresh finds the account gone (AL-315).
+    @MainActor
+    func firebaseSignedOut() {
+        hasSignedInUser = false
+        signedOutHandler?()
+    }
 }
 
 @MainActor
@@ -143,5 +156,40 @@ final class AppSessionTests: XCTestCase {
         XCTAssertEqual(session.start, .home)
         XCTAssertEqual(session.signOutError, AppSession.signOutFailedMessage)
         XCTAssertNil(session.welcomeNotice)
+    }
+
+    // MARK: - AL-315: the session ends on any screen
+
+    func testWhenFirebaseSignsTheUserOutTheAppShowsWelcomeWithTheMessage() {
+        let state = FakeSignedInState(hasSignedInUser: true)
+        let session = AppSession(state: state)
+        let stackBefore = session.stackID
+
+        state.firebaseSignedOut()
+
+        XCTAssertEqual(session.start, .welcome)
+        XCTAssertEqual(session.welcomeNotice, "Your session has ended. Please sign in again.")
+        XCTAssertNotEqual(session.stackID, stackBefore)
+    }
+
+    func testTheAppsOwnSignOutShowsNoSessionEndedMessage() {
+        let state = FakeSignedInState(hasSignedInUser: true)
+        let session = AppSession(state: state)
+
+        session.signOut()
+        state.firebaseSignedOut() // Firebase reports the sign-out the app asked for
+
+        XCTAssertEqual(session.start, .welcome)
+        XCTAssertNil(session.welcomeNotice)
+    }
+
+    func testASignOutWithItsOwnMessageKeepsThatMessage() {
+        let state = FakeSignedInState(hasSignedInUser: true)
+        let session = AppSession(state: state)
+
+        session.signOut(notice: HomeGateViewModel.noEmailMessage)
+        state.firebaseSignedOut()
+
+        XCTAssertEqual(session.welcomeNotice, HomeGateViewModel.noEmailMessage)
     }
 }

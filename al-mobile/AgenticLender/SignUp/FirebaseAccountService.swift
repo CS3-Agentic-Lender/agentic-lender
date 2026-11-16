@@ -93,6 +93,16 @@ struct FirebaseAccountService: AccountService {
 }
 
 extension AccountError {
+    /// For a fresh sign-in (Google): a disabled account is told so, not that a session ended (AL-315).
+    init(signInError: Error) {
+        let nsError = signInError as NSError
+        if nsError.domain == AuthErrorDomain, AuthErrorCode(rawValue: nsError.code) == .userDisabled {
+            self = .accountDisabled
+        } else {
+            self.init(authError: signInError)
+        }
+    }
+
     init(authError: Error) {
         let nsError = authError as NSError
         guard nsError.domain == AuthErrorDomain else {

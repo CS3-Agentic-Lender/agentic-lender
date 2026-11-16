@@ -29,6 +29,8 @@ enum AccountError: Error, Equatable {
     /// The saved login's account no longer exists or is disabled, so its token can't be refreshed
     /// (AL-295). Trying again can't help; only signing in again can.
     case sessionEnded
+    /// AL-315: signing in fresh with an account Firebase has disabled.
+    case accountDisabled
     case unknown
 
     var message: String {
@@ -47,6 +49,8 @@ enum AccountError: Error, Equatable {
             "Finish your details to continue."
         case .sessionEnded:
             "Your session has ended. Please sign in again."
+        case .accountDisabled:
+            "This account has been disabled."
         case .unknown:
             "Something went wrong creating your account. Try again."
         }
@@ -57,7 +61,7 @@ enum AccountError: Error, Equatable {
         switch self {
         case .emailAlreadyInUse, .invalidEmail: .email
         case .weakPassword: .password
-        case .network, .profileNotSaved, .noProfile, .sessionEnded, .unknown: nil
+        case .network, .profileNotSaved, .noProfile, .sessionEnded, .accountDisabled, .unknown: nil
         }
     }
 }

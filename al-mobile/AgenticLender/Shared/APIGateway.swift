@@ -11,6 +11,14 @@ enum APIError: Error, Equatable {
     case unavailable
 }
 
+/// What the app does when a server refuses the borrower's token (AL-315). The app sets it at launch to
+/// force a token refresh: if the account was deleted or disabled, Firebase then signs the borrower out
+/// and `AppSession` shows Welcome with "Your session has ended". Tests leave it doing nothing.
+@MainActor
+enum SessionCheck {
+    static var tokenRefused: () async -> Void = {}
+}
+
 /// Posts JSON to the API gateway with the signed-in user's Firebase ID token.
 struct APIGateway {
     let baseURL: URL
@@ -34,7 +42,10 @@ struct APIGateway {
 
         let (data, response) = try await send(request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if status == 401 { throw APIError.signedOut }
+        if status == 401 {
+            await SessionCheck.tokenRefused()
+            throw APIError.signedOut
+        }
         guard (200..<300).contains(status) else {
             logger.error("\(path, privacy: .public) returned \(status, privacy: .public)")
             throw APIError.unavailable

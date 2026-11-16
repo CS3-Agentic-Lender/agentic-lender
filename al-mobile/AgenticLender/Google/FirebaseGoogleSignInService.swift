@@ -25,7 +25,7 @@ struct FirebaseGoogleSignInService: GoogleSignInService {
             user = try await Auth.auth().signIn(with: credential).user
         } catch {
             logger.error("Firebase Google sign-in failed: \(error.localizedDescription, privacy: .public)")
-            throw AccountError(authError: error)
+            throw AccountError(signInError: error)
         }
 
         do {
