@@ -34,6 +34,8 @@ struct HomeGateView: View {
                 ProfileDetailsView(user: user, service: FirebaseGoogleSignInService())
             case .failed(let message):
                 failed(message)
+            case .mustSignOut(let message):
+                mustSignOut(message)
             }
         }
         .background(Theme.oat.ignoresSafeArea())
@@ -50,7 +52,30 @@ struct HomeGateView: View {
             RetryMessage(message: message) {
                 Task { await model.load() }
             }
-            SecondaryButton(title: "Sign out") { session.signOut() }
+            signOutButton(notice: nil)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Signs out straight away, so Welcome shows why (AL-258). The message and Sign out stay here
+    /// only if signing out fails, with the same error as above.
+    private func mustSignOut(_ message: String) -> some View {
+        VStack(spacing: 16) {
+            Text(message)
+                .font(.body)
+                .foregroundStyle(Theme.text)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Theme.screenPadding)
+                .accessibilityIdentifier("homeGate.mustSignOut")
+            signOutButton(notice: message)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task { session.signOut(notice: message) }
+    }
+
+    private func signOutButton(notice: String?) -> some View {
+        VStack(spacing: 8) {
+            SecondaryButton(title: "Sign out") { session.signOut(notice: notice) }
                 .padding(.horizontal, Theme.screenPadding)
                 .accessibilityIdentifier("homeGate.signOut")
             if let error = session.signOutError {
@@ -61,6 +86,5 @@ struct HomeGateView: View {
                     .accessibilityIdentifier("homeGate.signOutError")
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
