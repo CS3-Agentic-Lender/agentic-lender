@@ -39,6 +39,8 @@ struct CountySheet: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search counties")
             .navigationTitle("County")
             .navigationBarTitleDisplayMode(.inline)
+            // The app's bars are Oat (NavigationBarStyle); this sheet is on Surface.
+            .toolbarBackground(Theme.surface, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
