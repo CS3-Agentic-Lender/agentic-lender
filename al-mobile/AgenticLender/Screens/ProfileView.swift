@@ -57,8 +57,8 @@ struct ProfileView: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("profile.header")
     }
@@ -70,8 +70,8 @@ struct ProfileView: View {
                 rowView(row)
             }
         }
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
     }
 
     @ViewBuilder
@@ -116,8 +116,8 @@ struct ProfileView: View {
                     .foregroundStyle(Theme.error)
                     .padding(.horizontal, 16)
                     .frame(maxWidth: .infinity, minHeight: Theme.minTapTarget + 8, alignment: .leading)
-                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line))
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.cardCornerRadius).stroke(Theme.line))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
