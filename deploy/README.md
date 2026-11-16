@@ -53,7 +53,8 @@ the real account's first run below, so practising them is a rehearsal.
 ```sh
 ssh -f -N pc-aws                                              # open the tunnel (wakes the PC)
 cd deploy/foundations
-printf 'terraform {\n  backend "local" {}\n}\n' > first_run_override.tf   # the bucket doesn't exist yet
+export TF_DATA_DIR=.terraform-floci                           # keeps Floci's files apart from the real account's
+printf 'terraform {\n  backend "local" { path = "floci.tfstate" }\n}\n' > first_run_override.tf   # the bucket doesn't exist yet
 terraform init && terraform apply -var target=floci
 rm first_run_override.tf
 terraform init -migrate-state -backend-config=../backend-floci.hcl     # move the state into the bucket
@@ -71,6 +72,7 @@ Do these steps once, in order. Budget alerts (AL-224) must exist before step 2. 
    ```sh
    aws login --profile agentic-lender
    export AWS_PROFILE=agentic-lender
+   export TF_DATA_DIR=.terraform-aws   # keeps the real account's files apart from any Floci practice
    aws sts get-caller-identity
    ```
 2. **Everything except the certificate check, with the state on the laptop at first.** The bucket
@@ -80,7 +82,7 @@ Do these steps once, in order. Budget alerts (AL-224) must exist before step 2. 
    way the bucket gets its encryption and public block, and the role gets its policies and boundary.
    In `deploy/foundations`:
    ```sh
-   printf 'terraform {\n  backend "local" {}\n}\n' > first_run_override.tf
+   printf 'terraform {\n  backend "local" { path = "aws.tfstate" }\n}\n' > first_run_override.tf
    terraform init
    terraform apply \
      -target=aws_s3_bucket_policy.state -target=aws_s3_bucket_versioning.state \

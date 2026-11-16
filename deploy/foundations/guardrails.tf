@@ -21,8 +21,11 @@
 locals {
   account_id = data.aws_caller_identity.current.account_id
 
-  # The only roles the deploy role may create, change or pass: the ECS task roles deploy/app makes.
-  app_roles = "arn:aws:iam::${local.account_id}:role/agentic-lender-app-*"
+  # The only roles, policies and Lambda functions the deploy role may create, change or use: the ones
+  # deploy/app makes, which all start agentic-lender-app-.
+  app_roles     = "arn:aws:iam::${local.account_id}:role/agentic-lender-app-*"
+  app_policies  = "arn:aws:iam::${local.account_id}:policy/agentic-lender-app-*"
+  app_functions = "arn:aws:lambda:*:${local.account_id}:function:agentic-lender-app-*"
 
   # Built by name, not from the resource, because the policy has to exist before anything uses it.
   guardrails_arn = "arn:aws:iam::${local.account_id}:policy/agentic-lender-guardrails"
@@ -92,11 +95,45 @@ data "aws_iam_policy_document" "guardrails" {
     resources = ["*"]
   }
 
+  # Policies: only app policies may be created or edited, so the ceiling, the budget kill switch's
+  # deny policy and anything Nic made by hand can't be rewritten from inside.
   statement {
-    sid       = "TheCeilingCantBeEdited"
+    sid           = "OnlyAppPoliciesCanBeEdited"
+    effect        = "Deny"
+    actions       = ["iam:CreatePolicy", "iam:CreatePolicyVersion", "iam:DeletePolicy", "iam:DeletePolicyVersion", "iam:SetDefaultPolicyVersion", "iam:TagPolicy", "iam:UntagPolicy"]
+    not_resources = [local.app_policies]
+  }
+
+  # People: IAM users and groups (like Nic's own login) can't be changed from inside at all.
+  statement {
+    sid    = "UsersAndGroupsCantBeChanged"
+    effect = "Deny"
+    actions = [
+      "iam:AttachUserPolicy", "iam:DetachUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
+      "iam:PutUserPermissionsBoundary", "iam:DeleteUserPermissionsBoundary", "iam:AddUserToGroup",
+      "iam:RemoveUserFromGroup", "iam:DeleteUser", "iam:UpdateUser", "iam:CreateGroup", "iam:DeleteGroup",
+      "iam:AttachGroupPolicy", "iam:DetachGroupPolicy", "iam:PutGroupPolicy", "iam:DeleteGroupPolicy",
+      "iam:UpdateGroup", "iam:DeactivateMFADevice", "iam:DeleteVirtualMFADevice",
+    ]
+    resources = ["*"]
+  }
+
+  # No stepping into another role. (GitHub's own sign-in is AssumeRoleWithWebIdentity, which this
+  # doesn't cover, and ECS uses roles on its own behalf, not through this role.)
+  statement {
+    sid       = "NoAssumingOtherRoles"
     effect    = "Deny"
-    actions   = ["iam:CreatePolicyVersion", "iam:DeletePolicy", "iam:DeletePolicyVersion", "iam:SetDefaultPolicyVersion"]
-    resources = [local.guardrails_arn]
+    actions   = ["sts:AssumeRole"]
+    resources = ["*"]
+  }
+
+  # Lambda: a function runs as its own role, so changing or calling someone else's function would
+  # borrow that role's powers. Only app functions (whose roles carry this boundary) may be touched.
+  statement {
+    sid           = "OnlyAppFunctions"
+    effect        = "Deny"
+    actions       = ["lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration", "lambda:InvokeFunction", "lambda:CreateFunction", "lambda:AddPermission"]
+    not_resources = [local.app_functions]
   }
 
   # The budget kill switch (AL-224) can't be switched off from inside.

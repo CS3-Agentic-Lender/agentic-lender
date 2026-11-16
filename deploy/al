@@ -39,7 +39,7 @@ ask() { # ask "question" "word the answer must be"
 
 # Each run gets its own plan file, deleted however the script ends (yes, no, an error or Ctrl-C),
 # so two runs at once can never apply each other's plan.
-PLAN_FILE="$(mktemp -t al-plan)"
+PLAN_FILE="$(mktemp "${TMPDIR:-/tmp}/al-plan.XXXXXX")" # this form works on macOS and Linux
 trap 'rm -f "$PLAN_FILE"' EXIT
 
 connect() {
@@ -61,12 +61,22 @@ connect() {
   fi
 }
 
-# The commit that is deployed now, or nothing if nothing is.
-deployed_tag() { tf output -raw image_tag 2>/dev/null || true; }
+# The commit that is deployed now, or nothing if nothing is. Read as JSON, because with no outputs
+# `terraform output -raw` can print a warning where the tag would be.
+deployed_tag() {
+  local json
+  json="$(tf output -json 2>/dev/null)" || return 0
+  jq -r '.image_tag.value // empty' <<<"$json"
+}
 
 # Whether Terraform's state holds anything at all. Checked instead of the tag, so a deploy that broke
 # half way (resources made, tag not recorded yet) still shows up and can still be taken down.
-has_resources() { [[ -n "$(tf state list 2>/dev/null)" ]]; }
+# If the state can't be read at all (no network, signed out), stop: "nothing deployed" would be a lie.
+has_resources() {
+  local list
+  list="$(tf state list)" || fail "couldn't read Terraform's state, so can't tell what's deployed."
+  [[ -n "$list" ]]
+}
 
 # The last build that was deployed, kept in the state bucket as app/last-release, so `up` still
 # knows which build to bring back after `down` has removed everything in deploy/app.
