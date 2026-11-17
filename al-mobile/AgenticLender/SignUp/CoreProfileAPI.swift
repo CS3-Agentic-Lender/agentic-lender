@@ -64,12 +64,15 @@ struct CoreProfileAPI: Sendable {
         return request
     }
 
-    /// Sends the request; a dropped connection becomes `AccountError.network`.
+    /// Sends the request; a dropped connection becomes `AccountError.network`. A 401 checks whether the
+    /// session has ended (AL-315), as the other API clients do.
     func perform(_ request: URLRequest) async throws -> (Data, Int) {
         let call = "\(request.httpMethod ?? "GET") \(request.url?.path() ?? "")"
         do {
             let (data, response) = try await send(request)
-            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 401 { await SessionCheck.tokenRefused() }
+            return (data, status)
         } catch let error as URLError {
             logger.error("\(call, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             throw AccountError.network

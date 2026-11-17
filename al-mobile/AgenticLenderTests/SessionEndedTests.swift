@@ -52,6 +52,19 @@ final class SessionEndedTests: XCTestCase {
         XCTAssertEqual(checks, 1)
     }
 
+    func testA401FromTheBrokerPickerChecksTheSessionToo() async {
+        var checks = 0
+        SessionCheck.tokenRefused = { checks += 1 }
+        let api = CoreProfileAPI(baseURL: baseURL, send: { request in
+            (Data(), HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!)
+        })
+
+        _ = try? await api.brokers(idToken: "token")
+        _ = try? await api.chooseBroker(id: "broker1", idToken: "token")
+
+        XCTAssertEqual(checks, 2, "GET /core/brokers and PUT /core/me/broker")
+    }
+
     func testANetworkFailureDoesntCheckTheSession() async {
         var checks = 0
         SessionCheck.tokenRefused = { checks += 1 }
