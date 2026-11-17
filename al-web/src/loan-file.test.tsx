@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Timestamp } from 'firebase/firestore';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from 'react-router';
@@ -98,11 +98,24 @@ class FakeLoanFileService implements LoanFileService {
   }
 
   push(update: LoanFileUpdate) {
-    this.active().forEach(({ listener }) => listener(update));
+    this.subscribers().forEach(({ listener }) => listener(update));
   }
 
   fail(error: LoanFileError) {
-    this.active().forEach(({ onError }) => onError(error));
+    this.subscribers().forEach(({ onError }) => onError(error));
+  }
+
+  // The page subscribes in an effect, which can run after its loading state is already on screen. A test that
+  // pushes or fails after seeing that state waits for the subscription first (AL-273).
+  async subscribed() {
+    await waitFor(() => expect(this.active()).not.toHaveLength(0));
+  }
+
+  // A push with nobody listening would be lost and the test would fail later, somewhere else; fail here instead.
+  private subscribers() {
+    const active = this.active();
+    if (active.length === 0) throw new Error('Nothing is subscribed to the loan file yet: await subscribed() first');
+    return active;
   }
 
   active() {
@@ -835,6 +848,7 @@ describe('loan file page', () => {
     const loanFiles = new FakeLoanFileService();
     renderUnderwriterFile(loanFiles);
     await screen.findByRole('heading', { name: 'Loading the loan file' });
+    await loanFiles.subscribed();
     act(() => loanFiles.fail('forbidden'));
 
     expect(screen.getByRole('heading', { name: 'You are not allowed to read this application' })).toBeInTheDocument();
@@ -844,6 +858,7 @@ describe('loan file page', () => {
     const loanFiles = new FakeLoanFileService();
     renderUnderwriterFile(loanFiles);
     await screen.findByRole('heading', { name: 'Loading the loan file' });
+    await loanFiles.subscribed();
     act(() => loanFiles.fail('unavailable'));
 
     expect(screen.getByRole('heading', { name: 'The loan file could not be loaded' })).toBeInTheDocument();
@@ -997,6 +1012,7 @@ describe('broker loan file', () => {
     const loanFiles = new FakeLoanFileService();
     renderBrokerFile(loanFiles);
     await screen.findByRole('heading', { name: 'Loading the loan file' });
+    await loanFiles.subscribed();
     act(() => loanFiles.fail('forbidden'));
 
     expect(screen.getByRole('heading', { name: 'Application not available' })).toBeInTheDocument();
