@@ -109,6 +109,30 @@ docker build -t al-core .
 docker run -p 5002:5002 -e FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099 -e FIRESTORE_EMULATOR_HOST=host.docker.internal:8080 al-core
 ```
 
+### The image on AWS
+
+GitHub Actions builds the same `Dockerfile` for `linux/amd64` (what Fargate runs): `docker build --platform linux/amd64 -t al-core .` from `al-core/`. The image tag is the git commit id, which is what `deploy/` expects as `image_tag`.
+
+- **Port:** 5002. **Health check:** `GET /core/health`, `200` with no token. The image also has a Docker `HEALTHCHECK` on it.
+- **User:** a system user with no shell, not root.
+- **No config or secrets are in the image.** It holds only `app/` and its packages (no `.env`, no `chain/`). Everything comes from environment variables when the container starts:
+
+| Variable | Needed on AWS | What it is |
+|---|---|---|
+| `FIREBASE_PROJECT_ID` | yes | The hosted Firebase project. Unset, it falls back to `demo-al`, which is the emulator's project |
+| `CORS_ALLOWED_ORIGINS` | yes | The portal's origin(s), comma separated, as in "Browser origins (CORS)" below |
+| `CHAIN_RPC_URL` | yes | The public testnet's RPC URL. Unset, it is the local Hardhat node |
+| `CHAIN_NETWORK` | yes | The network's name, saved on each loan note. Unset, it is `localhost` |
+| `LOAN_NOTE_ADDRESS` | yes | The deployed `LoanNote`. Set it: the `chain/deployments/` fallback is not in the image |
+| `AUDIT_REGISTRY_ADDRESS` | yes | The deployed `AuditRegistry`. Set it for the same reason |
+| `CHAIN_MINTER_PRIVATE_KEY` | yes, secret | Testnet wallet that holds `MINTER_ROLE` |
+| `CHAIN_REGISTRAR_PRIVATE_KEY` | yes, secret | Testnet wallet that writes the audit hash |
+| `BORROWER_REF_SALT` | yes, secret | Salt for the borrower reference on the loan note. Unset, it is empty and the hash is unsalted, so always set it |
+| `STRIPE_SECRET_KEY` | yes, secret | Stripe test key (`sk_test_` or `rk_test_`). Arrives with the fee endpoint |
+| `STRIPE_WEBHOOK_SECRET` | yes, secret | The webhook endpoint's signing secret. Arrives with the fee endpoint |
+
+Do **not** set `FIREBASE_AUTH_EMULATOR_HOST` or `FIRESTORE_EMULATOR_HOST` on AWS: with the first set, the Admin SDK accepts emulator-issued tokens, and with the second the API reads and writes an emulator instead of the real database. How the container gets its Firebase service account is still to be agreed (see the ticket).
+
 ## Running the API tests
 
 ```

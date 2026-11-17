@@ -6,5 +6,18 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --no-dev
 COPY app ./app
 
+# Run as a user with no login and no shell, not as root. The packages stay root-owned and read-only to it.
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin al
+USER al
+
+# The virtualenv's own uvicorn, so starting the API doesn't run uv (which wants a cache directory it can write).
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
+
 EXPOSE 5002
-CMD ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5002"]
+
+# The same path the load balancer checks. No curl in the slim image, so Python makes the request.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5002/core/health', timeout=3)"]
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5002"]
