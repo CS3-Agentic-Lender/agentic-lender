@@ -10,6 +10,8 @@ protocol SignInService: Sendable {
 /// so the app never reveals which accounts exist.
 enum SignInError: Error, Equatable {
     case incorrectCredentials
+    /// AL-315: the account exists but Firebase has disabled it.
+    case accountDisabled
     case tooManyAttempts
     case network
     case unknown
@@ -18,6 +20,8 @@ enum SignInError: Error, Equatable {
         switch self {
         case .incorrectCredentials:
             "Email or password is incorrect"
+        case .accountDisabled:
+            "This account has been disabled."
         case .tooManyAttempts:
             "Too many attempts. Try again in a few minutes."
         case .network:

@@ -203,6 +203,7 @@ struct HomeView: View {
 struct PreviewSignedInState: SignedInState {
     var hasSignedInUser: Bool { true }
     func signOut() throws {}
+    func onSignedOut(_ handler: @escaping @MainActor () -> Void) {}
 }
 
 #Preview {
