@@ -54,6 +54,9 @@ def run(models: dict[str, str], *, env: dict, transport=clients.urllib_transport
             continue
         try:
             got = clients.complete_json(provider, model, SYSTEM, USER, SCHEMA, transport=transport, env=env)
+        except clients.MissingKey as exc:  # Bedrock has no key setting: it is skipped when there are no AWS credentials
+            results.append({"provider": provider, "model": model, "status": "skipped", "reason": str(exc)})
+            continue
         except clients.LlmError as exc:  # the message is already scrubbed of the key
             results.append({"provider": provider, "model": model, "status": "failed", "reason": str(exc)})
             continue

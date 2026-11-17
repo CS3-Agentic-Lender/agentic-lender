@@ -2,15 +2,22 @@
 
 It pins exact model IDs (never a moving alias like "latest") and has no fallback: if an agent's provider is down the
 call fails. Moving an agent to another provider is an edit to this file, made by a person.
+
+The deployed app on AWS reads agents.aws.json instead (AL_AGENTS_CONFIG=agents.aws.json, set only in the ECS task), which
+is the same except the affordability agent calls Qwen3 32B on Amazon Bedrock in place of Ollama. Local runs set nothing
+and keep Ollama.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.llm import clients
 
 DEFAULT_PATH = Path(__file__).with_name("agents.json")
+CONFIG_ENV = "AL_AGENTS_CONFIG"
+CONFIG_FILES = {"agents.json", "agents.aws.json"}  # only these, so a setting cannot point the service at any other file
 TOP_LEVEL = {"agents", "backup"}  # nothing else, so a "fallback" section cannot sneak in
 
 
@@ -55,8 +62,17 @@ def _entry(where: str, raw) -> AgentModel:
     return AgentModel(provider, model)
 
 
-def load(path: Path = DEFAULT_PATH) -> Config:
-    raw = json.loads(Path(path).read_text())
+def config_path(env=None) -> Path:
+    """agents.json, unless AL_AGENTS_CONFIG names the other config file next to it."""
+    env = os.environ if env is None else env
+    name = (env.get(CONFIG_ENV) or "").strip() or DEFAULT_PATH.name
+    if name not in CONFIG_FILES:
+        raise ConfigError(f"{CONFIG_ENV} must be one of {sorted(CONFIG_FILES)}, not {name!r}")
+    return DEFAULT_PATH.with_name(name)
+
+
+def load(path: Path | None = None, *, env=None) -> Config:
+    raw = json.loads(Path(path or config_path(env)).read_text())
     extra = set(raw) - TOP_LEVEL
     if extra:
         raise ConfigError(f"unexpected section {sorted(extra)}: there is no fallback, only agents and backup")
