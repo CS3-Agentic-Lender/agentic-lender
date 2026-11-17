@@ -68,9 +68,16 @@ class FakeDB:
 
 
 class FakeRegistry:
-    def __init__(self, result=None, error=None):
+    def __init__(self, result=None, error=None, found=None, lookup_error=None):
         self.result = result or Stored(tx_hash="0x" + "cd" * 32, already_stored=False)
         self.error, self.calls = error, []
+        self.found, self.lookup_error, self.lookups = found, lookup_error, []  # what `tx_of` answers, and each application asked about
+
+    def tx_of(self, application_id):
+        self.lookups.append(application_id)
+        if self.lookup_error:
+            raise self.lookup_error
+        return self.found
 
     def store(self, application_id, audit_hash):
         self.calls.append((application_id, audit_hash))
@@ -130,6 +137,50 @@ def test_anchoring_twice_saves_nothing_new_and_keeps_the_first_transaction(world
     assert again.already_stored is True and again.tx_hash is None and again.audit_hash == FUNDED["hash"]
     assert world.writes == writes_before
     assert world.store["applications/app-funded"]["auditTxHash"] == "0x" + "cd" * 32
+
+
+ALREADY = Stored(tx_hash=None, already_stored=True)
+FOUND = "0x" + "ef" * 32
+
+
+def test_a_hash_already_on_the_registry_with_no_transaction_saved_gets_the_transaction_read_back(world):
+    registry = FakeRegistry(ALREADY, found=FOUND)  # a crash after the chain write, before auditTxHash was saved
+    done = audit_store.anchor("app-funded", registry)
+    application = world.store["applications/app-funded"]
+    assert registry.lookups == ["app-funded"]
+    assert application["auditTxHash"] == FOUND and application["updatedAt"] == NOW
+    assert done.already_stored is True and done.tx_hash is None  # nothing was sent by this call
+
+
+def test_an_application_that_already_has_its_transaction_is_not_looked_up_or_changed(world):
+    audit_store.anchor("app-funded", FakeRegistry())
+    registry = FakeRegistry(ALREADY, found=FOUND)
+    audit_store.anchor("app-funded", registry)
+    assert registry.lookups == []
+    assert world.store["applications/app-funded"]["auditTxHash"] == "0x" + "cd" * 32
+
+
+def test_a_new_write_keeps_its_own_transaction_and_looks_nothing_up(world):
+    registry = FakeRegistry(found=FOUND)
+    audit_store.anchor("app-funded", registry)
+    assert registry.lookups == []
+    assert world.store["applications/app-funded"]["auditTxHash"] == "0x" + "cd" * 32
+
+
+def test_no_event_for_the_hash_leaves_the_transaction_empty_and_still_succeeds(world, caplog):
+    registry = FakeRegistry(ALREADY, found=None)
+    done = audit_store.anchor("app-funded", registry)
+    assert done.audit_hash == FUNDED["hash"] and done.already_stored is True
+    assert "auditTxHash" not in world.store["applications/app-funded"]
+    assert "no event for it was found" in caplog.text and "app-funded" in caplog.text
+
+
+def test_a_chain_that_cannot_be_read_leaves_the_transaction_empty_and_logs_why(world, caplog):
+    registry = FakeRegistry(ALREADY, lookup_error=ChainError("the chain could not be read: ConnectionError"))
+    done = audit_store.anchor("app-funded", registry)
+    assert done.audit_hash == FUNDED["hash"]
+    assert "auditTxHash" not in world.store["applications/app-funded"]
+    assert "the chain could not be read: ConnectionError" in caplog.text
 
 
 def test_a_record_saved_by_a_crashed_attempt_is_registered_by_the_retry(world):

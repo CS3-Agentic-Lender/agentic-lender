@@ -9,10 +9,14 @@
 5. keep the transaction hash on the application as `auditTxHash`.
 
 It is safe to call again: the same record gives the same hash, the registry answers "already stored", and nothing is rewritten.
-The order matters. The record is saved before the chain write, so a crash in between leaves a record that a retry anchors; a
-retry after a crash that came after the chain write finds the hash stored and leaves `auditTxHash` as it was.
+The order matters. The record is saved before the chain write, so a crash in between leaves a record that a retry anchors. A
+crash after the chain write but before `auditTxHash` was saved leaves the hash on the registry and the pointer empty: the retry
+finds the hash stored, reads the transaction back from the registry's `HashStored` event and saves it. An application that
+already has an `auditTxHash` is never changed, and if the event can't be found or read the anchor still succeeds, with the
+pointer left empty and the reason logged.
 """
 
+import logging
 from dataclasses import dataclass
 
 from google.cloud.firestore import SERVER_TIMESTAMP
@@ -20,15 +24,17 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app import audit
 from app.audit import AuditRecordError
-from app.chain import AuditRegistry
+from app.chain import AuditRegistry, ChainError
 from app.firestore import db
+
+log = logging.getLogger("al-core.audit_store")
 
 
 @dataclass(frozen=True)
 class Anchored:
     record: dict
     audit_hash: str
-    tx_hash: str | None  # None when the registry already held this hash
+    tx_hash: str | None  # the transaction sent now; None when the registry already held this hash (even if it was then read back)
     already_stored: bool
 
 
@@ -41,6 +47,19 @@ def _latest_complete_run(application_id: str) -> tuple[str, dict]:
     if not complete:
         raise AuditRecordError("the application has no complete AI run")
     return max(complete, key=lambda item: (audit.plain(item[1].get("startedAt")) or "", item[0]))
+
+
+def _keep_the_transaction_found_on_the_registry(ref, application_id: str, registry: AuditRegistry) -> None:
+    """The hash was already on the registry but the application has no transaction for it: read it back and save it."""
+    try:
+        tx_hash = registry.tx_of(application_id)
+    except ChainError as exc:
+        log.warning("auditTxHash left empty for %s: %s", application_id, exc)
+        return
+    if tx_hash is None:
+        log.warning("auditTxHash left empty for %s: the registry has the hash but no event for it was found", application_id)
+        return
+    ref.update({"auditTxHash": tx_hash, "updatedAt": SERVER_TIMESTAMP})
 
 
 def anchor(application_id: str, registry: AuditRegistry) -> Anchored:
@@ -69,4 +88,6 @@ def anchor(application_id: str, registry: AuditRegistry) -> Anchored:
     stored = registry.store(application_id, audit_hash)
     if stored.tx_hash:
         ref.update({"auditTxHash": stored.tx_hash, "updatedAt": SERVER_TIMESTAMP})
+    elif not application.get("auditTxHash"):
+        _keep_the_transaction_found_on_the_registry(ref, application_id, registry)
     return Anchored(record, audit_hash, stored.tx_hash, stored.already_stored)

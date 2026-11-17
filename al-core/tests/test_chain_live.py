@@ -10,8 +10,10 @@ import uuid
 
 import pytest
 
-from app import audit
+from app import audit, audit_store
 from app.chain import AuditRegistry, ChainError
+from tests.test_audit_record import FUNDED
+from tests.test_audit_store import world  # noqa: F401  (a pytest fixture: app-funded's documents in a fake Firestore)
 
 pytestmark = pytest.mark.skipif(os.getenv("CHAIN_LIVE_TEST") != "1", reason="needs a local Hardhat node, see the module docstring")
 
@@ -32,6 +34,21 @@ def test_a_hash_is_stored_once_read_back_and_never_replaced():
     with pytest.raises(ChainError, match="different audit hash"):
         registry.store(application_id, second)
     assert registry.record_of(application_id)[0] == first
+
+
+def test_the_transaction_is_found_again_when_the_hash_was_stored_but_auditTxHash_never_saved(world):  # noqa: F811
+    """The crash case: the hash reached the registry, the process stopped before auditTxHash was saved, and anchor runs again."""
+    registry = AuditRegistry.from_env()
+    stored = registry.store("app-funded", FUNDED["hash"])  # no auditTxHash is saved: this is the crash
+    assert "auditTxHash" not in world.store["applications/app-funded"]
+
+    done = audit_store.anchor("app-funded", registry)
+
+    assert done.already_stored and done.tx_hash is None  # this call sent nothing
+    saved = world.store["applications/app-funded"]["auditTxHash"]
+    assert saved == registry.tx_of("app-funded")
+    if stored.tx_hash:  # a fresh chain: it is the very transaction the write above returned
+        assert saved == stored.tx_hash
 
 
 def test_a_loan_note_is_minted_once_and_found_again_with_its_transaction():

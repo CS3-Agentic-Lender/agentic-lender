@@ -373,7 +373,7 @@ print(hashlib.sha256(json.dumps(record, sort_keys=True, separators=(",", ":")).e
 
 and compare it with the `auditHash` and with the value in the registry. The shared examples (the seeded records and a non-ASCII one) are in `test/audit-hash-vectors.json`, and al-ai's tests load the same file.
 
-**On the chain:** the registry holds one hash per application. It is keyed by the SHA-256 of the application id (`audit.application_ref`, the same reference the loan note uses), so no personal data is stored. A second write for the same application is refused by the contract; `chain.AuditRegistry.store` treats the same hash again as already done (no transaction) and a different hash as an error. The transaction hash is saved on the application as `auditTxHash`.
+**On the chain:** the registry holds one hash per application. It is keyed by the SHA-256 of the application id (`audit.application_ref`, the same reference the loan note uses), so no personal data is stored. A second write for the same application is refused by the contract; `chain.AuditRegistry.store` treats the same hash again as already done (no transaction) and a different hash as an error. The transaction hash is saved on the application as `auditTxHash`. If the process stops after the registry write and before that save, the next `anchor` finds the hash already stored, reads the transaction back from the registry's `HashStored` event (`AuditRegistry.tx_of`) and saves it. An application that already has an `auditTxHash` is never changed, and if the event can't be found the anchor still succeeds, leaves the field empty and logs the reason.
 
 **Settings** (names are in `.env.example`; keys live in `.env`, never in the repo, testnet wallets only):
 

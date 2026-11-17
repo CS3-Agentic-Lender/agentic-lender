@@ -25,8 +25,16 @@ DEPLOYMENTS = Path(__file__).resolve().parent.parent / "chain" / "deployments"
 DEFAULT_RPC_URL = "http://127.0.0.1:8545"
 RECEIPT_TIMEOUT_S = 60
 
-# Only the two functions al-core uses.
+# Only what al-core uses: two functions and the event that carries a write's transaction.
 ABI = [
+    {
+        "type": "event", "name": "HashStored", "anonymous": False,
+        "inputs": [
+            {"name": "applicationRef", "type": "bytes32", "indexed": True},
+            {"name": "hash", "type": "bytes32", "indexed": False},
+            {"name": "storedAt", "type": "uint64", "indexed": False},
+        ],
+    },
     {
         "type": "function", "name": "store", "stateMutability": "nonpayable", "outputs": [],
         "inputs": [{"name": "applicationRef", "type": "bytes32"}, {"name": "hash", "type": "bytes32"}],
@@ -96,6 +104,17 @@ class AuditRegistry:
         except (Web3Exception, OSError) as exc:
             raise ChainError(f"the chain could not be read: {type(exc).__name__}") from None
         return stored_hash.hex(), stored_at
+
+    def tx_of(self, application_id: str) -> str | None:
+        """The transaction that stored this application's hash, read back from the registry's event, or None if there is none."""
+        ref = bytes.fromhex(application_ref(application_id))
+        try:
+            events = self.contract.events.HashStored().get_logs(from_block=0, argument_filters={"applicationRef": ref})
+        except (ContractLogicError, Web3Exception, OSError) as exc:
+            raise ChainError(f"the chain could not be read: {type(exc).__name__}") from None
+        if not events:
+            return None
+        return "0x" + events[0]["transactionHash"].hex().removeprefix("0x")
 
     def store(self, application_id: str, audit_hash: str) -> Stored:
         """Write the audit hash for an application. The same hash again is safe; a different one is an error."""
