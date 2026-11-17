@@ -22,6 +22,12 @@ variable "aws_profile" {
   default     = null
 }
 
+variable "team_account_id" {
+  description = "The team AWS account. Terraform refuses to touch any other account on the real target."
+  type        = string
+  default     = "176550299403"
+}
+
 variable "region" {
   description = "The AWS Region everything goes in. Ireland, close to our users and where Bedrock serves Qwen3 32B."
   type        = string
@@ -29,9 +35,14 @@ variable "region" {
 }
 
 variable "github_repo" {
-  description = "The only GitHub repository allowed to use the deploy role, as owner/name."
+  description = <<-EOT
+    The only GitHub repository allowed to use the deploy role, as GitHub writes it in a job's token:
+    owner@owner-id/name@repo-id. Our repo uses GitHub's immutable subject, which adds the ID numbers so a
+    deleted and re-created repo with the same name can't take over the role. Check it with
+    `gh api repos/CS3-Agentic-Lender/agentic-lender/actions/oidc/customization/sub`.
+  EOT
   type        = string
-  default     = "CS3-Agentic-Lender/agentic-lender"
+  default     = "CS3-Agentic-Lender@330450351/agentic-lender@1374486526"
 }
 
 variable "domain" {

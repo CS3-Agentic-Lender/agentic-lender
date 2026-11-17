@@ -14,6 +14,7 @@ on:
   pull_request:
     paths:
       - deploy/foundations/github-deploy-role.tf
+      - deploy/foundations/variables.tf # holds the repo the role trusts
       - .github/workflows/aws-trust-check.yml
 
 permissions:

@@ -21,6 +21,7 @@ set -euo pipefail
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$DEPLOY_DIR/app"
 TARGET="aws"
+TEAM_ACCOUNT="176550299403" # the team account; the real target refuses any other
 STATE_BUCKET="" # set by connect()
 
 # ---- small helpers -------------------------------------------------------------------------------
@@ -55,6 +56,8 @@ connect() {
     local account
     account="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)" \
       || fail "not signed in to the team account. Run: aws login --profile agentic-lender"
+    [[ "$account" == "$TEAM_ACCOUNT" ]] \
+      || fail "signed in to account $account, not the team account $TEAM_ACCOUNT. Check AWS_PROFILE."
     STATE_BUCKET="agentic-lender-tfstate-$account" # the name state-bucket.tf gives it
     tf init -input=false -backend-config="$DEPLOY_DIR/backend-aws.hcl" -backend-config="bucket=$STATE_BUCKET" >/dev/null \
       || fail "can't open the state bucket $STATE_BUCKET. Has deploy/foundations been applied?"
@@ -127,7 +130,7 @@ plan_and_apply() {
   tf apply -input=false "$PLAN_FILE"
 }
 
-where() { [[ "$TARGET" == "floci" ]] && echo "Floci (practice)" || echo "the real team AWS account"; }
+where() { [[ "$TARGET" == "floci" ]] && echo "Floci (practice)" || echo "the real team AWS account ($TEAM_ACCOUNT)"; }
 
 # ---- the four commands ---------------------------------------------------------------------------
 

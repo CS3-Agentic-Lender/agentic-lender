@@ -24,6 +24,9 @@ provider "aws" {
   access_key = local.floci ? "test" : null
   secret_key = local.floci ? "test" : null
 
+  # Real account: stop before doing anything if the login belongs to any other account.
+  allowed_account_ids = local.floci ? null : [var.team_account_id]
+
   # Floci isn't real AWS, so skip the checks that only real AWS can answer.
   skip_credentials_validation = local.floci
   skip_metadata_api_check     = local.floci

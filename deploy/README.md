@@ -113,12 +113,16 @@ Do these steps once, in order. Budget alerts (AL-224) must exist before step 2. 
    unused once step 3 is live, and it costs USD 0.50 a month. Route 53 only deletes a zone that holds
    just its NS and SOA records, so remove any others first.
 
-## Roles that deploy/app creates
+## Roles the app needs
 
-The deploy role works under a permissions boundary (`foundations/guardrails.tf`). Any IAM role that
-deploy/app creates, such as an ECS task role, must:
+The deploy role works under a permissions boundary (`foundations/guardrails.tf`) and can't create or
+change any IAM role or policy: a role made from inside could trust an outsider and become a way in.
+So a role the app needs, such as an ECS task role, goes in `foundations/` and Nic applies it. It must:
 
-- be named `agentic-lender-app-...`
+- be named `agentic-lender-app-...`, the only names the deploy role may hand to a service (PassRole)
 - set `permissions_boundary` to the `guardrails_boundary_arn` output
 
-Otherwise AWS refuses to create it.
+`deploy/app` then refers to it by name. The boundary also shuts off CloudFormation, CodeBuild and SSM
+Run Command, and the deploy role can't write anything under `foundations/` in the state bucket.
+
+Both folders refuse to run against any account but the team's (`team_account_id`), and so does `al`.

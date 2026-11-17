@@ -19,6 +19,12 @@ variable "aws_profile" {
   default     = null
 }
 
+variable "team_account_id" {
+  description = "The team AWS account. Terraform refuses to touch any other account on the real target."
+  type        = string
+  default     = "176550299403"
+}
+
 variable "region" {
   description = "The AWS Region everything goes in."
   type        = string

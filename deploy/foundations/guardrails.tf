@@ -4,15 +4,16 @@
 # works if the role's policies allow it AND the boundary allows it. So the deploy role keeps
 # AdministratorAccess for building the app, but anything this file denies stays impossible.
 #
-# Why a boundary and not just a deny on the deploy role: with admin, the role could create a NEW role
-# without the deny, give it admin and use that instead. Here it can only create or change roles named
-# agentic-lender-app-* that carry this same boundary, so every role it can reach has the same ceiling.
+# Why a boundary and not just a deny on the deploy role: a boundary also stops the role handing its
+# work to something more powerful (a new role, another service's role). So it can't make roles at all,
+# and can only pass the app roles made in foundations to the services that run the app.
 #
 # What no role under this boundary can ever do:
 #   - change the deploy role, the GitHub OIDC provider, the budget kill switch or this boundary
-#   - create or change any IAM role outside agentic-lender-app-*, or one without this boundary
-#   - hand any other role to a service (iam:PassRole), create IAM users or long-lived access keys
-#   - delete, reconfigure or wipe the history of the Terraform state bucket
+#   - create or change any IAM role or policy (app roles are made in foundations, by Nic)
+#   - hand any role but agentic-lender-app-* to a service (iam:PassRole), create IAM users or access keys
+#   - use CloudFormation, CodeBuild or SSM Run Command, which run things as their own role
+#   - delete, reconfigure or wipe the history of the Terraform state bucket, or write foundations' state
 # Nic's own login runs this folder and isn't under the boundary, so all of it stays changeable on
 # purpose, through Terraform.
 #
@@ -21,14 +22,10 @@
 locals {
   account_id = data.aws_caller_identity.current.account_id
 
-  # The only roles, policies and Lambda functions the deploy role may create, change or use: the ones
-  # deploy/app makes, which all start agentic-lender-app-.
+  # The only roles and Lambda functions the deploy role may use: the app's, which all start
+  # agentic-lender-app-.
   app_roles     = "arn:aws:iam::${local.account_id}:role/agentic-lender-app-*"
-  app_policies  = "arn:aws:iam::${local.account_id}:policy/agentic-lender-app-*"
   app_functions = "arn:aws:lambda:*:${local.account_id}:function:agentic-lender-app-*"
-
-  # Built by name, not from the resource, because the policy has to exist before anything uses it.
-  guardrails_arn = "arn:aws:iam::${local.account_id}:policy/agentic-lender-guardrails"
 }
 
 data "aws_iam_policy_document" "guardrails" {
@@ -40,37 +37,22 @@ data "aws_iam_policy_document" "guardrails" {
     resources = ["*"]
   }
 
-  # Roles: only agentic-lender-app-* may be created, changed or deleted.
+  # Roles and policies: the deploy role can't create or change any. A role's trust (who may use it)
+  # can't be checked by a boundary, so a role made from inside could trust an outsider and become a
+  # back door. App roles (e.g. an ECS task role) are made in foundations instead, by Nic, and the deploy
+  # role may only hand them to a service (PassRole, below). Service-linked roles, which AWS makes itself
+  # the first time ECS or a load balancer is used, are still allowed.
   statement {
-    sid    = "OnlyAppRolesCanBeChanged"
+    sid    = "RolesAndPoliciesAreMadeInFoundations"
     effect = "Deny"
     actions = [
-      "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateAssumeRolePolicy",
+      "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateRoleDescription", "iam:UpdateAssumeRolePolicy",
       "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy",
-      "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary",
-      "iam:TagRole", "iam:UntagRole",
+      "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary", "iam:TagRole", "iam:UntagRole",
+      "iam:CreatePolicy", "iam:CreatePolicyVersion", "iam:DeletePolicy", "iam:DeletePolicyVersion",
+      "iam:SetDefaultPolicyVersion", "iam:TagPolicy", "iam:UntagPolicy",
+      "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile", "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
     ]
-    not_resources = [local.app_roles]
-  }
-
-  # ...and only with this boundary on them, so a new role is never more powerful than the deploy role.
-  statement {
-    sid       = "AppRolesMustCarryThisBoundary"
-    effect    = "Deny"
-    actions   = ["iam:CreateRole", "iam:PutRolePermissionsBoundary", "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"]
-    resources = [local.app_roles]
-
-    condition {
-      test     = "StringNotEquals"
-      variable = "iam:PermissionsBoundary"
-      values   = [local.guardrails_arn]
-    }
-  }
-
-  statement {
-    sid       = "TheBoundaryCantBeRemoved"
-    effect    = "Deny"
-    actions   = ["iam:DeleteRolePermissionsBoundary"]
     resources = ["*"]
   }
 
@@ -93,15 +75,6 @@ data "aws_iam_policy_document" "guardrails" {
       "iam:CreateSAMLProvider", "iam:UpdateSAMLProvider",
     ]
     resources = ["*"]
-  }
-
-  # Policies: only app policies may be created or edited, so the ceiling, the budget kill switch's
-  # deny policy and anything Nic made by hand can't be rewritten from inside.
-  statement {
-    sid           = "OnlyAppPoliciesCanBeEdited"
-    effect        = "Deny"
-    actions       = ["iam:CreatePolicy", "iam:CreatePolicyVersion", "iam:DeletePolicy", "iam:DeletePolicyVersion", "iam:SetDefaultPolicyVersion", "iam:TagPolicy", "iam:UntagPolicy"]
-    not_resources = [local.app_policies]
   }
 
   # People: IAM users and groups (like Nic's own login) can't be changed from inside at all.
@@ -136,6 +109,16 @@ data "aws_iam_policy_document" "guardrails" {
     not_resources = [local.app_functions]
   }
 
+  # Services that run things as their OWN role, which would side-step this ceiling: CloudFormation
+  # stacks and CodeBuild projects keep their role, and SSM Run Command runs as the machine's role.
+  # We use none of them, so they're shut off.
+  statement {
+    sid       = "NoServicesThatRunAsTheirOwnRole"
+    effect    = "Deny"
+    actions   = ["cloudformation:*", "codebuild:*", "ssm:SendCommand", "ssm:StartAutomationExecution"]
+    resources = ["*"]
+  }
+
   # The budget kill switch (AL-224) can't be switched off from inside.
   statement {
     sid       = "CannotTouchTheBudgetKillSwitch"
@@ -163,6 +146,15 @@ data "aws_iam_policy_document" "guardrails" {
     effect    = "Deny"
     actions   = ["s3:DeleteObjectVersion"]
     resources = ["${aws_s3_bucket.state.arn}/*"]
+  }
+
+  # ...and foundations' own state (and its lock) is Nic's alone: the deploy role only runs deploy/app,
+  # so it may write app/ and nothing under foundations/.
+  statement {
+    sid       = "FoundationsStateIsReadOnly"
+    effect    = "Deny"
+    actions   = ["s3:PutObject", "s3:DeleteObject"]
+    resources = ["${aws_s3_bucket.state.arn}/foundations/*"]
   }
 }
 
