@@ -60,7 +60,8 @@ final class AppSession {
 
     /// Signs out back to Welcome. `notice` says why, when the app signs the borrower out itself.
     func signOut(notice: String? = nil) {
-        isSigningOut = true
+        // Firebase reports a sign-out only when someone was signed in; otherwise the flag would never clear.
+        isSigningOut = state.hasSignedInUser
         do {
             try state.signOut()
         } catch {

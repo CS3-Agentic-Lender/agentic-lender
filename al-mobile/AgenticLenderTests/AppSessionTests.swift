@@ -183,6 +183,17 @@ final class AppSessionTests: XCTestCase {
         XCTAssertNil(session.welcomeNotice)
     }
 
+    func testSigningOutWhenFirebaseAlreadyHasStillCatchesTheNextEndedSession() {
+        let state = FakeSignedInState(hasSignedInUser: false)
+        let session = AppSession(state: state)
+
+        session.signOut() // nobody is signed in, so Firebase reports nothing
+        state.hasSignedInUser = true // the borrower signs in again
+        state.firebaseSignedOut() // and later their account is deleted
+
+        XCTAssertEqual(session.welcomeNotice, "Your session has ended. Please sign in again.")
+    }
+
     func testASignOutWithItsOwnMessageKeepsThatMessage() {
         let state = FakeSignedInState(hasSignedInUser: true)
         let session = AppSession(state: state)
