@@ -78,6 +78,11 @@ final class FeeViewModel {
             let intent = try await service.createIntent(applicationID: applicationID)
             self.intent = intent
             state = .sheet(intent)
+        } catch APIError.conflict {
+            // al-core already has a payment that went through (the app closed before the webhook, say):
+            // wait for it rather than saying nothing was charged.
+            logger.info("The fee intent was refused with 409, so wait for the webhook")
+            state = .confirming(stillWaiting: false)
         } catch {
             logger.error("Creating the fee intent failed: \(String(describing: error), privacy: .public)")
             state = .failed(Self.couldNotStart)
@@ -93,9 +98,11 @@ final class FeeViewModel {
     }
 
     /// The application's fee as Firestore has it now. Only the webhook's "paid" ends the wait.
+    /// After a 409 there is no intent from this visit, so the receipt uses what the webhook recorded.
     func feeChanged(_ fee: ApplicationFee) {
-        guard case .confirming = state, fee.isPaid, let intent else { return }
-        state = .receipt(FeeReceipt(amountEur: intent.amountEur, paidAt: fee.paidAt, paymentIntentID: fee.paymentIntentID ?? intent.paymentIntentID))
+        guard case .confirming = state, fee.isPaid,
+              let paymentIntentID = fee.paymentIntentID ?? intent?.paymentIntentID else { return }
+        state = .receipt(FeeReceipt(amountEur: intent?.amountEur ?? ApplicationFee.amountEur, paidAt: fee.paidAt, paymentIntentID: paymentIntentID))
     }
 
     func waitedTooLong() {

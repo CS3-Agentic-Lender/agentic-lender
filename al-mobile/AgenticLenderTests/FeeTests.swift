@@ -105,6 +105,38 @@ final class FeeTests: XCTestCase {
         XCTAssertEqual(model.state, .ready)
     }
 
+    // MARK: - A payment al-core already has (409)
+
+    func testA409FromTheFeeIntentIsAConflict() async {
+        StubURLProtocol.response = (409, #"{"error": {"code": "CONFLICT", "message": "The payment went through and is being confirmed"}}"#)
+        let api = APIFeeService(baseURL: baseURL, session: StubURLProtocol.session, idToken: { "test-token" })
+
+        do {
+            _ = try await api.createIntent(applicationID: "app-applied")
+            XCTFail("should throw")
+        } catch {
+            XCTAssertEqual(error as? APIError, .conflict)
+        }
+    }
+
+    func testWhenAlCoreAlreadyHasThePaymentTheAppWaitsInsteadOfSayingNothingWasCharged() async {
+        // The sheet took the payment, the app was closed before the webhook, and Pay is tapped again.
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .failure(.conflict)), publishableKey: "pk_test_x")
+
+        await model.pay()
+
+        XCTAssertEqual(model.state, .confirming(stillWaiting: false))
+    }
+
+    func testTheReceiptStillShowsWhenThisVisitNeverGotAnIntent() async {
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .failure(.conflict)), publishableKey: "pk_test_x")
+        await model.pay()
+
+        model.feeChanged(ApplicationFee(fields: ["feeStatus": "paid", "feePaidAt": paidAt, "feeIntentId": "pi_123453xYz"]))
+
+        XCTAssertEqual(model.state, .receipt(FeeReceipt(amountEur: 150, paidAt: paidAt, paymentIntentID: "pi_123453xYz")))
+    }
+
     // MARK: - Figma 16b: the payment couldn't start, nothing was charged
 
     func testAnIntentThatFailsSaysNothingWasCharged() async {
