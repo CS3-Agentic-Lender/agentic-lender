@@ -42,13 +42,31 @@ class Functions:
         return Call((ref, value))
 
 
+class Events:
+    """The registry's HashStored events: the transaction hashes to answer with, or an error to raise."""
+
+    def __init__(self, registry):
+        self.registry = registry
+
+    def HashStored(self):
+        return self
+
+    def get_logs(self, from_block, argument_filters):
+        self.registry.log_filters.append((from_block, argument_filters))
+        if self.registry.log_error:
+            raise self.registry.log_error
+        return [{"transactionHash": bytes.fromhex(tx)} for tx in self.registry.log_txs]
+
+
 class FakeContract:
     """Holds at most one record, like the registry for one application."""
 
     def __init__(self, record=None):
         self.record = record  # (bytes32 hash, stored_at) or None
         self.refs_read, self.stored_with = [], []
+        self.log_txs, self.log_filters, self.log_error = [], [], None  # for tx_of
         self.functions = Functions(self)
+        self.events = Events(self)
 
     def read(self):
         if self.record is None:
@@ -181,6 +199,31 @@ def test_a_hash_with_a_0x_prefix_is_accepted():
 def test_record_of_is_none_when_nothing_is_stored_and_the_hash_and_time_when_it_is():
     assert registry().record_of("app-funded") is None
     assert registry(record=(bytes.fromhex(HASH), 5)).record_of("app-funded") == (HASH, 5)
+
+
+def test_tx_of_reads_the_transaction_back_from_the_event_with_a_0x_prefix():
+    reg = registry(record=(bytes.fromhex(HASH), 5))
+    reg.contract.log_txs = ["ab" * 32]
+    assert reg.tx_of("app-funded") == "0x" + "ab" * 32
+
+
+def test_tx_of_asks_for_the_events_of_this_applications_reference_only():
+    reg = registry()
+    reg.tx_of("app-funded")
+    assert reg.contract.log_filters == [(0, {"applicationRef": bytes.fromhex(audit.application_ref("app-funded"))})]
+
+
+def test_tx_of_is_none_when_the_registry_has_no_event_for_the_application():
+    assert registry().tx_of("app-funded") is None
+
+
+@pytest.mark.parametrize("error", [Web3Exception("down"), OSError("refused"), ContractLogicError("x")])
+def test_tx_of_turns_a_chain_that_cannot_be_read_into_a_chain_error_without_the_wire_details(error):
+    reg = registry()
+    reg.contract.log_error = error
+    with pytest.raises(ChainError, match="the chain could not be read") as caught:
+        reg.tx_of("app-funded")
+    assert "down" not in str(caught.value) and "refused" not in str(caught.value)
 
 
 # ---- settings -------------------------------------------------------------------------------------------------------
