@@ -136,6 +136,7 @@ These need no emulator.
 | `POST /core/saved-checks` | Borrower | Keeps a property check the borrower ran. Send `property` (`county`, `eircode`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and an optional `asking_price_eur`, the application's names and limits) plus the result you already have: `estimated_value_eur`, `asking_price_gap`, `price_needs_review`, `support_warnings` and `model_version`. al-core validates and stores it and does not call al-ai again. `201` with the saved check and its `id`. The gap and the flag must be null or left out when there is no asking price. At most 20 per borrower: the 21st is `409`. `422` names the field (`property.eircode`) |
 | `POST /core/support-requests` | Borrower | Sends a support request. Send `category` (`application`, `payment`, `account` or `other`), `subject` (1 to 100 characters) and `message` (1 to 2000), all required, and optionally `application_id`, one of the borrower's own applications (someone else's or an unknown id is `404`). `201` with `reference` (for example `SR-7KQ2M9XD`, unique, also the document id), the fields, `application_id` (null if none), `status` (`open`) and `created_at`. The borrower's id comes from the token. The borrower reads their own requests from Firestore, underwriters read all. `422` names the field |
 | `DELETE /core/saved-checks/{id}` | Borrower (their own) | Removes a saved check: `204`, and `404` for someone else's or an unknown id. There is no list endpoint: read `users/{uid}/saved_checks` from Firestore |
+| `PUT /core/reviews/me` | Borrower | Saves the borrower's one review of the app, replacing the one they had. Send `rating` (a whole number, 1 to 5) and an optional `comment` (up to 500 characters; blank means none). `200` with `rating`, `comment`, `created_at` (the first save, kept on replacement) and `updated_at`. The borrower's id comes from the token, so nobody can write another borrower's review. The borrower reads their own from Firestore at `reviews/{uid}`, underwriters read all. `422` names the field |
 | `GET /core/applications/{id}` | Borrower, broker, underwriter | One application: the borrower's own, a broker's assigned client's, or any for an underwriter. Anything else is `404`. It includes `ltv_band` (`80_or_less`, `80_to_90` or `over_90`) and `risk_tier` (`A` to `D`), which are `null` until al-ai sets them after a run. `POST` and `PATCH` ignore them if sent |
 
 The `property` object takes `address_line_1`, `address_line_2` (optional, an empty string counts as none), `eircode` (capitals with a space, as on the profile), `county`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and `asking_price_eur`, both when creating and when editing a Draft. `asking_price_eur` only applies to a mortgage: on a HELOC it is `422` (`property.asking_price_eur`), and changing a Draft to a HELOC drops it, like the deposit.
@@ -259,6 +260,12 @@ call POST "/core/applications/app-declined/close"
 TOKEN=$(token signInWithPassword "$EMAIL" "local-only-pass")
 call POST /core/support-requests '{"category":"payment","subject":"My fee did not go through","message":"I paid the EUR 150 fee twice."}'
 call POST /core/support-requests "{\"category\":\"application\",\"subject\":\"Question about my application\",\"message\":\"When will a broker look at it?\",\"application_id\":\"$APP\"}"
+
+# 20. PUT /core/reviews/me: a borrower rates the app. 200 with the review; the same call again replaces it.
+#     rating is 1 to 5, comment is optional (up to 500 characters)
+TOKEN=$(token signInWithPassword "$EMAIL" "local-only-pass")
+call PUT /core/reviews/me '{"rating":4,"comment":"Clear and quick."}'
+call PUT /core/reviews/me '{"rating":5}'
 ```
 
 Errors come back as `{"error": {"code", "message", "field", "request_id"}}`, for example a `PATCH` with `"term_years": 41` (the loan term is 5 to 35 years) returns `422` with `"field": "term_years"`. The same calls can be tried from the browser at http://127.0.0.1:5002/core/docs (**Authorize** with the token, then **Try it out**).
