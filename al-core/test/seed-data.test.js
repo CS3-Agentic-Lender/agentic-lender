@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { build, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, valuation, PRICE_REVIEW_GAP } = require('../scripts/seed');
+const { EMAIL_VERIFIED, users, build, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, valuation, PRICE_REVIEW_GAP } = require('../scripts/seed');
 
 const manifestThreshold = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', '..', 'al-ai', 'models', 'valuation', 'manifest.json'), 'utf8'),
@@ -318,5 +318,20 @@ describe('valuationDetail and the HELOC gate (AL-287)', () => {
       expect(run).toBeDefined();
       expect(run.data.policyGate).toEqual(r.data.policyGate);
     }
+  });
+});
+
+describe('email verification (Auth only)', () => {
+  test('Alice is verified and Ben is not, so only Ben shows the iOS "check your inbox" banner', () => {
+    expect(EMAIL_VERIFIED.borrower1).toBe(true);
+    expect(EMAIL_VERIFIED.borrower2).toBe(false);
+  });
+
+  test('every seeded user has an explicit flag', () => {
+    for (const u of users) expect(typeof EMAIL_VERIFIED[u.uid]).toBe('boolean');
+  });
+
+  test('the flag is not copied into the Firestore users documents', () => {
+    for (const data of userByUid.values()) expect(data).not.toHaveProperty('emailVerified');
   });
 });

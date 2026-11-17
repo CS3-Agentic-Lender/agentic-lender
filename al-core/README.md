@@ -27,8 +27,8 @@ Roles live in the Firebase Auth custom claim (`role`) set on each user — the `
 
 | Email | uid | Role | Notes |
 |---|---|---|---|
-| alice@test.com | `borrower1` | borrower | Chose broker Bob |
-| ben@test.com | `borrower2` | borrower | Chose broker Ciara |
+| alice@test.com | `borrower1` | borrower | Chose broker Bob. Email verified |
+| ben@test.com | `borrower2` | borrower | Chose broker Ciara. Email **not** verified, so the iOS app shows its "check your inbox" banner |
 | bob@test.com | `broker1` | broker | |
 | ciara@test.com | `broker2` | broker | |
 | uma@test.com | `underwriter1` | underwriter | |
