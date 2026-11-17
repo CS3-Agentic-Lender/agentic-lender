@@ -31,10 +31,13 @@ final class EmailVerificationModel {
     private(set) var error: String?
 
     private let service: VerificationService
+    /// Waits the given number of seconds; throws when Home goes away first. Replaced in tests.
+    private let sleep: (Double) async throws -> Void
     private let logger = Logger(category: "Verification")
 
-    init(service: VerificationService) {
+    init(service: VerificationService, sleep: @escaping (Double) async throws -> Void = { try await Task.sleep(for: .seconds($0)) }) {
         self.service = service
+        self.sleep = sleep
     }
 
     /// "Check your inbox. We sent a link to verify alice@test.com.", or nil when nothing needs verifying.
@@ -69,6 +72,18 @@ final class EmailVerificationModel {
 
     func cooldownEnded() {
         isCoolingDown = false
+    }
+
+    /// After a resend, waits 60 seconds and lets Resend work again. If Home goes away first the wait is
+    /// cancelled and the button stays disabled; Home starts the wait again when it comes back.
+    func waitOutCooldown() async {
+        guard isCoolingDown else { return }
+        do {
+            try await sleep(Self.cooldownSeconds)
+            cooldownEnded()
+        } catch {
+            return
+        }
     }
 }
 

@@ -49,6 +49,39 @@ final class EmailVerificationTests: XCTestCase {
         XCTAssertEqual(EmailVerificationModel.cooldownSeconds, 60)
     }
 
+    func testWaitingOutTheCooldownTakes60SecondsThenResendWorksAgain() async {
+        var waited: [Double] = []
+        let model = EmailVerificationModel(service: FakeVerificationService(account: account), sleep: { waited.append($0) })
+        await model.refresh()
+        await model.resend()
+
+        await model.waitOutCooldown()
+
+        XCTAssertEqual(waited, [60])
+        XCTAssertTrue(model.canResend)
+        XCTAssertEqual(model.resendTitle, "Resend email")
+    }
+
+    func testLeavingHomeDuringTheCooldownDoesntEndItEarly() async {
+        let model = EmailVerificationModel(service: FakeVerificationService(account: account), sleep: { _ in throw CancellationError() })
+        await model.refresh()
+        await model.resend()
+
+        await model.waitOutCooldown()
+
+        XCTAssertFalse(model.canResend, "a cancelled wait leaves the button disabled")
+    }
+
+    func testNothingToWaitForBeforeAnyResend() async {
+        var waited: [Double] = []
+        let model = EmailVerificationModel(service: FakeVerificationService(account: account), sleep: { waited.append($0) })
+
+        await model.waitOutCooldown()
+
+        XCTAssertEqual(waited, [])
+        XCTAssertTrue(model.canResend)
+    }
+
     // MARK: - Criterion 4: a failed resend
 
     func testAFailedResendSaysSoAndKeepsTheBanner() async {
