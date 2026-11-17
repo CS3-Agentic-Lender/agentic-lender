@@ -33,6 +33,27 @@ Roles live in the Firebase Auth custom claim (`role`) set on each user — the `
 | ciara@test.com | `broker2` | broker | |
 | uma@test.com | `underwriter1` | underwriter | |
 
+## Demo accounts on the hosted Firebase project
+
+The seed only ever writes to the emulators (it refuses any project that isn't `demo-`). The hosted project gets its demo accounts from a separate script, `scripts/create-hosted-accounts.js`: the two borrowers, two brokers and the underwriter from the table above, each with its `role` claim and a `users/{uid}` profile. Alice is created with a verified email and Ben without, as in the seed. It does not create applications.
+
+The emails use `@example.com`, not `@test.com`: test.com is a real domain, and the app's "resend verification email" would send mail to whoever owns it. Set `HOSTED_DEMO_EMAIL_DOMAIN` to use a domain the team owns.
+
+Set these in your shell, never in a file in the repo (the key especially: the repo is public):
+
+| Variable | What |
+|---|---|
+| `FIREBASE_PROJECT_ID` | The hosted project's id. A `demo-` id is refused |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to a service account key **for that project**, outside this repo (Firebase console, Project settings, Service accounts) |
+| `HOSTED_DEMO_PASSWORD` | The password every demo account gets, 12 or more characters. Share it privately |
+
+```
+node scripts/create-hosted-accounts.js --dry-run   # shows the accounts, writes nothing
+node scripts/create-hosted-accounts.js             # asks you to type the project id, then writes
+```
+
+It refuses to run if an emulator host is set, if the key belongs to another project or sits inside this repo, or if the password is short or is the seed's. It never prints the password. Running it again is safe: the accounts get the password and flags again, and a profile that already exists is left alone, so a borrower's choice of broker is kept. Its checks are in `test/hosted-accounts.test.js`; the accounts themselves are defined once, in `scripts/demo-users.js`, which the seed uses too.
+
 ## Seeded applications
 
 One application in every status, LTV band and risk tier, so each screen and every group in the underwriter's queue has something to show. The field list is in [SCHEMA.md](SCHEMA.md). `node scripts/seed.js --dry-run` prints this table and fails if a status, band or tier goes missing.
