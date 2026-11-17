@@ -98,11 +98,16 @@ Do these steps once, in order. Budget alerts (AL-224) must exist before step 2. 
    Paste the four, save, and check with `dig NS agentic-lender.com +short` until they show.
 4. **Finish, including the certificate.** `terraform apply`. It waits until ACM sees the validation
    record, which is up to 45 minutes. After that, `terraform plan` should show no changes.
-5. **Move the state into the bucket.** Delete the override, then:
+5. **Move the state into the bucket.** Read the bucket's name first: once the override is deleted,
+   Terraform won't answer `terraform output` until the move is done. Then delete the override, move
+   the state (answer `yes` when it asks to copy it) and check that `terraform plan` still shows no
+   changes:
    ```sh
+   BUCKET="$(terraform output -raw state_bucket)"
    rm first_run_override.tf
-   terraform init -migrate-state -backend-config=../backend-aws.hcl \
-     -backend-config="bucket=$(terraform output -raw state_bucket)"
+   terraform init -migrate-state -backend-config=../backend-aws.hcl -backend-config="bucket=$BUCKET"
+   terraform plan
+   rm aws.tfstate aws.tfstate.backup   # the laptop copy, now out of date
    ```
 6. **Tidy up.** In the personal account, delete the old hosted zone that registration created. It's
    unused once step 3 is live, and it costs USD 0.50 a month. Route 53 only deletes a zone that holds
