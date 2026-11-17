@@ -51,7 +51,9 @@ function download(bytes: BlobPart, type: string, fileName: string) {
   document.body.append(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  // Some browsers (older Safari) start the download after click() returns and cancel it if the URL is
+  // already revoked, so free it on the next task instead.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 // "Download PDF" and "Download CSV" on a loan file that has a minted note. Both files come from
