@@ -94,7 +94,7 @@ If a check fails, say which one, and offer the legitimate routes: pick one of th
 ### While working
 
 - **One ticket per branch and per PR.** Don't add "while I was in there" changes for other tickets; open a new ticket instead.
-- **Work found mid-ticket** that is outside its scope becomes a new Jira ticket with `needs-triage`. It is not quietly built.
+- **Work found mid-ticket** that is outside its scope becomes a new Jira ticket with `needs-triage`, unless it is a small bug fix (see the exception under [Before starting](#before-starting)). Either way it goes in its own PR, never inside the current ticket's.
 - **Work from a later sprint** is fine to start early on your own ticket. It still needs a ticket, a branch and a PR like anything else.
 - **Don't edit someone else's subsystem to unblock yourself.** Integration work that genuinely needs a change in another owner's directory is allowed, but it is agreed first: comment on their ticket, get their agreement, then do it on its own ticket in its own PR, which `CODEOWNERS` sends to them to review. What is not allowed is quietly changing their code inside your own ticket.
 
@@ -209,7 +209,9 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
-**Exception: small changes to the agent rules and docs need no ticket.** Wording fixes in `AGENTS.md`, `docs/agents/` and the READMEs skip the ticket check, the sprint check and the branch format above. Use a branch named `docs/short-description` and a commit and PR title with no `AL-` key anywhere, so Jira cannot link the change to an unrelated ticket. Anything that changes code, or a rule the team has not agreed, still needs a ticket.
+**Exception: small changes to the agent rules and docs need no ticket.** Wording fixes in `AGENTS.md`, `docs/agents/` and the READMEs skip the ticket check, the sprint check and the branch format above. Use a branch named `docs/short-description` and a commit and PR title with no `AL-` key anywhere, so Jira cannot link the change to an unrelated ticket. Anything else that changes code, or a rule the team has not agreed, still needs a ticket.
+
+**Exception: small bug fixes need no ticket.** A fault you come across (a wrong timeout, a crash, a missed case) can be fixed straight away in your own subsystem without a Jira ticket. Use a branch named `fix/short-description`, one fix per branch, and a commit and PR title with no `AL-` key anywhere. It still gets its own PR, tests and a teammate's review like any other change. A fix in another owner's directory still goes to that owner first. Because no ticket means it won't show on the board, list it in your sprint summary page so it counts towards your work. A fix big enough to need planning, or a change in behaviour, is not a small fix: it gets a ticket.
 
 Creating that branch moves the ticket to In Progress, and opening a PR moves it to In Review, so both happen when the work really starts and really ends. Don't create branches for tickets you are not about to work on, and don't open a PR to park unfinished work.
 
@@ -234,7 +236,7 @@ If a status is wrong, the agent moves it with the Jira tools when the user has a
 | Commit subject | `AL-<number> <imperative summary>`, lowercase after the key, no full stop | `AL-54 add google sign-in provider` |
 | PR title | `AL-<number> <Sentence case summary>` | `AL-54 Add Google sign-in provider` |
 
-A commit that fixes a review comment keeps the same key; never renumber mid-branch. `chore/`, `fix/` and bare branch names are not used: every branch is `feature/AL-…`, whatever the work type.
+A commit that fixes a review comment keeps the same key; never renumber mid-branch. Every ticket branch is `feature/AL-…`, whatever the work type. The only other branches are `docs/…` and `fix/…` for the no-ticket exceptions under [Before starting](#before-starting); `chore/` and bare branch names are not used.
 
 ### Opening the PR
 
