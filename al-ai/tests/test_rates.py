@@ -305,10 +305,12 @@ class FakeFirestore:
         self.id = doc_id
         return self
 
-    def get(self):
+    def get(self, retry=None, timeout=None):
+        self.limits = (retry, timeout)
         return FakeSnapshot(self.docs.get(self.id))
 
-    def set(self, doc):
+    def set(self, doc, retry=None, timeout=None):
+        self.limits = (retry, timeout)
         self.docs[self.id] = doc
 
 
@@ -324,3 +326,26 @@ def test_the_firestore_cache_keeps_one_document_per_rate_in_rates_cache():
 def test_a_time_read_back_without_a_zone_is_taken_as_utc():
     doc = {**cached().to_doc(), "fetchedAt": datetime(2026, 11, 5, 9, 0)}
     assert Rate.from_doc("mortgage_ie", doc).fetched_at == datetime(2026, 11, 5, 9, 0, tzinfo=timezone.utc)
+
+
+# ---- the time limits ----
+
+
+def test_the_ecb_is_asked_with_the_short_timeout():
+    net = Net()
+    rates.fetch("mortgage_ie", transport=net, now=NOW)
+    assert rates.TIMEOUT_S == 6 and net.calls[0]["timeout"] == 6
+
+
+def test_the_firestore_cache_makes_one_short_try_each_way():
+    client = FakeFirestore()
+    cache = FirestoreCache(client=client)
+    cache.load("mortgage_ie")
+    assert client.limits == (None, rates.FIRESTORE_TIMEOUT_S)
+    cache.save("mortgage_ie", cached().to_doc())
+    assert client.limits == (None, rates.FIRESTORE_TIMEOUT_S)
+
+
+def test_a_cache_miss_stays_well_inside_the_apps_15_second_limit():
+    assert rates.WORST_CASE_S == rates.FIRESTORE_TIMEOUT_S + rates.TIMEOUT_S + rates.FIRESTORE_TIMEOUT_S
+    assert rates.WORST_CASE_S <= 12

@@ -34,7 +34,11 @@ from app.llm import clients
 log = logging.getLogger("al-ai.rates")
 
 BASE_URL = "https://data-api.ecb.europa.eu/service/data"
-TIMEOUT_S = 20
+# The iOS app gives up on /ai/affordability after 15 s, and a cache miss makes that request wait on Firestore, the ECB and Firestore again,
+# so each gets a short limit: 2 + 6 + 2 = 10 s at worst. The ECB reply is a few kilobytes, so 6 s is plenty when it is up.
+TIMEOUT_S = 6
+FIRESTORE_TIMEOUT_S = 2
+WORST_CASE_S = FIRESTORE_TIMEOUT_S + TIMEOUT_S + FIRESTORE_TIMEOUT_S  # read the cache, ask the ECB, write the cache
 COLLECTION = "rates_cache"
 CACHE_MAX_AGE = timedelta(days=1)
 MAX_OBSERVATION_AGE_MONTHS = 3
@@ -116,6 +120,7 @@ class FirestoreCache:
     """rates_cache/{name}. Written server-side; the security rules give no client any access to it.
 
     The client is the same one al-core uses: with FIRESTORE_EMULATOR_HOST set it talks to the emulator and needs no credentials.
+    Each call gets one try of at most FIRESTORE_TIMEOUT_S, not the client's default retries of up to a minute; get_rate already copes with a failure.
     """
 
     def __init__(self, client=None):
@@ -129,11 +134,11 @@ class FirestoreCache:
         return self._client
 
     def load(self, name):
-        snapshot = self._db().collection(COLLECTION).document(name).get()
+        snapshot = self._db().collection(COLLECTION).document(name).get(retry=None, timeout=FIRESTORE_TIMEOUT_S)
         return snapshot.to_dict() if snapshot.exists else None
 
     def save(self, name, doc):
-        self._db().collection(COLLECTION).document(name).set(doc)
+        self._db().collection(COLLECTION).document(name).set(doc, retry=None, timeout=FIRESTORE_TIMEOUT_S)
 
 
 # ---- the fetch ----
