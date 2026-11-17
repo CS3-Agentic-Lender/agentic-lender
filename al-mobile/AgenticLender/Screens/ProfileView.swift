@@ -8,7 +8,10 @@ struct ProfileView: View {
     let model: HomeViewModel
     let email: String?
     let service: ProfileService
+    /// The borrower's newest application, for the support form's reference toggle.
+    var applicationID: String?
     @State private var isChangingBroker = false
+    @State private var isShowingSupport = false
 
     private var summary: ProfileSummary { ProfileSummary(profile: model.profile, email: email) }
 
@@ -33,6 +36,12 @@ struct ProfileView: View {
                 model.brokerChanged(profile)
                 isChangingBroker = false
             }
+        }
+        .navigationDestination(isPresented: $isShowingSupport) {
+            SupportFormView(
+                service: APISupportService.live(), applicationID: applicationID,
+                brokerFirstName: model.brokerName.flatMap(HomeViewModel.firstName(from:))
+            )
         }
     }
 
@@ -84,6 +93,12 @@ struct ProfileView: View {
             .buttonStyle(.plain)
             .accessibilityHint("Change broker")
             .accessibilityIdentifier("profile.broker")
+        case .helpAndSupport:
+            Button { isShowingSupport = true } label: {
+                rowLabel("Help and support", value: nil)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("profile.support")
         }
     }
 
