@@ -64,6 +64,7 @@ struct AffordabilityFormView: View {
                     isEnabled: model.canCalculate
                 ) {
                     focused = nil
+                    Keyboard.dismiss()
                     Task { await model.calculate() }
                 }
                 .accessibilityHint(model.calculateHint ?? "")

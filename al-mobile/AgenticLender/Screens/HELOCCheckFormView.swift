@@ -82,6 +82,7 @@ struct HELOCCheckFormView: View {
     private var countyButton: some View {
         Button {
             focused = nil
+            Keyboard.dismiss()
             isCountySheetShown = true
         } label: {
             PickerFieldLabel(value: model.form.county?.name, placeholder: "Choose county")
@@ -105,6 +106,7 @@ struct HELOCCheckFormView: View {
             }
             PrimaryButton(title: calculateTitle, isLoading: model.isCalculating, isEnabled: model.canCalculate) {
                 focused = nil
+                Keyboard.dismiss()
                 Task { await model.calculate() }
             }
             .accessibilityHint(model.calculateHint ?? "")

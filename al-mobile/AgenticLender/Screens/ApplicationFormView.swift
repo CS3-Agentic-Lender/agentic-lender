@@ -230,6 +230,7 @@ struct ApplicationFormView: View {
                 isEnabled: model.canSave
             ) {
                 focused = nil
+                Keyboard.dismiss()
                 Task { await model.save() }
             }
             .accessibilityIdentifier("application.save")
@@ -372,6 +373,7 @@ struct ApplicationFormView: View {
     private var countyButton: some View {
         Button {
             focused = nil
+            Keyboard.dismiss()
             isCountySheetShown = true
         } label: {
             PickerFieldLabel(value: model.form.property.county?.name, placeholder: "Choose county")

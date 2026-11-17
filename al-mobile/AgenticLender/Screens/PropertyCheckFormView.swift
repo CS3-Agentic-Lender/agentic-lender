@@ -81,6 +81,7 @@ struct PropertyCheckFormView: View {
     private var countyButton: some View {
         Button {
             focused = nil
+            Keyboard.dismiss()
             isCountySheetShown = true
         } label: {
             PickerFieldLabel(value: model.form.county?.name, placeholder: "Choose a county")
@@ -104,6 +105,7 @@ struct PropertyCheckFormView: View {
             }
             PrimaryButton(title: checkTitle, isLoading: model.isValuing, isEnabled: model.canCheck) {
                 focused = nil
+                Keyboard.dismiss()
                 Task { await model.check() }
             }
             .accessibilityHint(model.checkHint ?? "")
