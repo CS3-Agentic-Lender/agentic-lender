@@ -65,6 +65,8 @@ node scripts/check-hosted-rules.js             # exit code 0 only if every reque
 
 Set `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY` (the `API_KEY` in `GoogleService-Info.plist`) and `HOSTED_DEMO_PASSWORD` in your shell, as for the accounts script; `HOSTED_DEMO_EMAIL_DOMAIN` is optional. It refuses a `demo-` project and an emulator host, and never prints the password.
 
+**What "96 probes, all as expected" does not cover:** because every write and delete goes to an id that does not exist, the live check exercises Firestore's create rule and never an update or delete of a real document (for example Alice changing her own `users/borrower1`). The rules have no `allow write` at all, so every write is refused the same way, and the emulator rules tests (`test/rules.test.js`) cover updates and deletes of real documents. Read the live result as "the deployed rules read and refuse like the repo's rules", not as a test of every kind of write.
+
 The expected answers are in `scripts/hosted-rules-probes.js`. `test/hosted-rules-probes.test.js` replays that same table through the rules engine on the emulator, so the table is checked against `firestore.rules` itself: change a rule, and that test says which expected answer is now wrong. `test/hosted-rules-check.test.js` covers the script (every refusal, how answers are read, what it reports).
 
 ## Seeded applications
