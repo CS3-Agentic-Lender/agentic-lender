@@ -58,4 +58,28 @@ final class AmountEditTests: XCTestCase {
         let edit = EuroAmount.edit("", replacing: NSRange(location: 0, length: 0), with: "€ 60000")
         XCTAssertEqual(edit, EuroAmount.Edit(text: "60,000", caret: 6))
     }
+
+    // MARK: - Leaving the field (SwiftUI's .focused doesn't reach the UIKit field)
+
+    @MainActor
+    func testLeavingTheFieldTellsTheFormSoItsErrorCanShow() {
+        var ended = 0
+        let coordinator = AmountTextField.Coordinator(onEdit: { _ in }, onEndEditing: { ended += 1 })
+
+        coordinator.textFieldDidEndEditing(UITextField())
+
+        XCTAssertEqual(ended, 1)
+    }
+
+    @MainActor
+    func testTypingDoesNotCountAsLeavingTheField() {
+        var ended = 0
+        var edits: [String] = []
+        let coordinator = AmountTextField.Coordinator(onEdit: { edits.append($0) }, onEndEditing: { ended += 1 })
+
+        _ = coordinator.textField(UITextField(), shouldChangeCharactersIn: NSRange(location: 0, length: 0), replacementString: "5")
+
+        XCTAssertEqual(edits, ["5"])
+        XCTAssertEqual(ended, 0)
+    }
 }

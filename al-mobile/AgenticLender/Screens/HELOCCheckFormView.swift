@@ -149,10 +149,9 @@ struct HELOCCheckFormView: View {
                 AmountTextField(
                     placeholder: placeholder,
                     text: text(for: field),
-                    onEdit: { model.updateText(field, to: $0) }
+                    onEdit: { model.updateText(field, to: $0) },
+                    onEndEditing: { model.markTouched(field) }
                 )
-                .keyboardType(.numberPad)
-                .focused($focused, equals: field)
                 .accessibilityLabel("\(label), \(accessibilityUnit)")
                 .accessibilityIdentifier("helocCheck.\(field)")
                 if let unit {

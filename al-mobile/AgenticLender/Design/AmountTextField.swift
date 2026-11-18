@@ -7,16 +7,18 @@ import UIKit
 /// It is a UIKit text field (AL-318): each keystroke is applied and regrouped in the same step, with the
 /// cursor kept after the same digits, so there is no later write for SwiftUI to drop while typing fast. The
 /// model gets every edit through `onEdit`, and a change from outside (such as a saved check filling the
-/// form) replaces what is shown. SwiftUI's `.focused` doesn't reach a UIKit field, so screens that put the
-/// keyboard away also call `Keyboard.dismiss()`.
+/// form) replaces what is shown. SwiftUI's `.focused` doesn't reach a UIKit field, so the form learns that the
+/// borrower left it through `onEndEditing`, and screens that put the keyboard away also call `Keyboard.dismiss()`.
 struct AmountTextField: UIViewRepresentable {
     let placeholder: String
     /// The model's text for this field.
     let text: String
     /// Called with each edit, already regrouped; the model stores it.
     let onEdit: (String) -> Void
+    /// Called when the borrower leaves the field, so the form can mark it touched and show its error.
+    let onEndEditing: () -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onEdit: onEdit) }
+    func makeCoordinator() -> Coordinator { Coordinator(onEdit: onEdit, onEndEditing: onEndEditing) }
 
     func makeUIView(context: Context) -> UITextField {
         let field = UITextField()
@@ -34,6 +36,7 @@ struct AmountTextField: UIViewRepresentable {
 
     func updateUIView(_ field: UITextField, context: Context) {
         context.coordinator.onEdit = onEdit
+        context.coordinator.onEndEditing = onEndEditing
         field.placeholder = placeholder
         if Self.replacesShown(field.text ?? "", with: text) { field.text = text }
     }
@@ -45,9 +48,15 @@ struct AmountTextField: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextFieldDelegate {
         var onEdit: (String) -> Void
+        var onEndEditing: () -> Void
 
-        init(onEdit: @escaping (String) -> Void) {
+        init(onEdit: @escaping (String) -> Void, onEndEditing: @escaping () -> Void) {
             self.onEdit = onEdit
+            self.onEndEditing = onEndEditing
+        }
+
+        func textFieldDidEndEditing(_ field: UITextField) {
+            onEndEditing()
         }
 
         /// Applies the keystroke here, regrouped, instead of letting UIKit apply it as typed.
