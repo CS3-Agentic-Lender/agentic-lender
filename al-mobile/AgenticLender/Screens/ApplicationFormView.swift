@@ -230,6 +230,7 @@ struct ApplicationFormView: View {
                 isEnabled: model.canSave
             ) {
                 focused = nil
+                Keyboard.dismiss()
                 Task { await model.save() }
             }
             .accessibilityIdentifier("application.save")
@@ -372,6 +373,7 @@ struct ApplicationFormView: View {
     private var countyButton: some View {
         Button {
             focused = nil
+            Keyboard.dismiss()
             isCountySheetShown = true
         } label: {
             PickerFieldLabel(value: model.form.property.county?.name, placeholder: "Choose county")
@@ -412,10 +414,9 @@ struct ApplicationFormView: View {
                 AmountTextField(
                     placeholder: placeholder,
                     text: text(for: field),
-                    onEdit: { model.updateAmount(field, to: $0) }
+                    onEdit: { model.updateAmount(field, to: $0) },
+                    onEndEditing: { model.markTouched(field) }
                 )
-                .keyboardType(.numberPad)
-                .focused($focused, equals: field)
                 .accessibilityLabel("\(label), \(currency ? "in euro" : "in square metres")")
                 .accessibilityIdentifier("application.\(field)")
                 if let unit {

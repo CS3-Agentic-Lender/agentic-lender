@@ -64,6 +64,7 @@ struct AffordabilityFormView: View {
                     isEnabled: model.canCalculate
                 ) {
                     focused = nil
+                    Keyboard.dismiss()
                     Task { await model.calculate() }
                 }
                 .accessibilityHint(model.calculateHint ?? "")
@@ -94,10 +95,9 @@ struct AffordabilityFormView: View {
                 AmountTextField(
                     placeholder: placeholder,
                     text: text(for: field),
-                    onEdit: { model.updateAmount(field, to: $0) }
+                    onEdit: { model.updateAmount(field, to: $0) },
+                    onEndEditing: { model.markTouched(field) }
                 )
-                .keyboardType(.numberPad)
-                .focused($focused, equals: field)
                 .accessibilityLabel("\(label), in euro")
                 .accessibilityIdentifier("affordability.\(field)")
             }
