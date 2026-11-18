@@ -14,6 +14,7 @@
 #   - hand any role but agentic-lender-app-* to a service (iam:PassRole), create IAM users or access keys
 #   - use CloudFormation, CodeBuild or SSM Run Command, which run things as their own role
 #   - delete, reconfigure or wipe the history of the Terraform state bucket, or write foundations' state
+#   - delete the image registries or change their scan, tag and clean-up settings (pushing is fine)
 # Nic's own login runs this folder and isn't under the boundary, so all of it stays changeable on
 # purpose, through Terraform.
 #
@@ -117,6 +118,19 @@ data "aws_iam_policy_document" "guardrails" {
     effect    = "Deny"
     actions   = ["cloudformation:*", "codebuild:*", "ssm:SendCommand", "ssm:StartAutomationExecution"]
     resources = ["*"]
+  }
+
+  # The image registries (ecr.tf): the deploy role pushes images to them, but can't delete them or their images,
+  # open them up, or turn off the scan, the immutable tags or the clean-up rule.
+  statement {
+    sid    = "CannotReconfigureTheImageRegistries"
+    effect = "Deny"
+    actions = [
+      "ecr:DeleteRepository", "ecr:BatchDeleteImage", "ecr:SetRepositoryPolicy", "ecr:DeleteRepositoryPolicy",
+      "ecr:PutImageTagMutability", "ecr:PutImageScanningConfiguration",
+      "ecr:PutLifecyclePolicy", "ecr:DeleteLifecyclePolicy",
+    ]
+    resources = [for repo in aws_ecr_repository.service : repo.arn]
   }
 
   # The budget kill switch (AL-224) can't be switched off from inside.
