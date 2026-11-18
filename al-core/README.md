@@ -312,23 +312,28 @@ uv run python scripts/smoke_close.py
 
 A borrower with a submitted application can pay EUR 150 to be flagged fast-track. The app calls `POST /core/applications/{id}/fee-intent`, shows Stripe's payment sheet with the `client_secret`, and then waits for `feeStatus` on the application (read from Firestore) to become `paid`. Only Stripe's webhook sets it, together with `feePaidAt` and `fastTrack`.
 
-Test keys only: the server refuses a key that is not `sk_test_…` or `rk_test_…`. Put these in `.env` (names are in `.env.example`; never commit the values):
+Test keys only: the server refuses a key that is not `sk_test_…` or `rk_test_…`. The API reads `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` from its **environment**: it does not load a `.env` file, so set them in the shell that starts the API (never commit the values). In PowerShell, the prompts below keep the secrets out of your command history:
 
-```
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+```powershell
+$k = Read-Host "Stripe secret key (sk_test_...)" -AsSecureString
+$env:STRIPE_SECRET_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($k))
+$w = Read-Host "Webhook signing secret (whsec_...)" -AsSecureString
+$env:STRIPE_WEBHOOK_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($w))
 ```
 
 To try it locally, with the emulators and the API running (see "Running the API"):
 
 ```bash
-stripe login                                              # once, with the team's Stripe test account
-stripe listen --forward-to localhost:5002/core/webhooks/stripe
-# it prints "Your webhook signing secret is whsec_..." : put that in STRIPE_WEBHOOK_SECRET and restart the API
-stripe trigger payment_intent.succeeded                   # a payment that is not our fee: acknowledged, nothing changes
+stripe login                                              # once, with the team's Stripe sandbox
+stripe listen --events payment_intent.succeeded,payment_intent.payment_failed --forward-to localhost:5002/core/webhooks/stripe
+# it prints "Your webhook signing secret is whsec_...": that is STRIPE_WEBHOOK_SECRET, then start the API
 ```
 
-These Stripe CLI steps were written from Stripe's documentation and have not been run yet, because they need the team's Stripe test account. For a real run, call `fee-intent` as a borrower, then pay the intent with Stripe's test card `4242 4242 4242 4242` (any future expiry, any CVC): `stripe payment_intents confirm <payment_intent_id> --payment-method pm_card_visa`. The CLI forwards the success event and the application becomes `paid` and fast-track. `pm_card_chargeDeclined` is the declined card: the fee stays `unpaid`.
+Current versions of the Stripe CLI refuse `stripe listen` without `--events`. Then call `fee-intent` as a borrower (for example Alice, for the seeded Applied application `app-applied`) and pay the intent with Stripe's test card `4242 4242 4242 4242`: `stripe payment_intents confirm <payment_intent_id> --payment-method pm_card_visa`. The CLI forwards the success event and the application becomes `paid` and fast-track. `pm_card_chargeDeclined` is the declined card: the CLI exits 0 and prints the Stripe error (`card_declined`) as JSON, the fee stays `unpaid` and the same intent can be paid again with a good card. After an intent is cancelled (`stripe payment_intents cancel <id>`), asking for the fee again makes a new intent, because the idempotency key names the cancelled one, so Stripe does not hand the cancelled one back.
+
+`stripe trigger payment_intent.succeeded` does not work on a current sandbox (Stripe's fixture uses a parameter Stripe has removed). To check that a payment that is not our fee is ignored, make one by hand: `stripe payment_intents create --amount 2000 --currency eur -d "automatic_payment_methods[enabled]=true" -d "automatic_payment_methods[allow_redirects]=never"`, then confirm it with `pm_card_visa`. The webhook answers 200 and no application changes.
+
+**Run for real on 18 November 2026** against the team's Stripe sandbox, with the emulators, the API and `stripe listen`: the fee intent (EUR 150, the same intent when asked again), the test card (application `paid`, `fastTrack` true, `feePaidAt` set, status unchanged), a second request for a paid application (409), a cancelled intent replaced by a new one, a declined card (fee stays unpaid), a good card on the same intent afterwards (paid), a bad and a missing signature (400 each), and a real EUR 20 payment that is not the fee (ignored).
 
 ## Browser origins (CORS)
 
