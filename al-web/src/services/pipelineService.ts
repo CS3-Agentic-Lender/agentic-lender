@@ -74,6 +74,13 @@ export function toRiskTiers(documents: readonly ReviewDocument[]): Map<string, R
   return tiers;
 }
 
+// Fast-track applications (fee paid) come before the rest. Sorted here rather than with
+// orderBy('fastTrack'), which would leave out every application that has no such field.
+function fastTrackFirst(a: ApplicationSummary, b: ApplicationSummary) {
+  return Number(b.fastTrack === true) - Number(a.fastTrack === true);
+}
+
+// Grouping keeps this order, so fast-track rows lead every group.
 export function withRiskTiers(
   applications: readonly ApplicationSummary[],
   riskTiers: ReadonlyMap<string, RiskTier>,
@@ -84,7 +91,7 @@ export function withRiskTiers(
       storedRiskTier: application.riskTier ?? null,
       riskTier: application.riskTier ?? riskTiers.get(application.id) ?? null,
     }))
-    .sort(newestFirst);
+    .sort((a, b) => fastTrackFirst(a, b) || newestFirst(a, b));
 }
 
 // When the backend cannot be reached the SDK can raise a first snapshot from an empty local

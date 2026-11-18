@@ -45,6 +45,9 @@ export interface ApplicationSummary {
   ltvPct: number | null;
   ltvBand?: StoredField<StoredLtvBand>;
   riskTier?: StoredField<RiskTier>;
+  // True only when the stored fastTrack is exactly true: the Stripe webhook writes true once the fee
+  // is paid and never writes false, so a missing field means not fast-track.
+  fastTrack?: boolean;
   updatedAt: Date | null;
 }
 
@@ -104,6 +107,7 @@ export function toApplicationSummary(id: string, data: DocumentData): Applicatio
     ltvPct: readNumber(data.ltvPct),
     ltvBand: readStoredField(data.ltvBand, STORED_LTV_BANDS),
     riskTier: readStoredField(data.riskTier, RISK_TIERS),
+    fastTrack: data.fastTrack === true,
     updatedAt: readDate(data.updatedAt) ?? readDate(data.createdAt),
   };
 }

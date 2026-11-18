@@ -28,3 +28,18 @@ describe('stored queue fields in the shared application mapping', () => {
     },
   );
 });
+
+// The Stripe webhook writes fastTrack: true once the fee is paid and never writes false (AL-319).
+describe('the fast-track flag', () => {
+  it('is set by a stored true', () => {
+    expect(toApplicationSummary('application', { fastTrack: true }).fastTrack).toBe(true);
+  });
+
+  it.each([undefined, null, false, 'true', 1, {}, [true]])('treats a stored %j as not fast-track', (fastTrack) => {
+    expect(toApplicationSummary('application', { fastTrack }).fastTrack).toBe(false);
+  });
+
+  it('does not count a paid fee without the flag', () => {
+    expect(toApplicationSummary('application', { feeStatus: 'paid' }).fastTrack).toBe(false);
+  });
+});

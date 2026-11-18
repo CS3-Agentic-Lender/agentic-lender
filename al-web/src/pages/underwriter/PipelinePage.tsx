@@ -108,7 +108,14 @@ function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps)
         )}
       </td>
       <td className={cellClass}>
-        <StatusBadge status={application.status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={application.status} />
+          {application.fastTrack === true ? (
+            <span className="inline-flex rounded-full border border-pine px-3 py-1 text-xs font-medium whitespace-nowrap text-pine">
+              Fast-track
+            </span>
+          ) : null}
+        </div>
       </td>
       <td className={`${cellClass} text-sm whitespace-nowrap`}>{formatDate(application.updatedAt)}</td>
     </tr>

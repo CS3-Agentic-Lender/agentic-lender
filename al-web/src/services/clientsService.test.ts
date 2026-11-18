@@ -91,6 +91,7 @@ describe('reading an application document', () => {
       ltvPct: 82.5,
       ltvBand: null,
       riskTier: null,
+      fastTrack: false,
       updatedAt: createdAt.toDate(),
     });
   });
