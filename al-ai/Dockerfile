@@ -8,6 +8,10 @@ COPY app ./app
 # The saved valuation model, and the ml package its classes come from (the model file is a pickle).
 COPY models ./models
 COPY ml/*.py ml/*.json ./ml/
+COPY entrypoint.sh /app/entrypoint.sh
 
 EXPOSE 5001
-CMD ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5001"]
+# Writes FIREBASE_SERVICE_ACCOUNT_JSON to a file when it is set, then runs the command below.
+ENTRYPOINT ["sh", "/app/entrypoint.sh"]
+# --no-access-log: app/errors.py logs one line per request with its request id, so uvicorn's own line would only repeat it.
+CMD ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5001", "--no-access-log"]
