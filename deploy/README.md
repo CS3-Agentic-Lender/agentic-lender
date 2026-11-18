@@ -193,10 +193,10 @@ variables with the same names):
 
 ```sh
 aws secretsmanager put-secret-value --secret-id agentic-lender/al-ai/api-keys \
-  --secret-string file://$HOME/al-ai-api-keys.json
+  --secret-string file://$HOME/al-ai-api-keys.json --query VersionId --output text &&
 aws secretsmanager put-secret-value --secret-id agentic-lender/al-ai/firebase-service-account \
-  --secret-string file://$HOME/al-ai-service-account.json   # the JSON file downloaded from Firebase
-rm ~/al-ai-api-keys.json ~/al-ai-service-account.json       # Secrets Manager has them now
+  --secret-string file://$HOME/al-ai-service-account.json --query VersionId --output text &&
+rm ~/al-ai-api-keys.json ~/al-ai-service-account.json       # only once both uploads worked
 ```
 
 To change a key later, run the same command with the new file. A task reads its secrets when it
