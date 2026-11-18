@@ -172,8 +172,9 @@ cmd_down() {
   has_resources || { say "Nothing is deployed on $(where)."; return; }
   # A destroy ignores the tag's value, but the variable still needs a valid one.
   local tag; tag="$(deployed_tag)"; [[ -n "$tag" ]] || tag="$(remembered_tag)"
+  # With no build recorded, 40 zeros is only a placeholder so the plan can be built: nothing is pulled when destroying.
   DOWN=1 plan_and_apply "down: remove everything billed by the hour. foundations (state, DNS, certificate) stays." \
-    -destroy -var "image_tag=${tag:-0000000}"
+    -destroy -var "image_tag=${tag:-0000000000000000000000000000000000000000}"
 }
 
 # ---- read the command line -----------------------------------------------------------------------
