@@ -240,6 +240,8 @@ All five share one password, which Dumi sends to the team privately. It is not i
 
 **Checked on 18 November:** all five accounts exist with the right role claims and profiles, and unauthenticated reads of `applications`, `users`, `reviews` and `support_requests` are refused (HTTP 403), so the repo's rules are live.
 
+**The deployed rules, checked with real sign-ins (AL-321, 18 November):** `al-core/scripts/check-hosted-rules.js` signed in on `agentic-lender-a0f1c` as Alice (borrower), Bob (broker) and Uma (underwriter), confirmed each ID token carries the right `role`, and sent 96 requests to Firestore: 59 reads that should be allowed or refused for each person and for no sign-in, and 37 writes and deletes, which no client may do. Every one got the answer the rules should give (alice 27, bob 26, uma 27, signed out 16). The expected answers are the same table that `test/hosted-rules-probes.test.js` replays through the rules engine on the emulator, so the hosted project and the emulator are held to one list. Re-run it whenever the rules are redeployed (`al-core/README.md` says how).
+
 ## Open decisions
 
 - Which public testnet the contracts use (Dumi)
