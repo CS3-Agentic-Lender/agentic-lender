@@ -68,8 +68,8 @@ the running task for one from it:
 1. ECS starts the new task next to the old one, in a public subnet, as the two roles from
    `foundations/al-ai-roles.tf`. Its four API keys and its Firebase service account come from
    Secrets Manager; `al-ai/entrypoint.sh` writes the service account to a file at start-up.
-2. The task goes into the `ai` target group. Once `/ai/health` answers 200 twice in a row, the load
-   balancer sends it `/ai/*` and the old task stops. A failed check in the first 2 minutes doesn't
+2. The task goes into the `ai` target group. Once `/ai/health` answers 200 (one pass is enough for a
+   new task), the load balancer sends it `/ai/*` and the old task stops. A failed check in the first 2 minutes doesn't
    count, while the model loads.
 3. If the new task keeps failing, the deployment circuit breaker rolls the service back to the last
    build that worked, by itself. `terraform apply` doesn't wait for any of this, so check (below).
@@ -85,8 +85,10 @@ curl -i https://api.agentic-lender.com/ai/health   # 200 {"status":"ok"}, with a
 open https://api.agentic-lender.com/ai/docs        # the API docs, in a browser, over HTTPS
 ```
 
-Every request writes one line with its request id to the `/agentic-lender/al-ai` log group (kept 14
-days). To find a call, search the log group for the `x-request-id` from its response or error body
+Every request writes one JSON line to the `/agentic-lender/al-ai` log group (kept 14 days): its
+request id, method, path, status, time taken and, on a crash, the error's class name. Only that line:
+the agents' own INFO lines hold user ids and figures, so they stay out (`al-ai/app/request_log.py`),
+and uvicorn adds its own stack trace when something crashes. To find a call, search the log group for the `x-request-id` from its response or error body
 (Console: CloudWatch, then Log groups). A service that won't start shows why under ECS, then the
 `agentic-lender` cluster, then the `al-ai` service, then Events.
 

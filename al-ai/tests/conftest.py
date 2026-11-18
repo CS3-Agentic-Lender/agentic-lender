@@ -27,10 +27,11 @@ cap_threads(os.environ)
 
 @pytest.fixture(autouse=True)
 def undo_the_start_up_logging():
-    """The app's start-up sends the al-ai.* logs to stdout at INFO (app/request_log.py). Undo that after each test, so a test that
-    runs the start-up (`with TestClient(app)`) doesn't change what caplog sees in the tests after it."""
-    parent = logging.getLogger("al-ai")
-    handlers, level = list(parent.handlers), parent.level
+    """The app's start-up gives the al-ai.requests logger its own stdout handler (app/request_log.py). Undo that after each
+    test, so a test that runs the start-up (`with TestClient(app)`) doesn't change the logging of the tests after it."""
+    requests_log = logging.getLogger("al-ai.requests")
+    handlers, level, propagate = list(requests_log.handlers), requests_log.level, requests_log.propagate
     yield
-    parent.handlers[:] = handlers
-    parent.setLevel(level)
+    requests_log.handlers[:] = handlers
+    requests_log.setLevel(level)
+    requests_log.propagate = propagate

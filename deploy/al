@@ -2,7 +2,7 @@
 # deploy/al: the four commands for the live site (AL-225 criterion 5).
 #
 #   ./deploy/al up              build everything in deploy/app again, with the build that was last deployed
-#   ./deploy/al deploy <tag>    switch to a new build (a git commit id GitHub Actions tagged the images with)
+#   ./deploy/al deploy <tag>    switch to a new build (the full 40-character commit id GitHub Actions tagged the images with)
 #   ./deploy/al status          what's deployed, and whether AWS still matches the code (changes nothing)
 #   ./deploy/al down            remove everything billed by the hour (asks twice)
 #
@@ -143,7 +143,7 @@ cmd_up() {
 
 cmd_deploy() {
   local tag="${1:-}"
-  [[ -n "$tag" ]] || fail "deploy needs the build to run, e.g. ./deploy/al deploy 3166a3b"
+  [[ -n "$tag" ]] || fail "deploy needs the build to run, e.g. ./deploy/al deploy <full 40-character commit id>"
   local now; now="$(deployed_tag)"
   plan_and_apply "deploy: switch from build ${now:-none} to build $tag." -var "image_tag=$tag"
   [[ "$(deployed_tag)" == "$tag" ]] && remember_tag "$tag"

@@ -32,8 +32,8 @@ def install(app: FastAPI) -> None:
         started = time.perf_counter()
         try:
             response = await call_next(request)
-        except Exception:
-            request_log.record(request, 500, started, failed=True)  # the handler below then answers 500 with the same id
+        except Exception as exc:
+            request_log.record(request, 500, started, error=type(exc).__name__)  # the handler below answers 500 with the same id
             raise
         response.headers["X-Request-ID"] = request.state.request_id
         request_log.record(request, response.status_code, started)

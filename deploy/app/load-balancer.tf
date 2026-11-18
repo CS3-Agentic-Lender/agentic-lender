@@ -100,7 +100,7 @@ resource "aws_lb_target_group" "service" {
     matcher             = "200"
     interval            = 15
     timeout             = 5
-    healthy_threshold   = 2 # 2 passes in a row (30 seconds) to count as healthy
+    healthy_threshold   = 2 # a new task needs 1 pass to get traffic; a task that went unhealthy needs 2 in a row to come back
     unhealthy_threshold = 3 # 3 failures in a row (45 seconds) to count as unhealthy
   }
 }
