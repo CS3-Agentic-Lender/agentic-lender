@@ -63,7 +63,7 @@ Tasks and Bugs skip the grilling, but still get a subsystem label, an owner and 
 
 ## Sprint discipline
 
-The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens on **the tickets that person was assigned**. A ticket from a later sprint can be started early, for example when you would otherwise be waiting on a teammate, so nobody is stuck. The supervisor is fine with this.
+The project is graded sprint by sprint, and each of us is interviewed on what we personally did. Work therefore happens on **the tickets that person was assigned**, apart from the no-ticket exceptions under [Before starting](#before-starting). A ticket from a later sprint can be started early, for example when you would otherwise be waiting on a teammate, so nobody is stuck. The supervisor is fine with this.
 
 ### Sprint cycle
 
@@ -84,7 +84,7 @@ At the end of the sprint, the burndown chart and the list of finished and unfini
 
 ### Check before writing any code
 
-An agent asked to build something runs these two checks first, in order, and **stops** if either fails:
+An agent asked to build something runs these two checks first, in order, and **stops** if either fails. The no-ticket exceptions under [Before starting](#before-starting) skip both checks.
 
 1. **A ticket exists**, and `getJiraIssue` returns it.
 2. **The ticket is assigned to the person asking.** Check `assignee` against `atlassianUserInfo`.
@@ -142,6 +142,7 @@ Rules:
 One per person per sprint, named `<sprint name> summary - <Name>`, written as you go rather than the night before the deadline. It holds:
 
 - **Tickets finished**, by key and title, each linking to its Jira ticket and merged PR.
+- **Fixes without a ticket**: each merged `fix/` PR, linked, with one line on what it fixed.
 - **What was actually built**, in your own words, with screenshots or diagrams where a picture is clearer.
 - **Evidence it works**: test results, a screen recording, the emulator or testnet output.
 - **What did not get finished** and why, with the ticket it moved to.
@@ -205,13 +206,23 @@ Work on a Subtask uses the **Subtask's** key, not its parent Story's.
 
 ### Before starting
 
-1. Get the ticket key from the user, or find it in Jira. No ticket, no work: stop and ask which ticket to use, or create one (see [Creating a ticket](#creating-a-ticket) and `docs/agents/issue-tracker.md`). Never invent a key.
+1. Get the ticket key from the user, or find it in Jira. No ticket, no work, unless the change is one of the no-ticket exceptions below: stop and ask which ticket to use, or create one (see [Creating a ticket](#creating-a-ticket) and `docs/agents/issue-tracker.md`). Never invent a key.
 2. Read the ticket with `getJiraIssue` to confirm the key exists and matches the work. A key that 404s is the wrong key.
 3. Branch from up-to-date `main`: `git fetch origin && git switch -c <branch> origin/main`.
 
 **Exception: small changes to the agent rules and docs need no ticket.** Wording fixes in `AGENTS.md`, `docs/agents/` and the READMEs skip the ticket check, the sprint check and the branch format above. Use a branch named `docs/short-description` and a commit and PR title with no `AL-` key anywhere, so Jira cannot link the change to an unrelated ticket. Anything else that changes code, or a rule the team has not agreed, still needs a ticket.
 
-**Exception: small bug fixes need no ticket.** A fault you come across (a wrong timeout, a crash, a missed case) can be fixed straight away in your own subsystem without a Jira ticket. Use a branch named `fix/short-description`, one fix per branch, and a commit and PR title with no `AL-` key anywhere. It still gets its own PR, tests and a teammate's review like any other change. A fix in another owner's directory still goes to that owner first. Because no ticket means it won't show on the board, list it in your sprint summary page so it counts towards your work. A fix big enough to need planning, or a change in behaviour, is not a small fix: it gets a ticket.
+**Exception: small bug fixes need no ticket.** A fault you come across while working (a wrong timeout, a crash, a missed case) can be fixed straight away in your own subsystem without a Jira ticket. Use a branch named `fix/short-description`, one fix per branch, and a commit and PR title with no `AL-` key anywhere (see [Formats](#formats)). It still gets its own PR, tests and a teammate's review like any other change. Because no ticket means it won't show on the board, list it under "Fixes without a ticket" on your sprint summary page so it counts towards your work.
+
+It is not a small fix, and gets a ticket as usual, if any of these hold:
+
+- it changes what a ticket's acceptance criteria say, or an agreed contract (an endpoint, `al-core/SCHEMA.md`, these rules);
+- it needs planning or more than one PR;
+- it touches security or money: `al-core/firestore.rules`, auth or role checks, the payment flow, or anything with keys;
+- it is in another owner's directory: tell that owner (a comment on their ticket, or `#dev`), and it follows the integration route under [While working](#while-working), on a ticket;
+- the fault was found while running a story's test case: that is a Bug ticket, because the fault report is a brief deliverable.
+
+If in doubt, make the ticket.
 
 Creating that branch moves the ticket to In Progress, and opening a PR moves it to In Review, so both happen when the work really starts and really ends. Don't create branches for tickets you are not about to work on, and don't open a PR to park unfinished work.
 
@@ -235,6 +246,8 @@ If a status is wrong, the agent moves it with the Jira tools when the user has a
 | Branch | `feature/AL-<number>-short-description`, lowercase, hyphens, no other key | `feature/AL-54-firebase-auth` |
 | Commit subject | `AL-<number> <imperative summary>`, lowercase after the key, no full stop | `AL-54 add google sign-in provider` |
 | PR title | `AL-<number> <Sentence case summary>` | `AL-54 Add Google sign-in provider` |
+| Commit subject, no ticket | `fix <imperative summary>` on a `fix/` branch, `<imperative summary>` on a `docs/` branch; lowercase, no key, no full stop | `fix the valuation call timeout` |
+| PR title, no ticket | The same in sentence case | `Fix the valuation call timeout` |
 
 A commit that fixes a review comment keeps the same key; never renumber mid-branch. Every ticket branch is `feature/AL-…`, whatever the work type. The only other branches are `docs/…` and `fix/…` for the no-ticket exceptions under [Before starting](#before-starting); `chore/` and bare branch names are not used.
 
@@ -250,8 +263,8 @@ An agent never resolves someone's review comment on the developer's behalf, and 
 
 Before showing the PR, the agent checks its own work against the rules above and says so in one line each:
 
-- [ ] Branch, every commit message, and the PR title it is proposing carry **one** key, the ticket's own, and nothing else carries a key.
-- [ ] Commit subjects match the format table, and each commit is one person's work on this ticket.
+- [ ] Branch, every commit message, and the PR title it is proposing carry **one** key, the ticket's own, and nothing else carries a key. On a `docs/` or `fix/` branch, nothing carries a key.
+- [ ] Commit subjects match the format table, and each commit is one person's work on this ticket (or this one no-ticket fix).
 - [ ] The diff stays inside the ticket's scope and inside this owner's subsystem.
 - [ ] `betterleaks` is clean, and the project's build and tests were actually run, with their output shown.
 
@@ -275,7 +288,7 @@ Other rules:
 
 ### One person, one ticket, one commit
 
-Individual contribution is 25% of the grade and is read from the git history. Keep each commit to one person's work on one ticket. If a change belongs to another owner's directory, it goes in its own PR on its own ticket so that owner reviews it.
+Individual contribution is 25% of the grade and is read from the git history. Keep each commit to one person's work on one ticket, or on one no-ticket fix. If a change belongs to another owner's directory, it goes in its own PR on its own ticket so that owner reviews it, however small.
 
 ### No agent attribution
 
