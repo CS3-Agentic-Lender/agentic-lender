@@ -22,6 +22,7 @@ struct FeeView: View {
             switch model.state {
             case .confirming(let stillWaiting): confirming(stillWaiting: stillWaiting)
             case .receipt(let receipt): FeeReceiptView(receipt: receipt, reference: status.reference)
+            case .decided: decided
             default: offer
             }
         }
@@ -33,6 +34,7 @@ struct FeeView: View {
             model.feeChanged(status.fee) // the webhook may already have landed
         }
         .onChange(of: status.fee) { _, fee in model.feeChanged(fee) }
+        .onChange(of: status.feeSection, initial: true) { _, section in model.offerChanged(section) }
         .task(id: model.state) {
             guard model.state == .confirming(stillWaiting: false) else { return }
             try? await Task.sleep(for: .seconds(FeeViewModel.confirmingSeconds))
@@ -121,6 +123,23 @@ struct FeeView: View {
         .padding(Theme.screenPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("fee.confirming")
+    }
+
+    // MARK: - Decided before the fee was paid (no Figma frame)
+
+    private var decided: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.seal").font(.largeTitle).foregroundStyle(Theme.pine).accessibilityHidden(true)
+            Text("Fast-track no longer applies").font(.title2.bold()).foregroundStyle(Theme.text)
+            Text(FeeViewModel.decidedMessage).font(.body).foregroundStyle(Theme.mutedText)
+            SecondaryButton(title: "Done") { dismiss() }
+                .padding(.top, 8)
+                .accessibilityIdentifier("fee.decidedDone")
+        }
+        .multilineTextAlignment(.center)
+        .padding(Theme.screenPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("fee.decided")
     }
 
     // MARK: - Stripe

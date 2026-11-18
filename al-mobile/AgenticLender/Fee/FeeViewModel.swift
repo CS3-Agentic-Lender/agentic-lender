@@ -41,11 +41,14 @@ final class FeeViewModel {
         /// Waiting for the webhook (Figma 18b); after `confirmingSeconds` it says it's still waiting.
         case confirming(stillWaiting: Bool)
         case receipt(FeeReceipt)
+        /// The underwriter decided before the fee was paid, so fast-track no longer applies.
+        case decided
         /// Figma 16b.
         case failed(String)
     }
 
     static let couldNotStart = "We couldn't start the payment. Nothing was charged. Try again."
+    static let decidedMessage = "Your application has already been decided, so fast-track no longer applies. Nothing was charged."
     /// Figma 18b: "After 20 seconds".
     static let confirmingSeconds: Double = 20
 
@@ -55,6 +58,10 @@ final class FeeViewModel {
 
     private let service: FeeService
     private var intent: FeeIntent?
+    /// False once the application is decided without the fee paid (its status screen stops offering it).
+    private var isOfferOpen = true
+    /// Stripe's sheet completed, so the webhook will mark the fee paid whatever the application's status.
+    private var paymentTaken = false
     private let logger = Logger(category: "Fee")
 
     init(applicationID: String, service: FeeService, publishableKey: String?) {
@@ -80,9 +87,10 @@ final class FeeViewModel {
             state = .sheet(intent)
         } catch APIError.conflict {
             // al-core already has a payment that went through (the app closed before the webhook, say):
-            // wait for it rather than saying nothing was charged.
+            // wait for it rather than saying nothing was charged. A 409 for a decided application has no
+            // webhook coming, so that one ends in `.decided` once the decision is known.
             logger.info("The fee intent was refused with 409, so wait for the webhook")
-            state = .confirming(stillWaiting: false)
+            state = isOfferOpen ? .confirming(stillWaiting: false) : .decided
         } catch {
             logger.error("Creating the fee intent failed: \(String(describing: error), privacy: .public)")
             state = .failed(Self.couldNotStart)
@@ -91,7 +99,9 @@ final class FeeViewModel {
 
     func sheetFinished(_ result: FeeSheetResult) {
         switch result {
-        case .completed: state = .confirming(stillWaiting: false)
+        case .completed:
+            paymentTaken = true
+            state = .confirming(stillWaiting: false)
         case .canceled: state = .ready
         case .failed: state = .failed(Self.couldNotStart)
         }
@@ -100,9 +110,25 @@ final class FeeViewModel {
     /// The application's fee as Firestore has it now. Only the webhook's "paid" ends the wait.
     /// After a 409 there is no intent from this visit, so the receipt uses what the webhook recorded.
     func feeChanged(_ fee: ApplicationFee) {
-        guard case .confirming = state, fee.isPaid,
+        guard isWaitingForWebhook || state == .decided, fee.isPaid,
               let paymentIntentID = fee.paymentIntentID ?? intent?.paymentIntentID else { return }
         state = .receipt(FeeReceipt(amountEur: intent?.amountEur ?? ApplicationFee.amountEur, paidAt: fee.paidAt, paymentIntentID: paymentIntentID))
+    }
+
+    /// What the status screen offers now (`nil` once the application is decided without the fee paid).
+    /// A decision ends the offer, and ends a wait that has no payment behind it from this visit.
+    func offerChanged(_ section: ApplicationFee.Section?) {
+        isOfferOpen = section != nil
+        guard section == nil, !paymentTaken else { return }
+        switch state {
+        case .ready, .failed, .confirming: state = .decided
+        case .starting, .sheet, .receipt, .decided: return
+        }
+    }
+
+    private var isWaitingForWebhook: Bool {
+        if case .confirming = state { return true }
+        return false
     }
 
     func waitedTooLong() {

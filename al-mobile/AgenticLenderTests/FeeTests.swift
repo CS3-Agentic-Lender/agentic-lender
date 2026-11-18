@@ -137,6 +137,59 @@ final class FeeTests: XCTestCase {
         XCTAssertEqual(model.state, .receipt(FeeReceipt(amountEur: 150, paidAt: paidAt, paymentIntentID: "pi_123453xYz")))
     }
 
+    // MARK: - The underwriter decided first (al-core's 409 for a decided application)
+
+    func testA409AfterTheUnderwriterDecidedSaysFastTrackNoLongerApplies() async {
+        // al-core also answers 409 for a decided application, and no webhook will follow that.
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .failure(.conflict)), publishableKey: "pk_test_x")
+        await model.pay()
+
+        model.offerChanged(nil)
+
+        XCTAssertEqual(model.state, .decided)
+        XCTAssertEqual(FeeViewModel.decidedMessage, "Your application has already been decided, so fast-track no longer applies. Nothing was charged.")
+    }
+
+    func testA409WhenTheDecisionIsAlreadyKnownSaysSoStraightAway() async {
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .failure(.conflict)), publishableKey: "pk_test_x")
+        model.offerChanged(.offer)
+        model.offerChanged(nil)
+
+        await model.pay()
+
+        XCTAssertEqual(model.state, .decided)
+    }
+
+    func testADecisionWhileTheOfferIsShownEndsTheOffer() {
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .success(intent)), publishableKey: "pk_test_x")
+        model.offerChanged(.offer)
+
+        model.offerChanged(nil)
+
+        XCTAssertEqual(model.state, .decided)
+    }
+
+    func testADecisionAfterStripeTookThePaymentKeepsWaitingForTheWebhook() async {
+        // The webhook marks a payment that went through paid whatever the status, so the receipt still comes.
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .success(intent)), publishableKey: "pk_test_x")
+        await model.pay()
+        model.sheetFinished(.completed)
+
+        model.offerChanged(nil)
+
+        XCTAssertEqual(model.state, .confirming(stillWaiting: false))
+    }
+
+    func testAnEarlierPaymentTheWebhookMarksPaidReplacesTheDecidedMessageWithTheReceipt() async {
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .failure(.conflict)), publishableKey: "pk_test_x")
+        await model.pay()
+        model.offerChanged(nil)
+
+        model.feeChanged(ApplicationFee(fields: ["feeStatus": "paid", "feePaidAt": paidAt, "feeIntentId": "pi_123453xYz"]))
+
+        XCTAssertEqual(model.state, .receipt(FeeReceipt(amountEur: 150, paidAt: paidAt, paymentIntentID: "pi_123453xYz")))
+    }
+
     // MARK: - Figma 16b: the payment couldn't start, nothing was charged
 
     func testAnIntentThatFailsSaysNothingWasCharged() async {
