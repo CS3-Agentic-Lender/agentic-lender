@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
@@ -63,7 +63,16 @@ class FakeMessages implements MessagesService {
   };
 
   push(id: string, snapshot: ThreadSnapshot) {
-    act(() => this.listeners.get(id)?.forEach((listener) => listener(snapshot)));
+    // A push with nobody listening would be lost and the test would fail later, somewhere else; fail here instead.
+    const listeners = this.listeners.get(id) ?? [];
+    if (listeners.length === 0) throw new Error(`Nothing is subscribed to thread ${id} yet: await subscribed() first`);
+    act(() => listeners.forEach((listener) => listener(snapshot)));
+  }
+
+  // Each inbox row subscribes to its thread in an effect, which can run after the list is already on
+  // screen. A test that pushes after seeing the list waits for those subscriptions first (AL-273).
+  async subscribed(...ids: string[]) {
+    await waitFor(() => ids.forEach((id) => expect(this.listeners.get(id) ?? []).not.toHaveLength(0)));
   }
 }
 
@@ -92,6 +101,7 @@ describe('broker messages inbox', () => {
     const messages = new FakeMessages();
     renderInbox(messages);
     await screen.findByRole('list', { name: 'Threads' });
+    await messages.subscribed('LN-1001', 'LN-2001');
 
     // Ben's thread has the newer message, so it comes first while nothing is unread.
     messages.push('LN-1001', { messages: [message('a1', 'alice', '2026-11-01T10:00:00Z', 'Hi')], lastReadAt: new Date('2026-11-01T10:00:00Z') });
@@ -113,6 +123,7 @@ describe('broker messages inbox', () => {
     const messages = new FakeMessages();
     renderInbox(messages);
     await screen.findByRole('list', { name: 'Threads' });
+    await messages.subscribed('LN-1001');
     messages.push('LN-1001', { messages: [message('a1', 'alice', '2026-11-03T09:00:00Z', 'Any news?')], lastReadAt: null });
 
     fireEvent.click(screen.getByRole('button', { name: /Alice Byrne/ }));
