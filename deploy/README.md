@@ -7,7 +7,7 @@ Everything that puts AL on AWS, written in Terraform. The design and the costs a
 
 | Folder | What's in it | Run by | Removed by `down`? |
 |---|---|---|---|
-| `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate, the alarm email list | Nic, by hand with `terraform` | Never. They cost about USD 0.50 a month and are slow to set up again |
+| `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's secrets, log group and roles | Nic, by hand with `terraform` | Never. They cost about USD 3 a month and are slow to set up again |
 | `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, ECS services (added by later tickets) | `./deploy/al` | Yes |
 
 Each `.tf` file holds one idea and starts with a comment saying what it creates, why, and what it costs.
@@ -29,7 +29,9 @@ deploy/
 │   ├── certificate.tf          the certificate for api.agentic-lender.com
 │   ├── alarm-emails.tf         who the alarms email
 │   ├── ecr.tf                  the image registries for al-ai and al-core
-│   └── outputs.tf              name servers, role ARN, bucket, certificate, alarm topic, image registries
+│   ├── al-ai-secrets.tf        al-ai's two secrets (made empty) and its log group
+│   ├── al-ai-roles.tf          the roles an al-ai task runs with: ECS's execution role and al-ai's task role
+│   └── outputs.tf              name servers, role ARNs, bucket, certificate, alarm topic, image registries, al-ai secrets and log group
 └── app/
     ├── versions.tf, variables.tf, providers.tf, backend.tf, outputs.tf
     ├── release.tf              which build is deployed
@@ -175,16 +177,56 @@ list to exist, so apply foundations first.
 
 The budget alerts are separate (AL-224) and keep running while `app/` is down.
 
+## Filling the al-ai secrets
+
+`foundations/al-ai-secrets.tf` makes al-ai's two secrets empty, so no key ever passes through Terraform
+or its state (which the deploy role can read). Fill them once by hand, signed in as yourself, after
+the apply that creates them. Write each value to a file **outside the repo** first, so it can't be
+committed and doesn't end up in your shell history.
+
+The API keys, as one JSON object with exactly these four names (al-ai reads them as environment
+variables with the same names):
+
+```json
+{"GROQ_API_KEY":"","GEMINI_API_KEY":"","MISTRAL_API_KEY":"","SERPER_API_KEY":""}
+```
+
+```sh
+aws secretsmanager put-secret-value --secret-id agentic-lender/al-ai/api-keys \
+  --secret-string file://$HOME/al-ai-api-keys.json
+aws secretsmanager put-secret-value --secret-id agentic-lender/al-ai/firebase-service-account \
+  --secret-string file://$HOME/al-ai-service-account.json   # the JSON file downloaded from Firebase
+rm ~/al-ai-api-keys.json ~/al-ai-service-account.json       # Secrets Manager has them now
+```
+
+To change a key later, run the same command with the new file. A task reads its secrets when it
+starts, so redeploy for the change to reach al-ai. Only Nic's own login can do this: the guardrails
+boundary stops the deploy role and every app role from reading or changing any `agentic-lender/*`
+secret, except al-ai's execution role reading them.
+
 ## Roles the app needs
 
 The deploy role works under a permissions boundary (`foundations/guardrails.tf`) and can't create or
 change any IAM role or policy: a role made from inside could trust an outsider and become a way in.
-So a role the app needs, such as an ECS task role, goes in `foundations/` and Nic applies it. It must:
+So a role the app needs goes in `foundations/` and Nic applies it. It must:
 
 - be named `agentic-lender-app-...`, the only names the deploy role may hand to a service (PassRole)
 - set `permissions_boundary` to the `guardrails_boundary_arn` output
 
-`deploy/app` then refers to it by name. The boundary also shuts off CloudFormation, CodeBuild and SSM
+`deploy/app` then refers to it by name.
+
+al-ai has two, in `foundations/al-ai-roles.tf`:
+
+| Role | Used by | May do |
+|---|---|---|
+| `agentic-lender-app-al-ai-execution` | ECS, while starting a task | sign in to ECR and pull the al-ai image, read al-ai's two secrets, write to the `/agentic-lender/al-ai` log group |
+| `agentic-lender-app-al-ai-task` | al-ai's code, while it runs | call Qwen3 32B (`qwen.qwen3-32b-v1:0`) on Bedrock in eu-west-1, nothing else |
+
+So reading the secrets and writing logs is the execution role's job, done before the code starts;
+the code itself can only reach Bedrock. Both trust only ECS tasks in this account. Their ARNs are
+the `al_ai_execution_role_arn` and `al_ai_task_role_arn` outputs.
+
+The boundary also shuts off CloudFormation, CodeBuild and SSM
 Run Command, and the deploy role can't write anything under `foundations/` in the state bucket.
 
 Both folders refuse to run against any account but the team's (`team_account_id`), and so does `al`.

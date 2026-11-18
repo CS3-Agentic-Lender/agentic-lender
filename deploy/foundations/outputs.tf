@@ -41,3 +41,28 @@ output "image_repositories" {
   description = "Where each service's images are pushed and pulled, e.g. <account>.dkr.ecr.eu-west-1.amazonaws.com/agentic-lender/al-ai."
   value       = { for name, repo in aws_ecr_repository.service : name => repo.repository_url }
 }
+
+output "al_ai_execution_role_arn" {
+  description = "The role ECS uses to start al-ai tasks (pull the image, read the secrets, write logs). The task definition's execution_role_arn."
+  value       = aws_iam_role.al_ai_execution.arn
+}
+
+output "al_ai_task_role_arn" {
+  description = "The role al-ai's code runs as (Qwen3 32B on Bedrock only). The task definition's task_role_arn."
+  value       = aws_iam_role.al_ai_task.arn
+}
+
+output "al_ai_api_keys_secret_arn" {
+  description = "The secret holding al-ai's Groq, Gemini, Mistral and Serper keys as JSON. The task definition pulls each key with <arn>:<KEY_NAME>::."
+  value       = aws_secretsmanager_secret.al_ai_api_keys.arn
+}
+
+output "al_ai_firebase_secret_arn" {
+  description = "The secret holding al-ai's Firebase service account JSON."
+  value       = aws_secretsmanager_secret.al_ai_firebase_service_account.arn
+}
+
+output "al_ai_log_group" {
+  description = "The CloudWatch log group al-ai's tasks write to, kept 14 days."
+  value       = aws_cloudwatch_log_group.al_ai.name
+}

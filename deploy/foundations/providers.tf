@@ -35,13 +35,15 @@ provider "aws" {
 
   # Every service this folder uses is listed here. One missing would go to real AWS by mistake.
   endpoints {
-    s3      = local.floci_url
-    iam     = local.floci_url
-    sts     = local.floci_url
-    route53 = local.floci_url
-    acm     = local.floci_url
-    sns     = local.floci_url
-    ecr     = local.floci_url
+    s3             = local.floci_url
+    iam            = local.floci_url
+    sts            = local.floci_url
+    route53        = local.floci_url
+    acm            = local.floci_url
+    sns            = local.floci_url
+    ecr            = local.floci_url
+    secretsmanager = local.floci_url
+    cloudwatchlogs = local.floci_url
   }
 
   # Stamped on every resource this folder makes, so the console and the bill can group them.
