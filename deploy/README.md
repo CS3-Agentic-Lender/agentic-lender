@@ -227,7 +227,8 @@ by you. It refuses to overwrite a file that's already there.
 
 ```sh
 python3 -I -c '
-import getpass, json, os, secrets
+import getpass, json, os, secrets, warnings
+warnings.simplefilter("error", getpass.GetPassWarning)   # no terminal: stop rather than show the typing
 keys = {"BORROWER_REF_SALT": secrets.token_hex(32)}
 for name in ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"):
     keys[name] = getpass.getpass(name + ": ")
@@ -242,11 +243,19 @@ either key can be revoked without breaking the other service. ECS hands it to th
 `FIREBASE_SERVICE_ACCOUNT_JSON`.
 
 ```sh
+mv ~/Downloads/<the-downloaded-key>.json ~/al-core-service-account.json   # outside the repo
+chmod 600 ~/al-core-service-account.json                                   # readable only by you
+```
+
+Then upload both. Each `&&` means the next step runs only if the one before worked, so if an upload
+fails the files stay put (the salt exists nowhere else yet) and you can run it again.
+
+```sh
 aws secretsmanager put-secret-value --secret-id agentic-lender/al-core/keys \
-  --secret-string file://$HOME/al-core-keys.json --query VersionId --output text
+  --secret-string file://$HOME/al-core-keys.json --query VersionId --output text &&
 aws secretsmanager put-secret-value --secret-id agentic-lender/al-core/firebase-service-account \
-  --secret-string file://$HOME/al-core-service-account.json --query VersionId --output text
-rm ~/al-core-keys.json ~/al-core-service-account.json       # Secrets Manager has them now
+  --secret-string file://$HOME/al-core-service-account.json --query VersionId --output text &&
+rm ~/al-core-keys.json ~/al-core-service-account.json       # only once both uploads worked
 ```
 
 `--query VersionId --output text` prints only the new version's id, so nothing about the secret
@@ -256,14 +265,15 @@ When the wallet keys arrive after the testnet deploy, the same way for `chain-ke
 
 ```sh
 python3 -I -c '
-import getpass, json, os
+import getpass, json, os, warnings
+warnings.simplefilter("error", getpass.GetPassWarning)   # no terminal: stop rather than show the typing
 keys = {name: getpass.getpass(name + ": ") for name in ("CHAIN_MINTER_PRIVATE_KEY", "CHAIN_REGISTRAR_PRIVATE_KEY")}
 fd = os.open(os.path.expanduser("~/al-core-chain-keys.json"), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 os.write(fd, json.dumps(keys).encode())
 os.close(fd)'
 aws secretsmanager put-secret-value --secret-id agentic-lender/al-core/chain-keys \
-  --secret-string file://$HOME/al-core-chain-keys.json --query VersionId --output text
-rm ~/al-core-chain-keys.json
+  --secret-string file://$HOME/al-core-chain-keys.json --query VersionId --output text &&
+rm ~/al-core-chain-keys.json                                 # only once the upload worked
 ```
 
 Redeploy after any fill so al-core reads the new values. Changing a wallet key or the Firebase key

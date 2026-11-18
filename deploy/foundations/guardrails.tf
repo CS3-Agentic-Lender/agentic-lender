@@ -15,8 +15,8 @@
 #   - use CloudFormation, CodeBuild or SSM Run Command, which run things as their own role
 #   - delete, reconfigure or wipe the history of the Terraform state bucket, or write foundations' state
 #   - delete the image registries or change their scan, tag and clean-up settings (pushing is fine)
-#   - read, change or delete any agentic-lender/* secret, except that al-ai's execution role reads al-ai's
-#     and al-core's execution role reads al-core's
+#   - change or delete any agentic-lender/* secret, or read one, except that al-ai's execution role reads
+#     al-ai's and al-core's execution role reads al-core's
 # Nic's own login runs this folder and isn't under the boundary, so all of it stays changeable on
 # purpose, through Terraform.
 #
@@ -39,10 +39,10 @@ locals {
   # 6 random characters to every secret's ARN. The Region is * too (see the secret statements below).
   secrets_arn = "arn:aws:secretsmanager:*:${local.account_id}:secret:agentic-lender"
 
-  # Everything that reads, changes, deletes, opens up or copies a secret. DescribeSecret isn't here:
-  # it shows a secret's name and details, never its value.
-  secret_actions = [
-    "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret",
+  # Everything that changes, deletes, opens up or copies a secret. Reading (GetSecretValue) has its own
+  # statements below. DescribeSecret isn't denied at all: it shows a secret's name and details, never its value.
+  secret_changes = [
+    "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret",
     "secretsmanager:UpdateSecretVersionStage", "secretsmanager:DeleteSecret", "secretsmanager:RestoreSecret",
     "secretsmanager:PutResourcePolicy", "secretsmanager:DeleteResourcePolicy", "secretsmanager:RotateSecret",
     "secretsmanager:ReplicateSecretToRegions", "secretsmanager:RemoveRegionsFromReplication",
@@ -155,53 +155,61 @@ data "aws_iam_policy_document" "guardrails" {
   }
 
   # The secrets (al-ai-secrets.tf, al-core-secrets.tf): each service's secrets may be read only by that
-  # service's execution role, when ECS starts a task. The deploy role, the task roles and any other app
-  # role can't read, overwrite, delete or open up any of them. They may still look at a secret's name and
-  # details (DescribeSecret), which shows no value. Copying a secret to another Region is denied, so a
+  # service's execution role, when ECS starts a task. No role under this boundary may change, delete,
+  # open up or copy any of them, the execution roles included. They may still look at a secret's name
+  # and details (DescribeSecret), which shows no value. Copying a secret to another Region is denied, so a
   # copy elsewhere can't be read either. Nic's login and Terraform aren't under this boundary, so he can
   # still fill and manage them.
   # What this can't stop: the deploy role deploys al-ai and al-core, so it could start a task that prints
   # the keys ECS hands it. Anyone who can deploy the app is trusted with its keys; this blocks every direct way.
   #
-  # Three statements, each "deny, unless it's the owner": al-ai's secrets unless al-ai's execution role,
-  # al-core's unless al-core's, and anything else under agentic-lender/ (a future secret) unless one of
-  # the two. ArnNotEquals with two values means "not equal to either", so the last one blocks everyone else.
+  # Four statements: nobody changes any secret; nobody but the two execution roles reads any; al-ai's
+  # execution role reads nothing outside al-ai/; al-core's reads nothing outside al-core/. So a future
+  # secret under agentic-lender/ is readable by neither until a statement here says otherwise.
+  # (ArnNotEquals with two values means "not equal to either".)
   statement {
-    sid       = "OnlyAlAiExecutionRoleReadsAlAiSecrets"
+    sid       = "NobodyChangesAnySecret"
     effect    = "Deny"
-    actions   = local.secret_actions
-    resources = ["${local.secrets_arn}/al-ai/*"]
-
-    condition {
-      test     = "ArnNotEquals"
-      variable = "aws:PrincipalArn"
-      values   = [local.al_ai_execution_role]
-    }
+    actions   = local.secret_changes
+    resources = ["${local.secrets_arn}/*"]
   }
 
   statement {
-    sid       = "OnlyAlCoreExecutionRoleReadsAlCoreSecrets"
+    sid       = "OnlyExecutionRolesReadSecrets"
     effect    = "Deny"
-    actions   = local.secret_actions
-    resources = ["${local.secrets_arn}/al-core/*"]
-
-    condition {
-      test     = "ArnNotEquals"
-      variable = "aws:PrincipalArn"
-      values   = [local.al_core_execution_role]
-    }
-  }
-
-  statement {
-    sid       = "NoOtherRoleReadsAnySecret"
-    effect    = "Deny"
-    actions   = local.secret_actions
+    actions   = ["secretsmanager:GetSecretValue"]
     resources = ["${local.secrets_arn}/*"]
 
     condition {
       test     = "ArnNotEquals"
       variable = "aws:PrincipalArn"
       values   = [local.al_ai_execution_role, local.al_core_execution_role]
+    }
+  }
+
+  statement {
+    sid           = "AlAiExecutionRoleReadsOnlyAlAiSecrets"
+    effect        = "Deny"
+    actions       = ["secretsmanager:GetSecretValue"]
+    not_resources = ["${local.secrets_arn}/al-ai/*"]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:PrincipalArn"
+      values   = [local.al_ai_execution_role]
+    }
+  }
+
+  statement {
+    sid           = "AlCoreExecutionRoleReadsOnlyAlCoreSecrets"
+    effect        = "Deny"
+    actions       = ["secretsmanager:GetSecretValue"]
+    not_resources = ["${local.secrets_arn}/al-core/*"]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:PrincipalArn"
+      values   = [local.al_core_execution_role]
     }
   }
 
