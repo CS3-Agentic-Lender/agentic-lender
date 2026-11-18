@@ -49,6 +49,26 @@ final class BackendTargetTests: XCTestCase {
 
         let plan = FirebaseSetup.plan(for: BackendConfig(environment: [:], target: .hosted), hosted: partial)
 
-        XCTAssertEqual(plan, .missing(["apiKey", "appID"]))
+        XCTAssertEqual(plan, .missing(["AL_FIREBASE_API_KEY", "AL_FIREBASE_APP_ID"]))
+    }
+
+    // MARK: - Reading the hosted settings (gitignored Config/Hosted.xcconfig, through Info.plist)
+
+    func testTheHostedSettingsAreReadFromTheAppsInfoPlist() {
+        let info: [String: Any] = [
+            "ALFirebaseProjectID": "al-demo",
+            "ALFirebaseAPIKey": "key",
+            "ALFirebaseAppID": "1:2:ios:3",
+            "ALFirebaseSenderID": "2",
+        ]
+
+        XCTAssertEqual(HostedFirebase(info: info), complete)
+    }
+
+    func testSettingsMissingFromInfoPlistAreNamedByTheirBuildSetting() {
+        // An ordinary checkout has no Config/Hosted.xcconfig, so the settings arrive empty or not at all.
+        let info: [String: Any] = ["ALFirebaseProjectID": "al-demo", "ALFirebaseAPIKey": ""]
+
+        XCTAssertEqual(HostedFirebase(info: info).missing, ["AL_FIREBASE_API_KEY", "AL_FIREBASE_APP_ID", "AL_FIREBASE_SENDER_ID"])
     }
 }

@@ -72,7 +72,7 @@ xcodebuild build -project AgenticLender.xcodeproj -scheme AgenticLender \
   -destination 'platform=iOS Simulator,name=iPhone 17' AL_BACKEND=HOSTED
 ```
 
-The hosted Firebase settings go in `HostedBackend.firebase` (`AgenticLender/Config/BackendTarget.swift`), from the iOS app registered in the hosted Firebase project. Until they're filled in, a `HOSTED` build stops at launch and names the missing ones.
+The hosted Firebase settings stay out of the repo, which is public. Copy `Config/Hosted.example.xcconfig` to `Config/Hosted.xcconfig` (gitignored) and fill it in from the iOS app registered in the hosted Firebase project; ask Dumi for the values. `Config/Base.xcconfig` includes it, and `Config/AppInfo.plist` passes the settings into the app's Info.plist. Without it, a `HOSTED` build stops at launch and names the settings still missing; a `LOCAL` build doesn't need it.
 
 ## Running on your own iPhone
 

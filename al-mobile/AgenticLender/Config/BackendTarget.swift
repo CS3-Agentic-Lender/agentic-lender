@@ -19,16 +19,18 @@ enum BackendTarget: Equatable {
     }
 }
 
-/// The hosted backend's addresses and Firebase client settings. These identify the project rather
-/// than grant access (Firebase's security rules and al-core's token check do that), so they live in
-/// the code like the emulator ports.
+/// The hosted backend's address and Firebase client settings.
+///
+/// The Firebase settings stay out of the public repo: they go in the gitignored
+/// `Config/Hosted.xcconfig` (copy `Config/Hosted.example.xcconfig`), and `Config/AppInfo.plist` passes
+/// them into the app's Info.plist, where they are read at launch.
 enum HostedBackend {
     /// The load balancer in front of al-ai and al-core (docs/deployment.md).
     static let apiBaseURL = "https://api.agentic-lender.com"
 
-    /// Empty until the iOS app is registered in the hosted Firebase project; a hosted build stops at
-    /// launch and names what's missing until then.
-    static let firebase = HostedFirebase(projectID: "", apiKey: "", appID: "", senderID: "")
+    /// Empty on a checkout without `Config/Hosted.xcconfig`; a hosted build then stops at launch and
+    /// names the settings to fill in.
+    static var firebase: HostedFirebase { HostedFirebase(info: Bundle.main.infoDictionary ?? [:]) }
 }
 
 /// The four values from the hosted Firebase project's iOS app (its `GoogleService-Info.plist`).
@@ -38,10 +40,34 @@ struct HostedFirebase: Equatable {
     let appID: String
     let senderID: String
 
-    /// The names of the settings that are still blank.
+    /// The Info.plist keys `Config/AppInfo.plist` fills from the build settings in `Config/Hosted.xcconfig`.
+    enum Key {
+        static let projectID = "ALFirebaseProjectID"
+        static let apiKey = "ALFirebaseAPIKey"
+        static let appID = "ALFirebaseAppID"
+        static let senderID = "ALFirebaseSenderID"
+    }
+
+    /// Reads the settings from the app's Info.plist; a key that is absent reads as blank.
+    init(info: [String: Any]) {
+        func value(_ key: String) -> String { info[key] as? String ?? "" }
+        self.init(projectID: value(Key.projectID), apiKey: value(Key.apiKey), appID: value(Key.appID), senderID: value(Key.senderID))
+    }
+
+    init(projectID: String, apiKey: String, appID: String, senderID: String) {
+        self.projectID = projectID
+        self.apiKey = apiKey
+        self.appID = appID
+        self.senderID = senderID
+    }
+
+    /// The build settings still blank, by the name to set in `Config/Hosted.xcconfig`.
     var missing: [String] {
-        [("projectID", projectID), ("apiKey", apiKey), ("appID", appID), ("senderID", senderID)]
-            .filter { $0.1.trimmingCharacters(in: .whitespaces).isEmpty }
-            .map(\.0)
+        [
+            ("AL_FIREBASE_PROJECT_ID", projectID), ("AL_FIREBASE_API_KEY", apiKey),
+            ("AL_FIREBASE_APP_ID", appID), ("AL_FIREBASE_SENDER_ID", senderID),
+        ]
+        .filter { $0.1.trimmingCharacters(in: .whitespaces).isEmpty }
+        .map(\.0)
     }
 }

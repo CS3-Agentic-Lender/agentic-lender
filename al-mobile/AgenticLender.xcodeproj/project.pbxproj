@@ -32,6 +32,9 @@
 		A10000000000000000000101 /* AgenticLender.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgenticLender.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000102 /* AgenticLenderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgenticLenderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000103 /* AgenticLenderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgenticLenderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000104 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		A10000000000000000000105 /* Hosted.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Hosted.example.xcconfig; sourceTree = "<group>"; };
+		A10000000000000000000106 /* AppInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = AppInfo.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -85,8 +88,19 @@
 				A10000000000000000000201 /* AgenticLender */,
 				A10000000000000000000202 /* AgenticLenderTests */,
 				A10000000000000000000203 /* AgenticLenderUITests */,
+				A10000000000000000000013 /* Config */,
 				A10000000000000000000012 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000013 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000104 /* Base.xcconfig */,
+				A10000000000000000000105 /* Hosted.example.xcconfig */,
+				A10000000000000000000106 /* AppInfo.plist */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000012 /* Products */ = {
@@ -325,6 +339,7 @@
 		};
 		A10000000000000000000603 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000000000000000000104 /* Base.xcconfig */;
 			buildSettings = {
 				AL_BACKEND = LOCAL;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -333,6 +348,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/AppInfo.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agentic Lender";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -354,6 +370,7 @@
 		};
 		A10000000000000000000604 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10000000000000000000104 /* Base.xcconfig */;
 			buildSettings = {
 				AL_BACKEND = LOCAL;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -362,6 +379,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/AppInfo.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agentic Lender";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
