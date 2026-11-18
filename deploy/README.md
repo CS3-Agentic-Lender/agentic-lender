@@ -64,7 +64,8 @@ The deploy images are built by GitHub Actions (`.github/workflows/images.yml`), 
   That commit id is what `./deploy/al deploy` takes.
 
 ECR scans each image when it arrives (Console: ECR, then the repository, then the image). Tags can't
-be overwritten, and each repository keeps its 10 newest images.
+be overwritten, and each repository keeps its 30 newest images (about a week of merges).
+An image older than that is deleted, so redeploy a recent commit rather than an old one.
 
 ### Backup: pushing from Nic's Mac
 

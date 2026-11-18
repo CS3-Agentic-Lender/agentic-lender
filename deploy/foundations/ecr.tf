@@ -8,8 +8,10 @@
 #
 #   - Scan on push: ECR's basic scan checks each new image for known CVEs. It reports, it doesn't block.
 #   - Immutable tags: a commit id always means the same image, so nobody can quietly swap what's deployed.
-#   - Keep the last 10: older images are deleted. al-ai is about 1.4 GB unpacked and al-core 0.4 GB, so
-#     10 of each is roughly 6 GB compressed in ECR, about USD 0.60 a month.
+#   - Keep the last 30: older images are deleted. Every merge to main pushes a pair, so 30 is about a week
+#     of merges, and the deployed build stays pullable for a restart or `up`. (At 10 it could be gone
+#     after a busy day.) al-ai is about 1.4 GB unpacked and al-core 0.4 GB, so 30 of each is roughly
+#     18 GB compressed in ECR, about USD 1.80 a month.
 #
 # Costs: USD 0.10 per GB a month for what's stored. Pulls from inside eu-west-1 are free.
 
@@ -33,18 +35,18 @@ resource "aws_ecr_repository" "service" {
   }
 }
 
-resource "aws_ecr_lifecycle_policy" "keep_last_10" {
+resource "aws_ecr_lifecycle_policy" "keep_last_30" {
   for_each   = aws_ecr_repository.service
   repository = each.value.name
 
   policy = jsonencode({
     rules = [{
       rulePriority = 1
-      description  = "Keep the 10 newest images, delete the rest"
+      description  = "Keep the 30 newest images, delete the rest"
       selection = {
         tagStatus   = "any"
         countType   = "imageCountMoreThan"
-        countNumber = 10
+        countNumber = 30
       }
       action = { type = "expire" }
     }]
