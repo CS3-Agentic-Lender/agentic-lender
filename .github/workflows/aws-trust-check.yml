@@ -1,0 +1,59 @@
+# Proves the GitHub deploy role trusts this repo's main branch and nothing else (AL-225 criterion 2).
+#
+# It asks AWS for the deploy role with this job's GitHub token and checks the answer:
+#   from main               -> AWS must accept, and it prints which role it got
+#   anything else (a PR, a branch run by hand) -> AWS must refuse with AccessDenied
+# A run passes only when AWS gives the expected answer, so a refused PR run is green.
+#
+# It changes nothing in AWS: it only asks for the role, then throws the keys away.
+# To check main: Actions tab -> "AWS trust check" -> Run workflow -> branch main.
+name: AWS trust check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - deploy/foundations/github-deploy-role.tf
+      - deploy/foundations/variables.tf # holds the repo the role trusts
+      - .github/workflows/aws-trust-check.yml
+
+permissions:
+  id-token: write # lets the job ask GitHub for its signed token
+  contents: read
+
+env:
+  ROLE_ARN: arn:aws:iam::176550299403:role/agentic-lender-github-deploy # an ARN is not a secret
+  AWS_REGION: eu-west-1
+
+jobs:
+  trust-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask AWS for the deploy role
+        run: |
+          set -euo pipefail
+          token="$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)"
+
+          # The part of the token AWS checks. Not secret, so it's safe to print.
+          payload="$(cut -d. -f2 <<<"$token" | tr '_-' '/+')"
+          while (( ${#payload} % 4 )); do payload+="="; done # a token leaves off base64's padding
+          sub="$(base64 -d <<<"$payload" | jq -r .sub)"
+          echo "This job's token says: $sub"
+
+          if answer="$(aws sts assume-role-with-web-identity --role-arn "$ROLE_ARN" \
+                --role-session-name trust-check --web-identity-token "$token" \
+                --duration-seconds 900 --query AssumedRoleUser.Arn --output text 2>&1)"; then
+            accepted=yes
+          else
+            accepted=no
+          fi
+
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            [[ "$accepted" == yes ]] || { echo "FAIL: main was refused: $answer"; exit 1; }
+            echo "PASS: main got the deploy role: $answer"
+          else
+            [[ "$accepted" == no && "$answer" == *AccessDenied* ]] \
+              || { echo "FAIL: $GITHUB_REF should have been refused with AccessDenied, got: $answer"; exit 1; }
+            echo "PASS: $GITHUB_REF was refused, as it should be"
+          fi
