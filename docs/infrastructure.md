@@ -224,7 +224,7 @@ The emulators (`demo-al`) cover local work. The deployed app and portal use a re
 | Sign-in | Email/Password and Google. The public name on Google's sign-in screen is "Agentic Lender" |
 | iOS app | Bundle ID `ie.mtu.agenticlender`. Its `GoogleService-Info.plist` and the API key in it are shared in a DM, never in the repo |
 | Rules and indexes | Deployed from the repo, so they are the same as on the emulators: `cd al-core && firebase deploy --only firestore:rules,firestore:indexes --project agentic-lender-a0f1c` |
-| Access | Two owners, as every external service has two admins: Dumi, and Nic (added on 18 November under Project settings, Users and permissions; the role takes effect once he accepts the invite) |
+| Access | Two owners, as every external service has two admins: Dumi, and Nic (added on 18 November under Project settings, Users and permissions, where he is listed as an Owner) |
 
 **Demo accounts.** Created by `al-core/scripts/create-hosted-accounts.js` (see `al-core/README.md`), which sets each account's `role` claim and `users/{uid}` profile. They use `@example.com`, not the emulator's `@test.com`: test.com is a real domain, and the app's "resend verification email" would send mail to its owner. No applications are seeded here.
 
