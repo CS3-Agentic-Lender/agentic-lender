@@ -19,9 +19,13 @@ struct BackendConfig: Equatable {
     /// The block explorer's transaction address, such as "https://amoy.polygonscan.com/tx/", for the loan
     /// note's "View on block explorer". Nil on the local Hardhat chain, which has no explorer.
     let blockExplorerTxURL: String?
-    /// Stripe's publishable test key (`pk_test_…`) for the appraisal fee (AL-148). Set like `EMULATOR_HOST`,
-    /// so no key is committed; nil until it is, and then Pay says the payment couldn't start.
+    /// Stripe's publishable test key (`pk_test_…`) for the appraisal fee (AL-148). It comes from
+    /// `AL_STRIPE_PUBLISHABLE_KEY` in the gitignored `Config/Hosted.xcconfig`, through Info.plist, so it holds
+    /// when the app is opened from the home screen and is never in the repo. Only a `pk_test_` key is accepted;
+    /// without one, Pay says the payment couldn't start.
     let stripePublishableKey: String?
+
+    static let stripePublishableKeyInfo = "ALStripePublishableKey"
 
     /// Where the app sends API calls: the deployed API on a hosted build, otherwise the local gateway
     /// on the same host as the emulators.
@@ -34,13 +38,17 @@ struct BackendConfig: Equatable {
         return components.url!
     }
 
-    init(environment: [String: String] = ProcessInfo.processInfo.environment, target: BackendTarget = .current) {
+    init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        info: [String: Any] = Bundle.main.infoDictionary ?? [:],
+        target: BackendTarget = .current
+    ) {
         self.target = target
         let host = environment["EMULATOR_HOST"]?.trimmingCharacters(in: .whitespaces) ?? ""
         emulatorHost = host.isEmpty ? Self.defaultEmulatorHost : host
         let explorer = environment["BLOCK_EXPLORER_TX_URL"]?.trimmingCharacters(in: .whitespaces) ?? ""
         blockExplorerTxURL = explorer.isEmpty ? nil : explorer
-        let stripeKey = environment["STRIPE_PUBLISHABLE_KEY"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        stripePublishableKey = stripeKey.isEmpty ? nil : stripeKey
+        let stripeKey = (info[Self.stripePublishableKeyInfo] as? String ?? "").trimmingCharacters(in: .whitespaces)
+        stripePublishableKey = stripeKey.hasPrefix("pk_test_") ? stripeKey : nil
     }
 }

@@ -76,10 +76,12 @@ final class FeeViewModel {
 
     var isStarting: Bool { state == .starting }
 
-    func pay() async {
+    /// `currentFee` is the fee as the screen has it when Pay is tapped. If the webhook already marked it paid,
+    /// al-core answers 409 and the fee won't change again, so it ends the wait straight away.
+    func pay(currentFee: ApplicationFee? = nil) async {
         guard !isStarting else { return }
         guard publishableKey != nil else {
-            logger.error("No STRIPE_PUBLISHABLE_KEY is set, so the payment sheet can't open")
+            logger.error("No AL_STRIPE_PUBLISHABLE_KEY (pk_test_…) in Config/Hosted.xcconfig, so the payment sheet can't open")
             state = .failed(Self.couldNotStart)
             return
         }
@@ -94,6 +96,7 @@ final class FeeViewModel {
             // webhook coming, so that one ends in `.decided` once the decision is known.
             logger.info("The fee intent was refused with 409, so wait for the webhook")
             state = isOfferOpen ? .confirming(stillWaiting: false) : .decided
+            if let currentFee { feeChanged(currentFee) }
         } catch {
             logger.error("Creating the fee intent failed: \(String(describing: error), privacy: .public)")
             state = .failed(Self.couldNotStart)

@@ -137,6 +137,17 @@ final class FeeTests: XCTestCase {
         XCTAssertEqual(model.state, .receipt(FeeReceipt(amountEur: 150, paidAt: paidAt, paymentIntentID: "pi_123453xYz")))
     }
 
+    func testA409WhenTheWebhookAlreadyLandedShowsTheReceiptStraightAway() async {
+        // Nic's review on #242: the webhook marks the fee paid while the offer is open, then Pay is tapped. The
+        // fee doesn't change again, so nothing would end "Confirming"; the fee the screen already has does.
+        let paid = ApplicationFee(fields: ["feeStatus": "paid", "feePaidAt": paidAt, "feeIntentId": "pi_123453xYz"])
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .failure(.conflict)), publishableKey: "pk_test_x")
+
+        await model.pay(currentFee: paid)
+
+        XCTAssertEqual(model.state, .receipt(FeeReceipt(amountEur: 150, paidAt: paidAt, paymentIntentID: "pi_123453xYz")))
+    }
+
     // MARK: - The underwriter decided first (al-core's 409 for a decided application)
 
     func testA409AfterTheUnderwriterDecidedSaysFastTrackNoLongerApplies() async {
@@ -238,9 +249,27 @@ final class FeeTests: XCTestCase {
         XCTAssertEqual(receipt.amountText, "€150.00")
     }
 
-    func testTheKeyIsReadFromTheEnvironmentLikeTheEmulatorHost() {
-        XCTAssertEqual(BackendConfig(environment: ["STRIPE_PUBLISHABLE_KEY": " pk_test_abc "]).stripePublishableKey, "pk_test_abc")
-        XCTAssertNil(BackendConfig(environment: [:]).stripePublishableKey)
+    // MARK: - The publishable key (Nic's review on #242): from Info.plist, so it holds outside Xcode too
+
+    func testTheKeyIsReadFromTheAppsInfoPlist() {
+        // Config/AppInfo.plist passes AL_STRIPE_PUBLISHABLE_KEY (gitignored Config/Hosted.xcconfig) in.
+        XCTAssertEqual(BackendConfig(environment: [:], info: ["ALStripePublishableKey": " pk_test_abc "]).stripePublishableKey, "pk_test_abc")
+    }
+
+    func testABlankKeyMeansNoKey() {
+        XCTAssertNil(BackendConfig(environment: [:], info: ["ALStripePublishableKey": ""]).stripePublishableKey)
+        XCTAssertNil(BackendConfig(environment: [:], info: [:]).stripePublishableKey)
+    }
+
+    func testOnlyAPublishableTestKeyIsAccepted() {
+        // A live key, or a secret key put in by mistake, never reaches Stripe's SDK.
+        for key in ["pk_live_abc", "sk_test_abc", "rk_test_abc"] {
+            XCTAssertNil(BackendConfig(environment: [:], info: ["ALStripePublishableKey": key]).stripePublishableKey, key)
+        }
+    }
+
+    func testTheSchemesEnvironmentNoLongerSetsTheKey() {
+        XCTAssertNil(BackendConfig(environment: ["STRIPE_PUBLISHABLE_KEY": "pk_test_abc"], info: [:]).stripePublishableKey)
     }
 }
 

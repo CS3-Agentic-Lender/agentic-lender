@@ -81,7 +81,7 @@ struct FeeView: View {
                     .background(Theme.dangerBadge, in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
                     .accessibilityIdentifier("fee.failed")
             }
-            PrimaryButton(title: payTitle, isLoading: model.isStarting) { Task { await model.pay() } }
+            PrimaryButton(title: payTitle, isLoading: model.isStarting) { Task { await model.pay(currentFee: status.fee) } }
                 .accessibilityIdentifier("fee.pay")
             Button("Not now") { dismiss() }
                 .font(.headline)
