@@ -26,13 +26,14 @@ class FakeStripe(fees.StripeGateway):
         super().__init__("sk_test_made_up", SECRET)
         self.intents, self.created, self.retrieved, self.error = {}, [], [], None
         self.replaced = []  # the intent each create_intent call was told it replaces, in order
+        self.create_status = "requires_payment_method"  # what a newly created intent comes back as (a replayed one may be "succeeded")
 
     def create_intent(self, application_id, borrower_id, replaces=None):
         if self.error:
             raise self.error
         self.created.append((application_id, borrower_id))
         self.replaced.append(replaces)
-        intent = {"id": f"pi_{len(self.created)}", "client_secret": f"pi_{len(self.created)}_secret_x", "status": "requires_payment_method"}
+        intent = {"id": f"pi_{len(self.created)}", "client_secret": f"pi_{len(self.created)}_secret_x", "status": self.create_status}
         self.intents[intent["id"]] = intent
         return dict(intent)
 
@@ -123,32 +124,102 @@ def recorder(monkeypatch):
 
 
 def test_the_first_intent_for_an_application_uses_a_key_that_says_so(recorder):
-    fees.StripeGateway("sk_test_x", SECRET).create_intent("app1", "borrower1")
-    assert recorder.calls[0]["idempotency_key"] == "al-fee-app1-first"
+    fees.StripeGateway("sk_test_x", SECRET, "ns").create_intent("app1", "borrower1")
+    assert recorder.calls[0]["idempotency_key"] == "al-fee-ns-app1-first"
 
 
 def test_replacing_a_cancelled_intent_uses_a_different_key_so_stripe_cannot_replay_the_cancelled_one(recorder):
-    gateway = fees.StripeGateway("sk_test_x", SECRET)
+    gateway = fees.StripeGateway("sk_test_x", SECRET, "ns")
     gateway.create_intent("app1", "borrower1")
     gateway.create_intent("app1", "borrower1", replaces="pi_1")
     gateway.create_intent("app1", "borrower1", replaces="pi_2")
     keys = [call["idempotency_key"] for call in recorder.calls]
-    assert keys == ["al-fee-app1-first", "al-fee-app1-pi_1", "al-fee-app1-pi_2"]
+    assert keys == ["al-fee-ns-app1-first", "al-fee-ns-app1-pi_1", "al-fee-ns-app1-pi_2"]
     assert len(set(keys)) == 3
 
 
 def test_two_requests_to_replace_the_same_cancelled_intent_share_one_key_so_stripe_makes_one(recorder):
-    gateway = fees.StripeGateway("sk_test_x", SECRET)
+    gateway = fees.StripeGateway("sk_test_x", SECRET, "ns")
     gateway.create_intent("app1", "borrower1", replaces="pi_1")
     gateway.create_intent("app1", "borrower1", replaces="pi_1")
     assert recorder.calls[0]["idempotency_key"] == recorder.calls[1]["idempotency_key"]
 
 
 def test_the_keys_of_two_applications_never_meet(recorder):
-    gateway = fees.StripeGateway("sk_test_x", SECRET)
+    gateway = fees.StripeGateway("sk_test_x", SECRET, "ns")
     gateway.create_intent("app1", "borrower1")
     gateway.create_intent("app2", "borrower1")
     assert recorder.calls[0]["idempotency_key"] != recorder.calls[1]["idempotency_key"]
+
+
+# ---- the key names its environment (AL-323) ---------------------------------------------------------------------------------------
+
+
+def test_two_environments_on_one_sandbox_never_share_a_key_for_the_same_application(recorder):
+    """The bug: every developer's emulator has app-applied, and the team shares one Stripe sandbox."""
+    fees.StripeGateway("sk_test_x", SECRET, "dev-one").create_intent("app-applied", "borrower1")
+    fees.StripeGateway("sk_test_x", SECRET, "dev-two").create_intent("app-applied", "borrower1")
+    assert recorder.calls[0]["idempotency_key"] != recorder.calls[1]["idempotency_key"]
+
+
+def test_a_real_project_uses_its_project_id_so_every_task_of_the_service_agrees(recorder):
+    env = {"STRIPE_SECRET_KEY": "sk_test_abc", "STRIPE_WEBHOOK_SECRET": "whsec_x", "FIREBASE_PROJECT_ID": "agentic-lender-a0f1c"}
+    task_one, task_two = fees.StripeGateway.from_env(env), fees.StripeGateway.from_env(env)
+    task_one.create_intent("app1", "borrower1")
+    task_two.create_intent("app1", "borrower1")  # a double click that reached another task
+    assert recorder.calls[0]["idempotency_key"] == recorder.calls[1]["idempotency_key"] == "al-fee-agentic-lender-a0f1c-app1-first"
+
+
+@pytest.mark.parametrize("env", [{"FIREBASE_PROJECT_ID": "demo-al"}, {"FIREBASE_PROJECT_ID": "demo-anything"}, {"FIREBASE_PROJECT_ID": ""}, {}])
+def test_an_emulator_project_or_none_uses_a_random_value_for_this_process(env):
+    assert fees.key_namespace(env) == fees.PROCESS_NAMESPACE
+    assert len(fees.PROCESS_NAMESPACE) == 8
+
+
+def test_the_explicit_setting_wins_over_the_project_id():
+    assert fees.key_namespace({"STRIPE_KEY_NAMESPACE": "team-a", "FIREBASE_PROJECT_ID": "agentic-lender-a0f1c"}) == "team-a"
+    assert fees.key_namespace({"STRIPE_KEY_NAMESPACE": "team-a", "FIREBASE_PROJECT_ID": "demo-al"}) == "team-a"
+
+
+def test_the_namespace_is_cleaned_so_it_cannot_break_the_key():
+    assert fees.key_namespace({"STRIPE_KEY_NAMESPACE": "my project/1"}) == "my-project-1"
+    assert fees.key_namespace({"STRIPE_KEY_NAMESPACE": "a b.c"}) == "a-b-c"
+    assert fees.key_namespace({"STRIPE_KEY_NAMESPACE": "x" * 500}) == "x" * 60  # Stripe's key limit is 255; leave room for the rest
+
+
+def test_two_processes_on_emulators_get_different_namespaces():
+    """Two developers' API processes: each picks its own value when it starts."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    project_dir = Path(fees.__file__).resolve().parent.parent
+    code = "from app.fees import key_namespace; print(key_namespace({'FIREBASE_PROJECT_ID': 'demo-al'}))"
+    runs = [subprocess.run([sys.executable, "-c", code], cwd=project_dir, capture_output=True, text=True, check=True).stdout.strip() for _ in range(2)]
+    assert len(runs[0]) == len(runs[1]) == 8 and runs[0] != runs[1]
+
+
+def test_a_new_intent_that_comes_back_already_paid_is_409_and_nothing_is_saved_or_sent(stripe_fake):
+    stripe_fake["stripe"].create_status = "succeeded"  # what a replayed request returned on the shared sandbox
+    r = ask()
+    assert r.status_code == 409 and "confirmed" in r.json()["error"]["message"]
+    assert "client_secret" not in r.text and "secret_x" not in r.text
+    assert "feeIntentId" not in doc(stripe_fake) and "feeStatus" not in doc(stripe_fake)
+
+
+def test_a_new_intent_that_comes_back_cancelled_is_refused_and_nothing_is_saved_or_sent(stripe_fake):
+    stripe_fake["stripe"].create_status = "canceled"
+    r = ask()
+    assert r.status_code == 502 and "secret_x" not in r.text
+    assert "feeIntentId" not in doc(stripe_fake) and "feeStatus" not in doc(stripe_fake)
+
+
+@pytest.mark.parametrize("status", ["requires_payment_method", "requires_confirmation", "requires_action", "processing"])
+def test_a_new_intent_that_is_still_open_is_saved_and_returned_as_before(stripe_fake, status):
+    stripe_fake["stripe"].create_status = status
+    r = ask()
+    assert r.status_code == 200 and r.json()["payment_intent_id"] == "pi_1"
+    assert doc(stripe_fake)["feeIntentId"] == "pi_1" and doc(stripe_fake)["feeStatus"] == "unpaid"
 
 
 def test_a_payment_that_went_through_but_is_not_recorded_yet_is_409(stripe_fake):

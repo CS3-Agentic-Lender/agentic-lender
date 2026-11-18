@@ -17,6 +17,8 @@ Only Stripe test keys are accepted: a live key is refused, so this can never tak
 import json
 import logging
 import os
+import re
+import secrets
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -39,6 +41,24 @@ CURRENCY = "eur"
 PAYABLE_STATUSES = ("Applied", "AI Deliberated")
 # How many times a webhook re-reads an application that keeps changing under it before it asks Stripe to send the event again.
 WEBHOOK_ATTEMPTS = 3
+# A value that is different in every process that starts. Every developer's emulators run under the same project id (demo-al) and the
+# same seeded application ids, and the team shares one Stripe sandbox, so the idempotency key needs something that tells them apart.
+PROCESS_NAMESPACE = secrets.token_hex(4)
+
+
+def key_namespace(env=None) -> str:
+    """The part of the idempotency key that says which environment a request comes from.
+
+    STRIPE_KEY_NAMESPACE wins if it is set. On a real Firebase project it is the project id, which is the same on every task of the
+    deployed service, so two requests that reach two tasks at the same moment still make one intent. On the emulators (a `demo-` project,
+    or none) it is a random value for this process, so two developers on one Stripe sandbox cannot be handed each other's intents.
+    """
+    env = os.environ if env is None else env
+    chosen = (env.get("STRIPE_KEY_NAMESPACE") or "").strip()
+    if not chosen:
+        project = (env.get("FIREBASE_PROJECT_ID") or "").strip()
+        chosen = project if project and not project.startswith("demo-") else PROCESS_NAMESPACE
+    return re.sub(r"[^A-Za-z0-9_-]", "-", chosen)[:60]  # Stripe's key limit is 255 characters
 
 
 class FeeIntentOut(BaseModel):
@@ -54,8 +74,8 @@ class NotConfigured(Exception):
 class StripeGateway:
     """The two things the fee needs from Stripe. A stand-in with the same three methods is used in tests, so none of them calls Stripe."""
 
-    def __init__(self, secret_key: str, webhook_secret: str):
-        self.secret_key, self.webhook_secret = secret_key, webhook_secret
+    def __init__(self, secret_key: str, webhook_secret: str, namespace: str = "default"):
+        self.secret_key, self.webhook_secret, self.namespace = secret_key, webhook_secret, namespace
 
     @classmethod
     def from_env(cls, env=None) -> "StripeGateway":
@@ -65,7 +85,7 @@ class StripeGateway:
             raise NotConfigured("STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are not set")
         if not secret.startswith(("sk_test_", "rk_test_")):
             raise NotConfigured("STRIPE_SECRET_KEY is not a Stripe test key; only test keys are allowed")
-        return cls(secret, webhook)
+        return cls(secret, webhook, key_namespace(env))
 
     def create_intent(self, application_id: str, borrower_id: str, replaces: str | None = None) -> dict:
         """A new EUR 150 intent. The idempotency key makes two calls at the same moment return one intent.
@@ -73,6 +93,9 @@ class StripeGateway:
         Stripe replays the saved answer to a repeated key for 24 hours, so the key has to change when the borrower needs a different
         intent: a cancelled one is replaced by an intent made under a key that names the cancelled one (`replaces`). Without that, the
         new request would get the cancelled intent straight back and the borrower could never pay.
+
+        The key also names the environment (`self.namespace`, see `key_namespace`): without it, everyone on the shared sandbox who asks for
+        a fee on the same seeded application id would be handed the first person's intent, already paid.
         """
         intent = stripe.PaymentIntent.create(
             amount=FEE_CENTS,
@@ -80,7 +103,7 @@ class StripeGateway:
             automatic_payment_methods={"enabled": True, "allow_redirects": "never"},  # cards only: no redirect page to come back from
             description=f"Fast-track appraisal fee, application {application_id}",
             metadata={"application_id": application_id, "borrower_id": borrower_id},
-            idempotency_key=f"al-fee-{application_id}-{replaces or 'first'}",
+            idempotency_key=f"al-fee-{self.namespace}-{application_id}-{replaces or 'first'}",
             api_key=self.secret_key,
         )
         return {"id": intent["id"], "client_secret": intent["client_secret"], "status": intent["status"]}
@@ -132,6 +155,12 @@ def create_fee_intent(application_id: str, user: dict = Depends(require_role("bo
                 replaces, intent = doc["feeIntentId"], None  # an intent that can't be paid any more, so make a new one
         if intent is None:
             intent = stripe_gateway.create_intent(application_id, user["uid"], replaces)
+            # A new intent should be open. If Stripe hands back one that is not (a replay of an earlier request), it must not be saved or
+            # sent to the app: the payment sheet would refuse it.
+            if intent["status"] == "succeeded":
+                raise HTTPException(409, "The payment went through and is being confirmed")
+            if intent["status"] == "canceled":
+                raise HTTPException(502, "The payment service returned a payment that can no longer be paid. Try again")
     except stripe.StripeError as exc:
         log.warning("Stripe failed for application %s: %s", application_id, type(exc).__name__)
         raise HTTPException(502, "The payment service could not be reached. Try again")
