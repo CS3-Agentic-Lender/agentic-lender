@@ -50,3 +50,9 @@ variable "domain" {
   type        = string
   default     = "agentic-lender.com"
 }
+
+variable "alarm_emails" {
+  description = "Who gets the CloudWatch alarm emails (alarm-emails.tf). Set in alarm-emails.auto.tfvars, which is gitignored, so the addresses never reach the public repo."
+  type        = list(string)
+  default     = []
+}

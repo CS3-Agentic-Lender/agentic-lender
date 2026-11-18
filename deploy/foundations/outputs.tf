@@ -31,3 +31,8 @@ output "guardrails_boundary_arn" {
   description = "deploy/app sets this as permissions_boundary on every IAM role it creates (named agentic-lender-app-*)."
   value       = aws_iam_policy.guardrails.arn
 }
+
+output "alarm_topic_arn" {
+  description = "The SNS topic the alarms in deploy/app email through. deploy/app finds it by name."
+  value       = aws_sns_topic.alarms.arn
+}

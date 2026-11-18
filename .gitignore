@@ -44,3 +44,6 @@ al-ai/data/
 
 # Run records written by the local committee runner (income, loan figures, raw model replies). The evidence run is committed by hand.
 al-ai/docs/committee-runs/
+
+# Terraform settings files hold personal values (e.g. the alarm email addresses), so they stay local
+deploy/**/*.tfvars

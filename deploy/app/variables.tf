@@ -40,3 +40,9 @@ variable "image_tag" {
     error_message = "image_tag must be a git commit id (7 to 40 hex characters), e.g. 3166a3b."
   }
 }
+
+variable "domain" {
+  description = "The domain we own. Its zone and the api certificate are made in deploy/foundations; this folder looks them up by this name."
+  type        = string
+  default     = "agentic-lender.com"
+}

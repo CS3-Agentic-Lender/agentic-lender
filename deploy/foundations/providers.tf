@@ -40,6 +40,7 @@ provider "aws" {
     sts     = local.floci_url
     route53 = local.floci_url
     acm     = local.floci_url
+    sns     = local.floci_url
   }
 
   # Stamped on every resource this folder makes, so the console and the bill can group them.

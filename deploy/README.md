@@ -7,8 +7,8 @@ Everything that puts AL on AWS, written in Terraform. The design and the costs a
 
 | Folder | What's in it | Run by | Removed by `down`? |
 |---|---|---|---|
-| `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate | Nic, by hand with `terraform` | Never. They cost about USD 0.50 a month and are slow to set up again |
-| `app/` | Everything billed by the hour: load balancer, WAF, ECS services (added by later tickets) | `./deploy/al` | Yes |
+| `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate, the alarm email list | Nic, by hand with `terraform` | Never. They cost about USD 0.50 a month and are slow to set up again |
+| `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, ECS services (added by later tickets) | `./deploy/al` | Yes |
 
 Each `.tf` file holds one idea and starts with a comment saying what it creates, why, and what it costs.
 
@@ -27,10 +27,17 @@ deploy/
 │   ├── guardrails.tf           the ceiling on what that role (and roles it makes) can do
 │   ├── dns.tf                  the agentic-lender.com zone
 │   ├── certificate.tf          the certificate for api.agentic-lender.com
-│   └── outputs.tf              name servers, role ARN, bucket, certificate
+│   ├── alarm-emails.tf         who the alarms email
+│   └── outputs.tf              name servers, role ARN, bucket, certificate, alarm topic
 └── app/
     ├── versions.tf, variables.tf, providers.tf, backend.tf, outputs.tf
-    └── release.tf              which build is deployed
+    ├── release.tf              which build is deployed
+    ├── lookups.tf              finds the zone, certificate and alarm list foundations made
+    ├── network.tf              the VPC and two public subnets
+    ├── security-groups.tf      the load balancer may talk to the tasks, nothing else may
+    ├── load-balancer.tf        HTTPS front door, /ai/* and /core/* rules, api.agentic-lender.com
+    ├── waf.tf                  rate limits and AWS's common-attack rules
+    └── alarms.tf               emails when a service is down or 5xx errors pile up
 ```
 
 ## The four commands
@@ -62,6 +69,10 @@ cd ../.. && ./deploy/al deploy 3166a3b --floci
 ```
 
 The Floci console is at <http://localhost:4566/_floci/ui>.
+
+Floci has one quirk here: it reports the two security group rules that point at another group as
+`000000000000/sg-...` instead of `sg-...`, so `al status --floci` shows them as drift after an apply.
+Real AWS doesn't do this, so that drift on Floci can be ignored.
 
 ## First time on the real account
 
@@ -112,6 +123,22 @@ Do these steps once, in order. Budget alerts (AL-224) must exist before step 2. 
 6. **Tidy up.** In the personal account, delete the old hosted zone that registration created. It's
    unused once step 3 is live, and it costs USD 0.50 a month. Route 53 only deletes a zone that holds
    just its NS and SOA records, so remove any others first.
+
+## Who gets the alarm emails
+
+The alarms in `app/alarms.tf` email everyone on the list in `foundations/alarm-emails.tf`. The
+addresses stay out of the public repo: put them in `foundations/alarm-emails.auto.tfvars`, which is
+gitignored and read automatically, then `terraform apply` in `deploy/foundations`.
+
+```hcl
+alarm_emails = ["someone@example.com", "someone-else@example.com"]
+```
+
+Each address gets a "Confirm subscription" email from AWS and receives nothing until it's clicked.
+Because the list is in foundations, `down` and `up` never make anyone confirm again. `app/` needs the
+list to exist, so apply foundations first.
+
+The budget alerts are separate (AL-224) and keep running while `app/` is down.
 
 ## Roles the app needs
 
