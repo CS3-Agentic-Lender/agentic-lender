@@ -1,8 +1,8 @@
 # release.tf: records which build is deployed.
 #
-# Until the load balancer and ECS tickets add the real services to this folder, this is the only
-# thing in it, so the al script has something real to create, change and remove. It stays useful
-# afterwards: `./deploy/al status` reads it to say which commit is live.
+# It was the first thing in this folder, so the al script had something real to create, change and
+# remove before the load balancer arrived. It stays useful: `./deploy/al status` reads it to say which
+# commit is live.
 #
 # Costs nothing: a standard SSM parameter is free.
 
