@@ -266,6 +266,21 @@ def test_a_re_run_of_a_stale_run_is_accepted_and_the_stale_run_is_marked_interru
     assert (application(db, application_id)["aiRunStatus"], application(db, application_id)["aiRunId"]) == ("running", "run-new")
 
 
+@pytest.mark.parametrize("late_status", ["complete", "failed"])
+def test_a_late_finish_from_a_reclaimed_run_leaves_it_interrupted_and_the_application_with_the_new_run(db, late_status):
+    application_id, stale = left_running(db, 11)
+    auto_start.claim(db, application_id, run_id="run-new", rerun_of=stale)
+    late = {
+        "run_id": stale, "application_id": application_id, "status": late_status, "finished_at": datetime.now(auto_start.UTC).isoformat(),
+        "failed_step": None if late_status == "complete" else "affordability", "failure_reason": None if late_status == "complete" else "boom",
+    }
+    auto_start.finish(db, late)
+    old = run_doc(db, stale)
+    assert (old["status"], old["failedStep"], old["failureReason"]) == ("failed", "run", "interrupted")
+    stored = application(db, application_id)
+    assert (stored["aiRunStatus"], stored["aiRunId"], stored["status"]) == ("running", "run-new", "Applied")
+
+
 def test_a_re_run_of_a_run_still_inside_ten_minutes_is_refused_and_the_run_is_left_alone(db):
     application_id, fresh = left_running(db, 9)
     assert auto_start.claim(db, application_id, run_id="run-new", rerun_of=fresh) is None
@@ -274,19 +289,29 @@ def test_a_re_run_of_a_run_still_inside_ten_minutes_is_refused_and_the_run_is_le
 
 
 def test_two_sweeps_at_the_same_moment_reclaim_a_stale_run_once(db):
+    """Both sweeps pick the stale run, and both workers are held until each is at its claim, so the two claims really race."""
     application_id, stale = left_running(db, 11)
-    listeners = [auto_start.Listener(db, factory()) for _ in range(2)]
-    barrier, futures = threading.Barrier(2), []
+    at_claim, make = threading.Barrier(2, timeout=20), factory()
+
+    def held(store):
+        at_claim.wait()  # building the run is the last thing before the claim
+        return make(store)
+
+    listeners = [auto_start.Listener(db, held) for _ in range(2)]
+    futures, errors = [], []
 
     def sweep(listener):
-        barrier.wait()
-        futures.extend(listener.sweep())
+        try:
+            futures.extend(listener.sweep())
+        except Exception as exc:
+            errors.append(exc)
 
     threads = [threading.Thread(target=sweep, args=(listener,)) for listener in listeners]
-    [t.start() for t in threads]
-    [t.join() for t in threads]
-    results = [future.result(timeout=60) for future in futures]
     try:
+        [t.start() for t in threads]
+        [t.join(30) for t in threads]
+        assert errors == [] and len(futures) == 2
+        results = [future.result(timeout=60) for future in futures]
         assert len([result for result in results if result is not None]) == 1
         runs = {run["id"]: run for run in runs_for(db, application_id)}
         assert len(runs) == 2
@@ -295,7 +320,24 @@ def test_two_sweeps_at_the_same_moment_reclaim_a_stale_run_once(db):
         assert (new["rerunOf"], new["status"]) == (stale, "complete")
         assert application(db, application_id)["status"] == "AI Deliberated"
     finally:
+        at_claim.abort()  # frees a worker still waiting if the other never came
         [listener.stop() for listener in listeners]
+
+
+def test_a_run_that_goes_stale_after_the_listener_started_is_reclaimed_by_a_later_sweep(db):
+    application_id, run_id = left_running(db, 1)
+    ahead = timedelta(0)
+    listener = auto_start.Listener(db, factory(), sweep_every_s=0.2, clock=lambda: datetime.now(auto_start.UTC) + ahead)
+    listener.start()
+    try:
+        time.sleep(1)  # several sweeps pass while the run is fresh
+        assert run_doc(db, run_id)["status"] == "running"
+        ahead = timedelta(minutes=10)
+        assert wait_for(lambda: application(db, application_id).get("aiRunStatus") == "complete")
+        assert run_doc(db, run_id)["failureReason"] == "interrupted"
+        assert run_doc(db, application(db, application_id)["aiRunId"])["rerunOf"] == run_id
+    finally:
+        listener.stop()
 
 
 def test_a_sweep_leaves_a_run_still_inside_ten_minutes_alone(db):
@@ -390,6 +432,27 @@ def test_once_stopping_the_listener_claims_nothing_more(db):
     assert listener.sweep() == []
     assert "aiRunStatus" not in application(db, picked_up) and "aiRunStatus" not in application(db, submitted)
     assert run_doc(db, stale_run)["status"] == "running"
+
+
+def test_a_stop_while_the_claim_fetches_the_benchmark_rate_still_claims_nothing(db):
+    """The figures written with the claim fetch the benchmark rate, which can be slow: a stop that comes during that fetch wins."""
+    fetching, release = threading.Event(), threading.Event()
+
+    def slow_rate(name):
+        fetching.set()
+        release.wait(10)
+        return tc.get_rate(name)
+
+    application_id = applied(db)
+    listener = auto_start.Listener(db, factory(get_rate=slow_rate))
+    listener.start()
+    try:
+        assert fetching.wait(10)
+        listener.stop()
+    finally:
+        release.set()
+    time.sleep(2)
+    assert "aiRunStatus" not in application(db, application_id) and runs_for(db, application_id) == []
 
 
 # ---- AL-63: the borrower's indicative figures, written on submit before the committee runs ----------------

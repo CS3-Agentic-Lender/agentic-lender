@@ -13,11 +13,13 @@ background thread. The design is the one Dumi agreed on the ticket:
            way the claim, in one transaction, reads the application and the run again, marks the stale run failed with
            failureReason `interrupted`, and starts the new run with rerunOf pointing at it, so two listeners start it only once.
   finish   a complete run sets `aiRunStatus = "complete"`, moves `status` to `AI Deliberated` and appends the `statusHistory` entry in
-           the same write. A failed run sets `aiRunStatus = "failed"`, leaves `status` at `Applied` and adds no entry.
+           the same write. A failed run sets `aiRunStatus = "failed"`, leaves `status` at `Applied` and adds no entry. A run whose
+           `ai_runs` document has already ended (an `interrupted` one that finishes late) writes nothing.
   reason   the failure reason is on the `ai_runs` document, never on the application: the borrower can read their application.
            `interrupted` means the run was stale and was replaced (its failedStep is `run`).
-  stop     when the service is told to stop, the listener stops watching and sweeping, and claims nothing more. A run already
-           going is not waited for: if it does not finish before the task stops, it becomes stale and is reclaimed.
+  stop     when the service is told to stop, the listener stops watching and sweeping, and claims nothing more (a claim in its
+           transaction is let finish; one still fetching its rate is refused). A run already going is not waited for: if it
+           does not finish before the task stops, it becomes stale and is reclaimed.
 
 The claim writes the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
 failedStep and failureReason. The finish adds the agents, the credit memo, the recommendations and the consensus (AL-62, see
@@ -117,7 +119,9 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     AL-301), in the same transaction; a failed run leaves the figures from submit and writes no tier. The run document also
     gets the reasoning trail (AL-62): each agent's report and vote, the credit memo, the recommendations and the consensus.
     A run that reached the policy gate saves the gate's result on its `ai_runs` document and on `review/underwriting` (AL-305),
-    in the same transaction; a replaced run saves it on its own `ai_runs` document only.
+    in the same transaction; a replaced run saves it on its own `ai_runs` document only. A run whose `ai_runs` document is no
+    longer `running` has already ended (most often a stale run marked `interrupted` when it was reclaimed, AL-327): nothing is
+    written, so a late finish cannot undo that.
     """
     run_id, application_id = record["run_id"], record["application_id"]
     application = db.collection(APPLICATIONS).document(application_id)
@@ -130,6 +134,11 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     @firestore.transactional
     def write(transaction):
         data = application.get(transaction=transaction).to_dict() or {}
+        held = run.get(transaction=transaction)
+        if not held.exists or (held.to_dict() or {}).get("status") != "running":
+            # already ended: a stale run that was reclaimed (`interrupted`), or a run finished twice. Its end stands as written.
+            log.warning("run %s for %s has already ended, so its late %s finish is not saved", run_id, application_id, record["status"])
+            return
         transaction.update(run, {
             "status": record["status"], "finishedAt": finished,
             "failedStep": record["failed_step"], "failureReason": record["failure_reason"],
@@ -285,25 +294,45 @@ def risk_on_finish(record: dict):
     return write
 
 
+class StopGate:
+    """Lets claims through until the service stops (AL-327). A claim holds the gate's lock for its whole transaction, and `close`
+    takes the same lock, so once `close` returns no claim is in progress and none can start: a claim then gets None."""
+
+    def __init__(self):
+        self.lock, self.closed = threading.Lock(), False
+
+    def close(self) -> None:
+        with self.lock:
+            self.closed = True
+
+    def claim(self, take: Callable[[], dict | None]) -> dict | None:
+        with self.lock:
+            return None if self.closed else take()
+
+
 def process(
     db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None,
-    now: datetime | None = None, stopping: Callable[[], bool] | None = None,
+    now: datetime | None = None, gate: StopGate | None = None,
 ) -> dict | None:
     """Claim the application and run the committee for it. Returns the run record, or None if the claim was not won.
 
     The deps come first, because the figures written with the claim need the benchmark rate. The committee turns its own step
     failures into a failed record. This also turns a crash outside the steps (building the deps, or the save itself failing)
-    into a failed run, so an application is not left `running` because of a bug. `stopping` is asked just before the claim: once
-    it says True the application is not claimed (the service is shutting down, AL-327), and None is returned.
+    into a failed run, so an application is not left `running` because of a bug. With a `gate`, the claim goes through it after
+    the figures are worked out (fetching the rate can be slow): once the gate is closed the application is not claimed (the
+    service is shutting down, AL-327), and None is returned.
     """
     run_id = str(uuid.uuid4())
     try:
         deps, deps_error = deps_factory(FirestoreRunStore(db)), None
     except Exception as exc:
         deps, deps_error = None, exc
-    if stopping is not None and stopping():
-        return None
-    application = claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=figures_on_claim(deps), now=now)
+    extra_fields = figures_on_claim(deps)
+
+    def take():
+        return claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=extra_fields, now=now)
+
+    application = gate.claim(take) if gate is not None else take()
     if application is None:
         return None
     try:
@@ -334,7 +363,8 @@ class Listener:
         self.sweep_every_s, self.clock = sweep_every_s, clock
         self.pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="committee")
         self.watch = None
-        self.stopping = threading.Event()
+        self.stopping = threading.Event()  # wakes the sweep thread
+        self.gate = StopGate()
 
     def start(self) -> None:
         query = self.db.collection(APPLICATIONS).where(filter=FieldFilter("status", "==", APPLIED))
@@ -343,7 +373,9 @@ class Listener:
 
     def stop(self) -> None:
         """Stop taking applications: the watch and the sweep end first, and a claim not yet made is not made. A run already going
-        is not waited for: if the task is stopped before it finishes, it is left running and a later sweep reclaims it as stale."""
+        is not waited for: if the task is stopped before it finishes, it is left running and a later sweep reclaims it as stale.
+        A claim already in its transaction is waited for (it is short); once this returns, no claim can start."""
+        self.gate.close()
         self.stopping.set()
         if self.watch:
             self.watch.unsubscribe()
@@ -401,7 +433,7 @@ class Listener:
 
     def _run(self, application_id: str, rerun_of: str | None = None) -> dict | None:
         try:
-            return process(self.db, application_id, deps_factory=self.deps_factory, rerun_of=rerun_of, now=self.clock(), stopping=self.stopping.is_set)
+            return process(self.db, application_id, deps_factory=self.deps_factory, rerun_of=rerun_of, now=self.clock(), gate=self.gate)
         except Exception:  # the claim itself failed (Firestore down): the next change, or the next sweep, tries again
             log.exception("could not start a committee run for %s", application_id)
             return None
