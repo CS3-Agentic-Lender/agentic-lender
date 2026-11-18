@@ -15,6 +15,7 @@
 #   - use CloudFormation, CodeBuild or SSM Run Command, which run things as their own role
 #   - delete, reconfigure or wipe the history of the Terraform state bucket, or write foundations' state
 #   - delete the image registries or change their scan, tag and clean-up settings (pushing is fine)
+#   - read, change or delete any agentic-lender/* secret, unless it's al-ai's execution role reading them
 # Nic's own login runs this folder and isn't under the boundary, so all of it stays changeable on
 # purpose, through Terraform.
 #
@@ -27,6 +28,10 @@ locals {
   # agentic-lender-app-.
   app_roles     = "arn:aws:iam::${local.account_id}:role/agentic-lender-app-*"
   app_functions = "arn:aws:lambda:*:${local.account_id}:function:agentic-lender-app-*"
+
+  # al-ai's execution role (al-ai-roles.tf), written out as text rather than pointing at the role:
+  # the role points at this boundary, so pointing back would make a loop Terraform can't order.
+  al_ai_execution_role = "arn:aws:iam::${local.account_id}:role/agentic-lender-app-al-ai-execution"
 }
 
 data "aws_iam_policy_document" "guardrails" {
@@ -131,6 +136,33 @@ data "aws_iam_policy_document" "guardrails" {
       "ecr:PutLifecyclePolicy", "ecr:DeleteLifecyclePolicy",
     ]
     resources = [for repo in aws_ecr_repository.service : repo.arn]
+  }
+
+  # The secrets (al-ai-secrets.tf): only al-ai's execution role may read them, when ECS starts a task.
+  # The deploy role, the task role and any app role can't read, overwrite, delete or open them up.
+  # They may still look at a secret's name and details (DescribeSecret), which shows no value.
+  # The * at the end matters: AWS adds 6 random characters to every secret's ARN. The Region is * too,
+  # and copying a secret to another Region is denied, so a copy elsewhere can't be read either.
+  # Nic's login and Terraform aren't under this boundary, so he can still fill and manage them.
+  # What this can't stop: the deploy role deploys al-ai, so it could start a task that prints the keys
+  # ECS hands it. Anyone who can deploy the app is trusted with its keys; this blocks every direct way.
+  statement {
+    sid    = "OnlyAlAiExecutionRoleReadsSecrets"
+    effect = "Deny"
+    actions = [
+      "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret",
+      "secretsmanager:UpdateSecretVersionStage", "secretsmanager:DeleteSecret", "secretsmanager:RestoreSecret",
+      "secretsmanager:PutResourcePolicy", "secretsmanager:DeleteResourcePolicy", "secretsmanager:RotateSecret",
+      "secretsmanager:ReplicateSecretToRegions", "secretsmanager:RemoveRegionsFromReplication",
+      "secretsmanager:StopReplicationToReplica",
+    ]
+    resources = ["arn:aws:secretsmanager:*:${local.account_id}:secret:agentic-lender/*"]
+
+    condition {
+      test     = "ArnNotEquals"
+      variable = "aws:PrincipalArn"
+      values   = [local.al_ai_execution_role]
+    }
   }
 
   # The budget kill switch (AL-224) can't be switched off from inside.
