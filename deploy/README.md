@@ -201,8 +201,12 @@ rm ~/al-ai-api-keys.json ~/al-ai-service-account.json       # Secrets Manager ha
 
 To change a key later, run the same command with the new file. A task reads its secrets when it
 starts, so redeploy for the change to reach al-ai. Only Nic's own login can do this: the guardrails
-boundary stops the deploy role and every app role from reading or changing any `agentic-lender/*`
-secret, except al-ai's execution role reading them.
+boundary stops the deploy role and every app role from reading, changing, copying to another Region
+or deleting any `agentic-lender/*` secret, except al-ai's execution role reading them.
+
+One limit, accepted on purpose: the deploy role deploys al-ai, so it could start a task that prints
+the keys ECS hands it, or one that runs as the execution role. The boundary blocks every direct way
+to the keys; anyone who can deploy the app (a run on `main`) is still trusted with them.
 
 ## Roles the app needs
 
@@ -219,11 +223,11 @@ al-ai has two, in `foundations/al-ai-roles.tf`:
 
 | Role | Used by | May do |
 |---|---|---|
-| `agentic-lender-app-al-ai-execution` | ECS, while starting a task | sign in to ECR and pull the al-ai image, read al-ai's two secrets, write to the `/agentic-lender/al-ai` log group |
+| `agentic-lender-app-al-ai-execution` | ECS, to start a task and forward its logs | sign in to ECR and pull the al-ai image, read al-ai's two secrets, write to the `/agentic-lender/al-ai` log group |
 | `agentic-lender-app-al-ai-task` | al-ai's code, while it runs | call Qwen3 32B (`qwen.qwen3-32b-v1:0`) on Bedrock in eu-west-1, nothing else |
 
-So reading the secrets and writing logs is the execution role's job, done before the code starts;
-the code itself can only reach Bedrock. Both trust only ECS tasks in this account. Their ARNs are
+So reading the secrets and writing logs is the execution role's job, done by ECS rather than by
+al-ai's code; the code itself can only reach Bedrock. Both trust only ECS tasks in this account. Their ARNs are
 the `al_ai_execution_role_arn` and `al_ai_task_role_arn` outputs.
 
 The boundary also shuts off CloudFormation, CodeBuild and SSM

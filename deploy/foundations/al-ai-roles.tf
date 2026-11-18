@@ -1,9 +1,10 @@
 # al-ai-roles.tf: the two IAM roles an al-ai task runs with (AL-229 criterion 2).
 #
 # ECS uses two roles per task, for two different jobs:
-#   - the execution role is used by ECS itself, BEFORE the container starts: pull the image from ECR,
-#     read the secrets (al-ai-secrets.tf) into environment variables, and send the container's output
-#     to the log group. So "read its own secrets and write logs" is this role's job.
+#   - the execution role is used by ECS itself, not by al-ai's code: to start the task it pulls the image
+#     from ECR and reads the secrets (al-ai-secrets.tf) into environment variables, and while the task
+#     runs it forwards the container's output to the log group. So "read its own secrets and write
+#     logs" is this role's job.
 #   - the task role is used by the code INSIDE the container: al-ai's own AWS calls. Its only one is
 #     Bedrock, for the affordability agent's Qwen3 32B, so that is all this role may do.
 # The container never gets the execution role, so the code can't read other secrets or pull other images.

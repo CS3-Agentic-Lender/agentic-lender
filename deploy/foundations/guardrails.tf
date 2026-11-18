@@ -141,8 +141,11 @@ data "aws_iam_policy_document" "guardrails" {
   # The secrets (al-ai-secrets.tf): only al-ai's execution role may read them, when ECS starts a task.
   # The deploy role, the task role and any app role can't read, overwrite, delete or open them up.
   # They may still look at a secret's name and details (DescribeSecret), which shows no value.
-  # The * at the end matters: AWS adds 6 random characters to every secret's ARN.
+  # The * at the end matters: AWS adds 6 random characters to every secret's ARN. The Region is * too,
+  # and copying a secret to another Region is denied, so a copy elsewhere can't be read either.
   # Nic's login and Terraform aren't under this boundary, so he can still fill and manage them.
+  # What this can't stop: the deploy role deploys al-ai, so it could start a task that prints the keys
+  # ECS hands it. Anyone who can deploy the app is trusted with its keys; this blocks every direct way.
   statement {
     sid    = "OnlyAlAiExecutionRoleReadsSecrets"
     effect = "Deny"
@@ -150,8 +153,10 @@ data "aws_iam_policy_document" "guardrails" {
       "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret",
       "secretsmanager:UpdateSecretVersionStage", "secretsmanager:DeleteSecret", "secretsmanager:RestoreSecret",
       "secretsmanager:PutResourcePolicy", "secretsmanager:DeleteResourcePolicy", "secretsmanager:RotateSecret",
+      "secretsmanager:ReplicateSecretToRegions", "secretsmanager:RemoveRegionsFromReplication",
+      "secretsmanager:StopReplicationToReplica",
     ]
-    resources = ["arn:aws:secretsmanager:${var.region}:${local.account_id}:secret:agentic-lender/*"]
+    resources = ["arn:aws:secretsmanager:*:${local.account_id}:secret:agentic-lender/*"]
 
     condition {
       test     = "ArnNotEquals"
