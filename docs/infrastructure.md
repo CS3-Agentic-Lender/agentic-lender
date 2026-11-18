@@ -204,11 +204,41 @@ Status key as above. Items marked TBD are decided at the team meeting.
 
 | Subsystem | Where it runs | Status |
 |---|---|---|
+| Firestore and Auth (hosted) | Firebase project `agentic-lender-a0f1c`, Firestore in europe-west1 (see below) | Done |
 | al-web | Firebase Hosting at `app.<domain>` | Planned |
 | al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
 | Infrastructure | Terraform in `deploy/`, run with simple wrapper commands. Images built by GitHub Actions on merge to `main`, deploy started by hand | Planned |
 | al-core contracts | Public testnet, Polygon Amoy or Arbitrum Sepolia (Dumi picks) | Decided, network open |
 | al-mobile | The App Store through Ibrahima's paid Apple Developer account (end of October 2026). The iOS Simulator is the backup | Decided |
+
+### Hosted Firebase project
+
+The emulators (`demo-al`) cover local work. The deployed app and portal use a real Firebase project, set up on 18 November 2026 (AL-181).
+
+| Setting | Value |
+|---|---|
+| Project name and ID | Agentic-Lender, `agentic-lender-a0f1c` |
+| Project number | 1005831067500 |
+| Plan | Spark (free), no billing account |
+| Firestore | `(default)` database in **europe-west1 (Belgium)**, production mode. Google Cloud has no Irish region, and Belgium keeps the data in the EU. The location can't be changed later |
+| Sign-in | Email/Password and Google. The public name on Google's sign-in screen is "Agentic Lender" |
+| iOS app | Bundle ID `ie.mtu.agenticlender`. Its `GoogleService-Info.plist` and the API key in it are shared in a DM, never in the repo |
+| Rules and indexes | Deployed from the repo, so they are the same as on the emulators: `cd al-core && firebase deploy --only firestore:rules,firestore:indexes --project agentic-lender-a0f1c` |
+| Access | Two owners, as every external service has two admins: Dumi, and Nic (added on 18 November under Project settings, Users and permissions; the role takes effect once he accepts the invite) |
+
+**Demo accounts.** Created by `al-core/scripts/create-hosted-accounts.js` (see `al-core/README.md`), which sets each account's `role` claim and `users/{uid}` profile. They use `@example.com`, not the emulator's `@test.com`: test.com is a real domain, and the app's "resend verification email" would send mail to its owner. No applications are seeded here.
+
+| Login | Role | Email verified |
+|---|---|---|
+| alice@example.com | borrower (broker Bob) | yes |
+| ben@example.com | borrower (broker Ciara) | no, so the verify-email banner shows |
+| bob@example.com | broker | yes |
+| ciara@example.com | broker | yes |
+| uma@example.com | underwriter | yes |
+
+All five share one password, which Dumi sends to the team privately. It is not in the repo, Slack channels or these docs. The script needs a service account key for the project. It is kept outside the repo, and the one used on 18 November was deleted from the console and from the laptop as soon as the accounts existed. To run the script again, generate a new key (Project settings, Service accounts) and delete it afterwards.
+
+**Checked on 18 November:** all five accounts exist with the right role claims and profiles, and unauthenticated reads of `applications`, `users`, `reviews` and `support_requests` are refused (HTTP 403), so the repo's rules are live.
 
 ## Open decisions
 
