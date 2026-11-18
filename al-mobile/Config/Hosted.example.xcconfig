@@ -1,6 +1,9 @@
 // Copy to Hosted.xcconfig (gitignored) and fill in from the hosted Firebase project's iOS app
 // (its GoogleService-Info.plist). Never commit the filled-in copy: the repo is public.
 
+// Uncomment to build the demo against the hosted backend, then press Run in Xcode. Leave it commented for local work.
+// AL_BACKEND = HOSTED
+
 AL_FIREBASE_PROJECT_ID =
 AL_FIREBASE_API_KEY =
 AL_FIREBASE_APP_ID =

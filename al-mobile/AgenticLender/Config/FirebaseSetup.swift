@@ -44,7 +44,7 @@ enum FirebaseSetup {
             FirebaseApp.configure(options: options)
         case .missing(let names):
             // A build mistake, not something a borrower can fix: stop at launch with the names.
-            fatalError("AL_BACKEND=HOSTED but Config/Hosted.xcconfig is missing: \(names.joined(separator: ", "))")
+            fatalError("AL_BACKEND=HOSTED but Config/Hosted.xcconfig doesn't set: \(names.joined(separator: ", "))")
         }
     }
 

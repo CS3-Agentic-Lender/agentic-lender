@@ -209,13 +209,13 @@ Status key as above. Items marked TBD are decided at the team meeting.
 | al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
 | Infrastructure | Terraform in `deploy/`, run with simple wrapper commands. Images built by GitHub Actions on merge to `main`, deploy started by hand | Planned |
 | al-core contracts | Public testnet, Polygon Amoy or Arbitrum Sepolia (Dumi picks) | Decided, network open |
-| al-mobile | The demo build (`AL_BACKEND=HOSTED`) on the iOS Simulator on the presenting Mac, against the hosted Firebase project and the API on AWS. An iPhone through Xcode with a free Apple ID is the alternative. No App Store or TestFlight: that needs a paid Apple Developer account. See "Demo build of the iOS app" below | Decided |
+| al-mobile | The demo build (`AL_BACKEND=HOSTED`) on the iOS Simulator on the presenting Mac, against the hosted Firebase project and the API on AWS. An iPhone through Xcode with a free Apple ID is the alternative. No App Store or TestFlight: that needs a paid Apple Developer account. See "Demo build of the iOS app" below. Chosen by Ibrahima on 18 November (AL-184) and agreed by Nic in the PR review | Decided |
 
 ### Demo build of the iOS app
 
 The app has two builds, picked by the `AL_BACKEND` build setting (AL-184). `LOCAL`, the default, uses the emulators and the local gateway. `HOSTED` is the demo build: the hosted Firebase project below and the API at `https://api.agentic-lender.com`.
 
-- **Target:** the iOS Simulator on the Mac that presents the demo. Build with `xcodebuild … AL_BACKEND=HOSTED` and run it from Xcode (`al-mobile/README.md`, "Demo build"). An iPhone through Xcode with a free Apple ID also works, but the install stops opening after 7 days and has to be run from Xcode again ("Running on your own iPhone").
+- **Target:** the iOS Simulator on the Mac that presents the demo. Add `AL_BACKEND = HOSTED` to `al-mobile/Config/Hosted.xcconfig` and press Run in Xcode, or build it with `xcodebuild … AL_BACKEND=HOSTED` and install it with `xcrun simctl install booted` (`al-mobile/README.md`, "Demo build"). The setting lives in the xcconfig, not on the target, so Xcode's Run builds what the file says. An iPhone through Xcode with a free Apple ID also works, but the install stops opening after 7 days and has to be run from Xcode again ("Running on your own iPhone").
 - **Settings:** the hosted project's iOS app values go in the gitignored `al-mobile/Config/Hosted.xcconfig` (copy `Config/Hosted.example.xcconfig`), so they never reach the public repo. Without them a `HOSTED` build stops at launch and names the missing ones.
 
 ### Hosted Firebase project
