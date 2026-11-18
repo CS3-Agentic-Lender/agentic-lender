@@ -54,7 +54,10 @@ struct APIApplicationService: ApplicationService {
         }
         do {
             let (data, response) = try await session.data(for: request)
-            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            // A refused token may mean the account is gone: check, as the gateway does (AL-315).
+            if status == 401 { await SessionCheck.tokenRefused() }
+            return (data, status)
         } catch let error as URLError {
             logger.error("\(method, privacy: .public) /core/applications failed: \(error.localizedDescription, privacy: .public)")
             throw ApplicationSaveError.network

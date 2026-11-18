@@ -32,8 +32,9 @@ extension SignInError {
             return
         }
         switch AuthErrorCode(rawValue: nsError.code) {
-        case .wrongPassword, .userNotFound, .invalidCredential, .invalidEmail, .userDisabled:
+        case .wrongPassword, .userNotFound, .invalidCredential, .invalidEmail:
             self = .incorrectCredentials
+        case .userDisabled: self = .accountDisabled
         case .tooManyRequests: self = .tooManyAttempts
         case .networkError: self = .network
         default: self = .unknown

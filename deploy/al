@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# deploy/al: the four commands for the live site (AL-225 criterion 5).
+#
+#   ./deploy/al up              build everything in deploy/app again, with the build that was last deployed
+#   ./deploy/al deploy <tag>    switch to a new build (a git commit id GitHub Actions tagged the images with)
+#   ./deploy/al status          what's deployed, and whether AWS still matches the code (changes nothing)
+#   ./deploy/al down            remove everything billed by the hour (asks twice)
+#
+# Add --floci (anywhere) to practise on Floci on the PC instead of the real account.
+#
+# Every command that changes something works the same way:
+#   1. terraform plan saves exactly what it would do to a file,
+#   2. this script lists it in plain words and asks,
+#   3. terraform apply runs THAT saved plan, so what you approved is exactly what happens.
+#
+# It only ever touches deploy/app. deploy/foundations (state bucket, deploy role, DNS, certificate)
+# is run by hand with terraform and is never removed by `down`.
+
+set -euo pipefail
+
+DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$DEPLOY_DIR/app"
+TARGET="aws"
+TEAM_ACCOUNT="176550299403" # the team account; the real target refuses any other
+STATE_BUCKET="" # set by connect()
+
+# ---- small helpers -------------------------------------------------------------------------------
+
+say()  { printf '\n%s\n' "$*"; }
+fail() { printf '\nStopped: %s\n' "$*" >&2; exit 1; }
+tf()   { TF_DATA_DIR="$APP_DIR/.terraform-$TARGET" terraform -chdir="$APP_DIR" "$@"; } # one working dir per target, so Floci and AWS runs never share settings
+
+ask() { # ask "question" "word the answer must be"
+  local answer
+  read -r -p "$1 Type '$2' to go ahead: " answer
+  [[ "$answer" == "$2" ]] || fail "you typed '$answer', so nothing was changed."
+}
+
+# ---- connect to the right AWS --------------------------------------------------------------------
+
+# Each run gets its own plan file, deleted however the script ends (yes, no, an error or Ctrl-C),
+# so two runs at once can never apply each other's plan.
+PLAN_FILE="$(mktemp "${TMPDIR:-/tmp}/al-plan.XXXXXX")" # this form works on macOS and Linux
+trap 'rm -f "$PLAN_FILE"' EXIT
+
+connect() {
+  if [[ "$TARGET" == "floci" ]]; then
+    curl -s -m 3 http://localhost:4566/_floci/health >/dev/null \
+      || fail "Floci isn't reachable on localhost:4566. Open the tunnel first: ssh -f -N pc-aws"
+    STATE_BUCKET="agentic-lender-tfstate-000000000000"
+    tf init -input=false -backend-config="$DEPLOY_DIR/backend-floci.hcl" >/dev/null
+  else
+    # On a laptop, sign in with the agentic-lender profile. In GitHub Actions the OIDC credentials are
+    # already in the environment, so no profile is set.
+    if [[ -z "${GITHUB_ACTIONS:-}" ]]; then export AWS_PROFILE="${AWS_PROFILE:-agentic-lender}"; fi
+    local account
+    account="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)" \
+      || fail "not signed in to the team account. Run: aws login --profile agentic-lender"
+    [[ "$account" == "$TEAM_ACCOUNT" ]] \
+      || fail "signed in to account $account, not the team account $TEAM_ACCOUNT. Check AWS_PROFILE."
+    STATE_BUCKET="agentic-lender-tfstate-$account" # the name state-bucket.tf gives it
+    tf init -input=false -backend-config="$DEPLOY_DIR/backend-aws.hcl" -backend-config="bucket=$STATE_BUCKET" >/dev/null \
+      || fail "can't open the state bucket $STATE_BUCKET. Has deploy/foundations been applied?"
+  fi
+}
+
+# The commit that is deployed now, or nothing if nothing is. Read as JSON, because with no outputs
+# `terraform output -raw` can print a warning where the tag would be.
+deployed_tag() {
+  local json
+  json="$(tf output -json 2>/dev/null)" || return 0
+  jq -r '.image_tag.value // empty' <<<"$json"
+}
+
+# Whether Terraform's state holds anything at all. Checked instead of the tag, so a deploy that broke
+# half way (resources made, tag not recorded yet) still shows up and can still be taken down.
+# If the state can't be read at all (no network, signed out), stop: "nothing deployed" would be a lie.
+has_resources() {
+  local list
+  list="$(tf state list)" || fail "couldn't read Terraform's state, so can't tell what's deployed."
+  [[ -n "$list" ]]
+}
+
+# The last build that was deployed, kept in the state bucket as app/last-release, so `up` still
+# knows which build to bring back after `down` has removed everything in deploy/app.
+aws_cli() {
+  if [[ "$TARGET" == "floci" ]]; then
+    AWS_ENDPOINT_URL=http://localhost:4566 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=eu-west-1 aws "$@"
+  else
+    aws "$@" # AWS_PROFILE (laptop) or the OIDC credentials (GitHub Actions), set in connect()
+  fi
+}
+remember_tag()   { printf '%s' "$1" | aws_cli s3 cp - "s3://$STATE_BUCKET/app/last-release" --quiet; }
+remembered_tag() { aws_cli s3 cp "s3://$STATE_BUCKET/app/last-release" - 2>/dev/null || true; }
+
+# ---- plan, explain, ask, apply -------------------------------------------------------------------
+
+# Prints one plain line per change in the saved plan, e.g. "  + create  aws_ssm_parameter.release".
+explain_plan() {
+  tf show -json "$PLAN_FILE" | jq -r '
+    (.resource_changes // [])[]
+    | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+    | (.change.actions | if . == ["create"] then "+ create "
+                         elif . == ["delete"] then "- remove "
+                         elif . == ["update"] then "~ change "
+                         else "± replace" end) + "  " + .address'
+}
+
+# plan_and_apply "<what this does>" <terraform plan flags...>
+plan_and_apply() {
+  local summary="$1"; shift
+  tf plan -input=false -out="$PLAN_FILE" -var "target=$TARGET" "$@" >/dev/null
+
+  local changes
+  changes="$(explain_plan)"
+  if [[ -z "$changes" ]]; then
+    say "Nothing to do: AWS already matches. $summary"
+    return
+  fi
+
+  say "$summary"
+  say "On $(where), Terraform will:"
+  printf '  %s\n' "${changes//$'\n'/$'\n'  }"
+  echo
+  ask "Go ahead?" "yes"
+  if [[ "${DOWN:-}" == "1" ]]; then
+    ask "This takes the live site offline. Are you sure?" "down"
+  fi
+
+  tf apply -input=false "$PLAN_FILE"
+}
+
+where() { [[ "$TARGET" == "floci" ]] && echo "Floci (practice)" || echo "the real team AWS account ($TEAM_ACCOUNT)"; }
+
+# ---- the four commands ---------------------------------------------------------------------------
+
+cmd_up() {
+  local tag; tag="$(deployed_tag)"
+  [[ -n "$tag" ]] || tag="$(remembered_tag)" # after a down, bring back the last build
+  [[ -n "$tag" ]] || fail "no build has been deployed yet, so up doesn't know which one to run. Use: ./deploy/al deploy <tag>"
+  plan_and_apply "up: bring the site back with build $tag." -var "image_tag=$tag"
+}
+
+cmd_deploy() {
+  local tag="${1:-}"
+  [[ -n "$tag" ]] || fail "deploy needs the build to run, e.g. ./deploy/al deploy 3166a3b"
+  local now; now="$(deployed_tag)"
+  plan_and_apply "deploy: switch from build ${now:-none} to build $tag." -var "image_tag=$tag"
+  [[ "$(deployed_tag)" == "$tag" ]] && remember_tag "$tag"
+}
+
+cmd_status() {
+  say "Target:   $(where)"
+  local tag; tag="$(deployed_tag)"
+  echo "Deployed: ${tag:-nothing recorded}"
+  has_resources || { echo "Resources: none"; return 0; }
+  echo "Resources:"
+  tf state list | sed 's/^/  /'
+  [[ -n "$tag" ]] || tag="$(remembered_tag)"
+  [[ -n "$tag" ]] || { echo "Drift:    can't check, no build recorded. Run ./deploy/al down to clean up."; return 0; }
+  # -detailed-exitcode: 0 = AWS matches the code, 2 = something changed outside Terraform.
+  local code=0
+  tf plan -input=false -detailed-exitcode -var "target=$TARGET" -var "image_tag=$tag" >/dev/null || code=$?
+  case $code in
+    0) echo "Drift:    none, AWS matches the code." ;;
+    2) echo "Drift:    AWS differs from the code. Run ./deploy/al up to see what and fix it." ;;
+    *) fail "terraform plan failed while checking for drift." ;;
+  esac
+}
+
+cmd_down() {
+  has_resources || { say "Nothing is deployed on $(where)."; return; }
+  # A destroy ignores the tag's value, but the variable still needs a valid one.
+  local tag; tag="$(deployed_tag)"; [[ -n "$tag" ]] || tag="$(remembered_tag)"
+  DOWN=1 plan_and_apply "down: remove everything billed by the hour. foundations (state, DNS, certificate) stays." \
+    -destroy -var "image_tag=${tag:-0000000}"
+}
+
+# ---- read the command line -----------------------------------------------------------------------
+
+args=()
+for arg in "$@"; do
+  if [[ "$arg" == "--floci" ]]; then TARGET="floci"; else args+=("$arg"); fi
+done
+set -- "${args[@]+"${args[@]}"}"
+
+command="${1:-}"; shift || true
+case "$command" in
+  up|deploy|status|down) connect; "cmd_$command" "$@" ;;
+  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

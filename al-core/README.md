@@ -27,8 +27,8 @@ Roles live in the Firebase Auth custom claim (`role`) set on each user — the `
 
 | Email | uid | Role | Notes |
 |---|---|---|---|
-| alice@test.com | `borrower1` | borrower | Chose broker Bob |
-| ben@test.com | `borrower2` | borrower | Chose broker Ciara |
+| alice@test.com | `borrower1` | borrower | Chose broker Bob. Email verified |
+| ben@test.com | `borrower2` | borrower | Chose broker Ciara. Email **not** verified, so the iOS app shows its "check your inbox" banner |
 | bob@test.com | `broker1` | broker | |
 | ciara@test.com | `broker2` | broker | |
 | uma@test.com | `underwriter1` | underwriter | |
@@ -109,6 +109,30 @@ docker build -t al-core .
 docker run -p 5002:5002 -e FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099 -e FIRESTORE_EMULATOR_HOST=host.docker.internal:8080 al-core
 ```
 
+### The image on AWS
+
+GitHub Actions builds the same `Dockerfile` for `linux/amd64` (what Fargate runs): `docker build --platform linux/amd64 -t al-core .` from `al-core/`. The image tag is the git commit id, which is what `deploy/` expects as `image_tag`.
+
+- **Port:** 5002. **Health check:** `GET /core/health`, `200` with no token. The image also has a Docker `HEALTHCHECK` on it.
+- **User:** a system user with no shell, not root.
+- **No config or secrets are in the image.** It holds only `app/` and its packages (no `.env`, no `chain/`). Everything comes from environment variables when the container starts:
+
+| Variable | Needed on AWS | What it is |
+|---|---|---|
+| `FIREBASE_PROJECT_ID` | yes | The hosted Firebase project. Unset, it falls back to `demo-al`, which is the emulator's project |
+| `CORS_ALLOWED_ORIGINS` | yes | The portal's origin(s), comma separated, as in "Browser origins (CORS)" below |
+| `CHAIN_RPC_URL` | yes | The public testnet's RPC URL. Unset, it is the local Hardhat node |
+| `CHAIN_NETWORK` | yes | The network's name, saved on each loan note. Unset, it is `localhost` |
+| `LOAN_NOTE_ADDRESS` | yes | The deployed `LoanNote`. Set it: the `chain/deployments/` fallback is not in the image |
+| `AUDIT_REGISTRY_ADDRESS` | yes | The deployed `AuditRegistry`. Set it for the same reason |
+| `CHAIN_MINTER_PRIVATE_KEY` | yes, secret | Testnet wallet that holds `MINTER_ROLE` |
+| `CHAIN_REGISTRAR_PRIVATE_KEY` | yes, secret | Testnet wallet that writes the audit hash |
+| `BORROWER_REF_SALT` | yes, secret | Salt for the borrower reference on the loan note. Unset, it is empty and the hash is unsalted, so always set it |
+| `STRIPE_SECRET_KEY` | yes, secret | Stripe test key (`sk_test_` or `rk_test_`). Arrives with the fee endpoint |
+| `STRIPE_WEBHOOK_SECRET` | yes, secret | The webhook endpoint's signing secret. Arrives with the fee endpoint |
+
+Do **not** set `FIREBASE_AUTH_EMULATOR_HOST` or `FIRESTORE_EMULATOR_HOST` on AWS: with the first set, the Admin SDK accepts emulator-issued tokens, and with the second the API reads and writes an emulator instead of the real database. How the container gets its Firebase service account is still to be agreed (see the ticket).
+
 ## Running the API tests
 
 ```
@@ -138,6 +162,7 @@ These need no emulator.
 | `POST /core/applications/{id}/fee-intent` | Borrower (their own) | Starts the EUR 150 fast-track fee for an application that is Applied or AI Deliberated. No body. `200` with `client_secret` (for the payment sheet), `payment_intent_id` and `amount_eur` (150). Saves `feeIntentId` and `feeStatus: "unpaid"` on the application. Asking again returns the same intent. `409` for a Draft, a decided application, or one already paid; `404` for someone else's; `502` if Stripe cannot be reached; `503` if the Stripe settings are missing. Test keys only |
 | `POST /core/webhooks/stripe` | Stripe (no Firebase token) | The only thing that marks the fee paid. Believed only when Stripe's signature on the raw body is valid (`400` otherwise). On `payment_intent.succeeded` for the saved intent, EUR 150, it sets `feeStatus: "paid"`, `feePaidAt` and `fastTrack: true` in one write. Anything else is acknowledged with `200` and changes nothing. See "The fast-track fee" below |
 | `DELETE /core/saved-checks/{id}` | Borrower (their own) | Removes a saved check: `204`, and `404` for someone else's or an unknown id. There is no list endpoint: read `users/{uid}/saved_checks` from Firestore |
+| `PUT /core/reviews/me` | Borrower | Saves the borrower's one review of the app, replacing the one they had. Send `rating` (a whole number, 1 to 5) and an optional `comment` (up to 500 characters; blank means none). `200` with `rating`, `comment`, `created_at` (the first save, kept on replacement) and `updated_at`. The borrower's id comes from the token, so nobody can write another borrower's review. The borrower reads their own from Firestore at `reviews/{uid}`, underwriters read all. `422` names the field |
 | `GET /core/applications/{id}` | Borrower, broker, underwriter | One application: the borrower's own, a broker's assigned client's, or any for an underwriter. Anything else is `404`. It includes `ltv_band` (`80_or_less`, `80_to_90` or `over_90`) and `risk_tier` (`A` to `D`), which are `null` until al-ai sets them after a run. `POST` and `PATCH` ignore them if sent |
 
 The `property` object takes `address_line_1`, `address_line_2` (optional, an empty string counts as none), `eircode` (capitals with a space, as on the profile), `county`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and `asking_price_eur`, both when creating and when editing a Draft. `asking_price_eur` only applies to a mortgage: on a HELOC it is `422` (`property.asking_price_eur`), and changing a Draft to a HELOC drops it, like the deposit.
@@ -261,6 +286,12 @@ call POST "/core/applications/app-declined/close"
 TOKEN=$(token signInWithPassword "$EMAIL" "local-only-pass")
 call POST /core/support-requests '{"category":"payment","subject":"My fee did not go through","message":"I paid the EUR 150 fee twice."}'
 call POST /core/support-requests "{\"category\":\"application\",\"subject\":\"Question about my application\",\"message\":\"When will a broker look at it?\",\"application_id\":\"$APP\"}"
+
+# 20. PUT /core/reviews/me: a borrower rates the app. 200 with the review; the same call again replaces it.
+#     rating is 1 to 5, comment is optional (up to 500 characters)
+TOKEN=$(token signInWithPassword "$EMAIL" "local-only-pass")
+call PUT /core/reviews/me '{"rating":4,"comment":"Clear and quick."}'
+call PUT /core/reviews/me '{"rating":5}'
 ```
 
 Errors come back as `{"error": {"code", "message", "field", "request_id"}}`, for example a `PATCH` with `"term_years": 41` (the loan term is 5 to 35 years) returns `422` with `"field": "term_years"`. The same calls can be tried from the browser at http://127.0.0.1:5002/core/docs (**Authorize** with the token, then **Try it out**).
@@ -390,7 +421,7 @@ print(hashlib.sha256(json.dumps(record, sort_keys=True, separators=(",", ":")).e
 
 and compare it with the `auditHash` and with the value in the registry. The shared examples (the seeded records and a non-ASCII one) are in `test/audit-hash-vectors.json`, and al-ai's tests load the same file.
 
-**On the chain:** the registry holds one hash per application. It is keyed by the SHA-256 of the application id (`audit.application_ref`, the same reference the loan note uses), so no personal data is stored. A second write for the same application is refused by the contract; `chain.AuditRegistry.store` treats the same hash again as already done (no transaction) and a different hash as an error. The transaction hash is saved on the application as `auditTxHash`.
+**On the chain:** the registry holds one hash per application. It is keyed by the SHA-256 of the application id (`audit.application_ref`, the same reference the loan note uses), so no personal data is stored. A second write for the same application is refused by the contract; `chain.AuditRegistry.store` treats the same hash again as already done (no transaction) and a different hash as an error. The transaction hash is saved on the application as `auditTxHash`. If the process stops after the registry write and before that save, the next `anchor` finds the hash already stored, reads the transaction back from the registry's `HashStored` event (`AuditRegistry.tx_of`) and saves it. An application that already has an `auditTxHash` is never changed, and if the event can't be found the anchor still succeeds, leaves the field empty and logs the reason.
 
 **Settings** (names are in `.env.example`; keys live in `.env`, never in the repo, testnet wallets only):
 

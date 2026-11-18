@@ -25,7 +25,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `ai_runs/{runId}` | The assigned broker, underwriters | al-ai | One record per committee run |
 | `ai_calls/{callId}` | The assigned broker, underwriters | al-ai | One record per AI call |
 | `support_requests/{reference}` | The user who sent it, underwriters | al-core (`POST /core/support-requests`) | A support request from a user |
-| `reviews/{uid}` | That user, underwriters | al-core | One review per user |
+| `reviews/{uid}` | That user, underwriters | al-core (`PUT /core/reviews/me`) | One review per user |
 | `users/{uid}/saved_checks/{checkId}` | That user | al-core (`POST` and `DELETE /core/saved-checks`) | A borrower's saved property checks |
 
 **Brokers don't read Drafts.** A Draft is the borrower's working copy, so the rules close `applications/{id}` and its `audit` and `messages` subcollections to a broker while the status is `Draft`. Applied and every later status stay readable to the assigned broker. Borrowers and underwriters are unaffected. Because Firestore rules don't filter results, a broker's application query must exclude Drafts (`where('brokerId', '==', uid).where('status', '!=', 'Draft')`), or Firestore refuses it. That query needs the `brokerId` + `status` index in `firestore.indexes.json`.
@@ -119,7 +119,7 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | `feeIntentId` | string | no | The Stripe payment intent id, saved when the intent is made. The webhook pays the fee only for a payment with this id |
 | `feePaidAt` | timestamp | no | When the webhook marked the fee paid. Written in the same write as `feeStatus: "paid"` and `fastTrack`. Absent until paid |
 | `fastTrack` | boolean | no | `true` once the fee is paid, written by the webhook in the same write as `feeStatus`. Absent otherwise, so it is never `false`. The underwriter queue puts fast-track applications first: sort on it in the portal, treating absent as not fast-track. Do not use `orderBy('fastTrack')` in a Firestore query, because Firestore leaves out documents that lack the field |
-| `auditTxHash` | string | no | The transaction that wrote the audit hash to the registry, set by `audit_store.anchor`. Kept as first written: a retry that finds the hash already stored leaves it alone. The loan note's own mint transaction is `loanNote.txHash` |
+| `auditTxHash` | string | no | The transaction that wrote the audit hash to the registry, set by `audit_store.anchor`. Kept as first written: an application that already has one is never changed. If the hash reached the registry but this field was never saved (a crash in between), the next `anchor` reads the transaction back from the registry's `HashStored` event and saves it; if it can't be found, the field stays empty and the reason is logged. The loan note's own mint transaction is `loanNote.txHash` |
 
 `decision` map: `outcome` (`approved` or `declined`), `underwriterId`, `decidedAt`, `reason` (optional, left out when none is given). Written only by `POST /core/applications/{id}/decision`, in the same write that moves the status to `Underwriter Approved` or `Declined`, and never changed afterwards.
 
@@ -305,16 +305,17 @@ A support request a borrower sent from the app. The document id is the reference
 | `status` | string | `open` when sent. Nothing closes a request yet, so `closed` is not written by anything |
 | `createdAt` | timestamp | |
 
-## reviews/{uid} (proposal, from the API design doc's endpoints)
+## reviews/{uid}
 
-One per user, so `PUT /core/reviews/me` can replace it. Who reads it: that user, underwriters. Written by al-core.
+A borrower's one review of the app. The document id is the borrower's uid, so a borrower has at most one and `PUT /core/reviews/me` replaces it. Who reads it: that user, underwriters. Written by al-core only, never by a client, so the star range and the comment length are enforced by the API (the rules refuse every client write).
 
 | Field | Type | Notes |
 |---|---|---|
-| `userId` | string | Same as the document ID |
-| `rating` | number | 1 to 5 |
-| `comment` | string | Optional |
-| `updatedAt` | timestamp | |
+| `userId` | string | Same as the document ID, taken from the token |
+| `rating` | number | A whole number from 1 to 5 |
+| `comment` | string or null | Up to 500 characters. Null when the borrower left none (a blank comment is stored as null) |
+| `createdAt` | timestamp | When the first review was saved. A replacement keeps it |
+| `updatedAt` | timestamp | When the review was last saved |
 
 ## users/{uid}/saved_checks/{checkId}
 

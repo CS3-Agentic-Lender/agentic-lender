@@ -32,11 +32,11 @@ final class ProfileSummaryTests: XCTestCase {
 
     // MARK: - Rows
 
-    func testTheOnlyRowIsTheBrokerWithTheirName() {
-        XCTAssertEqual(summary().rows, [.broker(name: "Bob Murphy")])
+    func testTheRowsAreTheBrokerHelpAndSupportAndRateTheApp() {
+        XCTAssertEqual(summary().rows, [.broker(name: "Bob Murphy"), .helpAndSupport, .rateTheApp])
     }
 
     func testTheBrokerRowStillShowsWithoutAName() {
-        XCTAssertEqual(summary(.alice).rows, [.broker(name: nil)])
+        XCTAssertEqual(summary(.alice).rows, [.broker(name: nil), .helpAndSupport, .rateTheApp])
     }
 }

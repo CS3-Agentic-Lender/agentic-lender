@@ -6,3 +6,7 @@ node_modules
 seed-data
 test
 scripts
+.env
+.env.*
+chain
+Dockerfile

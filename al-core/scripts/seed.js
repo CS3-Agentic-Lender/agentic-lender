@@ -229,6 +229,10 @@ const users = [
   },
 ];
 
+// Auth-only flag (not copied into the Firestore users documents). The iOS app shows a "check your
+// inbox" banner to any password account that is not verified: Alice's demo is clean, Ben's shows it.
+const EMAIL_VERIFIED = { borrower1: true, borrower2: false, broker1: true, broker2: true, underwriter1: true };
+
 // ---------- applications ----------
 
 // One property per application; each gets an indicative valuation.
@@ -576,10 +580,10 @@ async function seed() {
 
   for (const u of users) {
     try {
-      await auth.createUser({ uid: u.uid, email: u.email, password: DEMO_PASSWORD, displayName: u.fullName });
+      await auth.createUser({ uid: u.uid, email: u.email, password: DEMO_PASSWORD, displayName: u.fullName, emailVerified: EMAIL_VERIFIED[u.uid] });
     } catch (err) {
       if (err.code !== 'auth/uid-already-exists') throw err;
-      await auth.updateUser(u.uid, { email: u.email, password: DEMO_PASSWORD, displayName: u.fullName });
+      await auth.updateUser(u.uid, { email: u.email, password: DEMO_PASSWORD, displayName: u.fullName, emailVerified: EMAIL_VERIFIED[u.uid] });
     }
     await auth.setCustomUserClaims(u.uid, { role: u.role });
   }
@@ -592,7 +596,7 @@ async function seed() {
 }
 
 // The rules are exported for the tests (test/risk-tier.test.js); running the file seeds.
-module.exports = { purchasePriceLtvPct, ltvBand, riskTier, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, assess, dtiBreakdown, valuation, PRICE_REVIEW_GAP, build, checkCoverage };
+module.exports = { EMAIL_VERIFIED, users, purchasePriceLtvPct, ltvBand, riskTier, policyBreaches, policyGate, approvalLikelihood, APPROVAL_LIKELIHOODS, assess, dtiBreakdown, valuation, PRICE_REVIEW_GAP, build, checkCoverage };
 
 if (require.main === module) {
   seed().then(() => process.exit(0)).catch((err) => {

@@ -56,7 +56,7 @@ struct HomeView: View {
             }
         }
         .navigationDestination(isPresented: $isShowingProfile) {
-            ProfileView(model: model, email: service.signedInUser?.email, service: service)
+            ProfileView(model: model, email: service.signedInUser?.email, service: service, applicationID: applicationID)
         }
         .navigationDestination(isPresented: $isChangingBroker) {
             BrokerPickerView(mode: .change(current: model.profile), service: service) { profile in
@@ -90,6 +90,11 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .accessibilityValue(inbox.unreadCount == 0 ? "" : "\(inbox.unreadCount) unread")
         .accessibilityIdentifier("home.messages")
+    }
+
+    /// The newest application on the Home card, for the support form's reference toggle (AL-149).
+    private var applicationID: String? {
+        if case .application(let application) = applicationCard.state { application.id } else { nil }
     }
 
     private var unreadBadge: String? {
@@ -198,6 +203,7 @@ struct HomeView: View {
 struct PreviewSignedInState: SignedInState {
     var hasSignedInUser: Bool { true }
     func signOut() throws {}
+    func onSignedOut(_ handler: @escaping @MainActor () -> Void) {}
 }
 
 #Preview {

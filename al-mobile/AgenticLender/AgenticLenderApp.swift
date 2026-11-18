@@ -7,6 +7,7 @@ struct AgenticLenderApp: App {
     init() {
         // Firebase has to be set up before the session asks it for the saved login.
         FirebaseSetup.configure()
+        SessionCheck.useFirebase()
         UITestLaunch.apply()
         NavigationBarStyle.apply()
         _session = State(initialValue: AppSession(state: FirebaseSignedInState()))
