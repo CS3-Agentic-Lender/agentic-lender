@@ -54,6 +54,19 @@ node scripts/create-hosted-accounts.js             # asks you to type the projec
 
 It refuses to run if an emulator host is set, if the key belongs to another project or sits inside this repo, or if the password is short or is the seed's. It never prints the password. Running it again is safe: the accounts get the password and flags again, and a profile that already exists is left alone, so a borrower's choice of broker is kept. Its checks are in `test/hosted-accounts.test.js`; the accounts themselves are defined once, in `scripts/demo-users.js`, which the seed uses too.
 
+### Checking the deployed rules with real sign-ins
+
+`scripts/check-hosted-rules.js` checks that the Firestore rules **deployed** on the hosted project behave as the repo's rules do on the emulator. It signs in as Alice (a borrower), Bob (a broker) and Uma (the underwriter), and also sends requests with no sign-in, through Firestore's REST API, so the rules decide. It tries 96 requests: reads that should be allowed or refused for each person, and writes and deletes, which no client may do (the rules have no `allow write`). Every write and delete is at an id that does not exist (`rules-probe-doc`), so no real data is touched; if a rule ever wrongly allowed a write, the script lists the documents it created so you can delete them in the console. No service account key is needed.
+
+```
+node scripts/check-hosted-rules.js --dry-run   # shows what it would check, sends nothing
+node scripts/check-hosted-rules.js             # exit code 0 only if every request got the expected answer
+```
+
+Set `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY` (the `API_KEY` in `GoogleService-Info.plist`) and `HOSTED_DEMO_PASSWORD` in your shell, as for the accounts script; `HOSTED_DEMO_EMAIL_DOMAIN` is optional. It refuses a `demo-` project and an emulator host, and never prints the password.
+
+The expected answers are in `scripts/hosted-rules-probes.js`. `test/hosted-rules-probes.test.js` replays that same table through the rules engine on the emulator, so the table is checked against `firestore.rules` itself: change a rule, and that test says which expected answer is now wrong. `test/hosted-rules-check.test.js` covers the script (every refusal, how answers are read, what it reports).
+
 ## Seeded applications
 
 One application in every status, LTV band and risk tier, so each screen and every group in the underwriter's queue has something to show. The field list is in [SCHEMA.md](SCHEMA.md). `node scripts/seed.js --dry-run` prints this table and fails if a status, band or tier goes missing.
