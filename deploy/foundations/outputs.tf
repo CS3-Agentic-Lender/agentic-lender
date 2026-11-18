@@ -66,3 +66,28 @@ output "al_ai_log_group" {
   description = "The CloudWatch log group al-ai's tasks write to, kept 14 days."
   value       = aws_cloudwatch_log_group.al_ai.name
 }
+
+output "al_core_execution_role_arn" {
+  description = "The role ECS uses to start al-core tasks (pull the image, read the secrets, write logs). The task definition's execution_role_arn."
+  value       = aws_iam_role.al_core_execution.arn
+}
+
+output "al_core_task_role_arn" {
+  description = "The role al-core's code runs as (no permissions: al-core makes no AWS calls). The task definition's task_role_arn."
+  value       = aws_iam_role.al_core_task.arn
+}
+
+output "al_core_keys_secret_arn" {
+  description = "The secret holding al-core's salt, Stripe keys and testnet wallet keys as JSON. The task definition pulls each key with <arn>:<KEY_NAME>::."
+  value       = aws_secretsmanager_secret.al_core_keys.arn
+}
+
+output "al_core_firebase_secret_arn" {
+  description = "The secret holding al-core's Firebase service account JSON, handed to the container as FIREBASE_SERVICE_ACCOUNT_JSON."
+  value       = aws_secretsmanager_secret.al_core_firebase_service_account.arn
+}
+
+output "al_core_log_group" {
+  description = "The CloudWatch log group al-core's tasks write to, kept 14 days."
+  value       = aws_cloudwatch_log_group.al_core.name
+}

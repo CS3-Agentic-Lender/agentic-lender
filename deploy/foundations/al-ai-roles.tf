@@ -13,26 +13,9 @@
 # Their names start agentic-lender-app- so the deploy role may hand them to ECS (PassRole), and both
 # carry the guardrails boundary.
 #
+# Both trust only ECS tasks in this account (ecs-trust.tf, shared with al-core-roles.tf).
+#
 # Costs nothing: IAM is free. (Bedrock calls are billed per token, which is pennies at our volume.)
-
-# WHO may use both roles: only the ECS tasks service, and only for tasks in this account. The account
-# check stops another AWS customer's ECS from being tricked into using our roles (the "confused deputy").
-data "aws_iam_policy_document" "ecs_tasks_trust" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [local.account_id]
-    }
-  }
-}
 
 # ---- The execution role: used by ECS to start the task ----
 
