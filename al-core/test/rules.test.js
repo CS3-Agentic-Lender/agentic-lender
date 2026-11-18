@@ -202,6 +202,28 @@ describe('applications', () => {
     assertFails(borrower1().doc('applications/app1').update({ status: 'Underwriter Approved' })));
   test("a borrower can't create an application directly", () =>
     assertFails(borrower1().collection('applications').add({ borrowerId: 'borrower1', brokerId: 'broker1', status: 'Draft' })));
+
+  // The fast-track fee (AL-72): feeStatus, feeIntentId, feePaidAt and fastTrack are written by the Stripe webhook through the Admin SDK only.
+  describe('the fee fields', () => {
+    const fee = { feeStatus: 'paid', feeIntentId: 'pi_1', feePaidAt: new Date(), fastTrack: true };
+    test("a borrower can't mark their own fee paid or their application fast-track", async () => {
+      await assertFails(borrower1().doc('applications/app1').update({ feeStatus: 'paid' }));
+      await assertFails(borrower1().doc('applications/app1').update({ fastTrack: true }));
+      await assertFails(borrower1().doc('applications/app1').update(fee));
+    });
+    test("a broker can't mark a client's fee paid", () =>
+      assertFails(broker1().doc('applications/app1').update(fee)));
+    test("an underwriter can't mark a fee paid directly", () =>
+      assertFails(underwriter().doc('applications/app1').update(fee)));
+    test("a signed-out visitor can't mark a fee paid", () =>
+      assertFails(signedOut().doc('applications/app1').update(fee)));
+    test('a borrower can read their own application with its fee fields', async () => {
+      await testEnv.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('applications/app1').update(fee));
+      const snap = await assertSucceeds(borrower1().doc('applications/app1').get());
+      expect(snap.data().feeStatus).toBe('paid');
+      expect(snap.data().fastTrack).toBe(true);
+    });
+  });
 });
 
 // The underwriter's pipeline queue (AL-64): status with LTV band or risk tier, newest first.

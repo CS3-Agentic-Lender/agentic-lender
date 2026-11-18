@@ -144,8 +144,8 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 | `POST /core/applications/{id}/mint` | Underwriter | Create the loan note and store its audit hash |
 | `POST /core/applications/{id}/close` | Underwriter | Mark a funded or declined application closed |
 | `GET /core/applications/{id}/audit-pack` | Underwriter, assigned broker | Return the audit record once the loan note exists |
-| `POST /core/applications/{id}/fee-intent` | The owner | Create a Stripe test payment for EUR 150 |
-| `POST /core/webhooks/stripe` | Stripe | Record that the fee was paid |
+| `POST /core/applications/{id}/fee-intent` | The owner | Create a Stripe test payment for EUR 150 for an application that is Applied or AI Deliberated. No body. Returns `client_secret`, `payment_intent_id` and `amount_eur` (150), and saves the intent id with `feeStatus` `unpaid`. Asking again returns the same intent. A Draft, a decided application or one already paid is `409` |
+| `POST /core/webhooks/stripe` | Stripe | Record that the fee was paid: sets `feeStatus` `paid`, `feePaidAt` and `fastTrack` `true` in one write. `400` when Stripe's signature is missing or wrong |
 | `POST /core/applications/{id}/messages`, `.../messages/read` | Borrower, broker, underwriter on that application | Send a message or mark messages as read |
 | `POST /core/support-requests`, `PUT /core/reviews/me` | Borrower | Submit a support request or a review |
 | `POST /core/saved-checks`, `DELETE /core/saved-checks/{id}` | Borrower | Add or remove a saved property check |
@@ -199,6 +199,7 @@ If the estimate works but its breakdown cannot be worked out, the call still ret
 
 | Status | Code | Meaning |
 |---|---|---|
+| 400 | `BAD_REQUEST` | The call is not what the endpoint can accept at all, such as a Stripe webhook with no valid signature |
 | 401 | `UNAUTHENTICATED` | The token is missing, expired or invalid |
 | 403 | `FORBIDDEN` | The token is valid, but the role is not allowed to call this endpoint |
 | 404 | `NOT_FOUND` | The resource is missing, or it belongs to someone else. The API gives the same answer for both, so it never reveals that another borrower's application exists |

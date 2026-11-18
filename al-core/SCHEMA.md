@@ -115,8 +115,10 @@ The only moves, and the actor each belongs to (a move by anyone else is refused,
 | `riskTier` | string | no | `A`, `B`, `C` or `D`, by the risk tier rule below. Set by al-ai when a complete run finishes (same transaction and rules as `ltvBand`), with the same value as in `review/underwriting`. Here so the queue can filter on it with `status`; the borrower can read it, like `ltvPct` |
 | `decision` | map | no | Set by the underwriter. See below |
 | `loanNote` | map | no | Set at mint. See below |
-| `feeStatus` | string | no | `unpaid` or `paid` (EUR 150 appraisal fee) |
-| `feeIntentId` | string | no | Stripe payment intent id |
+| `feeStatus` | string | no | The EUR 150 fast-track appraisal fee: `unpaid` once `POST /core/applications/{id}/fee-intent` has made a payment intent, `paid` once Stripe's webhook confirms the payment. Absent before the borrower asks to pay. Only al-core writes it (the rules refuse every client write), so an app that shows "Confirming…" waits for this to become `paid` |
+| `feeIntentId` | string | no | The Stripe payment intent id, saved when the intent is made. The webhook pays the fee only for a payment with this id |
+| `feePaidAt` | timestamp | no | When the webhook marked the fee paid. Written in the same write as `feeStatus: "paid"` and `fastTrack`. Absent until paid |
+| `fastTrack` | boolean | no | `true` once the fee is paid, written by the webhook in the same write as `feeStatus`. Absent otherwise, so it is never `false`. The underwriter queue puts fast-track applications first: sort on it in the portal, treating absent as not fast-track. Do not use `orderBy('fastTrack')` in a Firestore query, because Firestore leaves out documents that lack the field |
 | `auditTxHash` | string | no | The transaction that wrote the audit hash to the registry, set by `audit_store.anchor`. Kept as first written: an application that already has one is never changed. If the hash reached the registry but this field was never saved (a crash in between), the next `anchor` reads the transaction back from the registry's `HashStored` event and saves it; if it can't be found, the field stays empty and the reason is logged. The loan note's own mint transaction is `loanNote.txHash` |
 
 `decision` map: `outcome` (`approved` or `declined`), `underwriterId`, `decidedAt`, `reason` (optional, left out when none is given). Written only by `POST /core/applications/{id}/decision`, in the same write that moves the status to `Underwriter Approved` or `Declined`, and never changed afterwards.

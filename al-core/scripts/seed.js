@@ -461,6 +461,8 @@ function build() {
       doc.decision = { ...spec.decision, decidedAt: at(spec.decision.decidedAt) };
       doc.feeStatus = 'paid';
       doc.feeIntentId = `pi_seed_${app.id.replace(/-/g, '_')}`;
+      doc.feePaidAt = doc.submittedAt; // the webhook writes feeStatus, feePaidAt and fastTrack together (AL-72)
+      doc.fastTrack = true;
     }
     if (app.review) writes.push({ path: `applications/${app.id}/review/underwriting`, data: app.review });
 

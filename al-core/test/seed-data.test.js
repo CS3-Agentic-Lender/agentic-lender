@@ -29,6 +29,25 @@ describe('borrowerName', () => {
   });
 });
 
+describe('the fast-track fee (AL-72)', () => {
+  const decided = applications.filter((a) => a.data.feeStatus === 'paid');
+
+  test('a paid fee is always a paid time, an intent id and a fast-track flag, written together', () => {
+    expect(decided.length).toBeGreaterThan(0);
+    for (const { path: p, data } of decided) {
+      expect({ path: p, intent: typeof data.feeIntentId, paidAt: data.feePaidAt !== undefined, fastTrack: data.fastTrack }).toEqual({
+        path: p, intent: 'string', paidAt: true, fastTrack: true,
+      });
+    }
+  });
+
+  test('an application whose fee is not paid is not fast-track', () => {
+    for (const { data } of applications.filter((a) => a.data.feeStatus !== 'paid')) {
+      expect(data.fastTrack).toBeUndefined();
+    }
+  });
+});
+
 describe('loan term', () => {
   test.each(applications.map((a) => [a.path, a.data]))('%s has a term of 5 to 35 years, the range the API accepts', (_path, app) => {
     expect(Number.isInteger(app.termYears)).toBe(true);
