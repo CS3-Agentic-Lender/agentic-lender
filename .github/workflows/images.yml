@@ -1,0 +1,78 @@
+# Builds the al-ai and al-core deploy images for ARM64 (AL-227 criteria 2 and 3).
+#
+#   On a PR that changes either service: builds both, pushes nothing. A Dockerfile that won't build on
+#   ARM fails here, before merge. A PR can't push anyway: the deploy role only trusts main.
+#   On every merge to main: builds both again and pushes them to ECR tagged with the commit id, so every
+#   commit on main has a pair and `./deploy/al deploy <commit>` never finds one missing.
+#
+# It runs on GitHub's native ARM runners (free for public repos), so nothing is emulated. Only images
+# built here are deployed; laptops build their own with `docker compose` for local use.
+# If this is broken, deploy/README.md has the manual push from Nic's Mac.
+#
+# Third-party actions are pinned to a commit, because the push job holds the deploy role's keys.
+name: Images
+
+on:
+  pull_request:
+    paths:
+      - "al-ai/**"
+      - "al-core/**"
+      - ".github/workflows/images.yml"
+  push:
+    branches: [main]
+  workflow_dispatch: # re-run by hand on main, e.g. after fixing ECR; elsewhere it only builds
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  ROLE_ARN: arn:aws:iam::176550299403:role/agentic-lender-github-deploy # an ARN is not a secret
+  REGISTRY: 176550299403.dkr.ecr.eu-west-1.amazonaws.com
+
+# A newer push to the same PR stops the old build. Runs on main always finish, so no commit loses its images.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false # one service's broken build shouldn't hide whether the other builds
+      matrix:
+        service: [al-ai, al-core]
+    permissions:
+      contents: read
+      id-token: write # lets the job ask GitHub for the signed token the deploy role checks
+    env:
+      PUSH: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Sign in to AWS as the deploy role
+        if: env.PUSH == 'true'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: images-${{ matrix.service }}
+
+      - name: Sign Docker in to ECR
+        if: env.PUSH == 'true'
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY"
+
+      - name: Build${{ env.PUSH == 'true' && ' and push' || '' }} ${{ matrix.service }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.service }}
+          platforms: linux/arm64
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ env.REGISTRY }}/agentic-lender/${{ matrix.service }}:${{ github.sha }}
+          provenance: false # one plain ARM64 image per tag, no extra attestation manifest in ECR
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max

@@ -36,3 +36,8 @@ output "alarm_topic_arn" {
   description = "The SNS topic the alarms in deploy/app email through. deploy/app finds it by name."
   value       = aws_sns_topic.alarms.arn
 }
+
+output "image_repositories" {
+  description = "Where each service's images are pushed and pulled, e.g. <account>.dkr.ecr.eu-west-1.amazonaws.com/agentic-lender/al-ai."
+  value       = { for name, repo in aws_ecr_repository.service : name => repo.repository_url }
+}
