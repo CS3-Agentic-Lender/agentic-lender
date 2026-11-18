@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 
-from app import affordability_endpoint, auto_start, cors, errors, valuation_endpoint
+from app import affordability_endpoint, auto_start, cors, errors, portfolio_endpoint, valuation_endpoint
 
 
 @asynccontextmanager
@@ -30,3 +30,4 @@ def health():
 app.include_router(router)
 app.include_router(affordability_endpoint.router)
 app.include_router(valuation_endpoint.router)
+app.include_router(portfolio_endpoint.router)
