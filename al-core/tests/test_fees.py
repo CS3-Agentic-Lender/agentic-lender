@@ -25,11 +25,13 @@ class FakeStripe(fees.StripeGateway):
     def __init__(self):
         super().__init__("sk_test_made_up", SECRET)
         self.intents, self.created, self.retrieved, self.error = {}, [], [], None
+        self.replaced = []  # the intent each create_intent call was told it replaces, in order
 
-    def create_intent(self, application_id, borrower_id):
+    def create_intent(self, application_id, borrower_id, replaces=None):
         if self.error:
             raise self.error
         self.created.append((application_id, borrower_id))
+        self.replaced.append(replaces)
         intent = {"id": f"pi_{len(self.created)}", "client_secret": f"pi_{len(self.created)}_secret_x", "status": "requires_payment_method"}
         self.intents[intent["id"]] = intent
         return dict(intent)
@@ -90,6 +92,63 @@ def test_a_cancelled_intent_is_replaced_by_a_new_one(stripe_fake):
     r = ask()
     assert r.status_code == 200 and r.json()["payment_intent_id"] == "pi_2"
     assert doc(stripe_fake)["feeIntentId"] == "pi_2"
+
+
+def test_the_new_intent_is_made_knowing_which_cancelled_one_it_replaces(stripe_fake):
+    ask()
+    stripe_fake["stripe"].intents["pi_1"]["status"] = "canceled"
+    ask()
+    stripe_fake["stripe"].intents["pi_2"]["status"] = "canceled"
+    ask()
+    assert stripe_fake["stripe"].replaced == [None, "pi_1", "pi_2"]  # the first has nothing to replace
+
+
+class Recorder:
+    """Stands in for stripe.PaymentIntent.create on the REAL gateway and keeps what it was called with. The in-memory FakeStripe above
+    ignores idempotency keys, which is how the key bug passed every test before."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"id": f"pi_{len(self.calls)}", "client_secret": "secret", "status": "requires_payment_method"}
+
+
+@pytest.fixture
+def recorder(monkeypatch):
+    rec = Recorder()
+    monkeypatch.setattr(stripe.PaymentIntent, "create", rec)
+    return rec
+
+
+def test_the_first_intent_for_an_application_uses_a_key_that_says_so(recorder):
+    fees.StripeGateway("sk_test_x", SECRET).create_intent("app1", "borrower1")
+    assert recorder.calls[0]["idempotency_key"] == "al-fee-app1-first"
+
+
+def test_replacing_a_cancelled_intent_uses_a_different_key_so_stripe_cannot_replay_the_cancelled_one(recorder):
+    gateway = fees.StripeGateway("sk_test_x", SECRET)
+    gateway.create_intent("app1", "borrower1")
+    gateway.create_intent("app1", "borrower1", replaces="pi_1")
+    gateway.create_intent("app1", "borrower1", replaces="pi_2")
+    keys = [call["idempotency_key"] for call in recorder.calls]
+    assert keys == ["al-fee-app1-first", "al-fee-app1-pi_1", "al-fee-app1-pi_2"]
+    assert len(set(keys)) == 3
+
+
+def test_two_requests_to_replace_the_same_cancelled_intent_share_one_key_so_stripe_makes_one(recorder):
+    gateway = fees.StripeGateway("sk_test_x", SECRET)
+    gateway.create_intent("app1", "borrower1", replaces="pi_1")
+    gateway.create_intent("app1", "borrower1", replaces="pi_1")
+    assert recorder.calls[0]["idempotency_key"] == recorder.calls[1]["idempotency_key"]
+
+
+def test_the_keys_of_two_applications_never_meet(recorder):
+    gateway = fees.StripeGateway("sk_test_x", SECRET)
+    gateway.create_intent("app1", "borrower1")
+    gateway.create_intent("app2", "borrower1")
+    assert recorder.calls[0]["idempotency_key"] != recorder.calls[1]["idempotency_key"]
 
 
 def test_a_payment_that_went_through_but_is_not_recorded_yet_is_409(stripe_fake):
@@ -266,6 +325,44 @@ def test_the_same_event_twice_pays_once(waiting):
     assert doc(waiting)["feePaidAt"] == "kept"
 
 
+def test_two_deliveries_at_the_same_moment_pay_once_and_the_second_does_not_move_the_paid_time(waiting, monkeypatch):
+    """Both deliveries read "unpaid". The first one's write lands between the second's read and write; Firestore refuses the second's
+    write because the application changed since it read it, and it reads again, sees "paid" and stops."""
+    database = waiting["db"]
+    doc_class = database.collection("applications").document("app1").__class__
+    real_get, reads = doc_class.get, []
+
+    def get_then_let_the_other_delivery_win(self):
+        snap = real_get(self)
+        reads.append(snap.to_dict().get("feeStatus"))
+        if len(reads) == 1:  # the other delivery's write lands right after this read
+            # A new dict, as a real write would be: the snapshot already read must stay as it was, "unpaid".
+            database.store["applications/app1"] = {**database.store["applications/app1"], "feeStatus": "paid", "feePaidAt": "first", "fastTrack": True}
+            database.versions["applications/app1"] += 1
+        return snap
+
+    monkeypatch.setattr(doc_class, "get", get_then_let_the_other_delivery_win)
+    assert send().status_code == 200
+    assert reads == ["unpaid", "paid"]  # it read again after the refused write
+    assert doc(waiting)["feePaidAt"] == "first"  # not moved to the later time
+
+
+def test_an_application_that_keeps_changing_under_the_webhook_is_409_so_stripe_sends_it_again(waiting, monkeypatch):
+    database = waiting["db"]
+    doc_class = database.collection("applications").document("app1").__class__
+    real_get = doc_class.get
+
+    def get_then_change_it(self):
+        snap = real_get(self)
+        database.versions["applications/app1"] += 1  # something else wrote after every read
+        return snap
+
+    monkeypatch.setattr(doc_class, "get", get_then_change_it)
+    r = send()
+    assert r.status_code == 409
+    assert doc(waiting)["feeStatus"] == "unpaid" and "fastTrack" not in doc(waiting)
+
+
 def test_a_paid_application_stays_paid_even_if_it_has_been_decided_since(waiting):
     doc(waiting)["status"] = "Declined"
     send()
@@ -278,8 +375,10 @@ def test_the_webhook_without_stripe_settings_is_503(fake, monkeypatch):
     assert client.post("/core/webhooks/stripe", content=b"{}").status_code == 503
 
 
-def test_a_borrower_cannot_mark_their_own_fee_paid_through_any_route(waiting):
-    # The fee fields are written by the webhook only: the edit and submit routes ignore them.
-    for path in ("/core/applications/app1",):
-        client.patch(path, json={"feeStatus": "paid", "fastTrack": True}, headers=TOKEN)
-    assert doc(waiting)["feeStatus"] == "unpaid" and "fastTrack" not in doc(waiting)
+def test_a_borrower_cannot_mark_their_own_fee_paid_by_editing_a_draft(stripe_fake):
+    # An Applied application is refused any edit (409), so that would prove nothing. A Draft takes edits: the fee fields must still not get through.
+    doc(stripe_fake)["status"] = "Draft"
+    r = client.patch("/core/applications/app1", json={"feeStatus": "paid", "feeIntentId": "pi_mine", "fastTrack": True}, headers=TOKEN)
+    assert r.status_code in (200, 422), r.json()  # the edit route was reached, not turned away as a 409
+    for field in ("feeStatus", "feeIntentId", "feePaidAt", "fastTrack"):
+        assert field not in doc(stripe_fake)

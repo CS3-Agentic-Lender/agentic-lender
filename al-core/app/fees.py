@@ -20,6 +20,7 @@ import os
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
+from google.api_core.exceptions import FailedPrecondition
 from google.cloud.firestore import SERVER_TIMESTAMP
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
@@ -36,6 +37,8 @@ FEE_CENTS = FEE_EUR * 100
 CURRENCY = "eur"
 # The fee is for an application that has been sent and not yet decided; a Draft has nothing to speed up, and a decided one is past it.
 PAYABLE_STATUSES = ("Applied", "AI Deliberated")
+# How many times a webhook re-reads an application that keeps changing under it before it asks Stripe to send the event again.
+WEBHOOK_ATTEMPTS = 3
 
 
 class FeeIntentOut(BaseModel):
@@ -64,15 +67,20 @@ class StripeGateway:
             raise NotConfigured("STRIPE_SECRET_KEY is not a Stripe test key; only test keys are allowed")
         return cls(secret, webhook)
 
-    def create_intent(self, application_id: str, borrower_id: str) -> dict:
-        """A new EUR 150 intent. The idempotency key makes two calls at the same moment return one intent."""
+    def create_intent(self, application_id: str, borrower_id: str, replaces: str | None = None) -> dict:
+        """A new EUR 150 intent. The idempotency key makes two calls at the same moment return one intent.
+
+        Stripe replays the saved answer to a repeated key for 24 hours, so the key has to change when the borrower needs a different
+        intent: a cancelled one is replaced by an intent made under a key that names the cancelled one (`replaces`). Without that, the
+        new request would get the cancelled intent straight back and the borrower could never pay.
+        """
         intent = stripe.PaymentIntent.create(
             amount=FEE_CENTS,
             currency=CURRENCY,
             automatic_payment_methods={"enabled": True, "allow_redirects": "never"},  # cards only: no redirect page to come back from
             description=f"Fast-track appraisal fee, application {application_id}",
             metadata={"application_id": application_id, "borrower_id": borrower_id},
-            idempotency_key=f"al-fee-{application_id}",
+            idempotency_key=f"al-fee-{application_id}-{replaces or 'first'}",
             api_key=self.secret_key,
         )
         return {"id": intent["id"], "client_secret": intent["client_secret"], "status": intent["status"]}
@@ -115,15 +123,15 @@ def create_fee_intent(application_id: str, user: dict = Depends(require_role("bo
 
     stripe_gateway = gateway()
     try:
-        intent = None
+        intent, replaces = None, None
         if doc.get("feeIntentId"):
             intent = stripe_gateway.retrieve_intent(doc["feeIntentId"])
             if intent["status"] == "succeeded":
                 raise HTTPException(409, "The payment went through and is being confirmed")
             if intent["status"] == "canceled":
-                intent = None  # an intent that can't be paid any more, so make a new one
+                replaces, intent = doc["feeIntentId"], None  # an intent that can't be paid any more, so make a new one
         if intent is None:
-            intent = stripe_gateway.create_intent(application_id, user["uid"])
+            intent = stripe_gateway.create_intent(application_id, user["uid"], replaces)
     except stripe.StripeError as exc:
         log.warning("Stripe failed for application %s: %s", application_id, type(exc).__name__)
         raise HTTPException(502, "The payment service could not be reached. Try again")
@@ -145,20 +153,30 @@ def _mark_paid(intent: dict) -> None:
         log.warning("Ignored a payment that is not the fee: %s", intent.get("id"))
         return
     ref = db().collection("applications").document(application_id)
-    snap = ref.get()
-    if not snap.exists:
-        log.warning("Ignored payment %s: no application %s", intent.get("id"), application_id)
-        return
-    doc = snap.to_dict()
-    stored = doc.get("feeIntentId")
-    if not stored:
-        raise HTTPException(409, "The application has no saved payment yet; try again")
-    if stored != intent.get("id"):
-        log.warning("Ignored payment %s: application %s expects %s", intent.get("id"), application_id, stored)
-        return
-    if doc.get("feeStatus") == "paid":
-        return  # Stripe sends an event more than once at times
-    ref.update({"feeStatus": "paid", "feePaidAt": SERVER_TIMESTAMP, "fastTrack": True})
+    for _ in range(WEBHOOK_ATTEMPTS):
+        snap = ref.get()
+        if not snap.exists:
+            log.warning("Ignored payment %s: no application %s", intent.get("id"), application_id)
+            return
+        doc = snap.to_dict()
+        stored = doc.get("feeIntentId")
+        if not stored:
+            raise HTTPException(409, "The application has no saved payment yet; try again")
+        if stored != intent.get("id"):
+            log.warning("Ignored payment %s: application %s expects %s", intent.get("id"), application_id, stored)
+            return
+        if doc.get("feeStatus") == "paid":
+            return  # Stripe sends an event more than once at times
+        try:
+            # Firestore refuses this write if the application changed since the read above. Two deliveries of one event at the
+            # same moment both read "unpaid", the first write wins, and the second is refused, reads again, sees "paid" and stops,
+            # so the paid time is set once and never moved.
+            changes = {"feeStatus": "paid", "feePaidAt": SERVER_TIMESTAMP, "fastTrack": True}
+            ref.update(changes, option=db().write_option(last_update_time=snap.update_time))
+            return
+        except FailedPrecondition:
+            continue
+    raise HTTPException(409, "The application kept changing; try again")  # Stripe sends the event again
 
 
 def _handle(payload: bytes, signature: str) -> dict:
