@@ -71,9 +71,12 @@ resource "aws_wafv2_web_acl" "api" {
                 field_to_match {
                   uri_path {}
                 }
+                # Decode the path first, the way uvicorn does before FastAPI picks a route. Without
+                # this, POST /core/%6De reaches /core/me but doesn't match here, so it would skip the
+                # limit. (nginx's `location = /core/me` matches the decoded path, so the laptop is safe.)
                 text_transformation {
                   priority = 0
-                  type     = "NONE"
+                  type     = "URL_DECODE"
                 }
               }
             }
