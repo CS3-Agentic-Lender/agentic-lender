@@ -9,6 +9,8 @@ struct MainTabView: View {
     @State private var model: HomeViewModel
     @State private var inbox: MessageInbox
     @State private var applicationCard: HomeApplicationCardModel
+    /// Kept here so Resend's cooldown carries on while the borrower is on another tab.
+    @State private var verification: EmailVerificationModel
     private let service: ProfileService
 
     /// The tabs against Firebase and the API.
@@ -16,21 +18,25 @@ struct MainTabView: View {
     init(profile: CoreProfile) {
         self.init(
             profile: profile, service: FirebaseProfileService(), messages: FirestoreMessageService(),
-            applications: FirestoreHomeApplicationService()
+            applications: FirestoreHomeApplicationService(), verification: FirebaseVerificationService()
         )
     }
 
-    init(profile: CoreProfile, service: ProfileService, messages: MessageService, applications: HomeApplicationService) {
+    init(
+        profile: CoreProfile, service: ProfileService, messages: MessageService, applications: HomeApplicationService,
+        verification: VerificationService
+    ) {
         _model = State(initialValue: HomeViewModel(profile: profile))
         _inbox = State(initialValue: MessageInbox(service: messages))
         _applicationCard = State(initialValue: HomeApplicationCardModel(service: applications))
+        _verification = State(initialValue: EmailVerificationModel(service: verification))
         self.service = service
     }
 
     var body: some View {
         TabView(selection: $tabs.selected) {
             NavigationStack {
-                HomeView(model: model, applicationCard: applicationCard) { tabs.checkProperty() }
+                HomeView(model: model, applicationCard: applicationCard, verification: verification) { tabs.checkProperty() }
                     .appRoutes()
             }
             // A submitted application returns here from its first screen; the other tabs keep their place.

@@ -5,15 +5,21 @@ import SwiftUI
 struct HomeView: View {
     let model: HomeViewModel
     let applicationCard: HomeApplicationCardModel
+    /// Whether to show "Check your inbox" under the greeting (AL-311).
+    let verification: EmailVerificationModel
     /// Opens the Property tab, so a borrower's properties live in one place.
     let onCheckProperty: () -> Void
     /// The application whose status is open; the status screen is pushed while this is set.
     @State private var statusApplicationID: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
+                if let message = verification.banner {
+                    VerifyEmailBanner(model: verification, message: message)
+                }
                 HomeApplicationCard(model: applicationCard) { statusApplicationID = $0 }
                 Text("Get started")
                     .font(.title3.bold())
@@ -29,6 +35,11 @@ struct HomeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $statusApplicationID) { applicationID in
             ApplicationStatusView(applicationID: applicationID, service: FirestoreApplicationStatusService())
+        }
+        // A link opened in Mail counts as soon as the borrower is back: on opening Home and on returning to the app.
+        .task { await verification.refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await verification.refresh() } }
         }
     }
 
@@ -100,9 +111,19 @@ struct PreviewSignedInState: SignedInState {
         profile: CoreProfile(fullName: "Aoife Byrne", brokerID: "broker1", brokerName: "Bob Murphy", brokerFirm: "Murphy Mortgages"),
         service: PreviewProfileService(),
         messages: PreviewMessageService(),
-        applications: PreviewHomeApplicationService()
+        applications: PreviewHomeApplicationService(),
+        verification: PreviewVerificationService()
     )
     .environment(AppSession(state: PreviewSignedInState()))
+}
+
+/// A password account whose email isn't verified yet, so the preview shows the banner (AL-311).
+struct PreviewVerificationService: VerificationService {
+    func reload() async throws -> VerificationAccount? {
+        VerificationAccount(email: "aoife@test.com", hasPassword: true, isVerified: false)
+    }
+
+    func sendVerificationEmail() async throws {}
 }
 
 /// An application in AI review, for previews of Home.
