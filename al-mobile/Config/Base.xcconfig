@@ -13,5 +13,7 @@ AL_FIREBASE_PROJECT_ID =
 AL_FIREBASE_API_KEY =
 AL_FIREBASE_APP_ID =
 AL_FIREBASE_SENDER_ID =
+// Stripe's publishable test key (pk_test_…) for the appraisal fee (AL-148), on local and hosted builds alike.
+AL_STRIPE_PUBLISHABLE_KEY =
 
 #include? "Hosted.xcconfig"

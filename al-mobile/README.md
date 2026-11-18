@@ -80,7 +80,9 @@ xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/AgenticLe
 xcrun simctl launch booted ie.mtu.agenticlender
 ```
 
-The hosted Firebase settings stay out of the repo, which is public. Copy `Config/Hosted.example.xcconfig` to `Config/Hosted.xcconfig` (gitignored) and fill it in from the iOS app registered in the hosted Firebase project; ask Dumi for the values. `Config/Base.xcconfig` includes it, and `Config/AppInfo.plist` passes the settings into the app's Info.plist. Without them, a `HOSTED` build stops at launch and names the settings it doesn't set; a `LOCAL` build doesn't need it.
+The hosted Firebase settings stay out of the repo, which is public. Copy `Config/Hosted.example.xcconfig` to `Config/Hosted.xcconfig` (gitignored) and fill it in from the iOS app registered in the hosted Firebase project; ask Dumi for the values. `Config/Base.xcconfig` includes it, and `Config/AppInfo.plist` passes the settings into the app's Info.plist. Without them, a `HOSTED` build stops at launch and names the settings it doesn't set; a `LOCAL` build only needs it for the fast-track fee (below).
+
+**The fast-track fee (Stripe).** Pay needs Stripe's publishable test key on any build, local or hosted: put `AL_STRIPE_PUBLISHABLE_KEY = pk_test_…` in the same `Config/Hosted.xcconfig`, from the team's Stripe sandbox (Developers, API keys; ask Dumi for an invite). Only a `pk_test_` key is accepted. Without it, Pay says the payment couldn't start and the log names the setting. To actually take payments, al-core also needs `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`: see "The fast-track fee" in `al-core/README.md`.
 
 ## Running on your own iPhone
 

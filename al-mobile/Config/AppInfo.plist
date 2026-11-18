@@ -10,5 +10,7 @@
 	<string>$(AL_FIREBASE_APP_ID)</string>
 	<key>ALFirebaseSenderID</key>
 	<string>$(AL_FIREBASE_SENDER_ID)</string>
+	<key>ALStripePublishableKey</key>
+	<string>$(AL_STRIPE_PUBLISHABLE_KEY)</string>
 </dict>
 </plist>

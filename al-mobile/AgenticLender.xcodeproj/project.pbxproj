@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A10000000000000000000301 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000A01 /* FirebaseAuth */; };
 		A10000000000000000000302 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000A02 /* FirebaseFirestore */; };
+		A10000000000000000000303 /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000A03 /* StripePaymentSheet */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,7 @@
 			files = (
 				A10000000000000000000301 /* FirebaseAuth in Frameworks */,
 				A10000000000000000000302 /* FirebaseFirestore in Frameworks */,
+				A10000000000000000000303 /* StripePaymentSheet in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,6 +137,7 @@
 			packageProductDependencies = (
 				A10000000000000000000A01 /* FirebaseAuth */,
 				A10000000000000000000A02 /* FirebaseFirestore */,
+				A10000000000000000000A03 /* StripePaymentSheet */,
 			);
 			productName = AgenticLender;
 			productReference = A10000000000000000000101 /* AgenticLender.app */;
@@ -216,6 +219,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A10000000000000000000B01 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				A10000000000000000000B02 /* XCRemoteSwiftPackageReference "stripe-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000012 /* Products */;
@@ -513,6 +517,14 @@
 				minimumVersion = 12.19.2;
 			};
 		};
+		A10000000000000000000B02 /* XCRemoteSwiftPackageReference "stripe-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stripe/stripe-ios";
+			requirement = {
+				kind = exactVersion;
+				version = 26.16.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -525,6 +537,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A10000000000000000000B01 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		A10000000000000000000A03 /* StripePaymentSheet */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000B02 /* XCRemoteSwiftPackageReference "stripe-ios" */;
+			productName = StripePaymentSheet;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

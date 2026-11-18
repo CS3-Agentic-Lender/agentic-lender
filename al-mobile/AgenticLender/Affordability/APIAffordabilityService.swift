@@ -51,7 +51,7 @@ extension AffordabilityError {
         switch error {
         case .network: self = .network
         case .signedOut: self = .signedOut
-        case .unavailable: self = .unavailable
+        case .conflict, .unavailable: self = .unavailable
         }
     }
 }

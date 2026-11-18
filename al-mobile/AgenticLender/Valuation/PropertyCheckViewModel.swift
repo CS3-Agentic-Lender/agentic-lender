@@ -100,7 +100,7 @@ final class PropertyCheckViewModel {
         switch error {
         case .network: "We couldn't value this property right now. Check your connection and try again."
         case .signedOut: "You've been signed out. Sign in again to check a property."
-        case .unavailable: "We couldn't value this property right now. Try again in a moment."
+        case .conflict, .unavailable: "We couldn't value this property right now. Try again in a moment."
         }
     }
 

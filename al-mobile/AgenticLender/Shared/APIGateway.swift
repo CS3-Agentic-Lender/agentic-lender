@@ -7,6 +7,9 @@ enum APIError: Error, Equatable {
     case network
     /// No signed-in user, or the ID token was refused.
     case signedOut
+    /// A 409: the server already has what was asked for, or the state doesn't allow it (for the fee,
+    /// a payment that went through and is being confirmed).
+    case conflict
     /// Any other failure, or an answer that doesn't match the contract.
     case unavailable
 }
@@ -57,7 +60,7 @@ struct APIGateway {
         }
         guard (200..<300).contains(status) else {
             logger.error("\(path, privacy: .public) returned \(status, privacy: .public)")
-            throw APIError.unavailable
+            throw status == 409 ? APIError.conflict : APIError.unavailable
         }
         do {
             return try decode(data)
