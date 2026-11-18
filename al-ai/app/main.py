@@ -3,12 +3,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 
-from app import affordability_endpoint, auto_start, cors, errors, valuation_endpoint
+from app import affordability_endpoint, auto_start, cors, errors, request_log, valuation_endpoint
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """AUTO_START_COMMITTEE=true starts the listener that runs the committee for each Applied application (AL-141). Off by default."""
+    request_log.send_to_stdout()  # at start-up, not on import, so tests keep their own logging; on ECS stdout goes to CloudWatch
     listener = auto_start.start_from_env() if os.getenv("AUTO_START_COMMITTEE", "").lower() == "true" else None
     yield
     if listener:
