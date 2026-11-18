@@ -28,7 +28,8 @@ deploy/
 │   ├── dns.tf                  the agentic-lender.com zone
 │   ├── certificate.tf          the certificate for api.agentic-lender.com
 │   ├── alarm-emails.tf         who the alarms email
-│   └── outputs.tf              name servers, role ARN, bucket, certificate, alarm topic
+│   ├── ecr.tf                  the image registries for al-ai and al-core
+│   └── outputs.tf              name servers, role ARN, bucket, certificate, alarm topic, image registries
 └── app/
     ├── versions.tf, variables.tf, providers.tf, backend.tf, outputs.tf
     ├── release.tf              which build is deployed
@@ -51,6 +52,39 @@ deploy/
 
 Each one lists what it will change in plain words and asks first. It applies exactly the plan you
 saw. Add `--floci` to any of them to practise on Floci.
+
+## Images
+
+The deploy images are built by GitHub Actions (`.github/workflows/images.yml`), never by a laptop:
+
+- **On a PR** that changes `al-ai/` or `al-core/`, it builds both images for ARM64 and pushes nothing.
+  A Dockerfile that won't build on ARM fails the PR.
+- **On every merge to `main`**, it builds both again and pushes them to ECR as
+  `agentic-lender/al-ai:<commit>` and `agentic-lender/al-core:<commit>`, using the full commit id.
+  That commit id is what `./deploy/al deploy` takes.
+
+ECR scans each image when it arrives (Console: ECR, then the repository, then the image). Tags can't
+be overwritten, and each repository keeps its 10 newest images.
+
+### Backup: pushing from Nic's Mac
+
+Only if the workflow is broken and a build has to go out. The Mac is ARM, so it builds the same
+ARM64 image natively. Run it from a clean checkout of the `main` commit you want, so the tag tells
+the truth, and use the full commit id like CI does:
+
+```sh
+aws login --profile agentic-lender && export AWS_PROFILE=agentic-lender
+REGISTRY=176550299403.dkr.ecr.eu-west-1.amazonaws.com
+TAG="$(git rev-parse HEAD)"
+git status --porcelain   # must print nothing: the image has to match the commit
+aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin "$REGISTRY"
+for svc in al-ai al-core; do
+  docker buildx build --platform linux/arm64 --provenance=false --push \
+    -t "${REGISTRY}/agentic-lender/${svc}:${TAG}" "$svc"   # braces: in zsh, $svc:l would mean "lowercase"
+done
+```
+
+If CI already pushed that commit, ECR refuses the push (`tag already exists`), which is what you want.
 
 ## Practising on Floci
 
