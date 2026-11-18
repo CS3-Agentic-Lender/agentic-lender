@@ -5,3 +5,5 @@ DerivedData/
 
 # Hosted Firebase settings for the demo build (AL-184): copy Config/Hosted.example.xcconfig
 Config/Hosted.xcconfig
+# The hosted project's own plist, if downloaded from the Firebase console: its values go in Config/Hosted.xcconfig
+GoogleService-Info.plist

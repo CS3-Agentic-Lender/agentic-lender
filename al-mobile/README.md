@@ -69,12 +69,18 @@ The demo runs on the iOS Simulator on the presenting Mac; an iPhone through Xcod
 
 The `AL_BACKEND` build setting picks the backend: `LOCAL` (the default) uses the emulators and the local gateway above, and `HOSTED` uses the hosted Firebase project and the deployed API at `https://api.agentic-lender.com`. It's built into the app, so it holds when the app is opened from the home screen.
 
+**From Xcode:** add `AL_BACKEND = HOSTED` to `Config/Hosted.xcconfig` (it's commented out in `Hosted.example.xcconfig`) and press Run. Take the line out again for local work. It lives in the xcconfig, not on the target, so Run really builds what the file says.
+
+**From the command line:** the setting on the command line wins, so this builds the demo whatever `Hosted.xcconfig` says. Installing and launching it yourself matters: pressing Run in Xcode afterwards would rebuild it from the xcconfig.
+
 ```bash
 xcodebuild build -project AgenticLender.xcodeproj -scheme AgenticLender \
-  -destination 'platform=iOS Simulator,name=iPhone 17' AL_BACKEND=HOSTED
+  -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build AL_BACKEND=HOSTED
+xcrun simctl install booted build/Build/Products/Debug-iphonesimulator/AgenticLender.app
+xcrun simctl launch booted ie.mtu.agenticlender
 ```
 
-The hosted Firebase settings stay out of the repo, which is public. Copy `Config/Hosted.example.xcconfig` to `Config/Hosted.xcconfig` (gitignored) and fill it in from the iOS app registered in the hosted Firebase project; ask Dumi for the values. `Config/Base.xcconfig` includes it, and `Config/AppInfo.plist` passes the settings into the app's Info.plist. Without it, a `HOSTED` build stops at launch and names the settings still missing; a `LOCAL` build doesn't need it.
+The hosted Firebase settings stay out of the repo, which is public. Copy `Config/Hosted.example.xcconfig` to `Config/Hosted.xcconfig` (gitignored) and fill it in from the iOS app registered in the hosted Firebase project; ask Dumi for the values. `Config/Base.xcconfig` includes it, and `Config/AppInfo.plist` passes the settings into the app's Info.plist. Without them, a `HOSTED` build stops at launch and names the settings it doesn't set; a `LOCAL` build doesn't need it.
 
 ## Running on your own iPhone
 
