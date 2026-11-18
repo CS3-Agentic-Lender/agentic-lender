@@ -28,8 +28,11 @@ struct HomeGateView: View {
             case .chooseBroker:
                 BrokerPickerView(mode: .choose, service: service, onSaved: model.brokerChosen)
             case .home(let profile):
-                HomeView(profile: profile, service: service, messages: FirestoreMessageService(),
-                         applications: FirestoreHomeApplicationService())
+                // The tabs replace the gate as the app's root (AL-313).
+                ProgressView()
+                    .tint(Theme.pine)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .task { session.showMain(profile) }
             case .needsDetails(let user):
                 ProfileDetailsView(user: user, service: FirebaseGoogleSignInService())
             case .failed(let message):

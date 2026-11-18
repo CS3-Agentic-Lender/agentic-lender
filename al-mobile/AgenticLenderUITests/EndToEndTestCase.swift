@@ -98,6 +98,7 @@ class EndToEndTestCase: XCTestCase {
         let target = waitFor(identifier, file: file, line: line)
         scrollIntoReach(target)
         liftAboveKeyboard(target)
+        liftAboveTabBar(target)
         target.tap()
     }
 
@@ -129,6 +130,19 @@ class EndToEndTestCase: XCTestCase {
         var drags = 0
         while field.frame.maxY > keyboard.frame.minY - Self.footerClearance && drags < Self.maxDrags {
             let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -Self.liftDistance)))
+            drags += 1
+        }
+    }
+
+    /// Drags the screen up until the element is clear of the floating tab bar (AL-313). XCTest counts
+    /// a button under the translucent bar as hittable, so `scrollIntoReach` alone can leave it covered.
+    private func liftAboveTabBar(_ target: XCUIElement) {
+        let tabBar = app.tabBars.firstMatch
+        guard tabBar.exists else { return }
+        var drags = 0
+        while target.frame.maxY > tabBar.frame.minY - Self.footerClearance && drags < Self.maxDrags {
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -Self.liftDistance)))
             drags += 1
         }
@@ -167,6 +181,13 @@ class EndToEndTestCase: XCTestCase {
     /// Taps Back until Home shows.
     func goBackToHome() {
         let home = element("home.affordability")
+        // With the tab bar (AL-313) Home may be another tab: tapping it opens Home, and tapping it again
+        // takes Home back to its first screen.
+        let homeTab = app.tabBars.buttons["Home"]
+        for _ in 0..<2 where !home.exists && homeTab.exists {
+            homeTab.tap()
+            _ = home.waitForExistence(timeout: 2)
+        }
         var backs = 0
         while !home.exists && backs < Self.maxBacks {
             app.navigationBars.buttons["BackButton"].firstMatch.tap()

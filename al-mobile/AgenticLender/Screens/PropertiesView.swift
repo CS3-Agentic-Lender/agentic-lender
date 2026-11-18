@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// "Properties" (Figma 09 Saved checks, 09a No properties yet): the borrower's saved checks, live,
-/// newest first, with "Check a property". Swipe a row to delete it. Opened from Home's "Check a
-/// property" card until the app has a tab bar.
+/// newest first, with "Check a property". Swipe a row to delete it. The Property tab (AL-313), also
+/// opened by Home's "Check a property" card.
 struct PropertiesView: View {
     @State private var store: SavedChecksStore
 

@@ -1,27 +1,14 @@
 import SwiftUI
 
-/// Where a borrower lands once they have a broker (Figma Home): a greeting, their application card
-/// (AL-104), "What can I borrow?", "Check a property", Messages, their broker and Sign out.
+/// The Home tab (Figma Home, AL-313): a greeting, the application card (AL-104), "What can I borrow?"
+/// and "Check a property". Messages, the broker and Sign out live in their own tabs now.
 struct HomeView: View {
-    @Environment(AppSession.self) private var session
-    @State private var model: HomeViewModel
-    @State private var inbox: MessageInbox
-    @State private var applicationCard: HomeApplicationCardModel
+    let model: HomeViewModel
+    let applicationCard: HomeApplicationCardModel
+    /// Opens the Property tab, so a borrower's properties live in one place.
+    let onCheckProperty: () -> Void
     /// The application whose status is open; the status screen is pushed while this is set.
     @State private var statusApplicationID: String?
-    @State private var isChangingBroker = false
-    @State private var isShowingMessages = false
-    @State private var isShowingProfile = false
-    private let service: ProfileService
-
-    /// `profile` is the one the gate loaded; `service` saves a change of broker; `messages` reads the
-    /// thread with the broker, which Home keeps listening to for the unread count.
-    init(profile: CoreProfile, service: ProfileService, messages: MessageService, applications: HomeApplicationService) {
-        _model = State(initialValue: HomeViewModel(profile: profile))
-        _inbox = State(initialValue: MessageInbox(service: messages))
-        _applicationCard = State(initialValue: HomeApplicationCardModel(service: applications))
-        self.service = service
-    }
 
     var body: some View {
         ScrollView {
@@ -34,71 +21,15 @@ struct HomeView: View {
                     .accessibilityAddTraits(.isHeader)
                 borrowCard
                 propertyCheckCard
-                messagesCard
-                brokerCard
             }
             .padding(Theme.screenPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .safeAreaInset(edge: .bottom) { footer }
         .background(Theme.oat.ignoresSafeArea())
-        .navigationBarBackButtonHidden()
         .navigationBarTitleDisplayMode(.inline)
-        // Profile (AL-312, Figma 19) until the app has a tab bar.
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { isShowingProfile = true } label: {
-                    Image(systemName: "person.crop.circle")
-                        .foregroundStyle(Theme.pine)
-                }
-                .accessibilityLabel("Profile")
-                .accessibilityIdentifier("home.profile")
-            }
-        }
-        .navigationDestination(isPresented: $isShowingProfile) {
-            ProfileView(model: model, email: service.signedInUser?.email, service: service, applicationID: applicationID)
-        }
-        .navigationDestination(isPresented: $isChangingBroker) {
-            BrokerPickerView(mode: .change(current: model.profile), service: service) { profile in
-                model.brokerChanged(profile)
-                isChangingBroker = false
-            }
-        }
         .navigationDestination(item: $statusApplicationID) { applicationID in
             ApplicationStatusView(applicationID: applicationID, service: FirestoreApplicationStatusService())
         }
-        .navigationDestination(isPresented: $isShowingMessages) {
-            MessagesView(inbox: inbox, brokerName: model.brokerName, brokerFirm: model.brokerFirm)
-        }
-        .task { await inbox.start() }
-    }
-
-    /// Opens the thread with the broker; shows how many replies are unread (Figma 15e's tab badge,
-    /// until the app has a tab bar).
-    private var messagesCard: some View {
-        Button {
-            isShowingMessages = true
-        } label: {
-            card(
-                title: "Messages",
-                detail: ThreadParticipants.homeDetail(
-                    brokerName: model.brokerName, lendingOfficerHasWritten: inbox.thread?.lendingOfficerHasWritten ?? false
-                ),
-                badge: unreadBadge
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(inbox.unreadCount == 0 ? "" : "\(inbox.unreadCount) unread")
-        .accessibilityIdentifier("home.messages")
-    }
-
-    /// The newest application on the Home card, for the support form's reference toggle (AL-149).
-    private var applicationID: String? {
-        if case .application(let application) = applicationCard.state { application.id } else { nil }
-    }
-
-    private var unreadBadge: String? {
-        inbox.unreadCount == 0 ? nil : "\(inbox.unreadCount) new"
     }
 
     private var header: some View {
@@ -122,53 +53,26 @@ struct HomeView: View {
     }
 
     private var propertyCheckCard: some View {
-        NavigationLink(value: Route.properties) {
+        Button(action: onCheckProperty) {
             card(title: "Check a property", detail: "See if an asking price is fair, and keep the homes you check.")
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("home.propertyCheck")
     }
 
-    private var brokerCard: some View {
-        Button {
-            isChangingBroker = true
-        } label: {
-            card(caption: "Your broker", title: model.brokerName ?? "", detail: model.brokerFirm)
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Change broker")
-        .accessibilityIdentifier("home.broker")
-    }
-
     /// A tappable Surface card with a chevron, as on Figma Home.
-    private func card(caption: String? = nil, title: String, detail: String?, badge: String? = nil) -> some View {
+    private func card(title: String, detail: String) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                if let caption {
-                    Text(caption)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.mutedText)
-                }
                 Text(title)
                     .font(.headline)
                     .foregroundStyle(Theme.text)
-                if let detail, !detail.trimmed.isEmpty {
-                    Text(detail)
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.mutedText)
-                        .multilineTextAlignment(.leading)
-                }
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.mutedText)
+                    .multilineTextAlignment(.leading)
             }
             Spacer(minLength: 0)
-            if let badge {
-                Text(badge)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.surface)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Theme.pine, in: Capsule())
-                    .accessibilityHidden(true)
-            }
             Image(systemName: "chevron.right")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.pine)
@@ -181,21 +85,6 @@ struct HomeView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).stroke(Theme.line))
         .contentShape(Rectangle())
     }
-
-    private var footer: some View {
-        VStack(spacing: 8) {
-            if let error = session.signOutError {
-                Label(error, systemImage: "exclamationmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.error)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            SecondaryButton(title: "Sign out") { session.signOut() }
-                .accessibilityIdentifier("home.signOut")
-        }
-        .padding(Theme.screenPadding)
-        .background(Theme.oat)
-    }
 }
 
 #if DEBUG
@@ -207,14 +96,12 @@ struct PreviewSignedInState: SignedInState {
 }
 
 #Preview {
-    NavigationStack {
-        HomeView(
-            profile: CoreProfile(fullName: "Aoife Byrne", brokerID: "broker1", brokerName: "Bob Murphy", brokerFirm: "Murphy Mortgages"),
-            service: PreviewProfileService(),
-            messages: PreviewMessageService(),
-            applications: PreviewHomeApplicationService()
-        )
-    }
+    MainTabView(
+        profile: CoreProfile(fullName: "Aoife Byrne", brokerID: "broker1", brokerName: "Bob Murphy", brokerFirm: "Murphy Mortgages"),
+        service: PreviewProfileService(),
+        messages: PreviewMessageService(),
+        applications: PreviewHomeApplicationService()
+    )
     .environment(AppSession(state: PreviewSignedInState()))
 }
 

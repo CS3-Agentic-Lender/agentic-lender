@@ -20,7 +20,10 @@ protocol SignedInState {
 final class AppSession {
     enum Start: Equatable {
         case welcome
+        /// The gate: it loads the profile and sends the borrower to the broker picker, Your details or the tabs.
         case home
+        /// The tab bar (AL-313), once the borrower has a broker.
+        case main(CoreProfile)
     }
 
     static let signOutFailedMessage = "Couldn't sign out. Try again."
@@ -30,6 +33,8 @@ final class AppSession {
     private(set) var start: Start
     /// Changes on every sign-out and return home; the navigation stack is keyed on it so it starts afresh.
     private(set) var stackID = 0
+    /// Changes when a finished flow returns to Home inside the tabs; Home's stack is keyed on it.
+    private(set) var homeResetCount = 0
     private(set) var signOutError: String?
     /// Why the app signed the borrower out, shown on Welcome. Nil after an ordinary sign-out.
     private(set) var welcomeNotice: String?
@@ -76,8 +81,20 @@ final class AppSession {
         stackID += 1
     }
 
-    /// Leaves a finished flow, such as a submitted application, for a fresh home screen.
+    /// Replaces the gate with the tab bar once it has a borrower with a broker. The tabs are a new root,
+    /// not pushed on the gate's stack, so each tab can have its own.
+    func showMain(_ profile: CoreProfile) {
+        start = .main(profile)
+        stackID += 1
+    }
+
+    /// Leaves a finished flow, such as a submitted application, for a fresh home screen. Inside the tabs
+    /// only Home starts afresh, so the other tabs keep their place.
     func returnHome() {
+        if case .main = start {
+            homeResetCount += 1
+            return
+        }
         start = .home
         stackID += 1
     }
