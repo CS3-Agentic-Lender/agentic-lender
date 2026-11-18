@@ -37,7 +37,6 @@ struct MainTabView: View {
             .id(session.homeResetCount)
             .tabItem { Label("Home", systemImage: "house") }
             .tag(MainTabs.Tab.home)
-            .accessibilityIdentifier("tab.home")
 
             NavigationStack {
                 PropertiesView(service: LiveSavedCheckService.live()).appRoutes()
