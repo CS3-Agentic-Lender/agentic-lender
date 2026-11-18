@@ -33,12 +33,17 @@ enum HostedBackend {
     static var firebase: HostedFirebase { HostedFirebase(info: Bundle.main.infoDictionary ?? [:]) }
 }
 
-/// The four values from the hosted Firebase project's iOS app (its `GoogleService-Info.plist`).
+/// The values from the hosted Firebase project's iOS app (its `GoogleService-Info.plist`): the four Firebase
+/// settings, and the Google client ID and its reversed form for real Google sign-in (AL-320).
 struct HostedFirebase: Equatable {
     let projectID: String
     let apiKey: String
     let appID: String
     let senderID: String
+    /// `CLIENT_ID`: Google's sign-in reads it from the Info.plist key `GIDClientID`.
+    let googleClientID: String
+    /// `REVERSED_CLIENT_ID`: the URL scheme Google returns the borrower to the app with.
+    let googleReversedClientID: String
 
     /// The Info.plist keys `Config/AppInfo.plist` fills from the build settings in `Config/Hosted.xcconfig`.
     enum Key {
@@ -46,19 +51,26 @@ struct HostedFirebase: Equatable {
         static let apiKey = "ALFirebaseAPIKey"
         static let appID = "ALFirebaseAppID"
         static let senderID = "ALFirebaseSenderID"
+        static let googleClientID = "GIDClientID"
+        static let googleReversedClientID = "ALGoogleReversedClientID"
     }
 
     /// Reads the settings from the app's Info.plist; a key that is absent reads as blank.
     init(info: [String: Any]) {
         func value(_ key: String) -> String { info[key] as? String ?? "" }
-        self.init(projectID: value(Key.projectID), apiKey: value(Key.apiKey), appID: value(Key.appID), senderID: value(Key.senderID))
+        self.init(
+            projectID: value(Key.projectID), apiKey: value(Key.apiKey), appID: value(Key.appID), senderID: value(Key.senderID),
+            googleClientID: value(Key.googleClientID), googleReversedClientID: value(Key.googleReversedClientID)
+        )
     }
 
-    init(projectID: String, apiKey: String, appID: String, senderID: String) {
+    init(projectID: String, apiKey: String, appID: String, senderID: String, googleClientID: String, googleReversedClientID: String) {
         self.projectID = projectID
         self.apiKey = apiKey
         self.appID = appID
         self.senderID = senderID
+        self.googleClientID = googleClientID
+        self.googleReversedClientID = googleReversedClientID
     }
 
     /// The build settings still blank, by the name to set in `Config/Hosted.xcconfig`.
@@ -66,6 +78,8 @@ struct HostedFirebase: Equatable {
         [
             ("AL_FIREBASE_PROJECT_ID", projectID), ("AL_FIREBASE_API_KEY", apiKey),
             ("AL_FIREBASE_APP_ID", appID), ("AL_FIREBASE_SENDER_ID", senderID),
+            // Google's sign-in raises an exception, not an error, without its client ID, so a hosted build needs both.
+            ("AL_GOOGLE_CLIENT_ID", googleClientID), ("AL_GOOGLE_REVERSED_CLIENT_ID", googleReversedClientID),
         ]
         .filter { $0.1.trimmingCharacters(in: .whitespaces).isEmpty }
         .map(\.0)
