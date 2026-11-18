@@ -19,7 +19,8 @@
 # Until the ECS tickets put tasks behind the load balancer, both health alarms sit in ALARM and email
 # once. That's expected, and it proves the wiring works.
 #
-# Costs about EUR 0.30 a month: USD 0.10 per alarm, three alarms.
+# Costs about EUR 0.40 a month: USD 0.10 per number an alarm watches. The two health alarms watch one
+# each and the 5xx alarm watches two.
 
 # ---- no healthy task, one alarm per service ------------------------------------------------------
 
