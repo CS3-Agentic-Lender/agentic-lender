@@ -86,7 +86,7 @@ AL's budget will not cover two full copies, so it will replace the running tasks
 | Load balancer | Application, Network, Gateway | Application | Only the Application Load Balancer can route by URL path, and AWS WAF can protect it. The Network option handles raw TCP, while the Gateway option is for security appliances |
 | Hostnames | One host with path routing, or one URL per service | One host (`api.<domain>`) | This gives the team one base URL, one CORS entry, one WAF and one Stripe address. It requires a domain and a free certificate |
 | Subnets | Public with tight security groups, or private with a NAT gateway | Public in the Sprint 3 test run, private in the demo week if the budget allows | Tasks in private subnets have no public address. A NAT gateway costs about EUR 30 a month |
-| Secrets | Parameter Store, Secrets Manager | Secrets Manager | It costs about EUR 0.35 a month per secret, with rotation available if needed. Each service uses two: al-ai one JSON secret holding its four API keys, al-core one holding its salt, Stripe keys and wallet keys, and each its own Firebase service account |
+| Secrets | Parameter Store, Secrets Manager | Secrets Manager | It costs about EUR 0.35 a month per secret, with rotation available if needed. al-ai uses two secrets and al-core three: al-ai one JSON secret holding its four API keys, al-core one holding its salt and Stripe keys and one holding its wallet keys, and each its own Firebase service account |
 | Infrastructure | Console clicks, shell scripts, OpenTofu, Terraform | Terraform | It is widely used, has a large community and the team already knows the commands. The plan uses one flat folder and four wrapper commands. State will sit in an encrypted, versioned and locked S3 bucket |
 | Deploys | Fully automatic, or started by a person | Started by a person | Images are built after a merge. A button or one command starts the deploy and helps prevent accidental releases |
 | Valuation model | Inside al-ai, its own container, SageMaker, Lambda | Inside al-ai | The model loads at start-up and should respond in milliseconds. Testing will measure this. The other options add cost and a network hop |
@@ -132,7 +132,7 @@ Estimated monthly costs if the full setup runs all month. These estimates use pu
 | Application Load Balancer | EUR 18 |
 | WAF with a few rules | EUR 7 |
 | Public IPv4 addresses (two for the load balancer, one per task) | EUR 13 |
-| Secrets Manager (2 for al-ai and 2 for al-core, about EUR 1.40) | EUR 3 at most |
+| Secrets Manager (2 for al-ai and 3 for al-core, about EUR 1.75) | EUR 3 at most |
 | Domain, DNS zone, logs, registry | EUR 3 |
 | **Total with public subnets** | **about EUR 68** |
 | Private subnets in the demo week | about EUR 9 a week for the NAT gateway plus data charges, and about EUR 3 a week less for the task IP addresses |

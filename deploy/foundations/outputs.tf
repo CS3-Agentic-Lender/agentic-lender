@@ -78,8 +78,13 @@ output "al_core_task_role_arn" {
 }
 
 output "al_core_keys_secret_arn" {
-  description = "The secret holding al-core's salt, Stripe keys and testnet wallet keys as JSON. The task definition pulls each key with <arn>:<KEY_NAME>::."
+  description = "The secret holding al-core's salt and Stripe keys as JSON. The task definition pulls each key with <arn>:<KEY_NAME>::."
   value       = aws_secretsmanager_secret.al_core_keys.arn
+}
+
+output "al_core_chain_keys_secret_arn" {
+  description = "The secret holding al-core's two testnet wallet keys as JSON. The task definition pulls each key with <arn>:<KEY_NAME>::."
+  value       = aws_secretsmanager_secret.al_core_chain_keys.arn
 }
 
 output "al_core_firebase_secret_arn" {

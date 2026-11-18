@@ -9,12 +9,13 @@
 # bucket. So Nic puts the values in by hand (deploy/README.md, "Filling the al-core secrets") and
 # Terraform never sees them.
 #
-# Two secrets:
-#   - agentic-lender/al-core/keys: one JSON object holding BORROWER_REF_SALT, STRIPE_SECRET_KEY,
-#     STRIPE_WEBHOOK_SECRET, CHAIN_MINTER_PRIVATE_KEY and CHAIN_REGISTRAR_PRIVATE_KEY. ECS can pull each
-#     one out of it into its own environment variable. The two chain keys only exist after the
-#     public-testnet deploy, so they're filled later. put-secret-value replaces the WHOLE JSON, so that
-#     later fill must hold all five values, not just the two new ones.
+# Three secrets:
+#   - agentic-lender/al-core/keys: one JSON object holding BORROWER_REF_SALT, STRIPE_SECRET_KEY and
+#     STRIPE_WEBHOOK_SECRET. ECS can pull each one out of it into its own environment variable.
+#   - agentic-lender/al-core/chain-keys: one JSON object holding CHAIN_MINTER_PRIVATE_KEY and
+#     CHAIN_REGISTRAR_PRIVATE_KEY, the testnet wallet keys. They only exist after the public-testnet
+#     deploy, so this one is filled later. It's its own secret because filling a secret replaces its
+#     whole JSON: kept apart, filling the wallet keys can never wipe the salt or the Stripe keys.
 #   - agentic-lender/al-core/firebase-service-account: the whole service account JSON file from Firebase,
 #     a separate key from al-ai's. ECS hands it to the container as FIREBASE_SERVICE_ACCOUNT_JSON;
 #     al-core's entrypoint (Solomon's change, in its own PR) writes it to /tmp/firebase-sa.json and
@@ -22,15 +23,22 @@
 #
 # The log group is here too, so `./deploy/al down` keeps the logs and the task definition only has to name it.
 #
-# Costs: USD 0.40 a month per secret, so USD 0.80 for both, plus USD 0.05 per 10,000 reads (one read per
+# Costs: USD 0.40 a month per secret, so USD 1.20 for all three, plus USD 0.05 per 10,000 reads (one read per
 # task start). Logs cost USD 0.57 per GB taken in; at our volume that's pennies.
 
 resource "aws_secretsmanager_secret" "al_core_keys" {
   name        = "agentic-lender/al-core/keys"
-  description = "al-core's borrower salt, Stripe keys and testnet wallet keys, as one JSON object. Filled by hand, never by Terraform."
+  description = "al-core's borrower salt and Stripe keys, as one JSON object. Filled by hand, never by Terraform."
 
   # A deleted secret can be restored for 7 days, so a mistaken destroy isn't the end of the keys.
   # (0 would delete it at once, with no way back.)
+  recovery_window_in_days = 7
+}
+
+resource "aws_secretsmanager_secret" "al_core_chain_keys" {
+  name        = "agentic-lender/al-core/chain-keys"
+  description = "al-core's two testnet wallet keys (minter and registrar), as one JSON object. Filled by hand, never by Terraform."
+
   recovery_window_in_days = 7
 }
 

@@ -39,12 +39,13 @@ data "aws_iam_policy_document" "al_core_execution" {
     resources = [aws_ecr_repository.service["al-core"].arn]
   }
 
-  # Reading al-core's two secrets, and no others. The secrets use AWS's own key, so no KMS permission is needed.
+  # Reading al-core's three secrets, and no others. The secrets use AWS's own key, so no KMS permission is needed.
   statement {
     sid     = "ReadTheAlCoreSecrets"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.al_core_keys.arn,
+      aws_secretsmanager_secret.al_core_chain_keys.arn,
       aws_secretsmanager_secret.al_core_firebase_service_account.arn,
     ]
   }
