@@ -16,7 +16,8 @@
 # it, and they have to keep running when this folder is torn down by `./deploy/al down`, which is just
 # when you'd still want them. The deploy role is also barred from AWS Budgets (foundations/guardrails.tf).
 #
-# Until the ECS tickets put tasks behind the load balancer, both health alarms sit in ALARM and email
+# The health alarms read the target groups, so they need no ECS names. al-ai's has a task behind it
+# since AL-230 (ecs.tf). Until al-core's ECS ticket does the same, its alarm sits in ALARM and emails
 # once. That's expected, and it proves the wiring works.
 #
 # Costs about EUR 0.40 a month: USD 0.10 per number an alarm watches. The two health alarms watch one

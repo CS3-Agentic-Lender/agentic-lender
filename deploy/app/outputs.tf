@@ -31,3 +31,13 @@ output "target_group_arns" {
   description = "Where ECS registers each service's tasks: ai (port 5001) and core (port 5002)."
   value       = { for name, group in aws_lb_target_group.service : name => group.arn }
 }
+
+output "ecs_cluster_name" {
+  description = "The ECS cluster both services run in."
+  value       = aws_ecs_cluster.main.name
+}
+
+output "al_ai_service_name" {
+  description = "The ECS service that keeps one al-ai task running behind /ai/*."
+  value       = aws_ecs_service.al_ai.name
+}

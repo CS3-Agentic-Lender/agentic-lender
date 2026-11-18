@@ -35,17 +35,21 @@ provider "aws" {
 
   # Every service this folder uses is listed here. One missing would go to real AWS by mistake.
   endpoints {
-    s3         = local.floci_url
-    iam        = local.floci_url
-    sts        = local.floci_url
-    route53    = local.floci_url
-    acm        = local.floci_url
-    ssm        = local.floci_url
-    ec2        = local.floci_url # the network and security groups
-    elbv2      = local.floci_url # the load balancer
-    wafv2      = local.floci_url # the WAF
-    cloudwatch = local.floci_url # the alarms
-    sns        = local.floci_url # looking up the alarm email list
+    s3             = local.floci_url
+    iam            = local.floci_url
+    sts            = local.floci_url
+    route53        = local.floci_url
+    acm            = local.floci_url
+    ssm            = local.floci_url
+    ec2            = local.floci_url # the network and security groups
+    elbv2          = local.floci_url # the load balancer
+    wafv2          = local.floci_url # the WAF
+    cloudwatch     = local.floci_url # the alarms
+    sns            = local.floci_url # looking up the alarm email list
+    ecs            = local.floci_url # the cluster, task definition and service
+    ecr            = local.floci_url # looking up the al-ai image registry
+    secretsmanager = local.floci_url # looking up al-ai's secrets (names and ARNs only)
+    logs           = local.floci_url # looking up al-ai's log group
   }
 
   # Stamped on every resource this folder makes, so the console and the bill can group them.
