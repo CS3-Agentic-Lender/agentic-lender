@@ -36,10 +36,11 @@ struct WelcomeView: View {
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("welcome.signIn")
             // Figma 01 Welcome: Google sits under Create account and Sign in, for new and returning borrowers.
-            // Only Debug builds have a Google sign-in (the emulator stand-in), so release builds hide it.
-            #if DEBUG
+            // The hosted build uses Google's own sign-in (AL-320); a local Debug build uses the emulator stand-in;
+            // a local Release build has neither, so it hides the button.
+            if Self.showsGoogle {
             Button(google.isWorking ? "Signing in with Google..." : "Continue with Google") {
-                isGoogleSheetShown = true
+                continueWithGoogle()
             }
             .buttonStyle(.bordered)
             .disabled(google.isWorking)
@@ -49,7 +50,7 @@ struct WelcomeView: View {
                     .font(.footnote)
                     .foregroundStyle(Theme.error)
             }
-            #endif
+            }
         }
         .padding()
         .navigationTitle("Welcome")
@@ -69,6 +70,22 @@ struct WelcomeView: View {
                 ProfileDetailsView(user: user, service: googleService)
             }
         }
+    }
+
+    #if DEBUG
+    private static let showsGoogle = true
+    #else
+    private static let showsGoogle = BackendTarget.current == .hosted
+    #endif
+
+    private func continueWithGoogle() {
+        if BackendTarget.current == .hosted {
+            Task { await google.continueWithGoogle(from: SDKGoogleTokenSource()) }
+            return
+        }
+        #if DEBUG
+        isGoogleSheetShown = true
+        #endif
     }
 
     private var destination: Binding<GoogleSignInViewModel.Destination?> {

@@ -15,5 +15,8 @@ AL_FIREBASE_APP_ID =
 AL_FIREBASE_SENDER_ID =
 // Stripe's publishable test key (pk_test_…) for the appraisal fee (AL-148), on local and hosted builds alike.
 AL_STRIPE_PUBLISHABLE_KEY =
+// Real Google sign-in on the hosted build (AL-320): CLIENT_ID and REVERSED_CLIENT_ID from the same plist.
+AL_GOOGLE_CLIENT_ID =
+AL_GOOGLE_REVERSED_CLIENT_ID =
 
 #include? "Hosted.xcconfig"

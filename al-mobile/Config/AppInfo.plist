@@ -12,5 +12,20 @@
 	<string>$(AL_FIREBASE_SENDER_ID)</string>
 	<key>ALStripePublishableKey</key>
 	<string>$(AL_STRIPE_PUBLISHABLE_KEY)</string>
+	<key>GIDClientID</key>
+	<string>$(AL_GOOGLE_CLIENT_ID)</string>
+	<key>ALGoogleReversedClientID</key>
+	<string>$(AL_GOOGLE_REVERSED_CLIENT_ID)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Google sign-in</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(AL_GOOGLE_REVERSED_CLIENT_ID)</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -19,6 +19,22 @@ final class FakeGoogleSignInService: GoogleSignInService, @unchecked Sendable {
     }
 }
 
+/// Stands in for Google's own sign-in (AL-320): a token, a cancel (nil) or a failure.
+@MainActor
+final class FakeGoogleTokenSource: GoogleTokenSource {
+    let result: Result<GoogleToken?, Error>
+    private(set) var asked = 0
+
+    init(_ result: Result<GoogleToken?, Error>) {
+        self.result = result
+    }
+
+    func token() async throws -> GoogleToken? {
+        asked += 1
+        return try result.get()
+    }
+}
+
 @MainActor
 final class GoogleSignInViewModelTests: XCTestCase {
     private let token = GoogleToken(idToken: "id-token", accessToken: "")
@@ -88,6 +104,47 @@ final class GoogleSignInViewModelTests: XCTestCase {
         service.signInResult = .success(.signedIn)
         await model.continueWithGoogle(token)
 
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(model.destination, .home)
+    }
+
+    // MARK: - Google's own sign-in on the hosted build (AL-320)
+
+    func testATokenFromGoogleGoesThroughTheSameSignIn() async {
+        let service = FakeGoogleSignInService()
+        service.signInResult = .success(.needsProfile(newUser))
+        let model = GoogleSignInViewModel(service: service)
+
+        await model.continueWithGoogle(from: FakeGoogleTokenSource(.success(token)))
+
+        XCTAssertEqual(service.tokens, [token])
+        XCTAssertEqual(model.destination, .profile(newUser))
+    }
+
+    func testCancellingGooglesSignInStaysOnWelcomeWithNoError() async {
+        let service = FakeGoogleSignInService()
+        let model = GoogleSignInViewModel(service: service)
+
+        await model.continueWithGoogle(from: FakeGoogleTokenSource(.success(nil)))
+
+        XCTAssertTrue(service.tokens.isEmpty, "nothing reaches Firebase")
+        XCTAssertNil(model.destination)
+        XCTAssertNil(model.errorMessage)
+        XCTAssertFalse(model.isWorking)
+    }
+
+    func testGoogleFailingShowsTheGoogleMessageAndCanBeTriedAgain() async {
+        struct GoogleRefused: Error {}
+        let service = FakeGoogleSignInService()
+        let model = GoogleSignInViewModel(service: service)
+
+        await model.continueWithGoogle(from: FakeGoogleTokenSource(.failure(GoogleRefused())))
+
+        XCTAssertTrue(service.tokens.isEmpty)
+        XCTAssertEqual(model.errorMessage, GoogleSignInViewModel.failureMessage)
+        XCTAssertFalse(model.isWorking)
+
+        await model.continueWithGoogle(from: FakeGoogleTokenSource(.success(token)))
         XCTAssertNil(model.errorMessage)
         XCTAssertEqual(model.destination, .home)
     }
