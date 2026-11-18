@@ -18,6 +18,10 @@ services:
       FIREBASE_PROJECT_ID: demo-al
       FIREBASE_AUTH_EMULATOR_HOST: host.docker.internal:9099
       FIRESTORE_EMULATOR_HOST: host.docker.internal:8080
+      # The fast-track fee (Stripe test mode). From your shell, or from a .env file next to this one (Compose reads it on its own).
+      # Empty by default: without them the fee endpoint answers 503. See "The fast-track fee" in al-core/README.md.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
 
   gateway:
     image: nginx:1.27-alpine

@@ -342,6 +342,15 @@ $w = Read-Host "Webhook signing secret (whsec_...)" -AsSecureString
 $env:STRIPE_WEBHOOK_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($w))
 ```
 
+In bash or zsh (macOS and Linux), the same, with the typing hidden:
+
+```bash
+printf "Stripe secret key (sk_test_...): "; read -rs STRIPE_SECRET_KEY; echo; export STRIPE_SECRET_KEY
+printf "Webhook signing secret (whsec_...): "; read -rs STRIPE_WEBHOOK_SECRET; echo; export STRIPE_WEBHOOK_SECRET
+```
+
+**On the Docker stack** (`docker compose up -d --build` from the repo root, with the emulators running), the `al-core` container gets both settings from the shell you start it in, or from a `.env` file next to `docker-compose.yml` (Compose reads it on its own; it is gitignored). Set them first, with the lines above, then start the stack in the same shell; without them the fee endpoint answers 503. Nothing is baked into the image. The API is on `localhost:5002` (and behind the gateway on `localhost:8000`), so `stripe listen` forwards to `localhost:5002/core/webhooks/stripe` as below. After changing a setting, run `docker compose up -d al-core` again so the container picks it up.
+
 To try it locally, with the emulators and the API running (see "Running the API"):
 
 ```bash
