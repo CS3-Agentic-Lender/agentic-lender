@@ -214,9 +214,19 @@ final class FeeTests: XCTestCase {
         let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .success(intent)), publishableKey: "pk_test_x")
         await model.pay()
 
-        model.sheetFinished(.failed)
+        model.sheetFinished(.failed(reason: "This PaymentIntent's status is succeeded"))
 
         XCTAssertEqual(model.state, .failed(FeeViewModel.couldNotStart))
+    }
+
+    func testTheSheetsOwnReasonIsKeptForTheLog() async {
+        // On 18 Nov the sheet refused an intent that was already paid, and the app said only "couldn't start".
+        let model = FeeViewModel(applicationID: "app-applied", service: FakeFeeService(result: .success(intent)), publishableKey: "pk_test_x")
+        await model.pay()
+
+        model.sheetFinished(.failed(reason: "This PaymentIntent's status is succeeded"))
+
+        XCTAssertEqual(model.lastSheetFailure, "This PaymentIntent's status is succeeded")
     }
 
     // MARK: - The receipt (Figma 18)

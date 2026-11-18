@@ -180,7 +180,7 @@ struct FeeView: View {
         switch result {
         case .completed: .completed
         case .canceled: .canceled
-        case .failed: .failed
+        case .failed(let error): .failed(reason: error.localizedDescription)
         }
     }
 }

@@ -7,7 +7,8 @@ import os
 enum FeeSheetResult: Equatable {
     case completed
     case canceled
-    case failed
+    /// The sheet couldn't take the payment; `reason` is Stripe's own message, for the log only.
+    case failed(reason: String)
 }
 
 /// The receipt once al-core's webhook has marked the fee paid (Figma 18).
@@ -53,6 +54,8 @@ final class FeeViewModel {
     static let confirmingSeconds: Double = 20
 
     private(set) var state: State = .ready
+    /// Stripe's reason the last time its sheet failed. The borrower sees `couldNotStart`; this goes to the log.
+    private(set) var lastSheetFailure: String?
     let applicationID: String
     let publishableKey: String?
 
@@ -103,7 +106,10 @@ final class FeeViewModel {
             paymentTaken = true
             state = .confirming(stillWaiting: false)
         case .canceled: state = .ready
-        case .failed: state = .failed(Self.couldNotStart)
+        case .failed(let reason):
+            lastSheetFailure = reason
+            logger.error("Stripe's payment sheet failed: \(reason, privacy: .public)")
+            state = .failed(Self.couldNotStart)
         }
     }
 
