@@ -65,6 +65,8 @@ No `GoogleService-Info.plist` or API key is needed: local development uses the `
 
 ## Demo build
 
+The demo runs on the iOS Simulator on the presenting Mac; an iPhone through Xcode (below) is the alternative. There is no App Store or TestFlight build, since that needs a paid Apple Developer account.
+
 The `AL_BACKEND` build setting picks the backend: `LOCAL` (the default) uses the emulators and the local gateway above, and `HOSTED` uses the hosted Firebase project and the deployed API at `https://api.agentic-lender.com`. It's built into the app, so it holds when the app is opened from the home screen.
 
 ```bash
