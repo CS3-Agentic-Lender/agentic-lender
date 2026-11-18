@@ -1,0 +1,13 @@
+// The app target's base settings (AL-184).
+//
+// The hosted Firebase settings are declared empty here and filled in by the gitignored Hosted.xcconfig
+// next to this file, which only a machine that builds the demo (AL_BACKEND=HOSTED) needs. Copy
+// Hosted.example.xcconfig to Hosted.xcconfig and fill it in from the hosted project's iOS app.
+// AppInfo.plist passes these settings into the app's Info.plist.
+
+AL_FIREBASE_PROJECT_ID =
+AL_FIREBASE_API_KEY =
+AL_FIREBASE_APP_ID =
+AL_FIREBASE_SENDER_ID =
+
+#include? "Hosted.xcconfig"

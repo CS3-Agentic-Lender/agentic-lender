@@ -1,0 +1,7 @@
+// Copy to Hosted.xcconfig (gitignored) and fill in from the hosted Firebase project's iOS app
+// (its GoogleService-Info.plist). Never commit the filled-in copy: the repo is public.
+
+AL_FIREBASE_PROJECT_ID =
+AL_FIREBASE_API_KEY =
+AL_FIREBASE_APP_ID =
+AL_FIREBASE_SENDER_ID =

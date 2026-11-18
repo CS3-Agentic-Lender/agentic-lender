@@ -2,3 +2,6 @@
 xcuserdata/
 DerivedData/
 *.xcuserstate
+
+# Hosted Firebase settings for the demo build (AL-184): copy Config/Hosted.example.xcconfig
+Config/Hosted.xcconfig
