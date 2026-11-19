@@ -1,3 +1,4 @@
 # PDFs made by xhtml2pdf contain no NUL bytes, so git would treat them as text and
 # core.autocrlf would rewrite their line endings on Windows, breaking the xref offsets.
 *.pdf binary
+al-core/entrypoint.sh text eol=lf
