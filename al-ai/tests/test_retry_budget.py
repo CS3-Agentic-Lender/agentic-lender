@@ -1,6 +1,7 @@
 """Bounded retries, the run's time budget and re-runs (AL-139). Fake providers and a fake clock: no network, no keys, no waiting."""
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -171,6 +172,31 @@ def test_only_a_failed_run_can_be_re_run():
     deps = committee.Deps(store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate)
     with pytest.raises(ValueError, match="did not fail"):
         committee.rerun_committee(complete, tc.MORTGAGE, deps=deps)
+
+
+def running_record(minutes_ago: float, now: datetime) -> dict:
+    """A run that was claimed and never finished: the task stopped part-way (a deploy, a crash), so no end was saved (AL-327)."""
+    record, _, _ = tc.go(tc.MORTGAGE)
+    return {**record, "status": "running", "started_at": (now - timedelta(minutes=minutes_ago)).isoformat(), "finished_at": None}
+
+
+NOW = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
+
+
+def test_a_run_left_running_for_more_than_ten_minutes_can_be_re_run_like_a_failed_one():
+    stale = running_record(11, NOW)
+    deps = committee.Deps(
+        store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate, today=tc.TODAY,
+        agents=tc.AGENTS, transport=tc.Providers(), env=tc.ENV, sleep=lambda s: None,
+    )
+    again = committee.rerun_committee(stale, tc.MORTGAGE, deps=deps, now=NOW)
+    assert again["status"] == "complete" and again["rerun_of"] == stale["run_id"]
+
+
+def test_a_run_still_running_inside_ten_minutes_cannot_be_re_run():
+    deps = committee.Deps(store=tc.MemoryRunStore(), report_store=tc.a_report_for_today(), get_rate=tc.get_rate)
+    with pytest.raises(ValueError, match="still running"):
+        committee.rerun_committee(running_record(9, NOW), tc.MORTGAGE, deps=deps, now=NOW)
 
 
 def test_a_first_run_is_not_linked_to_anything():

@@ -347,13 +347,18 @@ def run_committee(application: dict, *, deps: Deps, application_id: str, run_id:
     return final["record"]
 
 
-def rerun_committee(failed: dict, application: dict, *, deps: Deps) -> dict:
+def rerun_committee(failed: dict, application: dict, *, deps: Deps, now: datetime | None = None) -> dict:
     """Run the committee again for a failed run: a new run ID, linked to the failed one. The failed record is left as it is.
 
     The record holds no application figures, so the caller hands in the application again (the Firestore document, by application_id).
-    Only a failed run can be re-run: a complete one stands until an underwriter makes a decision on it.
+    Only a failed run, or a stale one (still running long after its budget ran out, AL-327), can be re-run: a complete one stands
+    until an underwriter makes a decision on it, and a run that is still going may yet finish.
     """
-    if failed.get("status") != "failed":
+    if failed.get("status") == "running":
+        started = failed.get("started_at")
+        if not retry_policy.is_stale(datetime.fromisoformat(started) if started else None, now or datetime.now(UTC)):
+            raise ValueError(f"run {failed.get('run_id')} is still running, so it cannot be re-run yet")
+    elif failed.get("status") != "failed":
         raise ValueError(f"run {failed.get('run_id')} did not fail, so it cannot be re-run")
     return run_committee(application, deps=deps, application_id=failed["application_id"], rerun_of=failed["run_id"])
 
