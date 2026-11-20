@@ -6,8 +6,11 @@ the caps are in place before those libraries are imported. A value already set w
 still works. Tests only: the app and the training scripts are not capped.
 """
 
+import logging
 import os
 from collections.abc import MutableMapping
+
+import pytest
 
 TEST_THREADS = 2
 THREAD_VARIABLES = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "LOKY_MAX_CPU_COUNT")
@@ -20,3 +23,15 @@ def cap_threads(environ: MutableMapping[str, str]) -> None:
 
 
 cap_threads(os.environ)
+
+
+@pytest.fixture(autouse=True)
+def undo_the_start_up_logging():
+    """The app's start-up gives the al-ai.requests logger its own stdout handler (app/request_log.py). Undo that after each
+    test, so a test that runs the start-up (`with TestClient(app)`) doesn't change the logging of the tests after it."""
+    requests_log = logging.getLogger("al-ai.requests")
+    handlers, level, propagate = list(requests_log.handlers), requests_log.level, requests_log.propagate
+    yield
+    requests_log.handlers[:] = handlers
+    requests_log.setLevel(level)
+    requests_log.propagate = propagate

@@ -12,8 +12,8 @@
 # The path is passed through unchanged, and both services already serve everything under /ai and
 # /core (APIRouter(prefix=...)), so no code change is needed in either.
 #
-# The target groups are empty until the ECS tickets register tasks in them, so until then /ai/* and
-# /core/* answer 503. That's expected: it shows HTTPS and routing work with nothing behind them yet.
+# ECS registers each service's tasks in its target group: al-ai's since AL-230 (ecs.tf). Until al-core's
+# ECS ticket, /core/* answers 503. That's expected: it shows HTTPS and routing work with nothing behind it.
 #
 # Costs about EUR 18 a month for the load balancer and EUR 7 for its two public IPv4 addresses.
 # Target groups, listeners, rules and the alias record are free.
@@ -100,7 +100,7 @@ resource "aws_lb_target_group" "service" {
     matcher             = "200"
     interval            = 15
     timeout             = 5
-    healthy_threshold   = 2 # 2 passes in a row (30 seconds) to count as healthy
+    healthy_threshold   = 2 # a new task needs 1 pass to get traffic; a task that went unhealthy needs 2 in a row to come back
     unhealthy_threshold = 3 # 3 failures in a row (45 seconds) to count as unhealthy
   }
 }

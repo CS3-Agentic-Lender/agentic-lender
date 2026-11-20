@@ -1,0 +1,2 @@
+# The entrypoint runs in a Linux container, so it must keep LF line endings even on a Windows checkout.
+entrypoint.sh text eol=lf

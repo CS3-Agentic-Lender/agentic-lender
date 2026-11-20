@@ -8,7 +8,7 @@ Everything that puts AL on AWS, written in Terraform. The design and the costs a
 | Folder | What's in it | Run by | Removed by `down`? |
 |---|---|---|---|
 | `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
-| `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, ECS services (added by later tickets) | `./deploy/al` | Yes |
+| `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, the ECS cluster and the al-ai service (al-core's comes later) | `./deploy/al` | Yes |
 
 Each `.tf` file holds one idea and starts with a comment saying what it creates, why, and what it costs.
 
@@ -38,12 +38,13 @@ deploy/
 └── app/
     ├── versions.tf, variables.tf, providers.tf, backend.tf, outputs.tf
     ├── release.tf              which build is deployed
-    ├── lookups.tf              finds the zone, certificate and alarm list foundations made
+    ├── lookups.tf              finds what foundations made: zone, certificate, alarm list, al-ai's registry, secrets, roles, log group
     ├── network.tf              the VPC and two public subnets
     ├── security-groups.tf      the load balancer may talk to the tasks, nothing else may
     ├── load-balancer.tf        HTTPS front door, /ai/* and /core/* rules, api.agentic-lender.com
     ├── waf.tf                  rate limits and AWS's common-attack rules
-    └── alarms.tf               emails when a service is down or 5xx errors pile up
+    ├── alarms.tf               emails when a service is down or 5xx errors pile up
+    └── ecs.tf                  the ECS cluster, al-ai's task definition and its service behind /ai/*
 ```
 
 ## The four commands
@@ -57,6 +58,43 @@ deploy/
 
 Each one lists what it will change in plain words and asks first. It applies exactly the plan you
 saw. Add `--floci` to any of them to practise on Floci.
+
+## Deploying al-ai
+
+`./deploy/al deploy <commit>` builds or updates everything in `app/` with that build. For al-ai that
+means a new task definition for the image `agentic-lender/al-ai:<commit>`, and the ECS service swapping
+the running task for one from it:
+
+1. ECS starts the new task next to the old one, in a public subnet, as the two roles from
+   `foundations/al-ai-roles.tf`. Its four API keys and its Firebase service account come from
+   Secrets Manager; `al-ai/entrypoint.sh` writes the service account to a file at start-up.
+2. The task goes into the `ai` target group. Once `/ai/health` answers 200 (one pass is enough for a
+   new task), the load balancer sends it `/ai/*` and the old task stops. A failed check in the first 2 minutes doesn't
+   count, while the model loads.
+3. If the new task keeps failing, the deployment circuit breaker rolls the service back to the last
+   build that worked, by itself. `terraform apply` doesn't wait for any of this, so check (below).
+
+`<commit>` must be a commit on `main` whose images the Images workflow has pushed (below). Use the
+**full** commit id: that's the tag CI pushes, and ECR has no short-id tags. Both secrets must be filled
+first ([Filling the al-ai secrets](#filling-the-al-ai-secrets)), or the task can't start.
+
+Check it, a few minutes after the apply:
+
+```sh
+curl -i https://api.agentic-lender.com/ai/health   # 200 {"status":"ok"}, with an x-request-id header
+open https://api.agentic-lender.com/ai/docs        # the API docs, in a browser, over HTTPS
+```
+
+Every request writes one JSON line to the `/agentic-lender/al-ai` log group (kept 14 days): its
+request id, method, path, status, time taken and, on a crash, the error's class name. Only that line:
+the agents' own INFO lines hold user ids and figures, so they stay out (`al-ai/app/request_log.py`),
+and uvicorn adds its own stack trace when something crashes. To find a call, search the log group for the `x-request-id` from its response or error body
+(Console: CloudWatch, then Log groups). A service that won't start shows why under ECS, then the
+`agentic-lender` cluster, then the `al-ai` service, then Events.
+
+**Run `./deploy/al down` when you've finished testing.** The task, the load balancer and the WAF are
+billed by the hour: about EUR 17 a month for the al-ai task and EUR 3.50 for its public IP, on top of
+the EUR 32 or so for the load balancer and WAF. `./deploy/al up` brings the same build back.
 
 ## Images
 

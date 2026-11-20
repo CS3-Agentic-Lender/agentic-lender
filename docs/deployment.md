@@ -15,7 +15,7 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Piece | Where it runs | Status |
 |---|---|---|
 | Web portal | Firebase Hosting at `app.<domain>` | Planned |
-| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each | Planned |
+| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each | al-ai written (`deploy/app/ecs.tf`), al-core planned |
 | Front door | Route 53 resolves `api.<domain>` to one Application Load Balancer, which has a WAF attached | Planned |
 | Container images | Amazon ECR, ARM64 images built only by GitHub Actions (section 6) | Planned |
 | Secrets | AWS Secrets Manager | Planned |
@@ -103,7 +103,7 @@ AWS groups good cloud design into six pillars. This table records AL's plans for
 | **Security** | HTTPS only, using a free AWS certificate. The WAF has a rate limit. The task security group accepts traffic only from the load balancer. Secrets stay in Secrets Manager. Each task role gets only the access it needs, such as one Bedrock model. Every call checks its Firebase token. Client Firestore rules allow reads only; each service's IAM role and endpoint checks limit its Firestore access. People use SSO and MFA to sign in. GitHub deploys with a short-lived role that trusts this repository only. Every commit gets a secret scan | GuardDuty and Security Hub are excluded because they add cost. During the Sprint 3 test run, tasks have public IPs and can make HTTPS calls to any address, which is broader than private subnets. If the budget allows, private subnets with a NAT gateway will close that gap in demo week |
 | **Reliability** | The load balancer uses two availability zones and checks task health. ECS replaces a task if it stops or fails a health check. The services store no state; Firebase holds the data. Recovery means rebuilding with Terraform. The team will time that rebuild before the demo | Each service has one task in one zone, so a zone failure or task replacement causes downtime. A second task in each zone would double compute costs. There is no blue/green release (section 3) |
 | **Performance efficiency** | The ML model stays loaded in memory. Tasks start small (al-ai 0.5 vCPU and 2 GB, al-core 0.25 vCPU and 0.5 GB), then are resized after memory and load are measured. Firebase Hosting serves the portal through a CDN. Region eu-west-1 is close to Cork | There is no autoscaling, since only a handful of users are expected at the demo |
-| **Cost optimization** | The services share one load balancer. Task counts stay fixed. There is no NAT gateway in the test run. Logs are kept 7 days, and budget alerts are enabled. Hourly resources are removed after the demo. Firebase stays on its free tier | Reserved capacity and savings plans do not fit a deployment that runs for days |
+| **Cost optimization** | The services share one load balancer. Task counts stay fixed. There is no NAT gateway in the test run. Logs are kept 14 days, and budget alerts are enabled. Hourly resources are removed after the demo. Firebase stays on its free tier | Reserved capacity and savings plans do not fit a deployment that runs for days |
 | **Sustainability** | Tasks have small fixed sizes. The deployment uses one region and is removed after the demo | There are no separate measurements. Turning off unneeded resources is the main saving |
 
 ## 6. How a deploy runs
