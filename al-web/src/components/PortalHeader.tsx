@@ -48,6 +48,9 @@ export function PortalHeader() {
             <NavLink className={navLinkClass} to="/underwriter/pipeline">
               Pipeline
             </NavLink>
+            <NavLink className={navLinkClass} to="/underwriter/stress">
+              Stress test
+            </NavLink>
           </nav>
         ) : null}
         <button

@@ -11,6 +11,7 @@ import { ClientDetailPage } from './pages/broker/ClientDetailPage';
 import { ClientsPage } from './pages/broker/ClientsPage';
 import { MessagesPage } from './pages/broker/MessagesPage';
 import { PipelinePage } from './pages/underwriter/PipelinePage';
+import { RateShockPage } from './pages/underwriter/RateShockPage';
 
 export const appRoutes: RouteObject[] = [
   { path: '/', element: <Navigate replace to="/login" /> },
@@ -47,6 +48,7 @@ export const appRoutes: RouteObject[] = [
           </PipelineProvider>
         ),
       },
+      { path: '/underwriter/stress', element: <RateShockPage /> },
       { path: '/underwriter/applications/:applicationId', element: <LoanFilePage viewer="underwriter" /> },
     ],
   },

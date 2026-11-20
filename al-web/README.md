@@ -38,6 +38,12 @@ A production build needs `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
 `src/services/firebase.ts` throws when the app loads, so the page stays blank and the error is only
 in the browser console. Set all four before building for deployment.
 
+The portal calls two APIs. `VITE_API_BASE_URL` is al-core (sign-off, minting, the audit pack,
+messages; `http://localhost:8000` by default) and `VITE_AI_BASE_URL` is al-ai (the rate shock on
+the Stress test page; `http://localhost:5001` by default). On AWS both are served by the same gateway
+under `/core` and `/ai`, so a deployed build sets both to that gateway's address. al-ai only accepts
+calls from the portal's origin (`CORS_ALLOWED_ORIGINS`, `http://localhost:5173` by default).
+
 Then start the web app:
 
 ```sh
