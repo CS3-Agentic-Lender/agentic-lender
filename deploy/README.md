@@ -8,7 +8,7 @@ Everything that puts AL on AWS, written in Terraform. The design and the costs a
 | Folder | What's in it | Run by | Removed by `down`? |
 |---|---|---|---|
 | `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
-| `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, the ECS cluster and the al-ai service (al-core's comes later) | `./deploy/al` | Yes |
+| `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, the ECS cluster and the al-ai and al-core services | `./deploy/al` | Yes |
 
 Each `.tf` file holds one idea and starts with a comment saying what it creates, why, and what it costs.
 
@@ -38,13 +38,13 @@ deploy/
 └── app/
     ├── versions.tf, variables.tf, providers.tf, backend.tf, outputs.tf
     ├── release.tf              which build is deployed
-    ├── lookups.tf              finds what foundations made: zone, certificate, alarm list, al-ai's registry, secrets, roles, log group
+    ├── lookups.tf              finds what foundations made: zone, certificate, alarm list, each service's registry, secrets, roles, log group
     ├── network.tf              the VPC and two public subnets
     ├── security-groups.tf      the load balancer may talk to the tasks, nothing else may
     ├── load-balancer.tf        HTTPS front door, /ai/* and /core/* rules, api.agentic-lender.com
     ├── waf.tf                  rate limits and AWS's common-attack rules
     ├── alarms.tf               emails when a service is down or 5xx errors pile up
-    └── ecs.tf                  the ECS cluster, al-ai's task definition and its service behind /ai/*
+    └── ecs.tf                  the ECS cluster and both services: al-ai behind /ai/*, al-core behind /core/*
 ```
 
 ## The four commands
