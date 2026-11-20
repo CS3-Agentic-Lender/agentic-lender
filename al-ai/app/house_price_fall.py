@@ -86,7 +86,7 @@ def _flags(ltv: float) -> dict:
 def _result(loan: Loan, fall_pct: int) -> dict:
     value, basis = starting_value(loan)
     amount = _loan_amount(loan)
-    new_value = value * (1 - fall_pct / 100)
+    new_value = value * (100 - fall_pct) / 100  # not value * (1 - fall_pct / 100): that is inexact and tips a loan on exactly 80% or 90% over the line
     before, after = _ltv(loan, value), _ltv(loan, new_value)
     return {
         "application_id": loan.application_id,

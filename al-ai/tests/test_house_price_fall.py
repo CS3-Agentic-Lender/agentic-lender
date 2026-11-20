@@ -64,6 +64,32 @@ def test_a_zero_fall_leaves_before_and_after_the_same():
     assert r["after"]["property_value_eur"] == r["starting_value_eur"]
 
 
+@pytest.mark.parametrize("asking, loan, fall, band", [
+    (165_000, 92_400, 30, 80),  # 165,000 less 30% is 115,500: 92,400 is exactly 80%
+    (164_000, 91_840, 30, 80),  # 114,800: 91,840 is exactly 80%
+    (200_000, 126_000, 30, 90),  # 140,000: 126,000 is exactly 90%
+])
+def test_a_loan_that_lands_exactly_on_80_or_90_after_the_fall_is_not_above_it(asking, loan, fall, band):
+    # value * (1 - fall / 100) is inexact in floating point and used to tip these over the line while showing 80.0 or 90.0.
+    after = first([mortgage(loan_eur=loan, asking_price_eur=asking, estimate_eur=None)], fall)["after"]
+    assert after["ltv_pct"] == float(band)
+    assert after["above_80"] is (band == 90) and after["above_90"] is False
+
+
+def test_the_flags_agree_with_the_shown_ltv_on_every_whole_euro_boundary():
+    # Every whole-euro loan that lands on exactly 80% or 90% after a fall, for prices 100,000 to 1,000,000 in 1,000 steps.
+    for price in range(100_000, 1_000_001, 1_000):
+        for fall in range(0, 41, 5):
+            value = price * (100 - fall) // 100
+            if price * (100 - fall) % 100:
+                continue
+            for band in (80, 90):
+                if value * band % 100:
+                    continue
+                after = first([mortgage(loan_eur=value * band // 100, asking_price_eur=price, estimate_eur=None)], fall)["after"]
+                assert after["ltv_pct"] == float(band) and not after["above_90"] and after["above_80"] is (band == 90), (price, fall, band)
+
+
 # ---- the lower-of rule is the one the loan file and the committee use ------------------------
 
 @pytest.mark.parametrize("asking, estimate", [(300_000, 320_000), (300_000, 280_000), (300_000, 300_000), (250_000, None)])
