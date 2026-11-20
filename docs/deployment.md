@@ -15,7 +15,7 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Piece | Where it runs | Status |
 |---|---|---|
 | Web portal | Firebase Hosting at `app.<domain>` | Planned |
-| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each | al-ai written (`deploy/app/ecs.tf`), al-core planned |
+| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each | al-ai and al-core written (`deploy/app/ecs.tf`) |
 | Front door | Route 53 resolves `api.<domain>` to one Application Load Balancer, which has a WAF attached | Planned |
 | Container images | Amazon ECR, ARM64 images built only by GitHub Actions (section 6) | Planned |
 | Secrets | AWS Secrets Manager | Planned |
