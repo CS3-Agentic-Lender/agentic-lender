@@ -3,9 +3,13 @@
 A provider error that may clear is retried at most twice, after 2 s and then 8 s, or after the provider's Retry-After if that is
 longer. A reply the check rejects gets one repair attempt. One call may take 60 s. The whole run has a 5 minute budget: when it
 runs out the step stops asking, the run is saved as failed, and no recommendation is made.
+
+A run still marked running twice the budget after it started is stale (AL-327): the task running it stopped part-way (a
+deploy replaced it, or it crashed), so nothing will ever finish it. A stale run can be re-run like a failed one.
 """
 
 import time
+from datetime import datetime
 from typing import Callable
 
 INVALID_REPLY_RETRIES = 1
@@ -13,6 +17,7 @@ PROVIDER_RETRIES = 2
 BACKOFF_S = (2.0, 8.0)
 CALL_TIMEOUT_S = 60.0
 RUN_BUDGET_S = 300.0
+STALE_AFTER_S = 2 * RUN_BUDGET_S  # 10 minutes: a live run has given up on its budget long before this
 
 
 class Budget:
@@ -42,3 +47,12 @@ def pause_before_retry(retries_done: int, retry_after: float | None, budget: Bud
     if budget is not None and pause >= budget.remaining():
         return None
     return pause
+
+
+def is_stale(started_at: datetime | None, now: datetime) -> bool:
+    """True when a run that is still marked running started more than STALE_AFTER_S before `now`.
+
+    A running run with no start time counts as stale: the claim writes the start with the running status, so a run without
+    one was never started properly and nothing is going to finish it.
+    """
+    return started_at is None or (now - started_at).total_seconds() > STALE_AFTER_S

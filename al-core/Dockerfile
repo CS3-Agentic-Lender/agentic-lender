@@ -5,6 +5,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --locked --no-dev
 COPY app ./app
+COPY entrypoint.sh /app/entrypoint.sh
 
 # Run as a user with no login and no shell, not as root. The packages stay root-owned and read-only to it.
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin al
@@ -20,4 +21,6 @@ EXPOSE 5002
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5002/core/health', timeout=3)"]
 
+# Writes FIREBASE_SERVICE_ACCOUNT_JSON to a file when it is set, then runs the command below.
+ENTRYPOINT ["sh", "/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5002"]

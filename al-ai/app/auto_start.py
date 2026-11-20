@@ -7,9 +7,19 @@ background thread. The design is the one Dumi agreed on the ticket:
   claim    `aiRunStatus = "running"` and `aiRunId = <run id>` on the application, and the `ai_runs/{runId}` document, in one transaction.
            Only an application with no `aiRunStatus` is claimed: a `failed` one is not started again by the listener (that would loop
            for ever on an outage), it is re-run on purpose with `rerun`.
+  stale    a run still `running` more than retry_policy.STALE_AFTER_S (10 minutes, twice the run budget) after its `startedAt`.
+           The task running it stopped part-way (a deploy replaced it, or it crashed), so nothing will finish it. The listener
+           sweeps for stale runs once at start and every SWEEP_EVERY_S, and a stale run can be re-run like a failed one. Either
+           way the claim, in one transaction, reads the application and the run again, marks the stale run failed with
+           failureReason `interrupted`, and starts the new run with rerunOf pointing at it, so two listeners start it only once.
   finish   a complete run sets `aiRunStatus = "complete"`, moves `status` to `AI Deliberated` and appends the `statusHistory` entry in
-           the same write. A failed run sets `aiRunStatus = "failed"`, leaves `status` at `Applied` and adds no entry.
+           the same write. A failed run sets `aiRunStatus = "failed"`, leaves `status` at `Applied` and adds no entry. A run whose
+           `ai_runs` document has already ended (an `interrupted` one that finishes late) writes nothing.
   reason   the failure reason is on the `ai_runs` document, never on the application: the borrower can read their application.
+           `interrupted` means the run was stale and was replaced (its failedStep is `run`).
+  stop     when the service is told to stop, the listener stops watching and sweeping, and claims nothing more (a claim in its
+           transaction is let finish; one still fetching its rate is refused). A run already going is not waited for: if it
+           does not finish before the task stops, it becomes stale and is reclaimed.
 
 The claim writes the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
 failedStep and failureReason. The finish adds the agents, the credit memo, the recommendations and the consensus (AL-62, see
@@ -22,7 +32,7 @@ import logging
 import os
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Callable
 
@@ -30,7 +40,7 @@ from google.cloud import firestore
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail, risk_tier
+from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail, retry_policy, risk_tier
 from app import market_agent as ma
 
 log = logging.getLogger("al-ai.auto-start")
@@ -38,6 +48,8 @@ log = logging.getLogger("al-ai.auto-start")
 APPLICATIONS, AI_RUNS = "applications", "ai_runs"
 APPLIED, AI_DELIBERATED = "Applied", "AI Deliberated"
 TRANSACTION_ATTEMPTS = 10  # the client retries a transaction that lost a fight over the document (the default is 5, which four claims at once can use up)
+INTERRUPTED = "interrupted"  # the failureReason of a stale run: the task running it stopped part-way, so it never finished
+SWEEP_EVERY_S = 60.0  # how often the listener looks for stale runs; a stale run waits at most this long past STALE_AFTER_S
 WORKERS = 2  # committee runs at once in one service: each makes several provider calls, so a small number keeps us inside their rate limits
 
 DepsFactory = Callable[[committee.RunStore], committee.Deps]
@@ -47,7 +59,9 @@ ExtraFields = Callable[[dict], dict]  # the application as the claim read it -> 
 def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, extra_fields: ExtraFields | None = None, now: datetime | None = None) -> dict | None:
     """Take the application for one run. Returns the application document, or None when someone else already has it (or it is not Applied).
 
-    A first run needs an application that has never had an AI run. A re-run (`rerun_of`) needs one whose last run is that failed run.
+    A first run needs an application that has never had an AI run. A re-run (`rerun_of`) needs one whose last run is that run,
+    and that run failed or is stale; a stale run is marked failed (`interrupted`) in the same transaction. `now` is the new run's
+    start, and the time staleness is judged by.
     `extra_fields` works out more fields from the application as this transaction read it, and they are written in the same
     transaction: the place the approval likelihood fields go (AL-63). It runs inside the transaction function, which Firestore
     may run again on a retry, including attempts that then lose: so it must be a pure calculation with no other side effects.
@@ -65,11 +79,20 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
             return None
         if rerun_of is None and data.get("aiRunStatus") is not None:
             return None
-        if rerun_of is not None and (data.get("aiRunStatus") != "failed" or data.get("aiRunId") != rerun_of):
-            return None
+        stale = None
+        if rerun_of is not None:
+            if data.get("aiRunId") != rerun_of or data.get("aiRunStatus") not in ("failed", "running"):
+                return None
+            if data.get("aiRunStatus") == "running":
+                stale = db.collection(AI_RUNS).document(rerun_of)
+                held = stale.get(transaction=transaction)
+                if not run_is_stale(held.to_dict() if held.exists else None, started):
+                    return None  # the run that holds it may still finish: leave it alone
         update = {"aiRunStatus": "running", "aiRunId": run_id, "updatedAt": SERVER_TIMESTAMP, **(extra_fields(data) if extra_fields else {})}
         if data.get("loanType") == "mortgage" and "ltvPct" in data:
             update["ltvPct"] = DELETE_FIELD
+        if stale is not None:
+            transaction.set(stale, {"status": "failed", "finishedAt": started, "failedStep": "run", "failureReason": INTERRUPTED}, merge=True)
         transaction.update(application, update)
         transaction.set(run, {
             "applicationId": application_id, "brokerId": data.get("brokerId"), "status": "running",
@@ -81,6 +104,12 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
     return take(db.transaction(max_attempts=TRANSACTION_ATTEMPTS))
 
 
+def run_is_stale(run: dict | None, now: datetime) -> bool:
+    """True when an `ai_runs` document is still running past retry_policy.STALE_AFTER_S. A missing document or start time counts as stale."""
+    run = run or {}
+    return run.get("status", "running") == "running" and retry_policy.is_stale(run.get("startedAt"), now)
+
+
 def finish(db, record: dict, *, now: datetime | None = None) -> None:
     """Write the end of a run: its `ai_runs` document, and the application's `aiRunStatus` (and, if it is complete, its status).
 
@@ -90,7 +119,9 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     AL-301), in the same transaction; a failed run leaves the figures from submit and writes no tier. The run document also
     gets the reasoning trail (AL-62): each agent's report and vote, the credit memo, the recommendations and the consensus.
     A run that reached the policy gate saves the gate's result on its `ai_runs` document and on `review/underwriting` (AL-305),
-    in the same transaction; a replaced run saves it on its own `ai_runs` document only.
+    in the same transaction; a replaced run saves it on its own `ai_runs` document only. A run whose `ai_runs` document is no
+    longer `running` has already ended (most often a stale run marked `interrupted` when it was reclaimed, AL-327): nothing is
+    written, so a late finish cannot undo that.
     """
     run_id, application_id = record["run_id"], record["application_id"]
     application = db.collection(APPLICATIONS).document(application_id)
@@ -103,6 +134,11 @@ def finish(db, record: dict, *, now: datetime | None = None) -> None:
     @firestore.transactional
     def write(transaction):
         data = application.get(transaction=transaction).to_dict() or {}
+        held = run.get(transaction=transaction)
+        if not held.exists or (held.to_dict() or {}).get("status") != "running":
+            # already ended: a stale run that was reclaimed (`interrupted`), or a run finished twice. Its end stands as written.
+            log.warning("run %s for %s has already ended, so its late %s finish is not saved", run_id, application_id, record["status"])
+            return
         transaction.update(run, {
             "status": record["status"], "finishedAt": finished,
             "failedStep": record["failed_step"], "failureReason": record["failure_reason"],
@@ -258,19 +294,45 @@ def risk_on_finish(record: dict):
     return write
 
 
-def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None) -> dict | None:
+class StopGate:
+    """Lets claims through until the service stops (AL-327). A claim holds the gate's lock for its whole transaction, and `close`
+    takes the same lock, so once `close` returns no claim is in progress and none can start: a claim then gets None."""
+
+    def __init__(self):
+        self.lock, self.closed = threading.Lock(), False
+
+    def close(self) -> None:
+        with self.lock:
+            self.closed = True
+
+    def claim(self, take: Callable[[], dict | None]) -> dict | None:
+        with self.lock:
+            return None if self.closed else take()
+
+
+def process(
+    db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None,
+    now: datetime | None = None, gate: StopGate | None = None,
+) -> dict | None:
     """Claim the application and run the committee for it. Returns the run record, or None if the claim was not won.
 
     The deps come first, because the figures written with the claim need the benchmark rate. The committee turns its own step
     failures into a failed record. This also turns a crash outside the steps (building the deps, or the save itself failing)
-    into a failed run, so an application is not left `running` because of a bug.
+    into a failed run, so an application is not left `running` because of a bug. With a `gate`, the claim goes through it after
+    the figures are worked out (fetching the rate can be slow): once the gate is closed the application is not claimed (the
+    service is shutting down, AL-327), and None is returned.
     """
     run_id = str(uuid.uuid4())
     try:
         deps, deps_error = deps_factory(FirestoreRunStore(db)), None
     except Exception as exc:
         deps, deps_error = None, exc
-    application = claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=figures_on_claim(deps))
+    extra_fields = figures_on_claim(deps)
+
+    def take():
+        return claim(db, application_id, run_id=run_id, rerun_of=rerun_of, extra_fields=extra_fields, now=now)
+
+    application = gate.claim(take) if gate is not None else take()
     if application is None:
         return None
     try:
@@ -284,26 +346,74 @@ def process(db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str
 
 
 def rerun(db, application_id: str, failed_run_id: str, *, deps_factory: DepsFactory) -> dict | None:
-    """Run the committee again for an application whose last run is `failed_run_id`. Nothing calls this yet: what triggers a re-run is not decided."""
+    """Run the committee again for an application whose last run is `failed_run_id`, failed or stale. Nothing calls this yet: what triggers a re-run is not decided."""
     return process(db, application_id, deps_factory=deps_factory, rerun_of=failed_run_id)
 
 
 class Listener:
-    """Watches the Applied applications and starts a run for each one that has not had one. Existing ones are picked up on start."""
+    """Watches the Applied applications and starts a run for each one that has not had one. Existing ones are picked up on start.
 
-    def __init__(self, db, deps_factory: DepsFactory, *, workers: int = WORKERS):
+    It also sweeps for stale runs (AL-327) once at start and then every `sweep_every_s`: a run left running by a task that
+    stopped part-way changes nothing in Firestore, so the watch never hears about it. `clock` gives the time a sweep and its
+    claims judge staleness by. After `stop` begins, nothing new is claimed.
+    """
+
+    def __init__(self, db, deps_factory: DepsFactory, *, workers: int = WORKERS, sweep_every_s: float = SWEEP_EVERY_S, clock: Callable[[], datetime] = lambda: datetime.now(UTC)):
         self.db, self.deps_factory = db, deps_factory
+        self.sweep_every_s, self.clock = sweep_every_s, clock
         self.pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="committee")
         self.watch = None
+        self.stopping = threading.Event()  # wakes the sweep thread
+        self.gate = StopGate()
 
     def start(self) -> None:
         query = self.db.collection(APPLICATIONS).where(filter=FieldFilter("status", "==", APPLIED))
         self.watch = query.on_snapshot(self._on_snapshot)
+        threading.Thread(target=self._sweep_every, name="committee-sweep", daemon=True).start()
 
     def stop(self) -> None:
+        """Stop taking applications: the watch and the sweep end first, and a claim not yet made is not made. A run already going
+        is not waited for: if the task is stopped before it finishes, it is left running and a later sweep reclaims it as stale.
+        A claim already in its transaction is waited for (it is short); once this returns, no claim can start."""
+        self.gate.close()
+        self.stopping.set()
         if self.watch:
             self.watch.unsubscribe()
         self.pool.shutdown(wait=False, cancel_futures=True)
+
+    def sweep(self) -> list[Future]:
+        """Start a new run for each Applied application whose run is stale. Returns the submitted runs, each resolving to its record or None.
+
+        This read only picks the candidates: the claim reads the application and the run again in its transaction, so two
+        sweeps (in one service or two) that both pick the same run start one new run between them.
+        """
+        if self.stopping.is_set():
+            return []
+        now = self.clock()
+        query = (self.db.collection(APPLICATIONS)
+                 .where(filter=FieldFilter("status", "==", APPLIED))
+                 .where(filter=FieldFilter("aiRunStatus", "==", "running")))
+        futures = []
+        for doc in query.stream():
+            run_id = (doc.to_dict() or {}).get("aiRunId")
+            if not run_id:
+                log.warning("application %s is running with no aiRunId, so it cannot be reclaimed", doc.id)
+                continue
+            run = self.db.collection(AI_RUNS).document(run_id).get()
+            if run_is_stale(run.to_dict() if run.exists else None, now):
+                log.info("run %s for %s is stale, starting a new one", run_id, doc.id)
+                future = self._submit(doc.id, run_id)
+                if future is not None:
+                    futures.append(future)
+        return futures
+
+    def _sweep_every(self) -> None:
+        while not self.stopping.is_set():
+            try:
+                self.sweep()
+            except Exception:  # Firestore down: the next sweep tries again
+                log.exception("the sweep for stale committee runs failed")
+            self.stopping.wait(self.sweep_every_s)
 
     def _on_snapshot(self, docs, changes, read_time) -> None:
         for change in changes:
@@ -311,13 +421,22 @@ class Listener:
                 continue
             if (change.document.to_dict() or {}).get("aiRunStatus") is not None:
                 continue  # already taken: skips a transaction, the claim would refuse it anyway
-            self.pool.submit(self._run, change.document.id)
+            self._submit(change.document.id)
 
-    def _run(self, application_id: str) -> None:
+    def _submit(self, application_id: str, rerun_of: str | None = None) -> Future | None:
+        if self.stopping.is_set():
+            return None
         try:
-            process(self.db, application_id, deps_factory=self.deps_factory)
-        except Exception:  # the claim itself failed (Firestore down): the next change to the application tries again
+            return self.pool.submit(self._run, application_id, rerun_of)
+        except RuntimeError:  # the pool was shut down between the check and the submit
+            return None
+
+    def _run(self, application_id: str, rerun_of: str | None = None) -> dict | None:
+        try:
+            return process(self.db, application_id, deps_factory=self.deps_factory, rerun_of=rerun_of, now=self.clock(), gate=self.gate)
+        except Exception:  # the claim itself failed (Firestore down): the next change, or the next sweep, tries again
             log.exception("could not start a committee run for %s", application_id)
+            return None
 
 
 def deps_factory_for(db, env: dict) -> DepsFactory:

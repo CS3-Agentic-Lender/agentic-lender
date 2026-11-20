@@ -156,6 +156,7 @@ GitHub Actions builds the same `Dockerfile` for `linux/amd64` (what Fargate runs
 | Variable | Needed on AWS | What it is |
 |---|---|---|
 | `FIREBASE_PROJECT_ID` | yes | The hosted Firebase project. Unset, it falls back to `demo-al`, which is the emulator's project |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | yes, secret | The service account key's JSON for that project, as the value. At start the entrypoint writes it to `/tmp/firebase-sa.json` (mode 600) and sets `GOOGLE_APPLICATION_CREDENTIALS` to that path, so never set `GOOGLE_APPLICATION_CREDENTIALS` by hand on AWS. Unset, nothing is written. Invalid JSON stops the container |
 | `CORS_ALLOWED_ORIGINS` | yes | The portal's origin(s), comma separated, as in "Browser origins (CORS)" below |
 | `CHAIN_RPC_URL` | yes | The public testnet's RPC URL. Unset, it is the local Hardhat node |
 | `CHAIN_NETWORK` | yes | The network's name, saved on each loan note. Unset, it is `localhost` |
@@ -163,11 +164,11 @@ GitHub Actions builds the same `Dockerfile` for `linux/amd64` (what Fargate runs
 | `AUDIT_REGISTRY_ADDRESS` | yes | The deployed `AuditRegistry`. Set it for the same reason |
 | `CHAIN_MINTER_PRIVATE_KEY` | yes, secret | Testnet wallet that holds `MINTER_ROLE` |
 | `CHAIN_REGISTRAR_PRIVATE_KEY` | yes, secret | Testnet wallet that writes the audit hash |
-| `BORROWER_REF_SALT` | yes, secret | Salt for the borrower reference on the loan note. Unset, it is empty and the hash is unsalted, so always set it |
+| `BORROWER_REF_SALT` | yes, secret | Salt for the borrower reference on the loan note. Required to mint, in the emulator too: unset or empty, `POST /core/applications/{id}/mint` answers `503` naming it and sends nothing to the chain. The API still starts without it |
 | `STRIPE_SECRET_KEY` | yes, secret | Stripe test key (`sk_test_` or `rk_test_`). Arrives with the fee endpoint |
 | `STRIPE_WEBHOOK_SECRET` | yes, secret | The webhook endpoint's signing secret. Arrives with the fee endpoint |
 
-Do **not** set `FIREBASE_AUTH_EMULATOR_HOST` or `FIRESTORE_EMULATOR_HOST` on AWS: with the first set, the Admin SDK accepts emulator-issued tokens, and with the second the API reads and writes an emulator instead of the real database. How the container gets its Firebase service account is still to be agreed (see the ticket).
+Do **not** set `FIREBASE_AUTH_EMULATOR_HOST` or `FIRESTORE_EMULATOR_HOST` on AWS: with the first set, the Admin SDK accepts emulator-issued tokens, and with the second the API reads and writes an emulator instead of the real database. The Firebase service account arrives as `FIREBASE_SERVICE_ACCOUNT_JSON` (above), and the value never appears in the logs.
 
 ## Running the API tests
 
