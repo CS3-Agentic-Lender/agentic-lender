@@ -247,7 +247,7 @@ One document per committee run, so the portal's deliberation console can show ea
 | `startedAt` | timestamp | The audit record picks the latest complete run by this |
 | `finishedAt` | timestamp or null | Null while the run is `running` |
 | `rerunOf` | string or null | The failed or stale run this one repeats |
-| `failedStep` | string or null | The step that failed: `validate`, `valuation_model`, `market`, `calculations`, `affordability`, `valuation_agent`, `strategist` or `policy_gate`. `run` means no step failed: the run was stale and was replaced (see `failureReason`) |
+| `failedStep` | string or null | The step that failed: `validate`, `valuation_model`, `market`, `calculations`, `affordability`, `valuation_agent`, `strategist` or `policy_gate`. `run` means no single step failed: the run either crashed outside a step (`failureReason` starts with `the run stopped unexpectedly`) or was stale and replaced (`failureReason` is `interrupted`) |
 | `failureReason` | string or null | Why, in words an underwriter can read. Never contains a key. `interrupted` is the reason for a stale run: one still `running` more than 10 minutes after `startedAt`, because the task running it stopped part-way (a deploy replaced it, or it crashed). It is marked `failed` with `interrupted` when a new run replaces it, and the new run's `rerunOf` points at it |
 | `agents` | map | `affordability`, `valuation`, `strategist` and `market`; see below |
 | `creditMemo` | string | The strategist's memo. Named `creditMemo` because the audit record reads it by that name (a run without it cannot be minted) and its text is hashed |
