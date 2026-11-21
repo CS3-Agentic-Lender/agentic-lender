@@ -154,6 +154,45 @@ function group(name: string) {
 afterEach(cleanup);
 
 describe('underwriter pipeline queue', () => {
+  it('lists fast-track applications first inside each group and marks only them', async () => {
+    const stored = (id: string, data: Record<string, unknown>, date: number) => ({
+      ...toApplicationSummary(id, { loanType: 'mortgage', ...data }),
+      updatedAt: new Date(`2026-11-0${date}T10:00:00Z`),
+    });
+    const rows = withRiskTiers([
+      stored('applied-unpaid', { status: 'Applied', fastTrack: false }, 9),
+      stored('applied-paid', { status: 'Applied', fastTrack: true }, 2),
+      stored('applied-fee-no-flag', { status: 'Applied', feeStatus: 'paid' }, 8),
+      stored('declined-paid', { status: 'Declined', fastTrack: true }, 1),
+      stored('declined-missing', { status: 'Declined' }, 5),
+    ], new Map());
+    renderQueue(new FakePipelineService(queue(rows)));
+    await screen.findByRole('table');
+    const user = userEvent.setup();
+    const ids = (name: string) => within(group(name)).getAllByRole('link').map((link) => link.textContent);
+    const row = (id: string) => screen.getByRole('rowheader', { name: id }).closest('tr')!;
+
+    expect(ids('Applied')).toEqual(['applied-paid', 'applied-unpaid', 'applied-fee-no-flag']);
+    expect(ids('Declined')).toEqual(['declined-paid', 'declined-missing']);
+    expect(within(row('applied-paid')).getByText('Fast-track')).toBeInTheDocument();
+    expect(within(row('declined-paid')).getByText('Fast-track')).toBeInTheDocument();
+    expect(screen.getAllByText('Fast-track')).toHaveLength(2);
+
+    await user.click(screen.getByRole('radio', { name: 'Risk tier' }));
+    expect(ids('No risk tier yet')).toEqual([
+      'applied-paid', 'declined-paid', 'applied-unpaid', 'applied-fee-no-flag', 'declined-missing',
+    ]);
+
+    await user.selectOptions(screen.getByLabelText('Status filter'), 'Declined');
+    expect(ids('No risk tier yet')).toEqual(['declined-paid', 'declined-missing']);
+  });
+
+  it('shows no fast-track badge when no application is fast-track', async () => {
+    renderQueue(new FakePipelineService(seededQueue));
+    await screen.findByRole('table');
+    expect(screen.queryByText('Fast-track')).not.toBeInTheDocument();
+  });
+
   it('shows stored loan types and composes type and status filters without changing grouping', async () => {
     const rows = withRiskTiers([
       toApplicationSummary('mortgage', { loanType: 'mortgage', status: 'Applied', riskTier: 'A' }),

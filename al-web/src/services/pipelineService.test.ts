@@ -118,6 +118,7 @@ function application(id: string, updatedAt: Date | null = null): ApplicationSumm
     ltvPct: null,
     ltvBand: null,
     riskTier: null,
+    fastTrack: false,
     updatedAt,
   };
 }
@@ -185,6 +186,21 @@ describe('attaching risk tiers to applications', () => {
     );
 
     expect(result.map(({ id }) => id)).toEqual(['LN-1002', 'LN-1001']);
+  });
+
+  it('puts fast-track applications first and keeps the most recently updated first inside each part', () => {
+    const day = (date: number) => new Date(`2026-11-0${date}T10:00:00Z`);
+    const result = withRiskTiers(
+      [
+        { ...application('paid-older', day(2)), fastTrack: true },
+        { ...application('unpaid-newest', day(9)), fastTrack: false },
+        { ...application('missing', day(5)), fastTrack: undefined },
+        { ...application('paid-newer', day(7)), fastTrack: true },
+      ],
+      new Map(),
+    );
+
+    expect(result.map(({ id }) => id)).toEqual(['paid-newer', 'paid-older', 'unpaid-newest', 'missing']);
   });
 });
 
