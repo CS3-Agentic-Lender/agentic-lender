@@ -85,11 +85,24 @@ class FakeClientsService implements ClientsService {
   }
 
   push(brokerUid: string, snapshot: BrokerClientsSnapshot) {
-    this.active(brokerUid).forEach(({ listener }) => listener(snapshot));
+    this.subscribers(brokerUid).forEach(({ listener }) => listener(snapshot));
   }
 
   fail(brokerUid: string, error: ClientsError) {
-    this.active(brokerUid).forEach(({ onError }) => onError(error));
+    this.subscribers(brokerUid).forEach(({ onError }) => onError(error));
+  }
+
+  // The page subscribes in an effect, which can run after its loading state is already on screen. A test that
+  // pushes or fails after seeing that state waits for the subscription first (AL-273).
+  async subscribed(brokerUid: string) {
+    await waitFor(() => expect(this.active(brokerUid)).not.toHaveLength(0));
+  }
+
+  // A push with nobody listening would be lost and the test would fail later, somewhere else; fail here instead.
+  private subscribers(brokerUid: string) {
+    const active = this.active(brokerUid);
+    if (active.length === 0) throw new Error(`Nothing is subscribed to ${brokerUid}'s clients yet: await subscribed() first`);
+    return active;
   }
 
   private active(brokerUid: string) {
@@ -403,6 +416,7 @@ describe('broker client file', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Loading your clients' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Client not found' })).not.toBeInTheDocument();
+    await clients.subscribed('broker-1');
 
     act(() => {
       clients.push('broker-1', files([alice], [], 'available'));
@@ -416,6 +430,7 @@ describe('broker client file', () => {
     const clients = new FakeClientsService({ 'broker-1': files([], [], 'pending') });
     renderAs('broker-1', 'broker', '/broker/clients/borrower-1', clients);
     await screen.findByRole('heading', { level: 1, name: 'Loading your clients' });
+    await clients.subscribed('broker-1');
 
     act(() => {
       clients.push('broker-1', files([], [], 'available'));
@@ -487,6 +502,7 @@ describe.each([
     const clients = new FakeClientsService({ 'broker-1': pendingFiles() });
     renderAs('broker-1', 'broker', pathname, clients);
     await screen.findByRole(nameRole, { name: displayName('Loading name') });
+    await clients.subscribed('broker-1');
 
     act(() => {
       clients.push('broker-1', files([alice], [application('LN-1001', 'borrower-1', 'Applied')]));
@@ -503,6 +519,7 @@ describe.each([
     const clients = new FakeClientsService({ 'broker-1': pendingFiles() });
     renderAs('broker-1', 'broker', pathname, clients);
     await screen.findByRole(nameRole, { name: displayName('Loading name') });
+    await clients.subscribed('broker-1');
 
     act(() => {
       clients.push('broker-1', files([], [application('LN-1001', 'borrower-1', 'Applied')], 'unavailable'));
