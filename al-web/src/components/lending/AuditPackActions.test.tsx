@@ -63,9 +63,35 @@ describe('audit pack actions', () => {
     expect(getAuditPack).toHaveBeenCalledExactlyOnceWith('app-funded');
     expect(names).toEqual(['audit-pack-app-funded.csv', 'audit-pack-app-funded.pdf']);
     expect(created.map((blob) => blob.type)).toEqual(['text/csv;charset=utf-8', 'application/pdf']);
-    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2));
     expect(await created[0].text()).toContain('record,riskTier,A');
     expect(await created[1].text()).toMatch(/^%PDF-1\.4/);
+  });
+
+  it('revokes the file URL only after the click has been handed to the browser', async () => {
+    const getAuditPack = vi.fn<AuditPackService['getAuditPack']>().mockResolvedValue(pack);
+    renderActions(getAuditPack);
+    // Some browsers (older Safari) start the download after click() returns and cancel it if the URL is already gone.
+    const order: string[] = [];
+    vi.mocked(HTMLAnchorElement.prototype.click).mockImplementation(function (this: HTMLAnchorElement) {
+      order.push(`click ${this.href}`);
+    });
+    vi.mocked(URL.revokeObjectURL).mockImplementation((url: string) => {
+      order.push(`revoke ${url}`);
+    });
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Download CSV' })));
+      expect(order).toEqual(['click blob:1']);
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+
+      await act(async () => vi.runAllTimers());
+      expect(order).toEqual(['click blob:1', 'revoke blob:1']);
+      expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:1');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('disables both buttons and says it is preparing while the pack loads', async () => {
