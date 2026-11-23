@@ -20,7 +20,8 @@ import pytest
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 import test_committee as tc
-from app import approval_likelihood, auto_start, committee, rates, risk_tier
+from app import approval_likelihood, auto_start, committee, dti_review, rates, risk_tier, valuation_review
+from app.valuation_endpoint import ValuationResponse
 
 EMULATOR = os.getenv("FIRESTORE_EMULATOR_HOST")
 pytestmark = pytest.mark.skipif(not EMULATOR, reason="needs the Firestore emulator (set FIRESTORE_EMULATOR_HOST)")
@@ -692,7 +693,7 @@ def test_a_failed_run_before_the_gate_saves_no_gate_result(db):
     assert record["status"] == "failed" and "policy_gate" not in record["steps"]
     [run] = runs_for(db, application_id)
     assert "policyGate" not in run
-    assert review(db, application_id) is None
+    assert "policyGate" not in (review(db, application_id) or {})  # the run got past valuation, so the document holds its valuationDetail
 
 
 def test_a_crash_outside_the_steps_saves_no_gate_result(db):
@@ -820,7 +821,7 @@ def test_a_failed_run_writes_neither_the_band_nor_the_tier(db):
     assert record["status"] == "failed"
     stored = application(db, application_id)
     assert "ltvBand" not in stored and "riskTier" not in stored
-    assert underwriting(db, application_id) is None
+    assert "riskTier" not in (underwriting(db, application_id) or {})  # the run got past valuation, so the document holds its valuationDetail
 
 
 def test_a_run_that_was_replaced_does_not_overwrite_the_band_or_tier(db):
@@ -864,3 +865,154 @@ def test_an_application_with_no_broker_writes_no_band_or_tier_and_the_status_sti
     assert application(db, application_id)["status"] == "AI Deliberated"
     assert_no_risk_written(db, application_id)
     assert "no brokerId" in caplog.text
+
+
+# ---- the valuation model's result is saved on review/underwriting as soon as the valuation step has it ------------------
+
+def no_rate(name):
+    raise rates.RateUnavailable("the ECB is down and the cached rate is too old")
+
+
+def detail_of(record):
+    """The valuationDetail map the run's valuation step should have saved (SCHEMA.md valuationDetail)."""
+    return valuation_review.valuation_detail(ValuationResponse.model_validate(record["steps"]["valuation_model"]["output"]))
+
+
+def test_a_complete_run_saves_the_valuation_detail_beside_the_gate_and_the_tier(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    stored = underwriting(db, application_id)
+    assert stored["valuationDetail"] == detail_of(record)
+    assert stored["valuationDetail"]["displayEstimateEur"] == record["steps"]["valuation_model"]["output"]["display_estimate_eur"]
+    assert stored["policyGate"] == record["steps"]["policy_gate"]["output"]  # neither write clobbers the other
+    assert stored["riskTier"] == expected_risk(record)[1]
+    assert (stored["applicationId"], stored["brokerId"]) == (application_id, "broker-1")
+
+
+def test_a_run_that_fails_after_the_valuation_step_still_saves_the_valuation_detail(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    assert (record["status"], record["failed_step"]) == ("failed", "market")
+    stored = underwriting(db, application_id)
+    assert stored["valuationDetail"] == detail_of(record)
+    assert "policyGate" not in stored and "riskTier" not in stored
+
+
+def test_a_run_that_fails_before_the_valuation_step_saves_no_valuation_detail(db):
+    application_id = applied(db, grossIncomeEur=-1)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["failed_step"] == "validate"
+    assert underwriting(db, application_id) is None
+
+
+def test_a_re_run_replaces_the_valuation_detail(db):
+    application_id = applied(db)
+    failed = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    first = underwriting(db, application_id)["valuationDetail"]
+    bigger = {**copy.deepcopy(tc.MORTGAGE["property"]), "floorAreaSqm": 200}
+    db.collection("applications").document(application_id).update({"property": bigger})
+    again = auto_start.rerun(db, application_id, failed["run_id"], deps_factory=factory())
+    assert again["status"] == "complete", again["failure_reason"]
+    stored = underwriting(db, application_id)["valuationDetail"]
+    assert stored == detail_of(again) and stored["estimatedValueEur"] != first["estimatedValueEur"]
+
+
+def test_a_failure_saving_the_valuation_detail_never_fails_the_run(db, monkeypatch, caplog):
+    def broken(*args, **kwargs):
+        raise RuntimeError("firestore said no")
+
+    monkeypatch.setattr(valuation_review, "write_valuation", broken)
+    application_id = applied(db)
+    with caplog.at_level("ERROR", logger="al-ai.committee"):
+        record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert "valuationDetail" not in underwriting(db, application_id)
+    assert "valuation detail" in caplog.text
+
+
+# ---- the DTI breakdown is saved on review/underwriting as soon as the calculations step has the run's rate ---------------
+
+def breakdown_of(application, rate_pct=4.0, rate_date="2026-09"):
+    """The dtiBreakdown map for an application at a rate (SCHEMA.md dtiBreakdown); the test rate is tc.RATES' 4.00% from 2026-09."""
+    return dti_review.dti_breakdown(
+        loan_eur=application["loanAmountEur"], term_years=application["termYears"], gross_income_eur=application["grossIncomeEur"],
+        take_home_monthly_eur=application["monthlyTakeHomeEur"], debts_monthly_eur=application["monthlyDebtsEur"],
+        living_costs_monthly_eur=application["monthlyLivingCostsEur"], benchmark_rate_pct=rate_pct, rate_date=rate_date,
+    )
+
+
+FAILS_AT_STRATEGIST = tc.Providers(gemini=(500, b"boom"))  # the day's market report already exists, so Gemini is only the strategist
+
+
+def test_a_complete_run_saves_the_dti_breakdown_beside_everything_else(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    stored = underwriting(db, application_id)
+    assert stored["dtiBreakdown"] == breakdown_of(tc.MORTGAGE)
+    assert stored["dtiBreakdown"]["benchmarkRatePct"] == record["steps"]["calculations"]["output"]["benchmark_rate_pct"]
+    assert stored["dtiBreakdown"]["rateDate"] == record["steps"]["calculations"]["output"]["benchmark_rate_month"]
+    assert stored["valuationDetail"] == detail_of(record)  # none of the writes clobbers another
+    assert stored["policyGate"] == record["steps"]["policy_gate"]["output"]
+    assert stored["riskTier"] == expected_risk(record)[1]
+    assert (stored["applicationId"], stored["brokerId"]) == (application_id, "broker-1")
+
+
+def test_the_stored_dti_matches_the_application_s_own_dti(db):
+    application_id = applied(db)
+    auto_start.process(db, application_id, deps_factory=factory())
+    assert round(underwriting(db, application_id)["dtiBreakdown"]["dtiPct"], 1) == application(db, application_id)["dtiPct"]
+
+
+def test_a_run_that_fails_after_the_calculations_still_saves_the_dti_breakdown(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(FAILS_AT_STRATEGIST))
+    assert (record["status"], record["failed_step"]) == ("failed", "strategist")
+    stored = underwriting(db, application_id)
+    assert stored["dtiBreakdown"] == breakdown_of(tc.MORTGAGE)
+    assert stored["valuationDetail"] == detail_of(record)
+    assert "policyGate" not in stored and "riskTier" not in stored
+
+
+def test_a_run_that_fails_before_the_calculations_saves_no_dti_breakdown(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    assert (record["status"], record["failed_step"]) == ("failed", "market")
+    assert "dtiBreakdown" not in underwriting(db, application_id)  # the valuation detail is there, the breakdown is not
+
+
+def test_a_re_run_replaces_the_dti_breakdown(db):
+    application_id = applied(db)
+    failed = auto_start.process(db, application_id, deps_factory=factory(FAILS_AT_STRATEGIST))
+    first = underwriting(db, application_id)["dtiBreakdown"]
+    db.collection("applications").document(application_id).update({"loanAmountEur": 300_000})
+    again = auto_start.rerun(db, application_id, failed["run_id"], deps_factory=factory())
+    assert again["status"] == "complete", again["failure_reason"]
+    stored = underwriting(db, application_id)["dtiBreakdown"]
+    assert stored == breakdown_of({**tc.MORTGAGE, "loanAmountEur": 300_000})
+    assert stored["newRepaymentMonthlyEur"] < first["newRepaymentMonthlyEur"]
+
+
+def test_a_run_that_was_replaced_does_not_save_its_dti_breakdown(db):
+    application_id = applied(db)
+    claimed = auto_start.claim(db, application_id, run_id="run-old")
+    db.collection("applications").document(application_id).update({"aiRunId": "run-new"})
+    store = auto_start.FirestoreRunStore(db)
+    store.save_dti_breakdown(application_id, "run-old", breakdown_of(claimed))
+    assert "dtiBreakdown" not in (underwriting(db, application_id) or {})
+
+
+def test_a_failure_saving_the_dti_breakdown_never_fails_the_run(db, monkeypatch, caplog):
+    def broken(*args, **kwargs):
+        raise RuntimeError("firestore said no")
+
+    monkeypatch.setattr(dti_review, "write_dti_breakdown", broken)
+    application_id = applied(db)
+    with caplog.at_level("ERROR", logger="al-ai.committee"):
+        record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert "dtiBreakdown" not in underwriting(db, application_id)
+    assert "DTI breakdown" in caplog.text

@@ -25,7 +25,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
 from app import affordability_agent as aa
-from app import call_log, committee_input, official_rates, policy_gate, rates, retry_policy, run_log, serper, valuation_endpoint, valuation_model
+from app import call_log, committee_input, dti_review, official_rates, policy_gate, rates, retry_policy, run_log, serper, valuation_endpoint, valuation_model
 from app import market_agent as ma
 from app import strategist_agent as sa
 from app import valuation_agent as va
@@ -206,6 +206,12 @@ def build_graph(deps: Deps):
                 raise StepFailed(f"the valuation model call could not be logged: {exc}")
         if error:
             raise StepFailed(error)
+        save_valuation = getattr(deps.store, "save_valuation", None)  # the Firestore store has it; the file store and test stores do not
+        if save_valuation is not None:  # saved now, so the estimate is shown even if a later step fails the run
+            try:
+                save_valuation(state["application_id"], state["run_id"], response)
+            except Exception:  # the portal then lacks the detail, but the run goes on: the estimate is still in the run record
+                log.exception("could not save the valuation detail for run %s", state["run_id"])
         return {"steps": {"valuation_model": {
             "ok": True, **ids(state), "model_version": response.model_version, "output": response.model_dump(), "breakdown_error": breakdown_error,
         }}}
@@ -258,8 +264,20 @@ def build_graph(deps: Deps):
                     loan=a.loan_amount_eur, gross_annual_income=a.gross_income_eur,
                     first_time_buyer=bool(a.first_time_buyer), asking_price=a.property.asking_price_eur,
                 )
+            breakdown = dti_review.dti_breakdown(
+                loan_eur=a.loan_amount_eur, term_years=a.term_years, gross_income_eur=a.gross_income_eur,
+                take_home_monthly_eur=a.monthly_take_home_eur, debts_monthly_eur=a.monthly_debts_eur,
+                living_costs_monthly_eur=a.monthly_living_costs_eur, benchmark_rate_pct=state["rates"].benchmark_rate_pct,
+                rate_date=state["rates"].benchmark_rate_month,
+            )
         except ValueError as exc:
             raise StepFailed(f"the figures could not be worked out: {exc}")
+        save_dti_breakdown = getattr(deps.store, "save_dti_breakdown", None)  # the Firestore store has it; the file store and test stores do not
+        if save_dti_breakdown is not None:  # saved now, with the run's rate, so the figures are shown even if a later step fails the run
+            try:
+                save_dti_breakdown(state["application_id"], state["run_id"], breakdown)
+            except Exception:  # the portal then lacks the table, but the run goes on: the figures are still in the run record
+                log.exception("could not save the DTI breakdown for run %s", state["run_id"])
         output = {
             "benchmark_rate_pct": state["rates"].benchmark_rate_pct, "benchmark_rate_month": state["rates"].benchmark_rate_month, "affordability_facts": affordability_facts,
             "valuation_facts": valuation_facts, "breaches": list(breaches),
