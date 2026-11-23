@@ -12,9 +12,9 @@ interface DtiBreakdownProps {
   review: LoanFileReview;
 }
 
-const headerCellClass = 'px-4 py-3 text-left align-bottom text-xs font-semibold tracking-wide text-muted uppercase';
-const labelCellClass = 'px-4 py-4 text-left align-top text-sm font-normal';
-const cellClass = 'px-4 py-4 align-top text-sm';
+const headerCellClass = 'px-4 py-3 text-left align-bottom font-mono text-xs font-medium tracking-widest text-muted uppercase';
+const labelCellClass = 'px-4 py-3 text-left align-top font-medium';
+const cellClass = 'px-4 py-3 align-top tabular-nums';
 
 const reviewNotices: Record<Exclude<LoanFileReview['state'], 'available'>, string> = {
   pending: 'Loading the underwriting review.',
@@ -73,10 +73,10 @@ interface RowProps {
 
 function Row({ label, unit, offered, stressed, mono = true }: RowProps) {
   return (
-    <tr className="border-t border-line">
+    <tr className="border-t border-line/70 transition-colors duration-200 hover:bg-oat/60">
       <th className={labelCellClass} scope="row">
         {label}
-        {unit ? <span className="block text-xs text-muted">{unit}</span> : null}
+        {unit ? <span className="block text-sm font-normal text-muted">{unit}</span> : null}
       </th>
       <td className={cellClass}>
         <Figure mono={mono} value={offered} />
@@ -100,14 +100,14 @@ interface SharedRowProps {
 // on the stressed figures, so one value covers both columns.
 function SharedRow({ label, unit, value, note = 'Same at both rates', mono = true }: SharedRowProps) {
   return (
-    <tr className="border-t border-line">
+    <tr className="border-t border-line/70 transition-colors duration-200 hover:bg-oat/60">
       <th className={labelCellClass} scope="row">
         {label}
-        {unit ? <span className="block text-xs text-muted">{unit}</span> : null}
+        {unit ? <span className="block text-sm font-normal text-muted">{unit}</span> : null}
       </th>
       <td className={cellClass} colSpan={2}>
         <Figure mono={mono} value={value} />
-        <span className="ml-3 text-xs text-muted">{note}</span>
+        <span className="ml-3 font-sans text-sm text-muted">{note}</span>
       </td>
     </tr>
   );
@@ -126,11 +126,11 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
   const fromReview = (value: string | null) => (loading ? 'Loading' : value);
 
   return (
-    <section aria-labelledby="dti-heading" className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-      <h2 className="text-xl font-semibold" id="dti-heading">
+    <section aria-labelledby="dti-heading" className="card">
+      <h2 className="card-title" id="dti-heading">
         Debt to income
       </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
         Monthly figures at the offered rate and at the stressed rate. Debt to income is total monthly debt
         repayments, including the new repayment, as a share of gross monthly income.
       </p>
@@ -145,7 +145,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
         </p>
       )}
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-line">
+      <div className="mt-5 overflow-x-auto rounded-xl border border-line/70">
         <table className="w-full min-w-xl border-collapse">
           <caption className="sr-only">Debt-to-income breakdown at the offered and stressed rates</caption>
           <thead className="bg-oat">
@@ -222,7 +222,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
         </table>
       </div>
 
-      <dl className="mt-6 flex flex-wrap gap-x-12 gap-y-4 text-sm">
+      <dl className="mt-5 flex flex-wrap gap-x-12 gap-y-4 rounded-xl bg-oat px-4 py-3 text-sm">
         <div>
           <dt className="text-muted">Benchmark rate</dt>
           <dd className="mt-1">
@@ -240,7 +240,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
           <dd className="mt-1">
             <span className="font-mono">{stressMarginLabel(marginPct)}</span>
             {stress?.stressMarginPct == null ? (
-              <span className="ml-2 text-xs text-muted">agreed default, not yet stored</span>
+              <span className="ml-2 text-muted">agreed default, not yet stored</span>
             ) : null}
           </dd>
         </div>

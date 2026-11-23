@@ -31,27 +31,27 @@ export function HelocCollateral({ application, policyGate }: HelocCollateralProp
   ];
 
   return (
-    <section aria-label="Collateral (HELOC)" className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-      <h2 className="text-xl font-semibold">Collateral (HELOC)</h2>
+    <section aria-label="Collateral (HELOC)" className="card">
+      <h2 className="card-title">Collateral (HELOC)</h2>
       <dl className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
         {facts.map(({ label, note, value }) => (
           <div key={label}>
             <dt className="text-sm text-muted">
               {label}
-              {note ? <span className="block text-xs">{note}</span> : null}
+              {note ? <span className="block">{note}</span> : null}
             </dt>
-            <dd className="mt-1"><Figure value={value} /></dd>
+            <dd className="mt-1 text-lg tabular-nums"><Figure value={value} /></dd>
           </div>
         ))}
       </dl>
       {ltvPct === null ? null : (
         <div className="mt-6">
           <div aria-hidden="true">
-            <div className="relative h-3 rounded-full bg-neutral">
-              <div className="h-full max-w-full rounded-full bg-pine" style={{ width: `${ltvPct}%` }} />
-              <div className="absolute -top-1 h-5 w-0.5 bg-ink" style={{ left: `${COMBINED_LTV_CAP}%` }} />
+            <div className="relative h-2 rounded-full bg-neutral">
+              <div className={`h-full max-w-full origin-left animate-grow rounded-full ${ltvPct > COMBINED_LTV_CAP ? 'bg-error' : 'bg-pine'}`} style={{ width: `${ltvPct}%` }} />
+              <div className="absolute -top-1.5 h-5 w-0.5 rounded-full bg-ink" style={{ left: `${COMBINED_LTV_CAP}%` }} />
             </div>
-            <div className="relative mt-2 h-5 text-xs text-muted">
+            <div className="relative mt-2 h-5 font-mono text-xs text-muted">
               <span className="absolute -translate-x-1/2" style={{ left: `${COMBINED_LTV_CAP}%` }}>80% cap</span>
             </div>
           </div>

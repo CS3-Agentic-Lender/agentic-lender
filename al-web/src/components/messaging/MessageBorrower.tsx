@@ -21,11 +21,11 @@ export function MessageBorrower({ applicationId, borrowerName }: MessageBorrower
   }
 
   return (
-    <div className="mt-6">
+    <div className="mt-5">
       <button
         aria-controls={panelId}
         aria-expanded={open}
-        className="min-h-12 cursor-pointer rounded-lg border border-line bg-neutral px-5 py-3 font-semibold text-neutral-text transition-colors hover:bg-tint"
+        className="btn btn-secondary"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >

@@ -12,9 +12,9 @@ interface SignOffPanelProps {
   onRecorded(result: DecisionResult): void;
 }
 
-const buttonClass = 'min-h-12 cursor-pointer rounded-lg px-5 py-3 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60';
-const primaryClass = `${buttonClass} bg-pine text-surface hover:opacity-90`;
-const secondaryClass = `${buttonClass} border border-line bg-neutral text-neutral-text hover:bg-tint`;
+const buttonClass = 'btn';
+const primaryClass = `${buttonClass} btn-primary`;
+const secondaryClass = `${buttonClass} btn-secondary`;
 
 export const decisionLabels: Record<DecisionOutcome, string> = {
   approved: 'Approved',
@@ -79,16 +79,16 @@ function ConfirmationDialog({ children, onClose }: { children: ReactNode; onClos
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-neutral/90 p-6">
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-sm sm:p-6">
       <div
         aria-labelledby={headingId}
         aria-modal="true"
-        className="max-h-full w-full max-w-xl overflow-y-auto rounded-2xl border border-line bg-surface p-6 sm:p-8"
+        className="max-h-full w-full max-w-xl animate-rise overflow-y-auto rounded-2xl border border-line bg-surface p-6 shadow-raised sm:p-8"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
       >
-        <h2 className="text-xl font-semibold" id={headingId}>
+        <h2 className="card-title" id={headingId}>
           Confirm decision
         </h2>
         {children}
@@ -143,13 +143,14 @@ export function SignOffPanel({ applicationId, borrowerName, policyGate, onRecord
   }
 
   return (
-    <section aria-labelledby={headingId} className="mt-6 rounded-2xl border border-line bg-surface p-6 sm:p-8">
-      <h2 className="text-xl font-semibold" id={headingId}>
+    <section aria-labelledby={headingId} className="card mt-5">
+      <h2 className="card-title" id={headingId}>
         Sign off
       </h2>
-      <div className="mt-4 rounded-xl bg-tint p-4">
-        <h3 className="font-semibold">AI recommendation</h3>
-        <p className="mt-2">{effective ?? 'No AI recommendation recorded'}</p>
+      <div className="mt-4 grid gap-5 lg:grid-cols-12">
+      <div className="self-start rounded-xl bg-tint p-4 lg:col-span-5">
+        <h3 className="eyebrow">AI recommendation</h3>
+        <p className="mt-2 text-xl font-semibold tracking-tight text-pine">{effective ?? 'No AI recommendation recorded'}</p>
         {policyGate && policyGate.conditions.length > 0 ? (
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
             {policyGate.conditions.map((condition, index) => (
@@ -162,11 +163,12 @@ export function SignOffPanel({ applicationId, borrowerName, policyGate, onRecord
         </p>
       </div>
 
-      <label className="mt-6 mb-2 block font-semibold" htmlFor={justificationId}>
+      <div className="min-w-0 lg:col-span-7">
+      <label className="mb-2 block font-semibold" htmlFor={justificationId}>
         Justification <span className="font-normal text-muted">(required)</span>
       </label>
       <textarea
-        className="min-h-32 w-full rounded-lg border border-line bg-surface px-4 py-3 disabled:opacity-60"
+        className="min-h-32 w-full rounded-lg border border-line bg-surface px-4 py-3 transition-colors duration-200 hover:border-pine/50 disabled:opacity-60"
         disabled={pending || confirmation !== null}
         id={justificationId}
         maxLength={1000}
@@ -175,7 +177,7 @@ export function SignOffPanel({ applicationId, borrowerName, policyGate, onRecord
         rows={4}
         value={reason}
       />
-      <p className="mt-1 text-sm text-muted">{reason.length} / 1000 characters</p>
+      <p className="mt-1 text-right font-mono text-sm text-muted">{reason.length} / 1000 characters</p>
       <div className="mt-4 flex flex-wrap gap-3">
         <button
           className={primaryClass}
@@ -200,6 +202,8 @@ export function SignOffPanel({ applicationId, borrowerName, policyGate, onRecord
       {error && !confirmation ? (
         <p className="mt-4 rounded-lg bg-danger-soft p-3 text-error" role="alert">{error}</p>
       ) : null}
+      </div>
+      </div>
 
       {confirmation ? (
         <ConfirmationDialog onClose={() => setConfirmation(null)}>

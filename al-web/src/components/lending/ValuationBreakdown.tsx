@@ -48,11 +48,11 @@ export function ValuationBreakdown({ review }: ValuationBreakdownProps) {
   const maxEffect = breakdown?.contributions.reduce((max, { eur }) => Math.max(max, Math.abs(eur)), 0) ?? 0;
 
   return (
-    <section aria-labelledby="valuation-heading" className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-      <h2 className="text-xl font-semibold" id="valuation-heading">
+    <section aria-labelledby="valuation-heading" className="card">
+      <h2 className="card-title" id="valuation-heading">
         Valuation
       </h2>
-      <p className="mt-2 text-sm leading-6 text-muted">
+      <p className="mt-1 text-sm leading-6 text-muted">
         How each detail moved the estimate
       </p>
 
@@ -71,38 +71,38 @@ export function ValuationBreakdown({ review }: ValuationBreakdownProps) {
                 <p className="mt-4 text-sm text-muted">The breakdown of this estimate isn't available.</p>
               ) : (
                 <>
-                  <dl className="mt-6 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                    <dt className="text-muted">
+                  <dl className="mt-5 flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-oat px-3 py-2.5 text-sm">
+                    <dt className="font-medium text-ink">
                       Starting point
-                      <span className="block text-xs">average of the model's sample homes</span>
+                      <span className="block font-normal text-muted">average of the model's sample homes</span>
                     </dt>
                     <dd>
                       <Figure value={formatEuro(breakdown.baselineEur)} />
                     </dd>
                   </dl>
 
-                  <ol aria-label="Valuation contributions" className="mt-4 divide-y divide-line border-y border-line">
+                  <ol aria-label="Valuation contributions" className="mt-2 divide-y divide-line/70">
                     {breakdown.contributions.map(({ feature, value, eur }) => {
                       const input = inputValue(feature, value);
                       const width = maxEffect === 0 ? 0 : (Math.abs(eur) / maxEffect) * 50;
 
                       return (
-                        <li className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 py-3" key={feature}>
-                          <div className="min-w-0 break-words text-sm">
-                            <span>{featureLabels.get(feature) ?? feature}</span>
+                        <li className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-2 px-3 py-3 transition-colors duration-200 hover:bg-oat/70" key={feature}>
+                          <div className="min-w-0 break-words">
+                            <span className="font-medium">{featureLabels.get(feature) ?? feature}</span>
                             {input === null ? null : (
-                              <span className="block text-xs text-muted">{input}</span>
+                              <span className="ml-2 text-sm text-muted">{input}</span>
                             )}
                           </div>
-                          <span className={`font-mono text-sm ${eur < 0 ? 'text-error' : eur > 0 ? 'text-success' : 'text-muted'}`}>
+                          <span className={`font-mono tabular-nums ${eur < 0 ? 'text-error' : eur > 0 ? 'text-success' : 'text-muted'}`}>
                             {signedEuro(eur)}
                           </span>
-                          <div aria-hidden="true" className="relative col-span-2 h-5 rounded bg-tint">
+                          <div aria-hidden="true" className="relative col-span-2 h-2 rounded-full bg-neutral">
                             <div
-                              className={`absolute top-1 h-3 ${eur < 0 ? 'right-1/2 rounded-l bg-error' : 'left-1/2 rounded-r bg-success'}`}
+                              className={`absolute inset-y-0 animate-grow ${eur < 0 ? 'right-1/2 origin-right rounded-l-full bg-error' : 'left-1/2 origin-left rounded-r-full bg-success'}`}
                               style={{ width: `${width}%` }}
                             />
-                            <div className="absolute inset-y-0 left-1/2 w-px bg-muted" />
+                            <div className="absolute -inset-y-1 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-ink" />
                           </div>
                         </li>
                       );
@@ -113,7 +113,7 @@ export function ValuationBreakdown({ review }: ValuationBreakdownProps) {
 
               {valuation.estimatedValueEur !== null || breakdown !== null ? (
                 <>
-                  <dl className="mt-4 flex flex-wrap items-baseline justify-between gap-2 text-sm font-semibold">
+                  <dl className="mt-2 flex flex-wrap items-baseline justify-between gap-2 rounded-lg bg-pine px-3 py-2.5 text-lg font-semibold text-surface">
                     <dt>Estimate</dt>
                     <dd>
                       <Figure value={valuation.estimatedValueEur === null ? null : formatEuro(valuation.estimatedValueEur)} />
