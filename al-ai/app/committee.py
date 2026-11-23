@@ -206,6 +206,12 @@ def build_graph(deps: Deps):
                 raise StepFailed(f"the valuation model call could not be logged: {exc}")
         if error:
             raise StepFailed(error)
+        save_valuation = getattr(deps.store, "save_valuation", None)  # the Firestore store has it; the file store and test stores do not
+        if save_valuation is not None:  # saved now, so the estimate is shown even if a later step fails the run
+            try:
+                save_valuation(state["application_id"], state["run_id"], response)
+            except Exception:  # the portal then lacks the detail, but the run goes on: the estimate is still in the run record
+                log.exception("could not save the valuation detail for run %s", state["run_id"])
         return {"steps": {"valuation_model": {
             "ok": True, **ids(state), "model_version": response.model_version, "output": response.model_dump(), "breakdown_error": breakdown_error,
         }}}

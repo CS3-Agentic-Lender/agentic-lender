@@ -42,8 +42,9 @@ from google.cloud import firestore
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, call_log, committee, official_rates, rates, reasoning_trail, retry_policy, risk_tier, run_log
+from app import approval_likelihood, call_log, committee, official_rates, rates, reasoning_trail, retry_policy, risk_tier, run_log, valuation_review
 from app import market_agent as ma
+from app.valuation_endpoint import ValuationResponse
 
 log = logging.getLogger("al-ai.auto-start")
 
@@ -205,6 +206,16 @@ class FirestoreRunStore:
 
     def save(self, record: dict) -> None:
         finish(self.db, record)
+
+    def save_valuation(self, application_id: str, run_id: str, response: ValuationResponse) -> None:
+        """Save the valuation model's result on `review/underwriting` (valuation_review.write_valuation), called by the committee
+        right after its valuation step, so the estimate is there even if a later step fails. Skipped when this run no longer
+        holds the application (it was replaced), so a late run never overwrites the newer run's detail."""
+        held = (self.db.collection(APPLICATIONS).document(application_id).get().to_dict() or {}).get("aiRunId")
+        if held != run_id:
+            log.warning("run %s no longer holds %s, so its valuation detail is not saved", run_id, application_id)
+            return
+        valuation_review.write_valuation(self.db, application_id, response)
 
 
 def _crashed(run_id: str, application_id: str, exc: Exception) -> dict:

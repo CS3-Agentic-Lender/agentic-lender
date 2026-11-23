@@ -693,7 +693,7 @@ def test_a_failed_run_before_the_gate_saves_no_gate_result(db):
     assert record["status"] == "failed" and "policy_gate" not in record["steps"]
     [run] = runs_for(db, application_id)
     assert "policyGate" not in run
-    assert review(db, application_id) is None
+    assert "policyGate" not in (review(db, application_id) or {})  # the run got past valuation, so the document holds its valuationDetail
 
 
 def test_a_crash_outside_the_steps_saves_no_gate_result(db):
@@ -821,7 +821,7 @@ def test_a_failed_run_writes_neither_the_band_nor_the_tier(db):
     assert record["status"] == "failed"
     stored = application(db, application_id)
     assert "ltvBand" not in stored and "riskTier" not in stored
-    assert underwriting(db, application_id) is None
+    assert "riskTier" not in (underwriting(db, application_id) or {})  # the run got past valuation, so the document holds its valuationDetail
 
 
 def test_a_run_that_was_replaced_does_not_overwrite_the_band_or_tier(db):
