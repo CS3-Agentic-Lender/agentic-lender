@@ -30,15 +30,15 @@ def run_with_budget_spent_inside(step, monkeypatch):
     clock = Clock()
     real_node = committee._node
 
-    def node(name, work, budget):
+    def node(name, work, budget, *rest):
         if name != step:
-            return real_node(name, work, budget)
+            return real_node(name, work, budget, *rest)
 
         def spend_then_work(state):
             clock.now += 301
             return work(state)
 
-        return real_node(name, spend_then_work, budget)
+        return real_node(name, spend_then_work, budget, *rest)
 
     monkeypatch.setattr(committee, "_node", node)
     market_store = ma.MemoryReportStore() if step == "market" else tc.a_report_for_today()
