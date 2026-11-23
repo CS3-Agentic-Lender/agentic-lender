@@ -24,7 +24,7 @@ from web3.exceptions import ContractLogicError, Web3Exception
 from web3.logs import DISCARD
 
 from app.audit import application_ref
-from app.chain import DEFAULT_RPC_URL, DEPLOYMENTS, RECEIPT_TIMEOUT_S, ChainError, NotConfigured
+from app.chain import DEFAULT_RPC_URL, DEPLOYMENTS, RECEIPT_TIMEOUT_S, ChainError, NotConfigured, connect
 
 LOAN_TYPES = {"mortgage": 0, "heloc": 1}  # the contract's LoanType enum
 
@@ -138,8 +138,7 @@ class LoanNotes:
                 address = json.loads(path.read_text())["LoanNote"]["address"]
             except (OSError, KeyError, ValueError):
                 raise NotConfigured(f"LOAN_NOTE_ADDRESS is not set and {path.name} has no LoanNote address") from None
-        w3 = Web3(Web3.HTTPProvider(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL), request_kwargs={"timeout": 15}))
-        return cls(w3, address, key, network)
+        return cls(connect(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL)), address, key, network)
 
     def mint(self, application_id: str, terms: NoteTerms) -> Minted:
         """Mint the application's note, or return the one that is already there. A note with other terms is an error."""

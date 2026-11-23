@@ -18,12 +18,25 @@ from pathlib import Path
 
 from web3 import Web3
 from web3.exceptions import ContractLogicError, Web3Exception
+from web3.middleware import ExtraDataToPOAMiddleware
 
 from app.audit import application_ref
 
 DEPLOYMENTS = Path(__file__).resolve().parent.parent / "chain" / "deployments"
 DEFAULT_RPC_URL = "http://127.0.0.1:8545"
 RECEIPT_TIMEOUT_S = 60
+
+
+def connect(rpc_url: str) -> Web3:
+    """A connection to the chain at rpc_url, for the audit registry and the loan notes alike.
+
+    Polygon's blocks carry more than 32 bytes of extraData, which web3.py refuses (ExtraDataLengthError) unless this
+    middleware moves it aside, so without it every write to Polygon Amoy fails before it is sent. It changes nothing on a
+    chain whose blocks are standard, such as the local Hardhat node.
+    """
+    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 15}))
+    w3.middleware_onion.inject(ExtraDataToPOAMiddleware, name="extradata_to_poa", layer=0)
+    return w3
 
 # Only what al-core uses: two functions and the event that carries a write's transaction.
 ABI = [
@@ -91,8 +104,7 @@ class AuditRegistry:
                 address = json.loads(path.read_text())["AuditRegistry"]["address"]
             except (OSError, KeyError, ValueError):
                 raise NotConfigured(f"AUDIT_REGISTRY_ADDRESS is not set and {path.name} has no AuditRegistry address") from None
-        w3 = Web3(Web3.HTTPProvider(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL), request_kwargs={"timeout": 15}))
-        return cls(w3, address, key)
+        return cls(connect(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL)), address, key)
 
     def record_of(self, application_id: str) -> tuple[str, int] | None:
         """The stored (audit hash, stored-at time) for an application, or None if nothing is stored."""
