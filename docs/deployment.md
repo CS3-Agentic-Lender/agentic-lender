@@ -29,7 +29,7 @@ AL will have one deployed environment, production, as well as a local setup on e
 
 The domain is `agentic-lender.com`, registered through Route 53 on 6 October 2026 (the registration was still in progress when this was written). The addresses are `agentic-lender.com` for the portal (`www.agentic-lender.com` redirects to it) and `api.agentic-lender.com`.
 
-The domain is registered in Nic's account, but the deployment will run in Nikoloz's account. The plan is to create the DNS zone in Nikoloz's account and point the domain's name servers at it, so Terraform can manage every record. This is not done yet.
+The domain is registered in Nic's account, and the deployment runs in the team AWS account Ibrahima set up (176550299403). Terraform created the DNS zone in the team account and the domain's name servers point at it, so Terraform manages every record.
 
 ## 2. Architecture
 
