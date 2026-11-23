@@ -56,7 +56,10 @@ deploy/
 ./deploy/al up                # bring it all back with the last build
 ```
 
-Each one lists what it will change in plain words and asks first. It applies exactly the plan you
+Each one lists what it will change in plain words and asks first. When anything is changed or
+replaced, it also prints Terraform's diff with the old and new value of every attribute (secrets stay
+hidden), so a build switch can't hide a changed port, CIDR, role or WAF rule. A plan that only creates
+(`up`, a first deploy) or only removes (`down`) shows just the list. It applies exactly the plan you
 saw. Add `--floci` to any of them to practise on Floci.
 
 ## Deploying al-ai
