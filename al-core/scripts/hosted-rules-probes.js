@@ -68,7 +68,9 @@ read('bob', `applications/${GHOST_APP}/review/underwriting`, 'deny', 'a broker o
 for (const collection of ['ai_runs', 'ai_calls']) {
   read('uma', `${collection}/${PROBE_DOC}`, 'allow', `the underwriter reads ${collection}`);
   read('alice', `${collection}/${PROBE_DOC}`, 'deny', `a borrower never reads ${collection}`);
-  read('bob', `${collection}/${PROBE_DOC}`, 'deny', `a broker reads ${collection} only for their own client`);
+  read('bob', `${collection}/${PROBE_DOC}`, 'deny', collection === 'ai_calls'
+    ? 'a broker never reads ai_calls, even for their own client (AL-334)'
+    : 'a broker reads ai_runs only for their own client');
   read(NOBODY, `${collection}/${PROBE_DOC}`, 'deny', 'no sign-in, no read');
 }
 

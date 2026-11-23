@@ -56,7 +56,8 @@ Both services use the Admin SDK to read and write Firestore.
 | `applications/{id}` | The borrower, the assigned broker, underwriters | Status, `aiRunStatus`, loan type, loan terms, LTV, DTI, approval likelihood, decision, loan note |
 | `applications/{id}/review/underwriting` | The assigned broker, underwriters | Risk tier (A to D), DTI breakdown, valuation detail |
 | `applications/{id}/audit/record` | The assigned broker, underwriters | The audit record behind the audit hash, written at mint |
-| `ai_runs`, `ai_calls` | The assigned broker, underwriters | One record per committee run and per AI call |
+| `ai_runs` | The assigned broker, underwriters | One record per committee run: its outcome and conditions |
+| `ai_calls` | Underwriters only | One record per AI call (prompts, replies, tokens): the lender's working, so not shown to brokers |
 | `applications/{id}/messages` | The borrower, the assigned broker, underwriters | The message thread. Each message has a `read` flag, which `.../messages/read` sets |
 | `support_requests/{id}` | The borrower who sent it, underwriters | A support request from `POST /core/support-requests` |
 | `reviews/{uid}` | Underwriters | One review per borrower, replaced by `PUT /core/reviews/me` |

@@ -410,16 +410,22 @@ describe('ai_runs and ai_calls', () => {
     assertFails(broker1().doc('ai_runs/run2').get()));
   test("a borrower can't read an AI run", () =>
     assertFails(borrower1().doc('ai_runs/run1').get()));
-  test('a broker can list their AI calls when filtering on brokerId', () =>
-    assertSucceeds(broker1().collection('ai_calls').where('brokerId', '==', 'broker1').get()));
+  // AI calls are underwriter-only (AL-334): the team agreed on 23 Nov that a broker sees a committee's outcome and conditions
+  // (on the AI run) but not its raw model calls, so the rules refuse them as well as the portal hiding them.
+  test("a broker can't list even their own client's AI calls", () =>
+    assertFails(broker1().collection('ai_calls').where('brokerId', '==', 'broker1').get()));
   test("a borrower can't read an AI call", () =>
     assertFails(borrower1().doc('ai_calls/call1').get()));
-  test("a broker can read the AI call of their own client by id", () =>
-    assertSucceeds(broker1().doc('ai_calls/call1').get()));
+  test("a broker can't read the AI call of their own client by id", () =>
+    assertFails(broker1().doc('ai_calls/call1').get()));
   test("a broker can't read another broker's client's AI call, by id", () =>
     assertFails(broker1().doc('ai_calls/call2').get()));
   test("a broker can't list another broker's AI calls", () =>
     assertFails(broker1().collection('ai_calls').where('brokerId', '==', 'broker2').get()));
+  test("nobody signed out can read an AI call", () =>
+    assertFails(signedOut().doc('ai_calls/call1').get()));
+  test("a broker still reads their client's AI run, where the outcome and conditions are", () =>
+    assertSucceeds(broker1().doc('ai_runs/run1').get()));
   test('an underwriter can read every AI call', async () => {
     await assertSucceeds(underwriter().doc('ai_calls/call1').get());
     await assertSucceeds(underwriter().doc('ai_calls/call2').get());

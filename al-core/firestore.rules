@@ -76,7 +76,7 @@ service cloud.firestore {
     // query works. The document carries brokerId so the rule can check it without
     // reading the parent; a broker's query must filter on brokerId == their uid.
     //
-    // review, ai_runs and ai_calls check a copied brokerId; audit and messages read the
+    // review and ai_runs check a copied brokerId (ai_calls is underwriter-only); audit and messages read the
     // parent application. If a borrower's broker is ever reassigned, the copies must be
     // updated in the same write as the application's brokerId, or the old broker keeps
     // access to them.
@@ -92,9 +92,11 @@ service cloud.firestore {
         || (isRole('broker') && resource.data.brokerId == request.auth.uid);
     }
 
+    // Underwriters only (AL-334). The raw model calls (prompts, replies, tokens, retries) are the lender's working: the
+    // team agreed on 23 Nov that a broker sees a committee's outcome and conditions, which are on ai_runs, and not its
+    // calls, so this refuses them here as well as the portal hiding them.
     match /ai_calls/{callId} {
-      allow read: if isRole('underwriter')
-        || (isRole('broker') && resource.data.brokerId == request.auth.uid);
+      allow read: if isRole('underwriter');
     }
 
     // ---------- support and reviews ----------
