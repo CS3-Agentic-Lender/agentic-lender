@@ -90,7 +90,7 @@ def test_a_failed_market_step_ends_the_run_with_that_step_and_its_reason(printed
 
 def test_a_failed_agent_step_logs_only_the_class_name(printed):
     run_log.send_to_stdout()
-    committee.run_committee(APPLICATION, deps=deps(tc.Providers(ollama=(503, b"down 95000"))), application_id="app-1")
+    committee.run_committee(APPLICATION, deps=deps(tc.Providers(ollama=(500, b"down 95000"))), application_id="app-1")
     got = printed()
     assert got[-1]["status"] == "failed" and got[-1]["step"] == "affordability" and got[-1]["reason"] == "StepFailed"
     failed = next(line for line in got if line["step"] == "affordability" and line["status"] == "failed")

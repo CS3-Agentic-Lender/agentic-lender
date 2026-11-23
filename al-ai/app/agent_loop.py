@@ -53,7 +53,7 @@ def run_step(
             "raw_reply": None, "parsed_reply": None, "request_id": None, "input_tokens": None, "output_tokens": None,
             "outcome": None, "error": None,
         }
-        retry, retry_after = False, None
+        retry, retry_after, status = False, None, None
         try:
             got = clients.complete_json(agent.provider, agent.model, system, sent, schema, transport=transport, env=env, timeout=retry_policy.call_timeout(budget))
             attempt.update(raw_reply=got.raw_reply, request_id=got.request_id, input_tokens=got.input_tokens, output_tokens=got.output_tokens)
@@ -70,8 +70,8 @@ def run_step(
             attempt.update(outcome="missing_key", error=str(exc))
         except clients.LlmError as exc:
             attempt.update(outcome="provider_error", error=str(exc))
-            retry = va._retryable(exc) and provider_retries < retry_policy.PROVIDER_RETRIES
-            retry_after = exc.retry_after
+            retry = va._retryable(exc) and retry_policy.retries_left(exc.status, provider_retries)
+            retry_after, status = exc.retry_after, exc.status
         attempt["duration_s"] = round(time.monotonic() - t0, 3)
         attempts.append(attempt)
         log.info(json.dumps(attempt))
@@ -85,7 +85,7 @@ def run_step(
         if not retry:
             return va.AgentResult(False, None, attempt["error"], attempts)
         if attempt["outcome"] == "provider_error":
-            pause = retry_policy.pause_before_retry(provider_retries, retry_after, budget)
+            pause = retry_policy.pause_before_retry(provider_retries, retry_after, budget, status)
             if pause is None:
                 return va.AgentResult(False, None, budget.reason(), attempts)
             sleep(pause)

@@ -178,7 +178,7 @@ def test_the_record_can_be_written_as_json_and_kept_in_a_file(tmp_path):
 # ---- a failed step still leaves a record (decision 3) -------------------------------------------
 
 def test_a_step_that_fails_after_its_retries_saves_a_failed_run_with_no_recommendation():
-    record, providers, store = go(MORTGAGE, Providers(ollama=(503, b"down")))
+    record, providers, store = go(MORTGAGE, Providers(ollama=(500, b"down")))
     assert record["status"] == "failed" and record["failed_step"] == "affordability"
     assert "strategist" not in record["steps"] and "policy_gate" not in record["steps"]
     assert record["original_recommendation"] is None and record["effective_recommendation"] is None

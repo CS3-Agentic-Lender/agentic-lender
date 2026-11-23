@@ -217,7 +217,7 @@ def test_a_reply_that_hides_a_disagreement_is_retried_then_fails():
 
 def test_a_provider_outage_is_retried_with_a_pause_and_then_fails():
     pauses = []
-    r = sa.run(facts(), run_id="r", agent=GEMINI, transport=Net((503, b"down")), env=ENV, sleep=pauses.append)
+    r = sa.run(facts(), run_id="r", agent=GEMINI, transport=Net((500, b"down")), env=ENV, sleep=pauses.append)
     assert r.ok is False and len(r.attempts) == 3 and pauses == [2.0, 8.0]
 
 
