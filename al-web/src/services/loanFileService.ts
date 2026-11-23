@@ -48,6 +48,9 @@ export interface LoanNote {
   auditHash: string;
   network: string | null;
   mintedAt: Date;
+  // Written by al-core when the loan is closed; null while the note is open.
+  closedAt: Date | null;
+  closeTxHash: string | null;
 }
 
 // Every figure is null when it is missing or unusable, so the page can say "Unavailable"
@@ -201,13 +204,16 @@ function readLoanNote(value: unknown): LoanNote | null {
   const auditHash = readNonEmptyString(note.auditHash);
   const network = readNonEmptyString(note.network);
   const mintedAt = readDate(note.mintedAt);
+  const closedAt = readDate(note.closedAt);
+  const closeTxHash = readNonEmptyString(note.closeTxHash);
 
   // Only network is optional on older notes. Preserve identifiers exactly as stored.
   if (!tokenId || !contractAddress || !txHash || !auditHash || !mintedAt ||
-      (note.network != null && network === null)) {
+      (note.network != null && network === null) ||
+      (note.closedAt != null && closedAt === null) || (note.closeTxHash != null && closeTxHash === null)) {
     return null;
   }
-  return { tokenId, contractAddress, txHash, auditHash, network, mintedAt };
+  return { tokenId, contractAddress, txHash, auditHash, network, mintedAt, closedAt, closeTxHash };
 }
 
 export function toLoanFileApplication(id: string, data: DocumentData): LoanFileApplication {

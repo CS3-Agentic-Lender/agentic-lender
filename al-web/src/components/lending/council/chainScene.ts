@@ -17,6 +17,9 @@ import { readToken } from './canDraw3d';
 export interface ChainData {
   tokenId: string;
   auditHashShort: string;
+  // Short transaction hashes as stored, or null when the record has none.
+  mintTxShort: string | null;
+  auditTxShort: string | null;
 }
 
 export interface ChainHandle {
@@ -299,15 +302,25 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
     nameEl.className = 'council-name';
     nameEl.textContent = name;
     const valueEl = document.createElement('span');
-    valueEl.className = 'council-value';
+    // Hashes keep their stored case: an upper-cased "0X2E3B" reads as a different value.
+    valueEl.className = 'council-value council-value-raw';
     valueEl.textContent = value;
     pill.append(nameEl, valueEl);
     el.append(pill);
     host.append(el);
     labels.push({ el, block: blocks[index], below });
   };
-  makeLabel(TUNE.auditIndex, 'Decision hash', data.auditHashShort, true);
-  makeLabel(TUNE.noteIndex, 'Loan note', `#${data.tokenId}`);
+  makeLabel(
+    TUNE.auditIndex,
+    'Decision hash',
+    data.auditTxShort ? `${data.auditHashShort} · tx ${data.auditTxShort}` : data.auditHashShort,
+    true,
+  );
+  makeLabel(
+    TUNE.noteIndex,
+    'Loan note',
+    data.mintTxShort ? `#${data.tokenId} · tx ${data.mintTxShort}` : `#${data.tokenId}`,
+  );
 
   // ---- Size, visibility, loop ----
   let width = 1;

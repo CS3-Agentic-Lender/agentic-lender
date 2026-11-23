@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CommitteeRun } from '../../services/committeeService';
+import { runDuration, type CommitteeRun } from '../../services/committeeService';
 import { agentLabels } from './AgentVote';
 import { canDraw3d } from './council/canDraw3d';
 import type { CouncilData, CouncilHandle, SceneAgent } from './council/councilScene';
@@ -8,12 +8,6 @@ interface CommitteeStageProps {
   run: CommitteeRun;
   selected: SceneAgent | null;
   onPick(agent: SceneAgent): void;
-}
-
-function seconds(run: CommitteeRun) {
-  if (!run.startedAt || !run.finishedAt) return null;
-  const s = (run.finishedAt.getTime() - run.startedAt.getTime()) / 1000;
-  return s >= 0 ? `${s.toFixed(1)} s` : null;
 }
 
 // The committee as a 3D council over the stored run. Three.js is loaded only when the stage is close to the
@@ -71,7 +65,8 @@ export function CommitteeStage({ run, selected, onPick }: CommitteeStageProps) {
   const facts = [
     effective ? `${matching} of 3 votes match it` : null,
     gate === null ? null : gate.changed ? 'policy gate changed it' : gate.changed === false ? 'policy gate left it as is' : null,
-    seconds(run) ? `ran ${seconds(run)}` : null,
+    runDuration(run) ? `ran ${runDuration(run)}` : null,
+    run.trigger === 'rerun' ? 're-run' : null,
   ].filter(Boolean);
 
   return (

@@ -13,8 +13,27 @@ interface DtiBreakdownProps {
 }
 
 const headerCellClass = 'px-4 py-3 text-left align-bottom font-mono text-xs font-medium tracking-widest text-muted uppercase';
-const labelCellClass = 'px-4 py-3 text-left align-top font-medium';
-const cellClass = 'px-4 py-3 align-top tabular-nums';
+const labelCellClass = 'px-4 py-4 text-left align-top font-medium';
+const cellClass = 'px-4 py-4 align-middle tabular-nums';
+const stressedCellClass = 'bg-tint/50 px-4 py-4 align-middle font-medium tabular-nums';
+
+const bandTones: Record<string, string> = {
+  Comfortable: 'bg-success-soft text-success',
+  Caution: 'bg-neutral text-neutral-text',
+  Adverse: 'bg-danger-soft text-error',
+};
+
+// A band from al-ai's affordability module (Comfortable, Caution or Adverse). The value is always
+// written out; an unknown value gets the neutral tone.
+export function BandChip({ value }: { value: string }) {
+  const tone = Object.hasOwn(bandTones, value) ? bandTones[value] : 'bg-neutral text-neutral-text';
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-[15px] font-medium ${tone}`} data-band-chip>
+      {value}
+    </span>
+  );
+}
 
 const reviewNotices: Record<Exclude<LoanFileReview['state'], 'available'>, string> = {
   pending: 'Loading the underwriting review.',
@@ -81,7 +100,7 @@ function Row({ label, unit, offered, stressed, mono = true }: RowProps) {
       <td className={cellClass}>
         <Figure mono={mono} value={offered} />
       </td>
-      <td className={cellClass}>
+      <td className={stressedCellClass}>
         <Figure mono={mono} value={stressed} />
       </td>
     </tr>
@@ -94,11 +113,12 @@ interface SharedRowProps {
   value: string | null;
   note?: string;
   mono?: boolean;
+  band?: boolean;
 }
 
 // Income, debts and living costs do not depend on the interest rate, and each band is set once,
 // on the stressed figures, so one value covers both columns.
-function SharedRow({ label, unit, value, note = 'Same at both rates', mono = true }: SharedRowProps) {
+function SharedRow({ label, unit, value, note = 'Same at both rates', mono = true, band = false }: SharedRowProps) {
   return (
     <tr className="border-t border-line/70 transition-colors duration-200 hover:bg-oat/60">
       <th className={labelCellClass} scope="row">
@@ -106,7 +126,7 @@ function SharedRow({ label, unit, value, note = 'Same at both rates', mono = tru
         {unit ? <span className="block text-sm font-normal text-muted">{unit}</span> : null}
       </th>
       <td className={cellClass} colSpan={2}>
-        <Figure mono={mono} value={value} />
+        {band && value !== null && value !== 'Loading' ? <BandChip value={value} /> : <Figure mono={mono} value={value} />}
         <span className="ml-3 font-sans text-sm text-muted">{note}</span>
       </td>
     </tr>
@@ -156,8 +176,9 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
               <th className={headerCellClass} scope="col">
                 At the offered rate
               </th>
-              <th className={headerCellClass} scope="col">
+              <th className={`${headerCellClass} bg-tint`} scope="col">
                 {stressedHeading}
+                <span aria-hidden="true" className="ml-2 rounded-full bg-pine px-2 py-0.5 text-xs text-oat normal-case tracking-normal">Decides</span>
               </th>
             </tr>
           </thead>
@@ -202,6 +223,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
             />
             <SharedRow
               label="DTI band"
+              band
               mono={false}
               note="Set on the stressed figures"
               value={fromReview(stress?.dtiBand ?? null)}
@@ -214,6 +236,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
             />
             <SharedRow
               label="Surplus band"
+              band
               mono={false}
               note="Set on the stressed figures"
               value={fromReview(stress?.surplusBand ?? null)}

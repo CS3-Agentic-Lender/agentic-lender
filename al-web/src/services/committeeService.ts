@@ -28,6 +28,9 @@ export interface CommitteeRun {
   applicationId: string | null;
   brokerId: string | null;
   status: 'running' | 'failed' | 'complete' | null;
+  // SCHEMA.md: `submit` or `rerun`; `rerunOf` is the failed or stale run a re-run repeats.
+  trigger: 'submit' | 'rerun' | null;
+  rerunOf: string | null;
   startedAt: Date | null;
   finishedAt: Date | null;
   failedStep: string | null;
@@ -46,6 +49,19 @@ export interface CommitteeRun {
   agents: Record<VotingAgent | 'market', CommitteeAgent | null>;
 }
 
+export const CALL_OUTCOMES = ['ok', 'invalid_reply', 'provider_error', 'missing_key', 'error', 'reused'] as const;
+export type CallOutcome = (typeof CALL_OUTCOMES)[number];
+export type MarketOutlook = 'rising' | 'stable' | 'falling';
+export interface MarketSource { url: string; date: string }
+
+// The Market & Macro model call's checked reply (al-ai market_agent.check_reply): exactly outlook, summary and sources.
+export interface MarketReply {
+  outlook: MarketOutlook | null;
+  summary: string | null;
+  // Null when the stored list is absent or any item is not a {url, date} pair with a web address.
+  sources: MarketSource[] | null;
+}
+
 export interface CommitteeCall {
   id: string;
   agent: string | null;
@@ -54,6 +70,14 @@ export interface CommitteeCall {
   output: string | null;
   latencyMs: number | null;
   createdAt: Date | null;
+  attempt: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  outcome: CallOutcome | null;
+  error: string | null;
+  reusedFrom: string | null;
+  // Read only for a Market & Macro call whose parsedReply is a map; a search call's parsedReply is a list of hits.
+  marketReply: MarketReply | null;
 }
 
 export type CommitteeState =
@@ -103,6 +127,8 @@ export function toCommitteeRun(id: string, data: DocumentData): CommitteeRun {
   return {
     id, applicationId: readString(data.applicationId), brokerId: readString(data.brokerId),
     status: ['running', 'failed', 'complete'].includes(data.status) ? data.status : null,
+    trigger: data.trigger === 'submit' || data.trigger === 'rerun' ? data.trigger : null,
+    rerunOf: readString(data.rerunOf),
     startedAt: readDate(data.startedAt), finishedAt: readDate(data.finishedAt),
     failedStep: readString(data.failedStep), failureReason: readString(data.failureReason),
     creditMemo: readString(data.creditMemo),
@@ -126,12 +152,69 @@ export function toCommitteeRun(id: string, data: DocumentData): CommitteeRun {
   };
 }
 
+// How long the run took, from its stored start and finish. Null while running or when either time is missing.
+export function runDuration(run: Pick<CommitteeRun, 'startedAt' | 'finishedAt'>): string | null {
+  if (!run.startedAt || !run.finishedAt) return null;
+  const ms = run.finishedAt.getTime() - run.startedAt.getTime();
+  if (ms < 0) return null;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
+  const totalSeconds = Math.round(ms / 1000);
+  return `${Math.floor(totalSeconds / 60)} min ${totalSeconds % 60} s`;
+}
+
+function count(value: unknown, min: number): number | null {
+  const number = readNumber(value);
+  return number !== null && Number.isInteger(number) && number >= min ? number : null;
+}
+
+function webAddress(value: unknown): string | null {
+  const text = readString(value);
+  if (text === null) return null;
+  try {
+    const url = new URL(text);
+    // Only web links become anchors: a stored javascript: or data: address is never rendered as one.
+    return url.protocol === 'https:' || url.protocol === 'http:' ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+function marketSources(value: unknown): MarketSource[] | null {
+  if (!Array.isArray(value)) return null;
+  const sources: MarketSource[] = [];
+  for (const item of value) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) return null;
+    const entry = item as DocumentData;
+    const url = webAddress(entry.url);
+    const date = readString(entry.date);
+    if (url === null || date === null) return null;
+    sources.push({ url, date });
+  }
+  return sources;
+}
+
+function marketReply(agentName: string | null, value: unknown): MarketReply | null {
+  if (agentName !== 'market' || value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const reply = value as DocumentData;
+  return {
+    outlook: reply.outlook === 'rising' || reply.outlook === 'stable' || reply.outlook === 'falling' ? reply.outlook : null,
+    summary: readString(reply.summary),
+    sources: marketSources(reply.sources),
+  };
+}
+
 export function toCommitteeCall(id: string, data: DocumentData): CommitteeCall {
+  const agentName = readString(data.agent);
   const latency = readNumber(data.latencyMs);
   return {
-    id, agent: readString(data.agent), provider: readString(data.provider), model: readString(data.model),
+    id, agent: agentName, provider: readString(data.provider), model: readString(data.model),
     output: readString(data.output), latencyMs: latency !== null && latency >= 0 ? latency : null,
     createdAt: readDate(data.createdAt),
+    attempt: count(data.attempt, 1),
+    inputTokens: count(data.inputTokens, 0), outputTokens: count(data.outputTokens, 0),
+    outcome: (CALL_OUTCOMES as readonly unknown[]).includes(data.outcome) ? data.outcome as CallOutcome : null,
+    error: readString(data.error), reusedFrom: readString(data.reusedFrom),
+    marketReply: marketReply(agentName, data.parsedReply),
   };
 }
 

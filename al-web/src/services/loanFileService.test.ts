@@ -192,6 +192,20 @@ describe('loan note parser', () => {
     },
   );
 
+  it('reads closedAt and closeTxHash, and leaves them null on an open note', () => {
+    const closedAt = Timestamp.fromDate(new Date('2026-11-05T09:00:00Z'));
+    expect(toLoanFileApplication('a', { loanNote: note }).loanNote).toMatchObject({ closedAt: null, closeTxHash: null });
+    expect(toLoanFileApplication('a', { loanNote: { ...note, closedAt, closeTxHash: '0xClose' } }).loanNote)
+      .toMatchObject({ closedAt: closedAt.toDate(), closeTxHash: '0xClose' });
+    expect(toLoanFileApplication('a', { loanNote: { ...note, closedAt: null, closeTxHash: null } }).loanNote)
+      .toMatchObject({ closedAt: null, closeTxHash: null });
+  });
+
+  it.each([['closedAt', '2026-11-05'], ['closedAt', 42], ['closeTxHash', ''], ['closeTxHash', '  '], ['closeTxHash', 12]])(
+    'rejects a present but malformed %s (%j)', (field, value) => {
+      expect(toLoanFileApplication('a', { loanNote: { ...note, [field]: value } }).loanNote).toBeNull();
+    },
+  );
   it.each([undefined, null, '2026-10-01', 42])('rejects a missing or malformed mint timestamp (%j)', (mintedAt) => {
     expect(toLoanFileApplication('a', { loanNote: { ...note, mintedAt } }).loanNote).toBeNull();
   });
