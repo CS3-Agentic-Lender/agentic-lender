@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommitteeServiceContext } from '../../context/CommitteeContext';
@@ -77,6 +77,11 @@ function consoleWith(service: CommitteeService, applicationId = 'LN-1001') {
 
 afterEach(cleanup);
 
+// Each member's results sit behind its own tab.
+function openTab(name: string) {
+  fireEvent.click(screen.getByRole('tab', { name }));
+}
+
 describe('committee console', () => {
   it('shows disagreement and all three stored votes, reports and metadata', () => {
     render(consoleWith(fakeService().service));
@@ -85,10 +90,12 @@ describe('committee console', () => {
     for (const value of ['Vote: Approve', 'adequate', 'Variable income', 'Verify payslips', 'Repayments fit the household budget.', 'ollama', 'qwen3.5:9b', 'affordability-v1']) {
       expect(affordability.getByText(value)).toBeInTheDocument();
     }
+    openTab('Valuation');
     const valuation = within(screen.getByRole('region', { name: 'Valuation vote' }));
     for (const value of ['Vote: Conditionally Approve', 'weak', 'Limited comparables', 'Obtain a survey', 'The estimate needs a survey.', 'groq', 'openai/gpt-oss-120b']) {
       expect(valuation.getByText(value)).toBeInTheDocument();
     }
+    openTab('Strategist');
     const strategist = within(screen.getByRole('region', { name: 'Strategist vote' }));
     for (const value of ['Vote: Approve', 'Confirm borrower documents', 'Review the specialist reports.', 'gemini', 'gemini-3.1-flash-lite']) {
       expect(strategist.getByText(value)).toBeInTheDocument();
@@ -103,11 +110,15 @@ describe('committee console', () => {
     run.consensus = { votes: { affordability: 'Approve', valuation: 'Approve', strategist: 'Approve' }, disagreement: false };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
     expect(screen.queryByText(/Votes disagree/)).not.toBeInTheDocument();
-    expect(screen.getAllByText('Vote: Approve')).toHaveLength(3);
+    for (const name of ['Affordability', 'Valuation', 'Strategist']) {
+      openTab(name);
+      expect(within(screen.getByRole('region', { name: `${name} vote` })).getByText('Vote: Approve')).toBeInTheDocument();
+    }
   });
 
   it('keeps Macro separate from the votes and explains that sources are not stored', () => {
     render(consoleWith(fakeService().service));
+    openTab('Market & Macro');
     const macro = screen.getByRole('region', { name: 'Market & Macro outlook' });
     expect(macro).toHaveTextContent('Market & Macro does not vote.');
     expect(macro).toHaveTextContent('Rates remain uncertain.');
@@ -122,7 +133,9 @@ describe('committee console', () => {
     expect(recommendation).toHaveTextContent('Original recommendationApprove');
     expect(recommendation).toHaveTextContent('Effective recommendationConditionally Approve');
     expect(recommendation).toHaveTextContent('Final authority stays with the human underwriter.');
+    openTab('Credit memo');
     expect(screen.getByRole('region', { name: 'Credit memo' }).querySelector('p')?.textContent).toBe(sampleRun().creditMemo);
+    openTab('Policy gate');
     const gate = screen.getByRole('region', { name: 'Policy gate' });
     expect(gate).toHaveTextContent('Policy gate changed the recommendation');
     expect(gate).toHaveTextContent('Reduce the credit limit');
@@ -141,6 +154,7 @@ describe('committee console', () => {
     ];
     const creditMemo = `${sections.map(([heading, body]) => `## ${heading}\n${body}`).join('\n\n')}\n`;
     render(consoleWith(fakeService({ status: 'ready', run: { ...sampleRun(), creditMemo } }).service));
+    openTab('Credit memo');
 
     const memo = screen.getByRole('region', { name: 'Credit memo' });
     const headings = within(memo).getAllByRole('heading', { level: 4 });
@@ -152,6 +166,7 @@ describe('committee console', () => {
   it('keeps memo text that comes before the first heading', () => {
     const run = { ...sampleRun(), creditMemo: 'Draft memo.\n\n## Affordability\nRepayments fit the budget.' };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Credit memo');
     const memo = screen.getByRole('region', { name: 'Credit memo' });
     expect(memo.querySelector('p')?.textContent).toBe('Draft memo.');
     expect(within(memo).getByRole('heading', { level: 4, name: 'Affordability' }).nextElementSibling?.textContent).toBe('Repayments fit the budget.');
@@ -171,12 +186,33 @@ describe('committee console', () => {
     render(consoleWith(fakeService({ status: 'ready', run: toCommitteeRun('run-LN-1001', { status: 'running' }) }).service));
     expect(screen.getByRole('status')).toHaveTextContent('Run status: Running');
     expect(screen.getByText(/Outputs not stored yet are pending/)).toBeInTheDocument();
-    expect(screen.getAllByText('Vote: Not stored')).toHaveLength(3);
+    for (const name of ['Affordability', 'Valuation', 'Strategist']) {
+      openTab(name);
+      expect(within(screen.getByRole('region', { name: `${name} vote` })).getByText('Vote: Not stored')).toBeInTheDocument();
+    }
+    openTab('Credit memo');
     expect(screen.getByText('Credit memo not stored yet')).toBeInTheDocument();
+    openTab('Policy gate');
     expect(screen.getByText('Policy gate not stored yet.')).toBeInTheDocument();
     expect(screen.queryByText('Approve')).not.toBeInTheDocument();
   });
 
+  it('shows one member at a time in tabs and moves between them with the arrow keys', () => {
+    render(consoleWith(fakeService().service));
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Affordability', 'Valuation', 'Strategist', 'Market & Macro', 'Credit memo', 'Policy gate']);
+    expect(screen.getByRole('tab', { name: 'Affordability' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('Affordability');
+    expect(screen.queryByRole('region', { name: 'Valuation vote' })).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Valuation' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Valuation' })).toHaveFocus();
+    expect(screen.getByRole('region', { name: 'Valuation vote' })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('tablist'), { key: 'End' });
+    expect(screen.getByRole('region', { name: 'Policy gate' })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Affordability' })).toHaveAttribute('aria-selected', 'true');
+  });
   it.each([
     ['loading', 'Loading the committee run…'], ['missing', 'No committee run stored yet.'],
     ['permission-denied', 'Permission denied: your account cannot read this committee run.'],

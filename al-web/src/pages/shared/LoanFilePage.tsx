@@ -12,6 +12,8 @@ import { LoanNotePanel } from '../../components/lending/LoanNotePanel';
 import { MessageBorrower } from '../../components/messaging/MessageBorrower';
 import { SignOffPanel, decisionLabels } from '../../components/lending/SignOffPanel';
 import type { DecisionResult } from '../../services/decisionService';
+import { KeyFigures } from '../../components/lending/KeyFigures';
+import { StatusTimeline } from '../../components/lending/StatusTimeline';
 import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
 import { useSettlementService } from '../../context/SettlementContext';
@@ -37,8 +39,14 @@ interface Fact {
   mono?: boolean;
 }
 
-const backLinkClass = 'font-medium text-pine underline-offset-4 hover:underline';
-const sectionClass = 'rounded-2xl border border-line bg-surface p-6 sm:p-8';
+const backLinkClass =
+  'group inline-flex min-h-11 items-center gap-2 font-medium text-pine underline-offset-4 hover:underline';
+const sectionClass = 'card';
+
+// Blocks of the file settle in one after another; reduced motion switches the animation off.
+function stagger(step: number) {
+  return { animationDelay: `${step * 70}ms` };
+}
 
 function euro(value: number | null) {
   return value === null ? null : formatEuro(value);
@@ -54,14 +62,14 @@ function date(value: Date | null) {
 
 function FactList({ facts }: { facts: Fact[] }) {
   return (
-    <dl className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+    <dl className="mt-3 divide-y divide-line/70">
       {facts.map(({ label, unit, value, mono }) => (
-        <div key={label}>
-          <dt className="text-sm text-muted">
+        <div className="flex items-baseline justify-between gap-4 py-2.5" key={label}>
+          <dt className="min-w-0 text-sm text-muted">
             {label}
-            {unit ? <span className="text-xs">, {unit}</span> : null}
+            {unit ? <span>, {unit}</span> : null}
           </dt>
-          <dd className="mt-1">
+          <dd className="max-w-[62%] text-right break-words tabular-nums">
             <Figure mono={mono} value={value} />
           </dd>
         </div>
@@ -73,7 +81,7 @@ function FactList({ facts }: { facts: Fact[] }) {
 function FactSection({ title, facts }: { title: string; facts: Fact[] }) {
   return (
     <section aria-label={title} className={sectionClass}>
-      <h2 className="text-xl font-semibold">{title}</h2>
+      <h2 className="card-title">{title}</h2>
       <FactList facts={facts} />
     </section>
   );
@@ -156,8 +164,8 @@ function NotReady({ state, viewer }: { state: Exclude<LoanFileState, { status: '
       aria-live="polite"
       className={sectionClass}
     >
-      <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
-      <p className="mt-3 leading-7 text-muted">{detail}</p>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{heading}</h1>
+      <p className="mt-2 leading-7 text-muted">{detail}</p>
     </section>
   );
 }
@@ -173,19 +181,72 @@ function LoanFile({ application, review }: LoanFileProps) {
 
   return (
     <>
-      <p className="font-mono text-xs font-medium tracking-widest text-muted uppercase">Loan file</p>
-      <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-        {application.borrowerName ?? 'Borrower name unavailable'}
-      </h1>
-      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <span className="font-mono text-sm">{application.id}</span>
-        <StatusBadge status={application.status} />
-        <span className="text-sm text-muted">
-          {loanTypeLabel(application.loanType) ?? 'Loan type unavailable'}
-        </span>
+      <header className="animate-rise">
+        <p className="eyebrow">Loan file</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+          {application.borrowerName ?? 'Borrower name unavailable'}
+        </h1>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="font-mono text-sm text-neutral-text">{application.id}</span>
+          <StatusBadge status={application.status} />
+          <span className="text-sm text-muted">
+            {loanTypeLabel(application.loanType) ?? 'Loan type unavailable'}
+          </span>
+        </div>
+      </header>
+
+      <div className="mt-8 animate-rise" style={stagger(1)}>
+        <StatusTimeline status={application.status} />
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 animate-rise" style={stagger(2)}>
+        <KeyFigures
+          figures={[
+            { label: heloc ? 'Credit limit requested' : 'Amount requested', value: euro(application.loanAmountEur) },
+            {
+              label: heloc ? 'Combined LTV' : 'Valuation LTV',
+              value: ltvText(application),
+              note: heloc ? null : ltvBandText(application),
+            },
+            {
+              label: 'Stressed DTI',
+              value:
+                review.state === 'pending'
+                  ? 'Loading'
+                  : review.state === 'available' && review.stressTest?.stressedDtiPct != null
+                    ? formatPercent(review.stressTest.stressedDtiPct)
+                    : null,
+              note: review.state === 'available' ? review.stressTest?.dtiBand ?? null : null,
+            },
+            { label: 'Risk tier', value: riskTierText(application, review), note: 'of A to D' },
+          ]}
+        />
+      </div>
+
+      <div className="mt-5 grid animate-rise gap-5 lg:grid-cols-12 [&>div>section]:h-full" style={stagger(3)}>
+        <div className="min-w-0 lg:col-span-5">
+          {heloc ? (
+            <HelocCollateral
+              application={application}
+              policyGate={
+                review.state === 'available' ? review.policyGate : review.state === 'absent' ? null : undefined
+              }
+            />
+          ) : (
+            <MortgageCollateral application={application} review={review} />
+          )}
+        </div>
+        <div className="min-w-0 lg:col-span-7">
+          <ValuationBreakdown application={application} review={review} />
+        </div>
+      </div>
+
+      <div className="mt-5 animate-rise" style={stagger(4)}>
+        <DtiBreakdown application={application} review={review} />
+      </div>
+      <CommitteeConsole applicationId={application.id} />
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <FactSection
           facts={[
             { label: 'Name', value: application.borrowerName ?? null, mono: false },
@@ -232,25 +293,7 @@ function LoanFile({ application, review }: LoanFileProps) {
           ]}
           title="Property"
         />
-        <div className="grid gap-6">
-          {heloc ? (
-            <HelocCollateral
-              application={application}
-              policyGate={
-                review.state === 'available' ? review.policyGate : review.state === 'absent' ? null : undefined
-              }
-            />
-          ) : (
-            <MortgageCollateral application={application} review={review} />
-          )}
-          <ValuationBreakdown application={application} review={review} />
-        </div>
       </div>
-
-      <div className="mt-6">
-        <DtiBreakdown application={application} review={review} />
-      </div>
-      <CommitteeConsole applicationId={application.id} />
     </>
   );
 }
@@ -317,7 +360,7 @@ function ReadyLoanFile({ application, review, viewer }: {
     <>
       <LoanFile application={application} review={review} />
       {recorded ? (
-        <p className="mt-6 rounded-lg bg-success-soft p-4 text-success" role="status">
+        <p className="mt-5 rounded-xl border border-success/20 bg-success-soft px-5 py-4 font-medium text-success" role="status">
           Decision recorded: {decisionLabels[recorded.decision.outcome]}. Saved status: {recorded.status}.
         </p>
       ) : null}
@@ -330,12 +373,18 @@ function ReadyLoanFile({ application, review, viewer }: {
         />
       ) : null}
       {viewer === 'underwriter' && !application.loanNote && (canMint || mintState === 'confirmed') ? (
-        <section aria-label="Mint loan note" className={`mt-6 ${sectionClass}`}>
-          <h2 className="text-xl font-semibold">Mint loan note</h2>
+        <section aria-label="Mint loan note" className={`mt-5 ${sectionClass}`}>
+          <h2 className="card-title">Mint loan note</h2>
           {mintState === 'pending' ? (
-            <p aria-live="polite" className="mt-4 text-muted" role="status">Minting…</p>
+            <p aria-live="polite" className="mt-4 flex items-center gap-3 text-muted" role="status">
+              <span
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-pine"
+              />
+              Minting…
+            </p>
           ) : mintState === 'confirmed' ? (
-            <p aria-live="polite" className="mt-4 text-success" role="status">
+            <p aria-live="polite" className="mt-4 font-medium text-success" role="status">
               Loan note minted. Waiting for the loan file to update…
             </p>
           ) : null}
@@ -344,7 +393,7 @@ function ReadyLoanFile({ application, review, viewer }: {
           ) : null}
           {canMint && mintState !== 'confirmed' ? (
             <button
-              className="mt-4 min-h-12 cursor-pointer rounded-lg bg-pine px-5 py-3 font-semibold text-surface transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn btn-primary mt-4"
               disabled={mintState === 'pending'}
               onClick={() => void mint(recorded ?? undefined)}
               type="button"
@@ -388,12 +437,20 @@ export function LoanFilePage({ viewer }: LoanFilePageProps) {
     <div className="min-h-screen bg-oat text-ink">
       <PortalHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-6 py-12">
+      <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-8">
         <Link className={backLinkClass} to={back.to}>
+          <svg
+            aria-hidden="true"
+            className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5"
+            fill="none"
+            viewBox="0 0 16 16"
+          >
+            <path d="M9.5 3.5 5 8l4.5 4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
+          </svg>
           {back.label}
         </Link>
 
-        <div className="mt-8">
+        <div className="mt-4">
           {state.status === 'ready' ? (
             <ReadyLoanFile
               application={state.application}

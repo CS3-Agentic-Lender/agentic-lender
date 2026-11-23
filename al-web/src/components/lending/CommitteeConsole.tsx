@@ -1,7 +1,9 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useCommittee, useCommitteeCalls } from '../../context/CommitteeContext';
-import { VOTING_AGENTS, type CommitteeRun } from '../../services/committeeService';
+import type { CommitteeRun, Recommendation } from '../../services/committeeService';
 import { AgentMetadata, AgentVote, StoredList } from './AgentVote';
+import { CommitteeStage } from './CommitteeStage';
+import type { SceneAgent } from './council/councilScene';
 
 function timestamp(value: Date | null) {
   return value?.toLocaleString('en-IE') ?? 'Not stored';
@@ -101,16 +103,54 @@ function CallsList({ runId }: { runId: string }) {
   );
 }
 
+type CommitteeTab = SceneAgent | 'memo' | 'gate';
+
+const TABS: { key: CommitteeTab; label: string }[] = [
+  { key: 'affordability', label: 'Affordability' },
+  { key: 'valuation', label: 'Valuation' },
+  { key: 'strategist', label: 'Strategist' },
+  { key: 'market', label: 'Market & Macro' },
+  { key: 'memo', label: 'Credit memo' },
+  { key: 'gate', label: 'Policy gate' },
+];
+
+const voteDot: Record<Recommendation, string> = {
+  Approve: 'bg-vote-approve',
+  'Conditionally Approve': 'bg-vote-conditional',
+  Decline: 'bg-vote-decline',
+};
+
+const isAgentTab = (tab: CommitteeTab): tab is SceneAgent => tab !== 'memo' && tab !== 'gate';
+
 function RunDetails({ run }: { run: CommitteeRun }) {
   const [showCalls, setShowCalls] = useState(false);
+  const [tab, setTab] = useState<CommitteeTab>('affordability');
   const callsId = useId();
   const rerunNoteId = useId();
+  const tabsId = useId();
+  const tabRefs = useRef(new Map<CommitteeTab, HTMLButtonElement>());
   const votes = Object.values(run.consensus.votes).filter((vote) => vote !== null);
   const disagreement = run.consensus.disagreement === true || new Set(votes).size > 1;
   const gate = run.policyGate;
 
+  function moveTab(event: KeyboardEvent<HTMLDivElement>) {
+    const index = TABS.findIndex((item) => item.key === tab);
+    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    const edge = event.key === 'Home' ? 0 : event.key === 'End' ? TABS.length - 1 : null;
+    if (step === 0 && edge === null) return;
+    event.preventDefault();
+    const next = TABS[edge ?? (index + step + TABS.length) % TABS.length].key;
+    setTab(next);
+    tabRefs.current.get(next)?.focus();
+  }
+
+  function pickFromStage(agent: SceneAgent) {
+    setTab(agent);
+    tabRefs.current.get(agent)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
   return (
-    <div className="mt-5 space-y-6">
+    <div className="mt-5 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="break-all font-mono text-sm text-muted">Run ID: {run.id}</p>
@@ -145,6 +185,9 @@ function RunDetails({ run }: { run: CommitteeRun }) {
           <p className="mt-2 text-sm" id={rerunNoteId}>Re-running is not available yet.</p>
         </div>
       )}
+
+      <CommitteeStage onPick={pickFromStage} run={run} selected={isAgentTab(tab) ? tab : null} />
+
       <section aria-label="Committee recommendation" className="rounded-xl bg-tint p-5">
         <h3 className="text-lg font-semibold">Recommendation</h3>
         <dl className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -165,56 +208,92 @@ function RunDetails({ run }: { run: CommitteeRun }) {
       {run.consensus.disagreement === null && !disagreement && (
         <p className="text-sm text-muted">Consensus disagreement flag not stored yet.</p>
       )}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {VOTING_AGENTS.map((name) => (
-          <AgentVote agent={run.agents[name]} key={name} name={name} vote={run.consensus.votes[name]} />
-        ))}
-      </div>
-      <section aria-label="Market & Macro outlook" className="rounded-xl border border-line p-5">
-        <h3 className="text-lg font-semibold">Market &amp; Macro outlook</h3>
-        <p className="mt-1 text-sm text-muted">Context only. Market &amp; Macro does not vote.</p>
-        <p className="mt-4 whitespace-pre-wrap break-words leading-7">{run.agents.market?.report ?? 'Macro report not stored yet'}</p>
-        <p className="mt-3 text-sm text-muted">Macro sources are not stored.</p>
-        <div className="mt-4 border-t border-line pt-4">
-          <AgentMetadata agent={run.agents.market} />
+
+      <div>
+        <div
+          aria-label="Committee members"
+          className="flex flex-wrap gap-1 border-b border-line"
+          onKeyDown={moveTab}
+          role="tablist"
+        >
+          {TABS.map((item) => {
+            const vote = isAgentTab(item.key) && item.key !== 'market' ? run.consensus.votes[item.key] : null;
+            const on = tab === item.key;
+            return (
+              <button
+                aria-controls={`${tabsId}-panel`}
+                aria-selected={on}
+                className={`-mb-px inline-flex min-h-11 cursor-pointer items-center gap-2 border-b-2 px-3.5 py-2 font-semibold transition-colors duration-200 ${on ? 'border-pine text-pine' : 'border-transparent text-muted hover:text-ink'}`}
+                id={`${tabsId}-${item.key}`}
+                key={item.key}
+                onClick={() => setTab(item.key)}
+                ref={(node) => { if (node) tabRefs.current.set(item.key, node); else tabRefs.current.delete(item.key); }}
+                role="tab"
+                tabIndex={on ? 0 : -1}
+                type="button"
+              >
+                {vote ? <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${voteDot[vote]}`} /> : null}
+                {item.key === 'market' ? <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-vote-observer" /> : null}
+                {item.label}
+              </button>
+            );
+          })}
         </div>
-      </section>
-      <section aria-label="Credit memo">
-        <h3 className="text-lg font-semibold">Credit memo</h3>
-        {run.creditMemo === null ? (
-          <p className="mt-3 whitespace-pre-wrap break-words leading-7">Credit memo not stored yet</p>
-        ) : (
-          <CreditMemo memo={run.creditMemo} />
-        )}
-      </section>
-      <section aria-label="Policy gate" className="rounded-xl border border-line p-5">
-        <h3 className="text-lg font-semibold">Policy gate</h3>
-        {gate === null ? (
-          <p className="mt-3 text-muted">Policy gate not stored yet.</p>
-        ) : (
-          <>
-            <p className="mt-3 font-medium">
-              {gate.changed === null ? 'Policy-gate change not stored' : gate.changed ? 'Policy gate changed the recommendation' : 'Policy gate left the recommendation unchanged'}
-            </p>
-            <p className="mt-2">Original: {gate.original ?? 'Not stored'} · Effective: {gate.effective ?? 'Not stored'}</p>
-            <dl className="mt-4 grid gap-4 text-sm leading-6 sm:grid-cols-2">
-              <div>
-                <dt className="font-medium">Policy conditions</dt>
-                <dd><StoredList items={gate.conditions} /></dd>
+        <div aria-labelledby={`${tabsId}-${tab}`} className="animate-rise pt-5" id={`${tabsId}-panel`} key={tab} role="tabpanel">
+          {tab === 'affordability' || tab === 'valuation' || tab === 'strategist' ? (
+            <AgentVote agent={run.agents[tab]} name={tab} vote={run.consensus.votes[tab]} />
+          ) : tab === 'market' ? (
+            <section aria-label="Market & Macro outlook" className="rounded-xl border border-line p-5">
+              <h3 className="text-lg font-semibold">Market &amp; Macro outlook</h3>
+              <p className="mt-1 text-sm text-muted">Context only. Market &amp; Macro does not vote.</p>
+              <p className="mt-4 whitespace-pre-wrap break-words leading-7">{run.agents.market?.report ?? 'Macro report not stored yet'}</p>
+              <p className="mt-3 text-sm text-muted">Macro sources are not stored.</p>
+              <div className="mt-4 border-t border-line pt-4">
+                <AgentMetadata agent={run.agents.market} />
               </div>
-              <div>
-                <dt className="font-medium">Policy breaches</dt>
-                <dd><StoredList items={gate.breaches} /></dd>
-              </div>
-            </dl>
-          </>
-        )}
-      </section>
+            </section>
+          ) : tab === 'memo' ? (
+            <section aria-label="Credit memo" className="rounded-xl border border-line p-5">
+              <h3 className="text-lg font-semibold">Credit memo</h3>
+              {run.creditMemo === null ? (
+                <p className="mt-3 whitespace-pre-wrap break-words leading-7">Credit memo not stored yet</p>
+              ) : (
+                <CreditMemo memo={run.creditMemo} />
+              )}
+            </section>
+          ) : (
+            <section aria-label="Policy gate" className="rounded-xl border border-line p-5">
+              <h3 className="text-lg font-semibold">Policy gate</h3>
+              {gate === null ? (
+                <p className="mt-3 text-muted">Policy gate not stored yet.</p>
+              ) : (
+                <>
+                  <p className="mt-3 font-medium">
+                    {gate.changed === null ? 'Policy-gate change not stored' : gate.changed ? 'Policy gate changed the recommendation' : 'Policy gate left the recommendation unchanged'}
+                  </p>
+                  <p className="mt-2">Original: {gate.original ?? 'Not stored'} · Effective: {gate.effective ?? 'Not stored'}</p>
+                  <dl className="mt-4 grid gap-4 text-sm leading-6 sm:grid-cols-2">
+                    <div>
+                      <dt className="font-medium">Policy conditions</dt>
+                      <dd><StoredList items={gate.conditions} /></dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium">Policy breaches</dt>
+                      <dd><StoredList items={gate.breaches} /></dd>
+                    </div>
+                  </dl>
+                </>
+              )}
+            </section>
+          )}
+        </div>
+      </div>
+
       <div className="border-t border-line pt-5">
         <button
           aria-controls={callsId}
           aria-expanded={showCalls}
-          className="min-h-11 cursor-pointer rounded-lg border border-line px-4 py-2 font-medium text-pine transition-colors hover:bg-tint"
+          className="btn btn-secondary"
           onClick={() => setShowCalls(!showCalls)}
           type="button"
         >
@@ -227,16 +306,15 @@ function RunDetails({ run }: { run: CommitteeRun }) {
     </div>
   );
 }
-
 export function CommitteeConsole({ applicationId }: { applicationId: string }) {
   const state = useCommittee(applicationId);
   return (
     <section
       aria-label="Committee"
       aria-busy={state.status === 'loading'}
-      className="mt-6 min-w-0 rounded-2xl border border-line bg-surface p-6 sm:p-8"
+      className="card mt-5 min-w-0"
     >
-      <h2 className="text-xl font-semibold">Committee</h2>
+      <h2 className="card-title">Committee</h2>
       <p className="mt-2 text-sm text-muted">Stored reasoning for this application. Run status is separate from the application status.</p>
       {state.status === 'ready' ? (
         <RunDetails key={state.run.id} run={state.run} />
