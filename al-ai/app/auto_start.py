@@ -40,7 +40,7 @@ from google.cloud import firestore
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail, retry_policy, risk_tier
+from app import approval_likelihood, call_log, committee, official_rates, rates, reasoning_trail, retry_policy, risk_tier
 from app import market_agent as ma
 
 log = logging.getLogger("al-ai.auto-start")
@@ -449,12 +449,23 @@ def deps_factory_for(db, env: dict) -> DepsFactory:
     return lambda store: committee.local_deps(store, env, reports, call_sink=sink)
 
 
+def warm_rates(get_rate: official_rates.GetRate) -> None:
+    """Fetch every ECB series once so `rates_cache` is filled: a fresh deploy starts with it empty, and a cold ECB reply is slow."""
+    for name in rates.SERIES:
+        try:
+            get_rate(name)
+        except Exception as exc:  # the first run fetches it again; a failed warm-up must not stop the service
+            log.warning("could not warm the %s rate: %s", name, exc)
+
+
 def start_from_env() -> Listener:
-    """A started listener on the real Firestore (or the emulator, when FIRESTORE_EMULATOR_HOST is set), with the real providers."""
+    """A started listener on the real Firestore (or the emulator, when FIRESTORE_EMULATOR_HOST is set), with the real providers.
+    The rates cache is warmed in the background, so a slow or unreachable ECB never holds up the start."""
     from app.llm import smoke
 
     env = smoke.load_env()
     db = firestore.Client(project=os.getenv("FIREBASE_PROJECT_ID", "demo-al"))
+    threading.Thread(target=warm_rates, args=(committee.get_rate_waiting,), name="rates-warm", daemon=True).start()
     listener = Listener(db, deps_factory_for(db, env))
     listener.start()
     return listener
