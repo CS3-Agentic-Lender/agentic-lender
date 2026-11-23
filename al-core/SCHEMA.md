@@ -23,7 +23,7 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 | `applications/{id}/messages/{messageId}` | The borrower, the assigned broker, underwriters | al-core | The message thread |
 | `applications/{id}/readState/{uid}` | That person only | al-core | When that person last opened the thread |
 | `ai_runs/{runId}` | The assigned broker, underwriters | al-ai | One record per committee run |
-| `ai_calls/{callId}` | The assigned broker, underwriters | al-ai | One record per AI call |
+| `ai_calls/{callId}` | Underwriters only (a broker sees the committee's outcome and conditions on `ai_runs`, not its raw calls) | al-ai | One record per AI call |
 | `support_requests/{reference}` | The user who sent it, underwriters | al-core (`POST /core/support-requests`) | A support request from a user |
 | `reviews/{uid}` | That user, underwriters | al-core (`PUT /core/reviews/me`) | One review per user |
 | `users/{uid}/saved_checks/{checkId}` | That user | al-core (`POST` and `DELETE /core/saved-checks`) | A borrower's saved property checks |
