@@ -23,4 +23,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 
 # Writes FIREBASE_SERVICE_ACCOUNT_JSON to a file when it is set, then runs the command below.
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5002"]
+# --no-access-log: app/request_log.py prints one line per request with its request id, so uvicorn's own line would only repeat it.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5002", "--no-access-log"]

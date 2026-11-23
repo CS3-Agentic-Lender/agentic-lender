@@ -151,6 +151,7 @@ GitHub Actions builds the same `Dockerfile` for `linux/amd64` (what Fargate runs
 
 - **Port:** 5002. **Health check:** `GET /core/health`, `200` with no token. The image also has a Docker `HEALTHCHECK` on it.
 - **User:** a system user with no shell, not root.
+- **Logs:** one JSON line per request on stdout (`app/request_log.py`): `request_id`, `method`, `path` without the query string, `status`, `duration_ms`, and on a crash the exception's class name as `error`. Never headers, tokens, bodies or exception messages. uvicorn runs with `--no-access-log`, so each request is one line. On AWS the lines are in CloudWatch, log group `/agentic-lender/al-core`. To find the line behind an error, take its `request_id` (in the error body and the `X-Request-ID` header) and search for it in Logs Insights: `fields @timestamp, @message | filter request_id = "<the id>"`. Running locally with `uvicorn` as above, the start-up prints the same lines (alongside uvicorn's own access line, unless you add `--no-access-log`).
 - **No config or secrets are in the image.** It holds only `app/` and its packages (no `.env`, no `chain/`). Everything comes from environment variables when the container starts:
 
 | Variable | Needed on AWS | What it is |
