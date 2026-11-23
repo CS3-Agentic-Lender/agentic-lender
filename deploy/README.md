@@ -107,8 +107,9 @@ The deploy images are built by GitHub Actions (`.github/workflows/images.yml`), 
   That commit id is what `./deploy/al deploy` takes.
 
 ECR scans each image when it arrives (Console: ECR, then the repository, then the image). Tags can't
-be overwritten, and each repository keeps its 30 newest images (about a week of merges).
-An image older than that is deleted, so redeploy a recent commit rather than an old one.
+be overwritten, and each image is deleted 90 days after it was pushed, however many merges follow it.
+So `./deploy/al up` can bring back the last build for up to 90 days after its merge: a build pushed
+after 6 Oct 2026 is still there for the demo on 4 Jan 2027. Older than that, deploy a recent commit.
 
 ### Backup: pushing from Nic's Mac
 
