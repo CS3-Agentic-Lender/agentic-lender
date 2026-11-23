@@ -22,7 +22,7 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Logs | CloudWatch Logs, kept 14 days | Planned |
 | Affordability LLM | Qwen3 32B on Amazon Bedrock on the live site in place of Ollama. Qwen3.5 9B on Ollama locally (`qwen3.5:9b`), from the same Qwen family | Decided |
 | Data and login | Firebase: Firestore and Auth | Decided (the hosted project is its own ticket) |
-| Smart contracts | A public testnet. Dumi picks Polygon Amoy or Arbitrum Sepolia | Decided (network open) |
+| Smart contracts | Polygon Amoy, deployed and source-verified on 23 November 2026. Addresses in `docs/infrastructure.md`, "Contracts on Polygon Amoy" | Done |
 | iOS app | The App Store through Ibrahima's paid Apple Developer account, bought at the end of October 2026. The Simulator is the backup | Decided |
 | Stripe | Test mode. Its webhook calls the load balancer | Later |
 | Infrastructure | Terraform in a `deploy/` folder | Planned |
@@ -153,7 +153,7 @@ The WAF allows about 300 requests per source IP in a rolling five-minute window,
 
 | Decision | Options | Owner and when |
 |---|---|---|
-| Which public testnet | Polygon Amoy or Arbitrum Sepolia | Dumi |
+| Which public testnet | Polygon Amoy or Arbitrum Sepolia | Decided: Polygon Amoy (Dumi, 23 November). Its official faucet needs no mainnet balance |
 | AWS account and who pays | Nic's own account with budget caps, Nikoloz's account with Nic as admin, or another cloud (Azure for Students, GCP) | Decided: Nikoloz's account, which Nic sets up and manages with admin access. Nic covers any charges the account's credits do not, and sets the budget alerts. The supervisor has also been asked about AWS Academy and course credits |
 | Stripe test payments | Webhook through the load balancer, tested locally with the Stripe CLI | Nic makes the Stripe sandbox account. Sprint 3 |
 | Task sizes | Start small, then measure | Nic, during the Sprint 3 test run |
