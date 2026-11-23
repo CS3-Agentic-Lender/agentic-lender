@@ -493,12 +493,21 @@ describe('loan file page', () => {
     expect(signOff).toHaveBeenCalledExactlyOnceWith('LN-1001', 'approved', 'Reviewed.');
   });
 
-  it.each(['broker', 'underwriter'] as const)('renders the committee section for a %s', async (role) => {
-    renderAs(`${role}-1`, role, `/${role}/applications/LN-1001`, {
+  it('renders the committee section for an underwriter', async () => {
+    renderAs('underwriter-1', 'underwriter', '/underwriter/applications/LN-1001', {
       loanFiles: new FakeLoanFileService({ 'LN-1001': loanFile() }),
     });
     const committee = await screen.findByRole('region', { name: 'Committee' });
     expect(await within(committee).findByText('No committee run stored yet.')).toBeInTheDocument();
+  });
+
+  // Team decision on 23 Nov: the committee is for underwriters only; a broker never sees its votes or reasoning.
+  it('does not render the committee section for a broker', async () => {
+    renderAs('broker-1', 'broker', '/broker/applications/LN-1001', {
+      loanFiles: new FakeLoanFileService({ 'LN-1001': loanFile() }),
+    });
+    await screen.findByRole('region', { name: 'Borrower' });
+    expect(screen.queryByRole('region', { name: 'Committee' })).not.toBeInTheDocument();
   });
   it.each([
     [100000, 62.5, false],

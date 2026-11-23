@@ -1,6 +1,8 @@
 import { onSnapshot, Timestamp } from 'firebase/firestore';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { firestoreCommitteeService, toCommitteeRun, type CommitteeViewer } from './committeeService';
+import {
+  firestoreCommitteeService, runDuration, toCommitteeCall, toCommitteeRun, type CommitteeViewer,
+} from './committeeService';
 
 vi.mock('firebase/firestore', async (importOriginal) => ({
   ...await importOriginal<typeof import('firebase/firestore')>(),
@@ -149,6 +151,8 @@ describe('committee subscriptions', () => {
     expect(listener).toHaveBeenLastCalledWith({ status: 'ready', calls: [{
       id: 'call-LN-1001', agent: 'market', output: 'Outlook', latencyMs: 0,
       provider: null, model: null, createdAt: null,
+      attempt: null, inputTokens: null, outputTokens: null, outcome: null, error: null, reusedFrom: null,
+      marketReply: null,
     }] });
     stop();
     listener.mockClear();
@@ -176,5 +180,78 @@ describe('committee subscriptions', () => {
     expect(run.consensus.disagreement).toBeNull();
     expect(run.agents.valuation).toMatchObject({ rating: null, concerns: null, conditions: [] });
     expect(run.agents.market).toBeNull();
+    expect(run.trigger).toBeNull();
+    expect(run.rerunOf).toBeNull();
+  });
+
+  it.each([
+    [0, 42_250, '42.3 s'], [0, 83_400, '1 min 23 s'], [5_000, 1_000, null],
+  ])('words a run from %i ms to %i ms as %s', (start, end, expected) => {
+    expect(runDuration({ startedAt: new Date(start), finishedAt: new Date(end) })).toBe(expected);
+    expect(runDuration({ startedAt: new Date(start), finishedAt: null })).toBeNull();
+  });
+
+  it('reads the run trigger and the run a re-run repeats', () => {
+    expect(toCommitteeRun('run-2', { trigger: 'rerun', rerunOf: 'run-1' })).toMatchObject({ trigger: 'rerun', rerunOf: 'run-1' });
+    expect(toCommitteeRun('run-1', { trigger: 'submit', rerunOf: null })).toMatchObject({ trigger: 'submit', rerunOf: null });
+    expect(toCommitteeRun('run-3', { trigger: 'manual', rerunOf: 7 })).toMatchObject({ trigger: null, rerunOf: null });
+  });
+
+  it('reads a model call with its attempt, tokens, outcome and the market reply', () => {
+    const call = toCommitteeCall('run-1-market-2', {
+      agent: 'market', provider: 'gemini', model: 'gemini-3.1-flash-lite', attempt: 2,
+      inputTokens: 1830, outputTokens: 212, outcome: 'ok', error: null, reusedFrom: null,
+      createdAt: new Timestamp(10, 0), latencyMs: 2400,
+      parsedReply: {
+        outlook: 'rising', summary: 'Rates are rising.',
+        sources: [{ url: 'https://www.ecb.europa.eu/press/pr/2026.html', date: '2026-10-29' }],
+      },
+    });
+    expect(call).toEqual({
+      id: 'run-1-market-2', agent: 'market', provider: 'gemini', model: 'gemini-3.1-flash-lite', output: null,
+      latencyMs: 2400, createdAt: new Date(10_000), attempt: 2, inputTokens: 1830, outputTokens: 212,
+      outcome: 'ok', error: null, reusedFrom: null,
+      marketReply: {
+        outlook: 'rising', summary: 'Rates are rising.',
+        sources: [{ url: 'https://www.ecb.europa.eu/press/pr/2026.html', date: '2026-10-29' }],
+      },
+    });
+  });
+
+  it('reads a failed and a reused call without inventing numbers', () => {
+    expect(toCommitteeCall('run-1-strategist-1', {
+      agent: 'strategist', outcome: 'provider_error', error: 'HTTP 500', attempt: 1, inputTokens: null, outputTokens: undefined,
+    })).toMatchObject({ outcome: 'provider_error', error: 'HTTP 500', attempt: 1, inputTokens: null, outputTokens: null, marketReply: null });
+    expect(toCommitteeCall('run-1-market-reused', {
+      agent: 'market', outcome: 'reused', attempt: null, reusedFrom: 'run-0-market-1', parsedReply: null,
+    })).toMatchObject({ outcome: 'reused', attempt: null, reusedFrom: 'run-0-market-1', marketReply: null });
+  });
+
+  it.each([
+    ['an unknown outcome', { outcome: 'success' }, { outcome: null }],
+    ['a zero attempt', { attempt: 0 }, { attempt: null }],
+    ['a fractional attempt', { attempt: 1.5 }, { attempt: null }],
+    ['negative tokens', { inputTokens: -1, outputTokens: 'many' }, { inputTokens: null, outputTokens: null }],
+  ])('keeps %s null', (_label, data, expected) => {
+    expect(toCommitteeCall('call-1', { agent: 'affordability', ...data })).toMatchObject(expected);
+  });
+
+  it('reads no market reply from a search call, another agent, or a malformed reply', () => {
+    // A search's parsedReply is its list of hits.
+    expect(toCommitteeCall('run-1-market-search-1', { agent: 'market', parsedReply: [{ url: 'https://example.com', date: '2026-10-01' }] }).marketReply).toBeNull();
+    expect(toCommitteeCall('run-1-affordability-1', { agent: 'affordability', parsedReply: { outlook: 'rising', sources: [] } }).marketReply).toBeNull();
+    expect(toCommitteeCall('run-1-market-1', { agent: 'market', parsedReply: { outlook: 'soaring', summary: 7 } }).marketReply)
+      .toEqual({ outlook: null, summary: null, sources: null });
+  });
+
+  it.each([
+    ['a non-web address', [{ url: 'javascript:alert(1)', date: '2026-10-29' }]],
+    ['an address that is not a URL', [{ url: 'ecb press release', date: '2026-10-29' }]],
+    ['a missing date', [{ url: 'https://www.ecb.europa.eu/', date: '' }]],
+    ['an item that is not a map', ['https://www.ecb.europa.eu/']],
+    ['one bad item among good ones', [{ url: 'https://www.ecb.europa.eu/', date: '2026-10-29' }, { url: 'ftp://files.example/x', date: '2026-10-29' }]],
+  ])('refuses market sources with %s', (_label, sources) => {
+    const call = toCommitteeCall('run-1-market-1', { agent: 'market', parsedReply: { outlook: 'stable', summary: 'Stable.', sources } });
+    expect(call.marketReply).toEqual({ outlook: 'stable', summary: 'Stable.', sources: null });
   });
 });

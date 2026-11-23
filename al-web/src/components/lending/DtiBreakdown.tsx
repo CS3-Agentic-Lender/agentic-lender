@@ -12,9 +12,28 @@ interface DtiBreakdownProps {
   review: LoanFileReview;
 }
 
-const headerCellClass = 'px-4 py-3 text-left align-bottom text-xs font-semibold tracking-wide text-muted uppercase';
-const labelCellClass = 'px-4 py-4 text-left align-top text-sm font-normal';
-const cellClass = 'px-4 py-4 align-top text-sm';
+const headerCellClass = 'px-4 py-3 text-left align-bottom font-mono text-xs font-medium tracking-widest text-muted uppercase';
+const labelCellClass = 'px-4 py-4 text-left align-top font-medium';
+const cellClass = 'px-4 py-4 align-middle tabular-nums';
+const stressedCellClass = 'bg-tint/50 px-4 py-4 align-middle font-medium tabular-nums';
+
+const bandTones: Record<string, string> = {
+  Comfortable: 'bg-success-soft text-success',
+  Caution: 'bg-neutral text-neutral-text',
+  Adverse: 'bg-danger-soft text-error',
+};
+
+// A band from al-ai's affordability module (Comfortable, Caution or Adverse). The value is always
+// written out; an unknown value gets the neutral tone.
+export function BandChip({ value }: { value: string }) {
+  const tone = Object.hasOwn(bandTones, value) ? bandTones[value] : 'bg-neutral text-neutral-text';
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-[15px] font-medium ${tone}`} data-band-chip>
+      {value}
+    </span>
+  );
+}
 
 const reviewNotices: Record<Exclude<LoanFileReview['state'], 'available'>, string> = {
   pending: 'Loading the underwriting review.',
@@ -73,15 +92,15 @@ interface RowProps {
 
 function Row({ label, unit, offered, stressed, mono = true }: RowProps) {
   return (
-    <tr className="border-t border-line">
+    <tr className="border-t border-line/70 transition-colors duration-200 hover:bg-oat/60">
       <th className={labelCellClass} scope="row">
         {label}
-        {unit ? <span className="block text-xs text-muted">{unit}</span> : null}
+        {unit ? <span className="block text-sm font-normal text-muted">{unit}</span> : null}
       </th>
       <td className={cellClass}>
         <Figure mono={mono} value={offered} />
       </td>
-      <td className={cellClass}>
+      <td className={stressedCellClass}>
         <Figure mono={mono} value={stressed} />
       </td>
     </tr>
@@ -94,20 +113,21 @@ interface SharedRowProps {
   value: string | null;
   note?: string;
   mono?: boolean;
+  band?: boolean;
 }
 
 // Income, debts and living costs do not depend on the interest rate, and each band is set once,
 // on the stressed figures, so one value covers both columns.
-function SharedRow({ label, unit, value, note = 'Same at both rates', mono = true }: SharedRowProps) {
+function SharedRow({ label, unit, value, note = 'Same at both rates', mono = true, band = false }: SharedRowProps) {
   return (
-    <tr className="border-t border-line">
+    <tr className="border-t border-line/70 transition-colors duration-200 hover:bg-oat/60">
       <th className={labelCellClass} scope="row">
         {label}
-        {unit ? <span className="block text-xs text-muted">{unit}</span> : null}
+        {unit ? <span className="block text-sm font-normal text-muted">{unit}</span> : null}
       </th>
       <td className={cellClass} colSpan={2}>
-        <Figure mono={mono} value={value} />
-        <span className="ml-3 text-xs text-muted">{note}</span>
+        {band && value !== null && value !== 'Loading' ? <BandChip value={value} /> : <Figure mono={mono} value={value} />}
+        <span className="ml-3 font-sans text-sm text-muted">{note}</span>
       </td>
     </tr>
   );
@@ -126,11 +146,11 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
   const fromReview = (value: string | null) => (loading ? 'Loading' : value);
 
   return (
-    <section aria-labelledby="dti-heading" className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-      <h2 className="text-xl font-semibold" id="dti-heading">
+    <section aria-labelledby="dti-heading" className="card">
+      <h2 className="card-title" id="dti-heading">
         Debt to income
       </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
         Monthly figures at the offered rate and at the stressed rate. Debt to income is total monthly debt
         repayments, including the new repayment, as a share of gross monthly income.
       </p>
@@ -145,7 +165,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
         </p>
       )}
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-line">
+      <div className="mt-5 overflow-x-auto rounded-xl border border-line/70">
         <table className="w-full min-w-xl border-collapse">
           <caption className="sr-only">Debt-to-income breakdown at the offered and stressed rates</caption>
           <thead className="bg-oat">
@@ -156,8 +176,9 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
               <th className={headerCellClass} scope="col">
                 At the offered rate
               </th>
-              <th className={headerCellClass} scope="col">
+              <th className={`${headerCellClass} bg-tint`} scope="col">
                 {stressedHeading}
+                <span aria-hidden="true" className="ml-2 rounded-full bg-pine px-2 py-0.5 text-xs text-oat normal-case tracking-normal">Decides</span>
               </th>
             </tr>
           </thead>
@@ -202,6 +223,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
             />
             <SharedRow
               label="DTI band"
+              band
               mono={false}
               note="Set on the stressed figures"
               value={fromReview(stress?.dtiBand ?? null)}
@@ -214,6 +236,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
             />
             <SharedRow
               label="Surplus band"
+              band
               mono={false}
               note="Set on the stressed figures"
               value={fromReview(stress?.surplusBand ?? null)}
@@ -222,7 +245,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
         </table>
       </div>
 
-      <dl className="mt-6 flex flex-wrap gap-x-12 gap-y-4 text-sm">
+      <dl className="mt-5 flex flex-wrap gap-x-12 gap-y-4 rounded-xl bg-oat px-4 py-3 text-sm">
         <div>
           <dt className="text-muted">Benchmark rate</dt>
           <dd className="mt-1">
@@ -240,7 +263,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
           <dd className="mt-1">
             <span className="font-mono">{stressMarginLabel(marginPct)}</span>
             {stress?.stressMarginPct == null ? (
-              <span className="ml-2 text-xs text-muted">agreed default, not yet stored</span>
+              <span className="ml-2 text-muted">agreed default, not yet stored</span>
             ) : null}
           </dd>
         </div>

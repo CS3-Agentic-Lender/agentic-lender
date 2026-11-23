@@ -9,9 +9,7 @@ interface AuditPackActionsProps {
 
 type Format = 'pdf' | 'csv';
 
-const buttonClass =
-  'min-h-12 cursor-pointer rounded-lg border border-line bg-neutral px-5 py-3 font-semibold text-neutral-text ' +
-  'transition-colors hover:bg-tint disabled:cursor-not-allowed disabled:opacity-60';
+const buttonClass = 'btn btn-secondary';
 
 // What the backend's check found, in words. The hashes are compared on the canonical record by
 // al-core, never on the files built here.
@@ -96,8 +94,8 @@ export function AuditPackActions({ applicationId }: AuditPackActionsProps) {
   const summary = pack ? verificationSummary(pack.verification) : null;
 
   return (
-    <section aria-label="Audit pack" className="mt-6 rounded-2xl border border-line bg-surface p-6 sm:p-8">
-      <h2 className="text-xl font-semibold">Audit pack</h2>
+    <section aria-label="Audit pack" className="card mt-5">
+      <h2 className="card-title">Audit pack</h2>
       <p className="mt-2 text-sm text-muted">
         The decision, the AI evidence and the hashes behind this loan note, as PDF or CSV.
       </p>
