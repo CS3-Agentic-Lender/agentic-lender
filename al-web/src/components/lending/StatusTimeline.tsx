@@ -1,8 +1,11 @@
 interface StatusTimelineProps {
   status: string;
+  // Closed follows either Funded or Declined (al-core/SCHEMA.md), so the status alone can't say which.
+  declined: boolean; // the stored decision outcome is declined
+  minted: boolean; // a loan note is stored
 }
 
-type StageState = 'done' | 'current' | 'next' | 'stopped' | 'skipped';
+type StageState = 'done' | 'current' | 'next' | 'stopped' | 'skipped' | 'unknown';
 
 // What each stored status says about the four stages of a loan. A stage is done once the
 // status it produces has been reached; the stage after that is the one in hand.
@@ -14,7 +17,6 @@ const stagesDone: Record<string, number> = {
   'AI Deliberated': 2,
   'Underwriter Approved': 3,
   Funded: 4,
-  Closed: 4,
 };
 
 const captions: Record<StageState, string> = {
@@ -23,9 +25,17 @@ const captions: Record<StageState, string> = {
   next: 'Next',
   stopped: 'Stopped here',
   skipped: 'Not reached',
+  unknown: 'Not recorded',
 };
 
-function stageStates(status: string): StageState[] | null {
+function stageStates(status: string, declined: boolean, minted: boolean): StageState[] | null {
+  if (status === 'Closed') {
+    // A closed file was funded only if it has a loan note; a declined one stopped at the decision.
+    if (minted) return ['done', 'done', 'done', 'done'];
+    if (declined) return ['done', 'done', 'stopped', 'skipped'];
+    return ['done', 'done', 'unknown', 'unknown'];
+  }
+
   if (status === 'Declined') {
     // A decline is the underwriter's decision, so the file stops at that stage.
     return ['done', 'done', 'stopped', 'skipped'];
@@ -46,6 +56,7 @@ const markerClasses: Record<StageState, string> = {
   next: 'border-line bg-surface text-muted',
   stopped: 'border-error bg-danger-soft text-error',
   skipped: 'border-line bg-surface text-muted',
+  unknown: 'border-dashed border-line bg-surface text-muted',
 };
 
 function Marker({ state }: { state: StageState }) {
@@ -71,8 +82,8 @@ function Marker({ state }: { state: StageState }) {
 
 // Where the application is in its life, read from the stored status alone. A status outside
 // the agreed list draws nothing: the badge still writes it out.
-export function StatusTimeline({ status }: StatusTimelineProps) {
-  const states = stageStates(status);
+export function StatusTimeline({ status, declined, minted }: StatusTimelineProps) {
+  const states = stageStates(status, declined, minted);
 
   if (states === null) {
     return null;
@@ -82,7 +93,7 @@ export function StatusTimeline({ status }: StatusTimelineProps) {
     <ol aria-label="Application progress" className="flex flex-col sm:flex-row">
       {STAGES.map((stage, index) => {
         const state = states[index];
-        const reachedNext = index < STAGES.length - 1 && states[index + 1] !== 'next' && states[index + 1] !== 'skipped';
+        const reachedNext = index < STAGES.length - 1 && states[index + 1] !== 'next' && states[index + 1] !== 'skipped' && states[index + 1] !== 'unknown';
 
         return (
           <li

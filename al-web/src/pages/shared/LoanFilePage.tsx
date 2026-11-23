@@ -196,7 +196,11 @@ function LoanFile({ application, review }: LoanFileProps) {
       </header>
 
       <div className="mt-8 animate-rise" style={stagger(1)}>
-        <StatusTimeline status={application.status} />
+        <StatusTimeline
+          declined={application.decision?.outcome === 'declined'}
+          minted={application.loanNote != null}
+          status={application.status}
+        />
       </div>
 
       <div className="mt-8 animate-rise" style={stagger(2)}>
