@@ -99,7 +99,7 @@ Two calls skip Firebase tokens. Stripe's signature verifies the webhook; the loa
 | Input validation | Typed models validate each request body. An invalid value returns `422` and names the field. |
 | Service account key | The key stays on the servers. App Firebase config is public and does not grant access by itself. |
 | Secrets | Local secrets go in `.env`; deployed secrets go in AWS Secrets Manager. They never enter the repo or logs. Every commit is scanned. |
-| CORS | Only the portal's origin can call the APIs: `http://localhost:5173` for now. The deployed origin (`https://app.agentic-lender.com`) is added at the first deploy in Sprint 3. Tokens use a header, so the APIs do not use cookies. |
+| CORS | Only the portal's origin can call the APIs: `http://localhost:5173` locally, and `https://agentic-lender.com` on AWS. Tokens use a header, so the APIs do not use cookies. |
 | Stripe webhook | Stripe's signature is checked against the raw body. The fee is paid only when the payment succeeded and its intent id matches the stored id, amount EUR 150 and currency `eur`. |
 | No personal data on chain | The ledger stores the terms, a public id and a hash. It stores no identifying details. |
 | Safe errors | Errors expose no stack trace, key or another user's data. The request id links to details in the logs. |
