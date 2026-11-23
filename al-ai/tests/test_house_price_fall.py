@@ -90,6 +90,28 @@ def test_the_flags_agree_with_the_shown_ltv_on_every_whole_euro_boundary():
                 assert after["ltv_pct"] == float(band) and not after["above_90"] and after["above_80"] is (band == 90), (price, fall, band)
 
 
+@pytest.mark.parametrize("loan, shown, above_80, above_90", [
+    (160_003, 80.0, False, False),  # 80.0015% is shown as 80.0, so it is not flagged above 80 either
+    (160_010, 80.01, True, False),  # 80.005% is shown as 80.01: above 80
+    (180_009, 90.0, True, False),  # 90.0045% is shown as 90.0: above 80, not above 90
+    (180_020, 90.01, True, True),  # 90.01%: above both
+])
+def test_the_flags_read_the_same_rounded_ltv_the_underwriter_sees(loan, shown, above_80, above_90):
+    # Flags from the unrounded ratio used to say "above 80" next to a shown 80.0 (Nic's 160,003 on 200,000 example).
+    before = first([mortgage(loan_eur=loan, asking_price_eur=200_000, estimate_eur=None)], 0)["before"]
+    assert before == {"ltv_pct": shown, "above_80": above_80, "above_90": above_90}
+
+
+def test_a_flag_never_disagrees_with_the_shown_ltv():
+    # Every loan from 159,900 to 180,100 euro on 200,000, at every fall: above 80 exactly when the shown figure is over 80.0.
+    for loan in range(159_900, 180_101):
+        for fall in (0, 5):
+            r = first([mortgage(loan_eur=loan, asking_price_eur=200_000, estimate_eur=None)], fall)
+            for when in ("before", "after"):
+                shown = r[when]
+                assert shown["above_80"] is (shown["ltv_pct"] > 80) and shown["above_90"] is (shown["ltv_pct"] > 90), (loan, fall, when)
+
+
 # ---- the lower-of rule is the one the loan file and the committee use ------------------------
 
 @pytest.mark.parametrize("asking, estimate", [(300_000, 320_000), (300_000, 280_000), (300_000, 300_000), (250_000, None)])

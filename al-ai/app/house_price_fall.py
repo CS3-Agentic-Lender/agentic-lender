@@ -79,8 +79,14 @@ def _ltv(loan: Loan, value: float) -> float:
     return loan.loan_eur / value
 
 
-def _flags(ltv: float) -> dict:
-    return {"above_80": ltv > OVER_80, "above_90": ltv > OVER_90}
+def _figures(ltv: float) -> dict:
+    """The LTV as shown (a percentage to 2 decimal places) and the two flags, read off that same shown figure.
+
+    So the flags always agree with the number an underwriter sees: 160,003 on 200,000 is 80.0015%, shown as 80.0 and not
+    above 80. Comparing the unrounded ratio would flag it while showing 80.0.
+    """
+    pct = round(ltv * 100, 2)
+    return {"ltv_pct": pct, "above_80": pct > round(OVER_80 * 100, 2), "above_90": pct > round(OVER_90 * 100, 2)}
 
 
 def _result(loan: Loan, fall_pct: int) -> dict:
@@ -94,8 +100,8 @@ def _result(loan: Loan, fall_pct: int) -> dict:
         "value_basis": basis,
         "loan_eur": round(amount, 2),
         "starting_value_eur": round(value, 2),
-        "before": {"ltv_pct": round(before * 100, 2), **_flags(before)},
-        "after": {"property_value_eur": round(new_value, 2), "ltv_pct": round(after * 100, 2), **_flags(after)},
+        "before": _figures(before),
+        "after": {"property_value_eur": round(new_value, 2), **_figures(after)},
         "_amount": amount,
     }
 
