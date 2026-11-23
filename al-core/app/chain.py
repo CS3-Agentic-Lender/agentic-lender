@@ -9,6 +9,8 @@ key read from the environment, never from a file in the repo. Settings (names ar
     CHAIN_REGISTRAR_PRIVATE_KEY    the registrar wallet's key, a testnet wallet only
     AUDIT_REGISTRY_ADDRESS         the deployed AuditRegistry; if unset, chain/deployments/<CHAIN_NETWORK>.json is used
     CHAIN_NETWORK                  default localhost; an empty value, as .env.example has, means the default too
+    CHAIN_START_BLOCK              the block the contracts were deployed in, where looking up a past event stops; if unset,
+                                   the deployment file's deployBlock, else 0
 """
 
 import json
@@ -37,6 +39,41 @@ def connect(rpc_url: str) -> Web3:
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 15}))
     w3.middleware_onion.inject(ExtraDataToPOAMiddleware, name="extradata_to_poa", layer=0)
     return w3
+
+
+# A public RPC caps how many blocks one log query may span: PublicNode, Polygon Amoy's free one, refuses more than 10,000.
+# Amoy makes about 43,000 blocks a day, so a query from block 0, or even from the deploy block a day later, is refused.
+MAX_LOG_BLOCKS = 10_000
+
+
+def start_block(env: dict, network: str) -> int:
+    """Where looking up a past event stops: CHAIN_START_BLOCK, else the deployment file's deployBlock, else 0 (a local chain)."""
+    value = (env.get("CHAIN_START_BLOCK") or "").strip()
+    if value:
+        if not value.isdigit():
+            raise NotConfigured("CHAIN_START_BLOCK must be a block number (a whole number, 0 or more)")
+        return int(value)
+    try:
+        return int(json.loads((DEPLOYMENTS / f"{network}.json").read_text()).get("deployBlock", 0))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0
+
+
+def find_logs(w3: Web3, event, argument_filters: dict, start: int = 0) -> list:
+    """The event's logs that match, searched newest first in windows of at most MAX_LOG_BLOCKS blocks, down to `start`.
+
+    It stops at the first window with a match, which is almost always the newest: these lookups recover a mint, close or
+    audit write that has only just happened. Nothing found anywhere from `start` to the latest block is an empty list. A chain
+    that cannot be read raises, as before, for the caller to turn into a ChainError.
+    """
+    to_block = w3.eth.block_number
+    while to_block >= start:
+        from_block = max(start, to_block - MAX_LOG_BLOCKS + 1)
+        found = event.get_logs(from_block=from_block, to_block=to_block, argument_filters=argument_filters)
+        if found:
+            return list(found)
+        to_block = from_block - 1
+    return []
 
 # Only what al-core uses: two functions and the event that carries a write's transaction.
 ABI = [
@@ -85,10 +122,13 @@ def _bytes32(hex_text: str) -> bytes:
 
 
 class AuditRegistry:
-    def __init__(self, w3: Web3, address: str, private_key: str):
+    start_block = 0  # where tx_of stops looking back
+
+    def __init__(self, w3: Web3, address: str, private_key: str, start_block: int = 0):
         self.w3 = w3
         self.account = w3.eth.account.from_key(private_key)
         self.contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=ABI)
+        self.start_block = start_block
 
     @classmethod
     def from_env(cls, env: dict | None = None) -> "AuditRegistry":
@@ -96,15 +136,15 @@ class AuditRegistry:
         key = env.get("CHAIN_REGISTRAR_PRIVATE_KEY", "")
         if not key:
             raise NotConfigured("CHAIN_REGISTRAR_PRIVATE_KEY is not set")
+        network = env.get("CHAIN_NETWORK") or "localhost"  # an empty value would look for a file called .json
         address = env.get("AUDIT_REGISTRY_ADDRESS", "")
         if not address:
-            network = env.get("CHAIN_NETWORK") or "localhost"  # an empty value would look for a file called .json
             path = DEPLOYMENTS / f"{network}.json"
             try:
                 address = json.loads(path.read_text())["AuditRegistry"]["address"]
             except (OSError, KeyError, ValueError):
                 raise NotConfigured(f"AUDIT_REGISTRY_ADDRESS is not set and {path.name} has no AuditRegistry address") from None
-        return cls(connect(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL)), address, key)
+        return cls(connect(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL)), address, key, start_block(env, network))
 
     def record_of(self, application_id: str) -> tuple[str, int] | None:
         """The stored (audit hash, stored-at time) for an application, or None if nothing is stored."""
@@ -121,7 +161,7 @@ class AuditRegistry:
         """The transaction that stored this application's hash, read back from the registry's event, or None if there is none."""
         ref = bytes.fromhex(application_ref(application_id))
         try:
-            events = self.contract.events.HashStored().get_logs(from_block=0, argument_filters={"applicationRef": ref})
+            events = find_logs(self.w3, self.contract.events.HashStored(), {"applicationRef": ref}, self.start_block)
         except (ContractLogicError, Web3Exception, OSError) as exc:
             raise ChainError(f"the chain could not be read: {type(exc).__name__}") from None
         if not events:

@@ -1,6 +1,6 @@
 // Deploys the loan note contract and the audit registry and saves their addresses where al-core can read them:
 //   deployments/<network>.json  ->  { network, chainId, LoanNote: { address, admin, minter, holder },
-//                                     AuditRegistry: { address, admin, registrar }, deployedAt }
+//                                     AuditRegistry: { address, admin, registrar }, deployedAt, deployBlock }
 //
 // Local:   npx hardhat node                        (window 1)
 //          npx hardhat run scripts/deploy.js --network localhost
@@ -53,12 +53,16 @@ async function main() {
   await auditRegistry.waitForDeployment();
 
   const { chainId } = await ethers.provider.getNetwork();
+  // The block the first contract was created in. al-core never looks for a past event before it, which keeps its log
+  // lookups inside what a public RPC accepts (app/chain.py find_logs).
+  const deployBlock = (await loanNote.deploymentTransaction().wait()).blockNumber;
   const record = {
     network: network.name,
     chainId: Number(chainId),
     LoanNote: { address: await loanNote.getAddress(), admin: deployer.address, minter, holder },
     AuditRegistry: { address: await auditRegistry.getAddress(), admin: deployer.address, registrar: minter },
     deployedAt: new Date().toISOString(),
+    deployBlock,
   };
 
   fs.mkdirSync(DEPLOYMENTS, { recursive: true });
