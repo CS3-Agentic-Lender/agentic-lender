@@ -73,20 +73,15 @@ resource "aws_amplify_app" "portal" {
     status = "200"
   }
 
-  # Security headers on every response (Amplify's custom header YAML).
-  custom_headers = <<-EOT
-    customHeaders:
-      - pattern: '**'
-        headers:
-          - key: 'Strict-Transport-Security'
-            value: 'max-age=31536000; includeSubDomains'
-          - key: 'Content-Security-Policy'
-            value: "${local.portal_csp}"
-          - key: 'X-Content-Type-Options'
-            value: 'nosniff'
-          - key: 'Referrer-Policy'
-            value: 'strict-origin-when-cross-origin'
-  EOT
+  # Security headers on every response. Written in the JSON form Amplify stores and hands back
+  # ([{"pattern":..,"headers":[{"key":..,"value":..}]}], pattern first), not its YAML form: given YAML,
+  # every plan showed the same headers as a change. jsonencode sorts keys, so "key" comes before "value" as AWS has it.
+  custom_headers = "[{\"pattern\":\"**\",\"headers\":${jsonencode([
+    { key = "Strict-Transport-Security", value = "max-age=31536000; includeSubDomains" },
+    { key = "Content-Security-Policy", value = local.portal_csp },
+    { key = "X-Content-Type-Options", value = "nosniff" },
+    { key = "Referrer-Policy", value = "strict-origin-when-cross-origin" },
+  ])}}]"
 }
 
 # The only branch. "main" only names it: it isn't tied to Git, it's where the workflow uploads.

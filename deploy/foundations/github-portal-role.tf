@@ -35,9 +35,11 @@ data "aws_iam_policy_document" "github_portal" {
   # A "deploy without Git" upload: CreateDeployment hands back an upload address, StartDeployment
   # publishes the zip, ListJobs shows what is already running. All three name the branch.
   statement {
-    sid       = "DeployToTheMainBranch"
-    actions   = ["amplify:CreateDeployment", "amplify:StartDeployment", "amplify:ListJobs"]
-    resources = [aws_amplify_branch.main[0].arn]
+    sid     = "DeployToTheMainBranch"
+    actions = ["amplify:CreateDeployment", "amplify:StartDeployment", "amplify:ListJobs"]
+    # AWS checks CreateDeployment against the branch's deployments (…/branches/main/deployments/*), not the branch itself:
+    # the first upload was refused with exactly that resource. Both forms stay inside this one branch.
+    resources = [aws_amplify_branch.main[0].arn, "${aws_amplify_branch.main[0].arn}/deployments/*"]
   }
 
   # Polling the deployment until it succeeds or fails. AWS names a job by its branch plus its number.
