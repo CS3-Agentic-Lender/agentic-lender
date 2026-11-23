@@ -7,7 +7,9 @@
     "test": "hardhat test",
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
-    "demo:local": "hardhat run scripts/demo-mint.js --network localhost"
+    "demo:local": "hardhat run scripts/demo-mint.js --network localhost",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
+    "verify:amoy": "hardhat run scripts/verify.js --network amoy"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

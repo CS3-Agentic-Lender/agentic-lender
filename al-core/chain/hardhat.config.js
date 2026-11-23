@@ -2,7 +2,7 @@ require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
 
 // Testnet settings come from .env (see .env.example). They are only used with --network amoy.
-const { AMOY_RPC_URL, DEPLOYER_PRIVATE_KEY } = process.env;
+const { AMOY_RPC_URL, DEPLOYER_PRIVATE_KEY, ETHERSCAN_API_KEY } = process.env;
 
 module.exports = {
   solidity: {
@@ -17,4 +17,7 @@ module.exports = {
       ? { amoy: { url: AMOY_RPC_URL, accounts: [DEPLOYER_PRIVATE_KEY], chainId: 80002 } }
       : {}),
   },
+  // Source verification on the block explorer (`npm run verify:amoy`). One Etherscan key covers Polygon Amoy's explorer too.
+  etherscan: { apiKey: ETHERSCAN_API_KEY || "" },
+  sourcify: { enabled: false },
 };
