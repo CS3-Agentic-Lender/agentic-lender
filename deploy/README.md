@@ -52,6 +52,10 @@ deploy/
 
 ## The four commands
 
+**`git pull` on `main` first.** `al` runs the Terraform files and script from your local checkout, so a
+stale checkout plans the new images with old settings. On 23 November a plan nearly went out without
+the WAF change and the CORS update.
+
 ```sh
 ./deploy/al deploy <commit>   # switch to a new build (the commit id GitHub Actions tagged the images with)
 ./deploy/al status            # what's deployed, and whether AWS still matches the code; changes nothing
