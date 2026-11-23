@@ -125,7 +125,7 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 | `GET /ai/valuation/options` | Any signed-in role | List supported counties, property types and BER values |
 | `POST /ai/valuation` | Any signed-in role | Estimate a house value, compare an optional asking price and show each feature's effect. With `loan_type: "heloc"` plus `existing_mortgage_balance_eur` and `loan_amount_eur` (the credit limit), it also returns `combined_ltv` (what is owed plus the limit, over the estimate) and takes no asking price. The home value always comes from the model, never from the request |
 | `POST /ai/affordability` | Any signed-in role | Calculate the maximum mortgage and price plus repayments from income, debts and deposit. With `loan_type: "heloc"`, the largest credit line against a home the borrower owns (80% of the model's value of the home, minus what is still owed), with the line fully drawn repaid at the benchmark rate and at +2 points. The home value comes from the model, never from the request |
-| `POST /ai/committee/runs` | Underwriter | Start another AI review |
+| `POST /ai/committee/runs` | Underwriter | Re-run an AI review whose last run failed or is stale (still `running` after 10 minutes) |
 | `POST /ai/portfolio/rate-shock` | Underwriter | Measure an interest rate shock across the active portfolio |
 | `POST /ai/portfolio/downturn` | Underwriter | Measure a house price drop across the active portfolio |
 | `GET /ai/health` | Open | Report whether the service is running |
@@ -278,6 +278,8 @@ A `Declined` application has no loan note, so its `loan_note` is `null` and no c
 ```json
 { "run_id": "run-app-deliberated-2", "application_id": "app-deliberated", "status": "running", "trigger": "rerun" }
 ```
+
+An unknown application is `404`. A run still going (and not stale) is `409`, and so is an application with no failed or stale run to re-run (complete, or never run), so repeating the call is safe. The run is started by al-ai's committee listener, so a service running without `AUTO_START_COMMITTEE=true` answers `503`.
 
 `GET /core/applications/{id}/audit-pack` returns the stored audit record plus its hash, and, so the PDF, the CSV and the on-chain hash all come from one response, the documents behind the decision and a check that they agree (the other keys are listed after the example). The `record` keeps the exact keys it is stored and hashed with (camelCase), so hash it as it is and compare the result with `audit_hash`:
 
