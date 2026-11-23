@@ -41,7 +41,7 @@ export function CommitteeStage({ run, selected, onPick }: CommitteeStageProps) {
       import('./council/councilScene')
         .then(({ createCouncilScene }) => {
           if (cancelled) return;
-          handleRef.current = createCouncilScene(host, data, { onPick: (agent) => pickRef.current(agent), reduceMotion });
+          handleRef.current = createCouncilScene(host, data, { onPick: (agent) => pickRef.current(agent), reduceMotion, onContextLost: () => setFailed(true) });
           handleRef.current.focus(selectedRef.current);
         })
         .catch(() => { if (!cancelled) setFailed(true); });

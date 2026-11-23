@@ -32,7 +32,7 @@ export function ChainStage({ tokenId, auditHashShort, mintTxShort, auditTxShort,
       near.disconnect();
       import('./council/chainScene')
         .then(({ createChainScene }) => {
-          if (!cancelled) handle = createChainScene(host, { tokenId, auditHashShort, mintTxShort, auditTxShort }, { reduceMotion });
+          if (!cancelled) handle = createChainScene(host, { tokenId, auditHashShort, mintTxShort, auditTxShort }, { reduceMotion, onContextLost: () => setFailed(true) });
         })
         .catch(() => { if (!cancelled) setFailed(true); });
     }, { rootMargin: '200px' });
