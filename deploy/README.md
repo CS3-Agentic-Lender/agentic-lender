@@ -7,7 +7,7 @@ Everything that puts AL on AWS, written in Terraform. The design and the costs a
 
 | Folder | What's in it | Run by | Removed by `down`? |
 |---|---|---|---|
-| `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
+| `foundations/` | One-time pieces: the state bucket, the GitHub deploy and images roles, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
 | `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, the ECS cluster and the al-ai and al-core services | `./deploy/al` | Yes |
 
 Each `.tf` file holds one idea and starts with a comment saying what it creates, why, and what it costs.
@@ -24,6 +24,7 @@ deploy/
 │   ├── state-bucket.tf         where Terraform keeps its memory
 │   ├── backend.tf              ...and the lock on it
 │   ├── github-deploy-role.tf   GitHub Actions on main may deploy, nothing else
+│   ├── github-images-role.tf   GitHub Actions on main may push images, nothing else
 │   ├── guardrails.tf           the ceiling on what that role (and roles it makes) can do
 │   ├── dns.tf                  the agentic-lender.com zone
 │   ├── certificate.tf          the certificate for api.agentic-lender.com
@@ -105,6 +106,10 @@ The deploy images are built by GitHub Actions (`.github/workflows/images.yml`), 
 - **On every merge to `main`**, it builds both again and pushes them to ECR as
   `agentic-lender/al-ai:<commit>` and `agentic-lender/al-core:<commit>`, using the full commit id.
   That commit id is what `./deploy/al deploy` takes.
+
+The workflow signs in as `agentic-lender-github-images` (`foundations/github-images-role.tf`), not the
+deploy role. It trusts the same thing (a job on `main`) but may only push to the two registries, so a
+build step can't reach anything else in the account.
 
 ECR scans each image when it arrives (Console: ECR, then the repository, then the image). Tags can't
 be overwritten, and each repository keeps its 30 newest images (about a week of merges).
