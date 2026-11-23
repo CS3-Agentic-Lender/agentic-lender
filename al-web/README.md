@@ -77,19 +77,12 @@ A broker missing from the seed is reported as `SKIP`, not as a pass.
 
 ## Production build and AWS Amplify
 
-The deployed portal is served by AWS Amplify at `https://agentic-lender.com`, built from `main`, so
-every merge redeploys it. The Amplify app, its domain and its settings are part of the AWS deploy
-(Nic). What the portal needs from it:
+The deployed portal is served by AWS Amplify at `https://agentic-lender.com`. Amplify doesn't build
+it: GitHub Actions (`.github/workflows/portal.yml`) builds `al-web` on Node 22 on every merge to `main`
+that changes it, and uploads the `dist/` zip. How it's set up, and how to set its two repository
+variables, is in `deploy/README.md`, "The portal".
 
-| Setting | Value |
-|---|---|
-| App root | `al-web` |
-| Build | `npm ci && npm run build`, Node 24 |
-| Output | `al-web/dist` |
-| Rewrite | every path that is not a file goes to `/index.html` with status 200, so reloading a deep link such as `/underwriter/applications/<id>` loads the app and the route guard runs as usual |
-| Branch | `main` only, no pull request previews (each preview URL would need its own CORS origin and authorised domain) |
-
-The build reads these at build time, so they are Amplify environment variables, not secrets:
+The build reads these at build time, so `portal.yml` sets them, not the Amplify console:
 
 | Variable | Value |
 |---|---|
@@ -106,7 +99,9 @@ stays blank and the error is in the browser console.
 
 The portal's origin, `https://agentic-lender.com`, must also be allowed by both APIs
 (`CORS_ALLOWED_ORIGINS` for al-core and al-ai) and listed in Firebase Auth's authorised domains, or
-sign-in and every API call fail in the browser.
+sign-in and every API call fail in the browser. Reloading a deep link such as
+`/underwriter/applications/<id>` relies on Amplify rewriting every path that isn't a file to
+`/index.html`, so the app loads and the route guard runs as usual.
 
 To check a production build on the laptop before it is deployed, put the five values in `.env.local`
 (gitignored; Vite reads it for production builds too, unlike `.env.production.local`, which this repo
