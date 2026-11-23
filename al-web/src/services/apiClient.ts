@@ -59,11 +59,46 @@ function errorDetail(body: unknown): string | null {
   return typeof first?.msg === 'string' && first.msg.trim() ? first.msg : null;
 }
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// A service URL the portal calls, read from a VITE_* variable. A development build falls back to the
+// service on the laptop; a production build must be given the variable and refuses anything but an
+// https URL that is not localhost, so the hosted site can never call a laptop. Same fail-fast rule as
+// the Firebase settings in firebase.ts: the error is thrown when the app loads.
+export function serviceUrl(name: string, configured: string | undefined, development: boolean, localUrl: string): string {
+  const value = configured?.trim();
+  if (!value) {
+    if (development) {
+      return localUrl;
+    }
+    throw new Error(`Missing required API configuration: ${name}`);
+  }
+
+  if (!development) {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new Error(`${name} must be an absolute https:// URL`);
+    }
+    if (url.protocol !== 'https:' || LOCAL_HOSTS.has(url.hostname)) {
+      throw new Error(`${name} must be an https:// URL that is not localhost in a production build`);
+    }
+  }
+
+  return value;
+}
+
+// al-core's gateway: http://localhost:8000 on the laptop, https://api.agentic-lender.com when deployed.
+export function apiBaseUrl(configured: string | undefined, development: boolean): string {
+  return serviceUrl('VITE_API_BASE_URL', configured, development, 'http://localhost:8000');
+}
+
 // Auth and transport are injected at the boundary; no retries or token persistence.
 export function createApiClient({
   authService = firebaseAuthService,
   fetcher = fetch,
-  baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  baseUrl = apiBaseUrl(import.meta.env.VITE_API_BASE_URL, import.meta.env.DEV),
 }: ApiClientOptions = {}): ApiClient {
   return {
     async request<T>(path: string, { method, body }: JsonRequest): Promise<T> {
