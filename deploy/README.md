@@ -7,7 +7,7 @@ Everything that puts AL on AWS, written in Terraform. The design and the costs a
 
 | Folder | What's in it | Run by | Removed by `down`? |
 |---|---|---|---|
-| `foundations/` | One-time pieces: the state bucket, the GitHub deploy and images roles, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
+| `foundations/` | One-time pieces: the state bucket, the GitHub deploy and images roles, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles, the portal on Amplify and its upload role | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
 | `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, the ECS cluster and the al-ai and al-core services | `./deploy/al` | Yes |
 
 Each `.tf` file holds one idea and starts with a comment saying what it creates, why, and what it costs.
@@ -35,7 +35,9 @@ deploy/
 │   ├── al-ai-roles.tf          the roles an al-ai task runs with: ECS's execution role and al-ai's task role
 │   ├── al-core-secrets.tf      al-core's three secrets (made empty) and its log group
 │   ├── al-core-roles.tf        the roles an al-core task runs with: ECS's execution role and al-core's task role
-│   └── outputs.tf              name servers, role ARNs, bucket, certificate, alarm topic, image registries, both services' secrets and log groups
+│   ├── portal.tf               the portal at agentic-lender.com on Amplify: rewrites, security headers, domain
+│   ├── github-portal-role.tf   GitHub Actions on main may upload the portal, nothing else
+│   └── outputs.tf              name servers, role ARNs, bucket, certificate, alarm topic, image registries, both services' secrets and log groups, the portal's app id and address
 └── app/
     ├── versions.tf, variables.tf, providers.tf, backend.tf, outputs.tf
     ├── release.tf              which build is deployed
@@ -138,6 +140,72 @@ done
 ```
 
 If CI already pushed that commit, ECR refuses the push (`tag already exists`), which is what you want.
+
+## The portal
+
+The broker and underwriter portal (`al-web`) is served at <https://agentic-lender.com> by AWS
+Amplify Hosting. `www.agentic-lender.com` redirects there. It lives in `foundations/`, because it
+isn't billed by the hour, so `down` leaves it up.
+
+- `foundations/portal.tf` makes the Amplify app, its one branch (`main`), the domain with a
+  certificate Amplify issues and renews, the security headers, and the rewrite that sends every path
+  that isn't a file to `/index.html`, so reloading a deep link works. Our zone is in this account, so
+  Amplify writes its own Route 53 records.
+- `foundations/github-portal-role.tf` makes `agentic-lender-github-portal`, the role the workflow
+  uploads with. It trusts only `main` and can only deploy to this app.
+- `.github/workflows/portal.yml` builds `al-web` on every PR that changes it, and uploads nothing. On
+  a merge to `main` that changes `al-web/`, or when run by hand, it builds it again, uploads it and
+  waits until Amplify says it's live. Amplify itself never builds anything and holds no GitHub token.
+
+Floci has no Amplify, so on `-var target=floci` none of this is made.
+
+The build gets only public settings. `VITE_API_BASE_URL`, `VITE_FIREBASE_PROJECT_ID` and
+`VITE_FIREBASE_AUTH_DOMAIN` are written in the workflow. The Firebase web API key and app ID are
+public too (they ship in the JavaScript), but they're kept in repository variables so the secret
+scanner doesn't flag the key on every commit. Never put a key, service account or wallet value in a
+`VITE_*` variable: everything in one ends up in the page.
+
+### First time
+
+Do these once, in order, signed in as in step 1 of "First time on the real account" below.
+
+1. **Apply foundations.** In `deploy/foundations`, `terraform apply`. The plan adds the Amplify app,
+   branch and domain, and the portal role and its policy. The apply waits until Amplify has found its
+   proof record in our zone.
+2. **Wait for the certificate.** Amplify issues it after the apply, usually within minutes (up to 24
+   hours, AWS says). Repeat this until it prints `AVAILABLE`:
+   ```sh
+   aws amplify get-domain-association --app-id "$(terraform output -raw portal_app_id)" \
+     --domain-name agentic-lender.com --query 'domainAssociation.domainStatus' --output text
+   ```
+3. **Set the two Firebase repository variables.** In the Firebase console, open the
+   `agentic-lender-a0f1c` project, then Project settings, then General, then Your apps. Pick the web
+   app (add one with the `</>` button if there's none) and copy `apiKey` and `appId` from its config:
+   ```sh
+   gh variable set VITE_FIREBASE_API_KEY --body '<apiKey>'
+   gh variable set VITE_FIREBASE_APP_ID --body '<appId>'
+   ```
+   The build stops with an error if either is missing, rather than shipping a blank page.
+4. **Upload it.** Merging the PR that adds the workflow runs it. Otherwise, or to upload again:
+   `gh workflow run portal.yml --ref main`, then `gh run watch`.
+5. **Allow sign-in from the domain.** In the Firebase console: Authentication, then Settings, then
+   Authorized domains, then Add domain: `agentic-lender.com`. Firebase Auth refuses sign-ins from a
+   domain that isn't on the list.
+6. **Let the portal call the API.** al-ai and al-core accept browser calls only from
+   `https://agentic-lender.com` (`CORS_ALLOWED_ORIGINS` in `app/ecs.tf`). That setting reaches the
+   running tasks on the next `./deploy/al deploy <commit>`.
+7. **Check it.** Open <https://agentic-lender.com>, sign in as a broker and an underwriter, open an
+   application and reload the page. Then:
+   ```sh
+   curl -sI https://agentic-lender.com | grep -iE 'strict-transport|content-security|x-content-type|referrer'
+   curl -sI https://www.agentic-lender.com | grep -iE '^(HTTP|location)'   # 301 to https://agentic-lender.com
+   ```
+   If a page breaks, the browser console names any request the Content-Security-Policy blocked. The
+   policy is `portal_csp` in `foundations/portal.tf`; a change there needs `terraform apply` and then
+   a new upload.
+
+Before the domain works, `terraform output portal_default_url` gives Amplify's own address. Sign-in
+there also needs that host on Firebase's authorized domains list.
 
 ## Practising on Floci
 

@@ -42,7 +42,7 @@ locals {
     FIREBASE_PROJECT_ID  = "agentic-lender-a0f1c"
     AL_AGENTS_CONFIG     = "agents.aws.json" # Bedrock in place of Ollama (al-ai/app/llm/agents.aws.json)
     AUTO_START_COMMITTEE = "true"            # run the committee for each new application
-    CORS_ALLOWED_ORIGINS = "https://app.${var.domain}"
+    CORS_ALLOWED_ORIGINS = "https://${var.domain}"
     AWS_REGION           = var.region # where al-ai calls Bedrock
   }
 
@@ -164,7 +164,7 @@ locals {
   # FIREBASE_SERVICE_ACCOUNT_JSON.
   al_core_environment = {
     FIREBASE_PROJECT_ID  = "agentic-lender-a0f1c"
-    CORS_ALLOWED_ORIGINS = "https://app.${var.domain}"
+    CORS_ALLOWED_ORIGINS = "https://${var.domain}"
   }
 
   # Where the contracts are. All null for now: they aren't on the public testnet yet (the testnet deploy

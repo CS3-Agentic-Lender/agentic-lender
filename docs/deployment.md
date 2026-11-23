@@ -10,11 +10,11 @@
 
 ## 1. Overview
 
-AL will have one deployed environment, production, as well as a local setup on each developer's laptop. Firebase Hosting will serve the web portal. The two Python services (al-ai and al-core) will run in containers on AWS. Firebase will continue to handle data and login. Terraform will define the AWS resources, which the team can create before the demo and remove afterwards.
+AL will have one deployed environment, production, as well as a local setup on each developer's laptop. AWS Amplify Hosting will serve the web portal. The two Python services (al-ai and al-core) will run in containers on AWS. Firebase will continue to handle data and login. Terraform will define the AWS resources, which the team can create before the demo and remove afterwards.
 
 | Piece | Where it runs | Status |
 |---|---|---|
-| Web portal | Firebase Hosting at `app.<domain>` | Planned |
+| Web portal | AWS Amplify Hosting at `agentic-lender.com`, uploaded by GitHub Actions (`deploy/foundations/portal.tf`) | Written |
 | al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each | al-ai and al-core written (`deploy/app/ecs.tf`) |
 | Front door | Route 53 resolves `api.<domain>` to one Application Load Balancer, which has a WAF attached | Planned |
 | Container images | Amazon ECR, ARM64 images built only by GitHub Actions (section 6) | Planned |
@@ -27,7 +27,7 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Stripe | Test mode. Its webhook calls the load balancer | Later |
 | Infrastructure | Terraform in a `deploy/` folder | Planned |
 
-The domain is `agentic-lender.com`, registered through Route 53 on 6 October 2026 (the registration was still in progress when this was written). The addresses are `app.agentic-lender.com` and `api.agentic-lender.com`.
+The domain is `agentic-lender.com`, registered through Route 53 on 6 October 2026 (the registration was still in progress when this was written). The addresses are `agentic-lender.com` for the portal (`www.agentic-lender.com` redirects to it) and `api.agentic-lender.com`.
 
 The domain is registered in Nic's account, but the deployment will run in Nikoloz's account. The plan is to create the DNS zone in Nikoloz's account and point the domain's name servers at it, so Terraform can manage every record. This is not done yet.
 
@@ -38,7 +38,7 @@ The domain is registered in Nic's account, but the deployment will run in Nikolo
 *Figure 1. AWS architecture. The numbers match the steps below. Solid arrows are requests; dashed arrows support the tasks. In the public-subnet setup, calls from the tasks to ECR, Secrets Manager, Bedrock and CloudWatch leave through the internet gateway; the diagram draws them directly for clarity. The diagram leaves out container ports. Placing both tasks in zone a is illustrative, because ECS may start a task in either zone. Edit the diagram in draw.io: `diagrams/09-aws-architecture.drawio`.*
 
 A request follows these steps:
-1. A user visits the portal on Firebase Hosting. The portal and iOS app use Firebase Auth to sign in and connect straight to Firestore to read data.
+1. A user visits the portal on Amplify Hosting. The portal and iOS app use Firebase Auth to sign in and connect straight to Firestore to read data.
 2. Each write goes to `api.<domain>` as an API request. Route 53 resolves the name to the load balancer. The WAF is attached to the load balancer and filters floods before requests reach the tasks.
 3. The load balancer routes `/ai/*` requests to al-ai and `/core/*` requests to al-core. Only the load balancer can reach the task security group.
 4. Both services validate the Firebase token and use the Admin SDK to write to Firestore. They get their keys from Secrets Manager, which ECS supplies when a task starts.

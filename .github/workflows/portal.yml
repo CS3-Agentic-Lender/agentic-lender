@@ -1,0 +1,138 @@
+# Builds the broker and underwriter portal (al-web) and puts it live at https://agentic-lender.com (AL-328).
+#
+#   On a PR that changes al-web/: a production build only, uploads nothing. A build that breaks fails the PR.
+#   On every merge to main that changes al-web/, or run by hand on main: builds it again and uploads it to the
+#   Amplify app in deploy/foundations/portal.tf, then waits until Amplify says it's live.
+#
+# Amplify never builds anything itself and holds no GitHub token: this workflow uploads a zip of al-web/dist.
+# The upload job signs in as agentic-lender-github-portal (deploy/foundations/github-portal-role.tf), which
+# can deploy to that one app and nothing else, and only trusts main.
+#
+# Everything a VITE_* variable holds ends up in the JavaScript anyone can download, so only public settings
+# go here: never a key that unlocks something, a service account or a wallet value. The Firebase web config
+# is public by design (Firebase's security rules protect the data, not the config). Two of its values live in
+# repository variables rather than in this file; deploy/README.md says how to set them.
+#
+# Third-party actions are pinned to a commit, because the upload job holds the portal role's keys.
+name: Portal
+
+on:
+  pull_request:
+    paths:
+      - "al-web/**"
+      - ".github/workflows/portal.yml"
+  push:
+    branches: [main]
+    paths:
+      - "al-web/**"
+      - ".github/workflows/portal.yml"
+  workflow_dispatch: # re-upload by hand on main, e.g. after the first apply; elsewhere it only builds
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  ROLE_ARN: arn:aws:iam::176550299403:role/agentic-lender-github-portal # an ARN is not a secret
+  AMPLIFY_APP_NAME: agentic-lender-portal # the upload job finds the app's id from this name
+  AMPLIFY_BRANCH: main
+
+# A newer push to the same PR stops the old build. Runs on main queue up instead, so two uploads never race.
+concurrency:
+  group: portal-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: al-web
+    env:
+      VITE_API_BASE_URL: https://api.agentic-lender.com
+      VITE_FIREBASE_PROJECT_ID: agentic-lender-a0f1c
+      VITE_FIREBASE_AUTH_DOMAIN: agentic-lender-a0f1c.firebaseapp.com
+      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: al-web/package-lock.json
+
+      # The build succeeds without them, but the page would then stay blank (src/services/firebase.ts throws).
+      - name: Check the Firebase repository variables are set
+        run: |
+          missing=0
+          for name in VITE_FIREBASE_API_KEY VITE_FIREBASE_APP_ID; do
+            if [ -z "${!name}" ]; then echo "::error::Repository variable $name is not set (deploy/README.md, Portal)"; missing=1; fi
+          done
+          exit "$missing"
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Keep the build for the upload job
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: portal-dist
+          path: al-web/dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  upload:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # lets the job ask GitHub for the signed token the portal role checks
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: portal-dist
+          path: dist
+
+      - name: Sign in to AWS as the portal role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: portal-${{ github.run_id }}
+
+      - name: Upload to Amplify and wait until it's live
+        run: |
+          set -euo pipefail
+          app_id="$(aws amplify list-apps --query "apps[?name=='${AMPLIFY_APP_NAME}'].appId | [0]" --output text)"
+          if [ -z "$app_id" ] || [ "$app_id" = "None" ]; then
+            echo "::error::No Amplify app named $AMPLIFY_APP_NAME. Apply deploy/foundations first."; exit 1
+          fi
+
+          # Amplify serves the zip's top level as the site's root, so zip what is inside dist, not dist itself.
+          (cd dist && zip -qr ../portal.zip .)
+
+          read -r job_id upload_url < <(aws amplify create-deployment --app-id "$app_id" --branch-name "$AMPLIFY_BRANCH" \
+            --query '[jobId, zipUploadUrl]' --output text)
+          curl --fail --silent --show-error -X PUT -H "Content-Type: application/zip" --data-binary @portal.zip "$upload_url"
+          aws amplify start-deployment --app-id "$app_id" --branch-name "$AMPLIFY_BRANCH" --job-id "$job_id" > /dev/null
+          echo "Started job $job_id on app $app_id"
+
+          # A static upload is usually live within a minute. Give up after 10.
+          for _ in $(seq 60); do
+            status="$(aws amplify get-job --app-id "$app_id" --branch-name "$AMPLIFY_BRANCH" --job-id "$job_id" \
+              --query 'job.summary.status' --output text)"
+            echo "Job $job_id: $status"
+            case "$status" in
+              SUCCEED) exit 0 ;;
+              FAILED|CANCELLED) echo "::error::Amplify job $job_id ended $status"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Amplify job $job_id still not finished after 10 minutes"; exit 1
