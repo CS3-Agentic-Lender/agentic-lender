@@ -1016,3 +1016,53 @@ def test_a_failure_saving_the_dti_breakdown_never_fails_the_run(db, monkeypatch,
     assert application(db, application_id)["status"] == "AI Deliberated"
     assert "dtiBreakdown" not in underwriting(db, application_id)
     assert "DTI breakdown" in caplog.text
+
+
+# ---- a run that was replaced writes nothing on review/underwriting, even when the re-run claims the application mid-save ----
+
+def save_from_old_run(db, application_id, record, writer):
+    store = auto_start.FirestoreRunStore(db)
+    if writer == "write_valuation":
+        store.save_valuation(application_id, record["run_id"], ValuationResponse.model_validate(record["steps"]["valuation_model"]["output"]))
+    else:
+        store.save_dti_breakdown(application_id, record["run_id"], breakdown_of(tc.MORTGAGE))
+
+
+def old_run_with_no_review(db):
+    """An application whose run failed at the market step, with its review document removed so any later write shows up."""
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    db.collection("applications").document(application_id).collection("review").document("underwriting").delete()
+    return application_id, record
+
+
+def test_a_run_that_was_replaced_does_not_save_its_valuation_detail(db):
+    application_id, record = old_run_with_no_review(db)
+    db.collection("applications").document(application_id).update({"aiRunId": "run-new"})
+    save_from_old_run(db, application_id, record, "write_valuation")
+    assert underwriting(db, application_id) is None
+
+
+@pytest.mark.parametrize("module, writer", [(valuation_review, "write_valuation"), (dti_review, "write_dti_breakdown")])
+def test_a_re_run_that_claims_the_application_mid_save_keeps_its_own_review(db, monkeypatch, module, writer):
+    """The re-run takes the application and saves its review after the old run has checked it still holds it, and before the
+    old run's write lands. The re-run's review must be the one left: the old run either saved first or saved nothing."""
+    application_id, record = old_run_with_no_review(db)
+    reference = db.collection("applications").document(application_id)
+    field = {"write_valuation": "valuationDetail", "write_dti_breakdown": "dtiBreakdown"}[writer]
+    real = getattr(module, writer)
+    re_run = threading.Thread(target=lambda: (
+        reference.update({"aiRunId": "run-new"}),  # the re-run's claim
+        reference.collection("review").document("underwriting").set({field: "the re-run's"}, merge=True),
+    ))
+
+    def claimed_in_between(*args, **kwargs):
+        if not re_run.is_alive() and re_run.ident is None:
+            re_run.start()
+            re_run.join(timeout=1)  # returns as soon as the re-run is done, unless it is waiting for this save to let go
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module, writer, claimed_in_between)
+    save_from_old_run(db, application_id, record, writer)
+    re_run.join(timeout=30)
+    assert underwriting(db, application_id)[field] == "the re-run's"
