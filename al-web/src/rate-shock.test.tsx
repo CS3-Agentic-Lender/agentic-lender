@@ -238,13 +238,46 @@ describe('the rate shock page', () => {
         fireEvent.change(slider, { target: { value } });
         await act(async () => vi.advanceTimersByTime(100));
       }
-      expect(screen.getByRole('status')).toHaveTextContent('Showing +200 bps. +275 bps runs when the slider stops.');
+      // The hint is on screen, but only the result shown is announced, not every step of the slider.
+      expect(screen.getByText('+275 bps runs when the slider stops.')).toBeInTheDocument();
+      expect(screen.getByRole('status').textContent).toBe('Showing +200 bps.');
       await act(async () => vi.advanceTimersByTime(300));
     } finally {
       vi.useRealTimers();
     }
 
     expect(stress.calls.map((call) => call.shockBps)).toEqual([200, 275]);
+  });
+
+  it('sends one request when Recalculate is pressed before the slider run starts', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.answer(200);
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(screen.getByRole('slider', { name: 'Rate rise' }), { target: { value: '250' } });
+      await act(async () => vi.advanceTimersByTime(100));
+      fireEvent.click(screen.getByRole('button', { name: 'Recalculate' }));
+      await act(async () => vi.advanceTimersByTime(1000));
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(stress.calls.map((call) => call.shockBps)).toEqual([200, 250]);
+  });
+
+  it('shows an oat focus ring on the controls of the pine panel, where the pine one would not show', async () => {
+    renderStress(new FakeStressService());
+    const controls = [
+      await screen.findByRole('slider', { name: 'Rate rise' }),
+      screen.getByRole('button', { name: 'Reset to +200 bps' }),
+      screen.getByRole('button', { name: 'Recalculate' }),
+    ];
+
+    for (const control of controls) {
+      expect(control).toHaveClass('focus-visible:outline-oat');
+    }
   });
 
   it('only offers the shocks al-ai accepts: +100 to +300 bps in steps of 25', async () => {

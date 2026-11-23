@@ -187,7 +187,7 @@ function Results({ shown }: { shown: Shown }) {
           />
         </div>
         <p className="mt-4 text-xs text-muted">
-          al-ai answered in {shown.serverMs} ms (network and calculation).
+          al-ai answered in {shown.serverMs} ms, from asking to answer (sign-in token, network and calculation).
         </p>
       </section>
 
@@ -273,6 +273,9 @@ export function RateShockPage() {
   // Each request gets a number; only the newest one may change the page, so a slow answer for an
   // older slider position can never overwrite a newer one.
   const latest = useRef(0);
+  // The run the slider has scheduled for when it stops, so Recalculate can cancel it instead of sending
+  // the same request twice.
+  const scheduled = useRef<number | undefined>(undefined);
 
   const run = useCallback(
     async (bps: number) => {
@@ -300,15 +303,31 @@ export function RateShockPage() {
   );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void run(shockBps), RUN_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    scheduled.current = window.setTimeout(() => void run(shockBps), RUN_DELAY_MS);
+    return () => window.clearTimeout(scheduled.current);
   }, [shockBps, run]);
+
+  function recalculate() {
+    window.clearTimeout(scheduled.current);
+    void run(shockBps);
+  }
 
   // Leaving the page drops any answer still on its way.
   useEffect(() => () => void ++latest.current, []);
 
   const waiting = pendingBps !== null || (shown === null && failure === null);
   const shownBps = shown?.result.shockBps ?? null;
+  // Only what is on screen is announced. The hint about the next run changes on every slider step,
+  // and the slider's own aria-valuetext already says where it is, so the hint sits outside the live region.
+  const announced = waiting
+    ? `Calculating ${bpsLabel(pendingBps ?? shockBps)}…`
+    : shownBps !== null
+      ? `Showing ${bpsLabel(shownBps)}.`
+      : '';
+  const nextRun =
+    !waiting && shownBps !== null && shownBps !== shockBps && failure === null
+      ? `${bpsLabel(shockBps)} runs when the slider stops.`
+      : null;
 
   return (
     <div className="min-h-screen bg-oat text-ink">
@@ -340,7 +359,7 @@ export function RateShockPage() {
               </p>
               <input
                 aria-valuetext={`${bpsLabel(shockBps)}, ${pointsLabel(shockBps)}`}
-                className="mt-6 h-11 w-full cursor-pointer accent-oat"
+                className="mt-6 h-11 w-full cursor-pointer accent-oat focus-visible:outline-oat"
                 id="shock-bps"
                 max={SHOCK_MAX_BPS}
                 min={SHOCK_MIN_BPS}
@@ -356,7 +375,7 @@ export function RateShockPage() {
             </div>
             <div className="flex flex-col items-start gap-3">
               <button
-                className="min-h-11 cursor-pointer rounded-lg border border-surface px-4 font-semibold transition-colors hover:bg-pine-pressed disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 cursor-pointer rounded-lg border border-surface px-4 font-semibold transition-colors hover:bg-pine-pressed focus-visible:outline-oat disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={shockBps === DEFAULT_SHOCK_BPS}
                 onClick={() => setShockBps(DEFAULT_SHOCK_BPS)}
                 type="button"
@@ -364,9 +383,9 @@ export function RateShockPage() {
                 Reset to {bpsLabel(DEFAULT_SHOCK_BPS)}
               </button>
               <button
-                className="min-h-11 cursor-pointer rounded-lg bg-oat px-4 font-semibold text-pine transition-colors hover:bg-tint disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 cursor-pointer rounded-lg bg-oat px-4 font-semibold text-pine transition-colors hover:bg-tint focus-visible:outline-oat disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={pendingBps !== null}
-                onClick={() => void run(shockBps)}
+                onClick={recalculate}
                 type="button"
               >
                 Recalculate
@@ -375,14 +394,11 @@ export function RateShockPage() {
           </div>
         </section>
 
-        <p aria-live="polite" className="mt-6 min-h-6 text-sm text-muted" role="status">
-          {waiting
-            ? `Calculating ${bpsLabel(pendingBps ?? shockBps)}…`
-            : shownBps !== null && shownBps !== shockBps && failure === null
-              ? `Showing ${bpsLabel(shownBps)}. ${bpsLabel(shockBps)} runs when the slider stops.`
-              : shownBps !== null
-                ? `Showing ${bpsLabel(shownBps)}.`
-                : ''}
+        <p className="mt-6 min-h-6 text-sm text-muted">
+          <span aria-live="polite" role="status">
+            {announced}
+          </span>
+          {nextRun ? <span> {nextRun}</span> : null}
         </p>
 
         {failure ? (
