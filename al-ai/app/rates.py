@@ -37,6 +37,9 @@ BASE_URL = "https://data-api.ecb.europa.eu/service/data"
 # The iOS app gives up on /ai/affordability after 15 s, and a cache miss makes that request wait on Firestore, the ECB and Firestore again,
 # so each gets a short limit: 2 + 6 + 2 = 10 s at worst. The ECB reply is a few kilobytes, so 6 s is plenty when it is up.
 TIMEOUT_S = 6
+# A committee run and the listener's warm-up have no app waiting on them. A cold ECB query took 16 s (the ECB then caches it), which failed the
+# first live run at 6 s, so they wait longer.
+BACKGROUND_TIMEOUT_S = 30
 FIRESTORE_TIMEOUT_S = 2
 WORST_CASE_S = FIRESTORE_TIMEOUT_S + TIMEOUT_S + FIRESTORE_TIMEOUT_S  # read the cache, ask the ECB, write the cache
 COLLECTION = "rates_cache"
@@ -221,6 +224,7 @@ def get_rate(
     cache: Cache | None = None,
     transport: Transport = urllib_get,
     now: datetime | None = None,
+    timeout: float = TIMEOUT_S,
 ) -> Rate:
     """The current rate: from the cache if it was fetched within the last day, else from the ECB.
 
@@ -244,7 +248,7 @@ def get_rate(
         return cached
 
     try:
-        rate = fetch(name, transport=transport, now=now)
+        rate = fetch(name, transport=transport, now=now, timeout=timeout)
     except RateUnavailable as exc:
         if cached and SERIES[name].judged_on == "fetched":
             if _months_since(cached.fetched_at, now) <= MAX_OBSERVATION_AGE_MONTHS:

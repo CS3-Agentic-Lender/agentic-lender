@@ -69,13 +69,18 @@ class JsonFileRunStore:
         self.path_for(record["run_id"]).write_text(json.dumps(record, indent=1) + "\n")
 
 
+def get_rate_waiting(name: str) -> rates.Rate:
+    """The ECB rate for work no app is waiting on (a run, the listener's warm-up), so it can wait out a slow ECB reply."""
+    return rates.get_rate(name, timeout=rates.BACKGROUND_TIMEOUT_S)
+
+
 @dataclasses.dataclass
 class Deps:
     """What the flow uses from outside. Tests hand in fakes; the runner hands in the real ones."""
 
     store: RunStore
     report_store: ma.ReportStore
-    get_rate: official_rates.GetRate = rates.get_rate  # the ECB rates; tests and the local runner hand in a fake cache (AL-291)
+    get_rate: official_rates.GetRate = get_rate_waiting  # the ECB rates; tests and the local runner hand in a fake cache (AL-291)
     today: str | None = None
     agents: dict[str, config.AgentModel] | None = None  # None: the models agents.json names
     search: Callable[..., serper.SearchResult] = serper.search
@@ -419,7 +424,7 @@ def main(argv: list[str]) -> int:
             cache.save(name, {**doc, "fetchedAt": datetime.fromisoformat(doc["fetchedAt"])})
     deps = Deps(
         store=JsonFileRunStore(Path(options.get("--out", RUNS_FOLDER))), report_store=ma.MemoryReportStore(),
-        get_rate=lambda name: rates.get_rate(name, cache=cache), env=env,
+        get_rate=lambda name: rates.get_rate(name, cache=cache, timeout=rates.BACKGROUND_TIMEOUT_S), env=env,
     )
     application = json.loads(path.read_text())
     if "--rerun" in options:
