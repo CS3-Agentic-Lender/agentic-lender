@@ -257,7 +257,7 @@ The live site can't reach a Hardhat node on a laptop, so the contracts run on Po
 |---|---|
 | LoanNote | [`0x12df1c6F6457F337190791527667B8BA4EACEFD4`](https://amoy.polygonscan.com/address/0x12df1c6F6457F337190791527667B8BA4EACEFD4#code) |
 | AuditRegistry | [`0x0AA97a061607DF09e1acC208dEf71D7d2D5af3C7`](https://amoy.polygonscan.com/address/0x0AA97a061607DF09e1acC208dEf71D7d2D5af3C7#code) |
-| Deployer, admin and holder of every note (the bank) | `0x17f82f0f7a0220FfAc2096a506c41A315c7a1eC6`, on Dumi's laptop only |
+| Deployer, admin and holder of every note (the bank) | `0x17f82f0f7a0220FfAc2096a506c41A315c7a1eC6`. Its key is in `al-core/chain/.env` on Dumi's laptop, with a backup in Dumi's password manager, so a lost laptop doesn't lose the admin role. It is needed only to hand on a role or deploy again, never by the running app |
 | Minter and registrar (al-core's wallet) | `0x1F747BCB55a0e8D960e1709B4BD4fD7c03d03092`. Its key is in `al-core/chain/.env` and in AWS as `agentic-lender/al-core/chain-keys` |
 | RPC | `https://polygon-amoy-bor-rpc.publicnode.com` (free, no key, so it is a plain setting, not a secret) |
 | Explorer | https://amoy.polygonscan.com |
