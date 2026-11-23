@@ -208,7 +208,7 @@ Status key as above. Items marked TBD are decided at the team meeting.
 | al-web | Firebase Hosting at `app.<domain>` | Planned |
 | al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
 | Infrastructure | Terraform in `deploy/`, run with simple wrapper commands. Images built by GitHub Actions on merge to `main`, deploy started by hand | Planned |
-| al-core contracts | Polygon Amoy, chosen by Dumi (AL-183). Both contracts deployed and source-verified on 23 November 2026, see "Contracts on Polygon Amoy" below | Done |
+| al-core contracts | Polygon Amoy, chosen by Dumi (AL-183). Both contracts deployed and source-verified on 23 November 2026, see "Contracts on Polygon Amoy" below | Deployed and verified, mint from AWS pending |
 | al-mobile | The demo build (`AL_BACKEND=HOSTED`) on the iOS Simulator on the presenting Mac, against the hosted Firebase project and the API on AWS. An iPhone through Xcode with a free Apple ID is the alternative. No App Store or TestFlight: that needs a paid Apple Developer account. See "Demo build of the iOS app" below. Chosen by Ibrahima on 18 November (AL-184) and agreed by Nic in the PR review | Decided |
 
 ### Demo build of the iOS app

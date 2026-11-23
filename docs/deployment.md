@@ -22,7 +22,7 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Logs | CloudWatch Logs, kept 14 days | Planned |
 | Affordability LLM | Qwen3 32B on Amazon Bedrock on the live site in place of Ollama. Qwen3.5 9B on Ollama locally (`qwen3.5:9b`), from the same Qwen family | Decided |
 | Data and login | Firebase: Firestore and Auth | Decided (the hosted project is its own ticket) |
-| Smart contracts | Polygon Amoy, deployed and source-verified on 23 November 2026. Addresses in `docs/infrastructure.md`, "Contracts on Polygon Amoy" | Done |
+| Smart contracts | Polygon Amoy, deployed and source-verified on 23 November 2026. Addresses in `docs/infrastructure.md`, "Contracts on Polygon Amoy" | Deployed and verified, mint from AWS pending |
 | iOS app | The App Store through Ibrahima's paid Apple Developer account, bought at the end of October 2026. The Simulator is the backup | Decided |
 | Stripe | Test mode. Its webhook calls the load balancer | Later |
 | Infrastructure | Terraform in a `deploy/` folder | Planned |
