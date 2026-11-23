@@ -235,6 +235,11 @@
     text-transform: uppercase;
   }
 
+  .council-value-raw {
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
   .council-value-final {
     background: var(--color-brass);
     color: var(--color-pine-pressed);

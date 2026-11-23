@@ -7,6 +7,15 @@ function shortHash(value: string) {
   return value.length > 18 ? `${value.slice(0, 10)}…${value.slice(-6)}` : value;
 }
 
+// Transaction hashes on the 3D labels: enough to recognise (0x2e3b + last four), the full hash is in the details.
+function shortTx(value: string) {
+  return value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
+}
+
+// Polygon Amoy is the only network with a public explorer. Its chain id is in al-core/chain/deployments/amoy.json.
+const AMOY_CHAIN_ID = 80002;
+const AMOY_EXPLORER = 'https://amoy.polygonscan.com';
+
 interface LoanNotePanelProps {
   note: LoanNote;
   auditTxHash: string | null;
@@ -22,18 +31,61 @@ export const networkLabels: Record<string, string> = {
 export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProps) {
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const canCopy = typeof navigator.clipboard?.writeText === 'function';
-  const rows = [
-    { label: 'Token ID', value: note.tokenId, mono: true },
+  const onAmoy = note.network === 'amoy';
+  const tx = (hash: string) => `${AMOY_EXPLORER}/tx/${hash}`;
+  const rows: {
+    label: string;
+    value: string;
+    mono?: boolean;
+    href?: string;
+    linkText?: string;
+    copy?: boolean;
+  }[] = [
+    {
+      label: 'Token ID',
+      value: note.tokenId,
+      mono: true,
+      href: onAmoy ? `${AMOY_EXPLORER}/token/${note.contractAddress}?a=${encodeURIComponent(note.tokenId)}` : undefined,
+      linkText: 'View the token on Polygonscan',
+    },
     { label: 'Loan type', value: loanTypeLabel(loanType) ?? 'Not recorded' },
     { label: 'Network', value: note.network === null ? 'Not recorded' : networkLabels[note.network] ?? note.network },
-    { label: 'Mint transaction', value: note.txHash, mono: true, transaction: true, copy: true },
-    { label: 'Loan note contract', value: note.contractAddress, mono: true },
+    ...(onAmoy ? [{ label: 'Chain ID', value: String(AMOY_CHAIN_ID), mono: true }] : []),
+    { label: 'Mint transaction', value: note.txHash, mono: true, href: onAmoy ? tx(note.txHash) : undefined, linkText: 'View on Polygonscan', copy: true },
+    {
+      label: 'Loan note contract',
+      value: note.contractAddress,
+      mono: true,
+      href: onAmoy ? `${AMOY_EXPLORER}/address/${note.contractAddress}` : undefined,
+      linkText: 'View the contract on Polygonscan',
+    },
     { label: 'Audit hash', value: note.auditHash, mono: true },
-    { label: 'Audit registry transaction', value: auditTxHash ?? 'Not recorded', mono: true, transaction: auditTxHash !== null },
+    {
+      label: 'Audit registry transaction',
+      value: auditTxHash ?? 'Not recorded',
+      mono: true,
+      href: onAmoy && auditTxHash !== null ? tx(auditTxHash) : undefined,
+      linkText: 'View on Polygonscan',
+    },
     { label: 'Minted', value: formatDate(note.mintedAt) },
+    ...(note.closedAt !== null || note.closeTxHash !== null
+      ? [
+          { label: 'Closed', value: formatDate(note.closedAt) },
+          {
+            label: 'Close transaction',
+            value: note.closeTxHash ?? 'Not recorded',
+            mono: true,
+            href: onAmoy && note.closeTxHash !== null ? tx(note.closeTxHash) : undefined,
+            linkText: 'View on Polygonscan',
+          },
+        ]
+      : []),
   ];
 
-  const network = note.network === null ? 'Network not recorded' : networkLabels[note.network] ?? note.network;
+  const baseNetwork = note.network === null ? 'Network not recorded' : networkLabels[note.network] ?? note.network;
+  // Only Amoy has a known chain id; the local Hardhat chain and unknown networks get no number.
+  const network = onAmoy ? `${baseNetwork} · chain ${AMOY_CHAIN_ID}` : baseNetwork;
+  const closed = note.closedAt !== null || note.closeTxHash !== null;
   // What the note means, in the words of the two contracts (al-core/chain/contracts/LoanNote.sol and
   // AuditRegistry.sol). The portal does not re-check the hash itself; the audit pack does.
   const points = [
@@ -62,13 +114,21 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
 
   return (
     <section aria-label="Loan note" className="card mt-5">
-      <ChainStage auditHashShort={shortHash(note.auditHash)} networkLabel={network} tokenId={note.tokenId} />
+      <ChainStage
+        auditHashShort={shortHash(note.auditHash)}
+        auditTxShort={auditTxHash === null ? null : shortTx(auditTxHash)}
+        closedLabel={closed ? (note.closedAt ? `Closed ${formatDate(note.closedAt)}` : 'Closed') : null}
+        mintTxShort={shortTx(note.txHash)}
+        networkLabel={network}
+        tokenId={note.tokenId}
+      />
       <div className="mt-6 grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-4">
           <p className="eyebrow">On the blockchain</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">Loan note</h2>
           <p className="mt-1 text-muted">
             Token #{note.tokenId} · {network} · minted {formatDate(note.mintedAt)}
+            {closed ? ` · closed${note.closedAt ? ` ${formatDate(note.closedAt)}` : ''}` : null}
           </p>
         </div>
         <div className="lg:col-span-8">
@@ -92,7 +152,7 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
 
       <h3 className="mt-6 border-t border-line/70 pt-5 font-semibold">On-chain details</h3>
       <dl className="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-2">
-        {rows.map(({ label, value, mono, transaction, copy }) => (
+        {rows.map(({ label, value, mono, href, linkText, copy }) => (
           <div className="min-w-0" key={label}>
             <dt className="text-sm text-muted">{label}</dt>
             <dd className="mt-1">
@@ -106,14 +166,14 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
                   Copy
                 </button>
               ) : null}
-              {transaction && note.network === 'amoy' ? (
+              {href ? (
                 <a
                   className="mt-2 block py-2 underline underline-offset-4 hover:opacity-80"
-                  href={`https://amoy.polygonscan.com/tx/${value}`}
+                  href={href}
                   rel="noreferrer"
                   target="_blank"
                 >
-                  View on Polygonscan
+                  {linkText}
                 </a>
               ) : null}
             </dd>
