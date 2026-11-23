@@ -96,3 +96,18 @@ output "al_core_log_group" {
   description = "The CloudWatch log group al-core's tasks write to, kept 14 days."
   value       = aws_cloudwatch_log_group.al_core.name
 }
+
+output "portal_app_id" {
+  description = "The portal's Amplify app id, for the console and the CLI. The Portal workflow finds it by the app's name. null on Floci."
+  value       = one(aws_amplify_app.portal[*].id)
+}
+
+output "portal_default_url" {
+  description = "Amplify's own address for the portal, which works before agentic-lender.com does. null on Floci."
+  value       = one([for app in aws_amplify_app.portal : "https://main.${app.default_domain}"])
+}
+
+output "github_portal_role_arn" {
+  description = "The role the Portal workflow uploads with. Its name is fixed, so the workflow writes it out. null on Floci."
+  value       = one(aws_iam_role.github_portal[*].arn)
+}

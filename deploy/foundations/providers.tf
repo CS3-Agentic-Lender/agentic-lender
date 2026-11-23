@@ -44,6 +44,7 @@ provider "aws" {
     ecr            = local.floci_url
     secretsmanager = local.floci_url
     cloudwatchlogs = local.floci_url
+    amplify        = local.floci_url # nothing Amplify is made on Floci (portal.tf); this keeps a stray call off real AWS
   }
 
   # Stamped on every resource this folder makes, so the console and the bill can group them.
