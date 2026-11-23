@@ -140,7 +140,7 @@ ssh -f -N pc-aws                                              # open the tunnel 
 cd deploy/foundations
 export TF_DATA_DIR=.terraform-floci                           # keeps Floci's files apart from the real account's
 printf 'terraform {\n  backend "local" { path = "floci.tfstate" }\n}\n' > first_run_override.tf   # the bucket doesn't exist yet
-terraform init && terraform apply -var target=floci
+terraform init && terraform apply -var target=floci -var 'alarm_emails=["you@example.com"]'   # Floci sends no email
 rm first_run_override.tf
 terraform init -migrate-state -backend-config=../backend-floci.hcl     # move the state into the bucket
 cd ../.. && ./deploy/al deploy 3166a3b --floci
@@ -211,6 +211,10 @@ gitignored and read automatically, then `terraform apply` in `deploy/foundations
 ```hcl
 alarm_emails = ["someone@example.com", "someone-else@example.com"]
 ```
+
+The list is required: `terraform plan` and `apply` in `deploy/foundations` stop with an error when
+the file is missing or empty, because an empty list would delete every subscription. A fresh checkout
+doesn't have the file, so recreate it with every team address before the first plan.
 
 Each address gets a "Confirm subscription" email from AWS and receives nothing until it's clicked.
 Because the list is in foundations, `down` and `up` never make anyone confirm again. `app/` needs the
