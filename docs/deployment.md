@@ -22,14 +22,14 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Logs | CloudWatch Logs, kept 14 days | Live |
 | Affordability LLM | Qwen3 32B on Amazon Bedrock on the live site in place of Ollama. Qwen3.5 9B on Ollama locally (`qwen3.5:9b`), from the same Qwen family | Decided |
 | Data and login | Firebase: Firestore and Auth, hosted project `agentic-lender-a0f1c` | Live |
-| Smart contracts | Polygon Amoy, deployed and source-verified on 23 November 2026. Addresses in `docs/infrastructure.md`, "Contracts on Polygon Amoy" | Deployed and verified, mint from AWS pending |
+| Smart contracts | Polygon Amoy, deployed and source-verified on 23 November 2026. Addresses in `docs/infrastructure.md`, "Contracts on Polygon Amoy" | Deployed and verified. First mint from AWS on 23 November 2026 (loan note token 2) |
 | iOS app | The App Store through Ibrahima's paid Apple Developer account, bought at the end of October 2026. The Simulator is the backup | Decided |
-| Stripe | Test mode. Its webhook calls the load balancer | Not set up on AWS yet |
+| Stripe | Test mode. Its webhook calls the load balancer at `/core/webhooks/stripe` | Live: test event answered 200 on 23 November 2026, and a fast-track fee paid on the hosted iOS build went through |
 | Infrastructure | Terraform in a `deploy/` folder, run with `./deploy/al` | Live |
 
 The domain is `agentic-lender.com`, registered through Route 53 on 6 October 2026 (the registration was still in progress when this was written). The addresses are `agentic-lender.com` for the portal (`www.agentic-lender.com` redirects to it) and `api.agentic-lender.com`.
 
-The domain is registered in Nic's account, and the deployment runs in the team AWS account Ibrahima set up (176550299403). Terraform created the DNS zone in the team account and the domain's name servers point at it, so Terraform manages every record.
+The domain is registered in Nic's account, and the deployment runs in the team AWS account (176550299403), which Nic manages with admin access. Terraform created the DNS zone in the team account and the domain's name servers point at it, so Terraform manages every record.
 
 ## 2. Architecture
 
@@ -49,7 +49,7 @@ A request follows these steps:
 
 ## 3. Environments
 
-**AL has one environment: production.** Developers work on their laptops with the Firebase emulators, a local Hardhat node, Ollama and a local gateway. A second AWS environment for staging would double the cost. The deployment will run in Nikoloz's AWS account, which Nic sets up and manages. Nic's own account has no credits left, so check what credits Nikoloz's account has before assuming anything is free. The plan is a test run in Sprint 3 (16 to 29 November): deploy, check everything works, then tear it down. The deployment comes back up for demo week, before the demo on 4 January 2027. The test run plus demo week costs about EUR 40.
+**AL has one environment: production.** Developers work on their laptops with the Firebase emulators, a local Hardhat node, Ollama and a local gateway. A second AWS environment for staging would double the cost. The deployment runs in the team AWS account (176550299403), which Nic manages with admin access. Nic's own account has no credits left, so check what credits the team account has before assuming anything is free. The plan is a test run in Sprint 3 (16 to 29 November): deploy, check everything works, then tear it down. The deployment comes back up for demo week, before the demo on 4 January 2027. The test run plus demo week costs about EUR 40.
 
 A typical production setup uses several environments and moves each change between them:
 
@@ -112,7 +112,7 @@ The commands below are in `deploy/al`; `deploy/README.md` has the details.
 
 **Two kinds of image.** Each developer builds images on their own laptop to test the product, with `docker compose`. Docker builds them for that laptop's CPU (ARM on a Mac, x86 on most Windows PCs) and they never leave the laptop. Only GitHub Actions builds the images that are deployed, always for ARM64, for both al-ai and al-core. Nobody pushes images to ECR by hand. If CI is broken, Nic's Mac builds ARM64 natively and pushes as a backup.
 
-**One-time setup.** Set up the Terraform state bucket, a GitHub deploy role that trusts only this repository and the `main` branch, and set up the DNS zone for the domain (the one Route 53 created at registration, or a new one in Nikoloz's account as described in section 1). Terraform will add the DNS records used to validate the certificate to that zone. Route 53 will point `api.<domain>` to the load balancer. Solomon hands al-core's Stripe and wallet keys to Nic as Bitwarden Sends (one-time secret links), never in Slack or Jira, and Nic stores them in Secrets Manager. The RPC URL and contract addresses aren't secret and are set as plain environment variables.
+**One-time setup.** Set up the Terraform state bucket, a GitHub deploy role that trusts only this repository and the `main` branch, and set up the DNS zone for the domain (the one Route 53 created at registration, or a new one in the team account as described in section 1). Terraform will add the DNS records used to validate the certificate to that zone. Route 53 will point `api.<domain>` to the load balancer. Solomon hands al-core's Stripe and wallet keys to Nic as Bitwarden Sends (one-time secret links), never in Slack or Jira, and Nic stores them in Secrets Manager. The RPC URL and contract addresses aren't secret and are set as plain environment variables.
 
 1. **Build.** On every PR, GitHub Actions builds both images for ARM64 without pushing them, so a Dockerfile that will not build on ARM fails before merge. When the change is merged to `main`, GitHub Actions builds both images again and pushes them to ECR, tagged with the commit id. ECR runs a basic scan each time an image is pushed. It reports findings but does not stop a deploy.
 2. **Deploy.** A person signs in with `aws sso login` and runs `deploy <tag>`. The GitHub Actions deploy button does the same work using the GitHub role instead of a person's login. Terraform changes both ECS services to the new image.
@@ -142,7 +142,7 @@ Estimated monthly costs if the full setup runs all month. These estimates use pu
 | Private subnets in the demo week | about EUR 9 a week for the NAT gateway plus data charges, and about EUR 3 a week less for the task IP addresses |
 | Bedrock calls | pennies at this volume |
 
-Nic's own AWS account has no active credits, because its sign-up credits expired on 14 September 2026. The deployment will run in Nikoloz's account instead. Before the first deploy, check that account's credits and payment method in its Billing console. Nic covers any charges the credits do not. Budgets send alerts but do not limit spending. Guardrails:
+Nic's own AWS account has no active credits, because its sign-up credits expired on 14 September 2026. The deployment runs in the team account instead. Check that account's credits and payment method in its Billing console. Nic covers any charges the credits do not. Budgets send alerts but do not limit spending. Guardrails:
 - Set two budget alerts on actual charges, one at about EUR 20 and one at about EUR 50.
 - An AWS Budgets action on the `agentic-lender-monthly` budget (USD 50) attaches a deny-all policy to the GitHub deploy role, without waiting for approval, when actual spend reaches 100% (`deploy/foundations/budget-kill-switch.tf`). Only the GitHub deploy role is locked: a deploy by hand with `./deploy/al`, signed in as yourself, still works. It does not stop tasks, the load balancer or the WAF that are already running, which keep billing until someone runs `./deploy/al down`. Billing data arrives hours late, so this slows runaway spend and is not a hard cap.
 - Everyone on the team gets the budget alert emails.
@@ -158,7 +158,7 @@ The WAF allows about 300 requests per source IP in a rolling five-minute window,
 | Decision | Options | Owner and when |
 |---|---|---|
 | Which public testnet | Polygon Amoy or Arbitrum Sepolia | Decided: Polygon Amoy (Dumi, 23 November). Its official faucet needs no mainnet balance |
-| AWS account and who pays | Nic's own account with budget caps, Nikoloz's account with Nic as admin, or another cloud (Azure for Students, GCP) | Decided: Nikoloz's account, which Nic sets up and manages with admin access. Nic covers any charges the account's credits do not, and sets the budget alerts. The supervisor has also been asked about AWS Academy and course credits |
+| AWS account and who pays | Nic's own account with budget caps, Nikoloz's account with Nic as admin, or another cloud (Azure for Students, GCP) | Decided: first Nikoloz's account, then the team account (176550299403), which Nic manages with admin access. Nic covers any charges the account's credits do not, and sets the budget alerts. The supervisor has also been asked about AWS Academy and course credits |
 | Stripe test payments | Webhook through the load balancer, tested locally with the Stripe CLI | Nic makes the Stripe sandbox account. Sprint 3 |
 | Task sizes | Start small, then measure | Nic, during the Sprint 3 test run |
 | Domain | `agentic-lender.com` is registered at Route 53. The registrant email must be verified | Nic, within 15 days of registering |
