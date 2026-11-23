@@ -167,22 +167,23 @@ locals {
     CORS_ALLOWED_ORIGINS = "https://${var.domain}"
   }
 
-  # Where the contracts are. All null for now: they aren't on the public testnet yet (the testnet deploy
-  # is waiting on test POL), so al-core starts with the chain off. Only the settings that are filled in
-  # reach the container. With the addresses unset, al-core looks for chain/deployments/<network>.json,
-  # which isn't in the image, so mint and close answer 503 ("The blockchain is not set up on this server")
-  # and the audit pack is built without the chain's answer. The rest of the API works as normal.
+  # Where the contracts are: the pair Dumi deployed and verified on Polygon Amoy on 23 November
+  # (al-core/chain/deployments/amoy.json, docs/infrastructure.md "Contracts on Polygon Amoy"). The two
+  # wallet keys come from the chain-keys secret below. The addresses are set here because
+  # chain/deployments/ isn't in the image. CHAIN_START_BLOCK is the deploy block: PublicNode refuses a log
+  # query over 10,000 blocks, so al-core looks a past mint, close or audit write up newest first and stops there.
   #
-  # Leave a setting null rather than "": al-core treats an empty CHAIN_NETWORK or address as unset, but an
-  # empty CHAIN_RPC_URL is used as it is instead of falling back to the local node.
+  # Leave a setting null rather than "" if it's ever unset again: al-core treats an empty CHAIN_NETWORK or
+  # address as unset, but an empty CHAIN_RPC_URL is used as it is instead of falling back to the local node.
   #
-  # If the RPC URL turns out to be a provider URL with an API key in it (Alchemy, Infura), it's a secret:
-  # put it in the chain-keys secret and add it to al_core_secret_keys below, not here.
+  # The RPC is PublicNode's free endpoint with no key in it, so it's a plain setting. A provider URL with an
+  # API key in it (Alchemy, Infura) would be a secret: chain-keys secret and al_core_secret_keys, not here.
   al_core_chain = {
-    CHAIN_RPC_URL          = null
-    CHAIN_NETWORK          = null
-    LOAN_NOTE_ADDRESS      = null
-    AUDIT_REGISTRY_ADDRESS = null
+    CHAIN_RPC_URL          = "https://polygon-amoy-bor-rpc.publicnode.com"
+    CHAIN_NETWORK          = "amoy"
+    LOAN_NOTE_ADDRESS      = "0x12df1c6F6457F337190791527667B8BA4EACEFD4"
+    AUDIT_REGISTRY_ADDRESS = "0x0AA97a061607DF09e1acC208dEf71D7d2D5af3C7"
+    CHAIN_START_BLOCK      = "53619738"
   }
 
   # Which secret holds each key (foundations/al-core-secrets.tf). Both are JSON objects, and
