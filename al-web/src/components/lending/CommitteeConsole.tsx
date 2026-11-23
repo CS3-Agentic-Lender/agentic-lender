@@ -122,8 +122,9 @@ function MarketSources({ calls }: { calls: CommitteeCall[] }) {
         <div className={reply?.outlook ? 'mt-4' : undefined}>
           <h4 className="eyebrow">Sources</h4>
           <ul aria-label="Macro sources" className="mt-2 space-y-2">
-            {sources.map((source) => (
-              <li className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5" key={source.url}>
+            {sources.map((source, index) => (
+              // Two sources can share a url, so the url alone is not a unique key.
+              <li className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5" key={`${source.url}-${index}`}>
                 <a
                   className="break-all font-medium text-pine underline underline-offset-2 hover:text-pine-pressed"
                   href={source.url}
