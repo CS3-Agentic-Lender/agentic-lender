@@ -4,10 +4,13 @@ The real contract is checked by test_chain_live.py when a local Hardhat node is 
 import json
 
 import pytest
-from web3.exceptions import ContractLogicError, Web3Exception
+from web3 import Web3
+from web3.exceptions import ContractLogicError, ExtraDataLengthError, Web3Exception
+from web3.providers.base import BaseProvider
 
 from app import audit, chain
 from app.chain import AuditRegistry, ChainError, NotConfigured
+from app.loan_notes import LoanNotes
 
 HASH = audit.audit_hash({"applicationId": "app-funded"})
 OTHER = audit.audit_hash({"applicationId": "app-funded", "x": 1})
@@ -288,3 +291,34 @@ def test_a_deployment_file_with_no_registry_address_is_not_configured(monkeypatc
 def test_the_registrar_account_is_the_one_the_key_makes():
     reg = AuditRegistry.from_env({"CHAIN_REGISTRAR_PRIVATE_KEY": KEY, "AUDIT_REGISTRY_ADDRESS": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"})
     assert reg.account.address.startswith("0x") and len(reg.account.address) == 42
+
+
+# ---- Polygon's blocks ----------------------------------------------------------------------------
+
+class _PolygonLikeNode(BaseProvider):
+    """Answers every request with a Polygon-style block: 97 bytes of extraData, more than the 32 a standard block allows."""
+
+    def make_request(self, method, params):
+        block = {
+            "number": "0x1", "hash": "0x" + "11" * 32, "parentHash": "0x" + "22" * 32, "timestamp": "0x1",
+            "gasLimit": "0x1c9c380", "gasUsed": "0x0", "miner": "0x" + "00" * 20, "transactions": [],
+            "extraData": "0x" + "ab" * 97,
+        }
+        return {"jsonrpc": "2.0", "id": 1, "result": block}
+
+    def is_connected(self, show_traceback=False):
+        return True
+
+
+def test_a_plain_connection_refuses_a_polygon_block():
+    # What al-core used to do: the first write to Polygon Amoy failed with ExtraDataLengthError before anything was sent.
+    with pytest.raises(ExtraDataLengthError):
+        Web3(_PolygonLikeNode()).eth.get_block("latest")
+
+
+def test_the_registry_and_the_loan_notes_both_read_a_polygon_block():
+    registry = AuditRegistry.from_env({"CHAIN_REGISTRAR_PRIVATE_KEY": KEY, "AUDIT_REGISTRY_ADDRESS": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"})
+    notes = LoanNotes.from_env({"CHAIN_MINTER_PRIVATE_KEY": KEY, "LOAN_NOTE_ADDRESS": "0x5FbDB2315678afecb367f032d93F642f64180aa3"})
+    for w3 in (registry.w3, notes.w3):
+        w3.provider = _PolygonLikeNode()
+        assert w3.eth.get_block("latest")["number"] == 1

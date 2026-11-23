@@ -208,7 +208,7 @@ Status key as above. Items marked TBD are decided at the team meeting.
 | al-web | AWS Amplify Hosting at `agentic-lender.com` (`www.` redirects to it), built and uploaded by GitHub Actions (`portal.yml`), made by Terraform in `deploy/foundations/portal.tf`. Steps in `deploy/README.md` under "The portal" | Written, first upload pending |
 | al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each, behind one Application Load Balancer at `api.<domain>`. WAF rate limit on the load balancer. Secrets in Secrets Manager. Amazon Bedrock for the affordability agent (section 4) | Planned |
 | Infrastructure | Terraform in `deploy/`, run with simple wrapper commands. Images built by GitHub Actions on merge to `main`, deploy started by hand | Planned |
-| al-core contracts | Public testnet, Polygon Amoy or Arbitrum Sepolia (Dumi picks) | Decided, network open |
+| al-core contracts | Polygon Amoy, chosen by Dumi (AL-183). Both contracts deployed and source-verified on 23 November 2026, see "Contracts on Polygon Amoy" below | Deployed and verified, mint from AWS pending |
 | al-mobile | The demo build (`AL_BACKEND=HOSTED`) on the iOS Simulator on the presenting Mac, against the hosted Firebase project and the API on AWS. An iPhone through Xcode with a free Apple ID is the alternative. No App Store or TestFlight: that needs a paid Apple Developer account. See "Demo build of the iOS app" below. Chosen by Ibrahima on 18 November (AL-184) and agreed by Nic in the PR review | Decided |
 
 ### Demo build of the iOS app
@@ -249,7 +249,25 @@ All five share one password, which Dumi sends to the team privately. It is not i
 
 **The deployed rules, checked with real sign-ins (AL-321, 18 November):** `al-core/scripts/check-hosted-rules.js` signed in on `agentic-lender-a0f1c` as Alice (borrower), Bob (broker) and Uma (underwriter), confirmed each ID token carries the right `role`, and sent 96 requests to Firestore: 59 reads that should be allowed or refused for each person and for no sign-in, and 37 writes and deletes, which no client may do. Every one got the answer the rules should give (alice 27, bob 26, uma 27, signed out 16). The expected answers are the same table that `test/hosted-rules-probes.test.js` replays through the rules engine on the emulator, so the hosted project and the emulator are held to one list. Re-run it whenever the rules are redeployed (`al-core/README.md` says how).
 
+### Contracts on Polygon Amoy
+
+The live site can't reach a Hardhat node on a laptop, so the contracts run on Polygon Amoy (chain id 80002), deployed on 23 November 2026 (AL-183). Amoy over Arbitrum Sepolia: Polygon's own faucet gives 1 POL per claim after a GitHub sign-in, with no mainnet balance needed, and Amoy is the network `hardhat.config.js` and al-core already named. Both contracts' source is verified, so anyone can read the code and every call on the explorer.
+
+| What | Value |
+|---|---|
+| LoanNote | [`0x12df1c6F6457F337190791527667B8BA4EACEFD4`](https://amoy.polygonscan.com/address/0x12df1c6F6457F337190791527667B8BA4EACEFD4#code) |
+| AuditRegistry | [`0x0AA97a061607DF09e1acC208dEf71D7d2D5af3C7`](https://amoy.polygonscan.com/address/0x0AA97a061607DF09e1acC208dEf71D7d2D5af3C7#code) |
+| Deployer, admin and holder of every note (the bank) | `0x17f82f0f7a0220FfAc2096a506c41A315c7a1eC6`. Its key is in `al-core/chain/.env` on Dumi's laptop, with a backup in Dumi's password manager, so a lost laptop doesn't lose the admin role. It is needed only to hand on a role or deploy again, never by the running app |
+| Minter and registrar (al-core's wallet) | `0x1F747BCB55a0e8D960e1709B4BD4fD7c03d03092`. Its key is in `al-core/chain/.env` and in AWS as `agentic-lender/al-core/chain-keys` |
+| RPC | `https://polygon-amoy-bor-rpc.publicnode.com` (free, no key, so it is a plain setting, not a secret) |
+| Explorer | https://amoy.polygonscan.com |
+| Deployed in | a block between 53619185 and 53619838 |
+| Record in the repo | `al-core/chain/deployments/amoy.json` (addresses only) |
+
+Both wallets are testnet-only, funded from the Polygon faucet. al-core's settings on AWS: `CHAIN_NETWORK=amoy`, `CHAIN_RPC_URL`, `LOAN_NOTE_ADDRESS` and `AUDIT_REGISTRY_ADDRESS` as above, and the two keys from the secret. How to deploy again and verify is in `al-core/README.md`, "On Polygon Amoy".
+
+**Checked on 23 November:** al-core, run on the laptop against the emulators and Amoy, minted the seeded `app-approved` (token 1, [mint transaction](https://amoy.polygonscan.com/tx/0x6469aa6e955908253ab4e715052c1d49623031ba9db583501cdf07ba32180664)) and wrote its audit hash ([registry transaction](https://amoy.polygonscan.com/tx/0x97656fa2799e2858967085e9f75fd2f634852adfad6f730043e1eaef0aa282c7)). A second mint call found the same note and sent nothing, and the audit pack's hash matched the registry's. The same from the API on AWS waits for al-core's first deploy there.
+
 ## Open decisions
 
-- Which public testnet the contracts use (Dumi)
 - Local dev: whether Docker Compose also wraps Hardhat

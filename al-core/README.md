@@ -445,6 +445,17 @@ npm run demo:local
 
 `deploy.js` deploys the loan note and the audit registry and saves both addresses to `deployments/localhost.json`, which al-core reads to find the contracts (see "The loan note and the mint" below). `demo-mint.js` mints an example note with made-up references, reads it back and shows that a second mint for the same application is refused. The local chain starts empty each time, so deploy again after restarting the node: `demo-mint.js` says so if the saved address has no contract behind it.
 
+### On Polygon Amoy
+
+The deployed contracts, wallets and the checks done on them are in `docs/infrastructure.md`, "Contracts on Polygon Amoy". `deployments/amoy.json` holds their addresses, so al-core finds them with `CHAIN_NETWORK=amoy` alone. To deploy again (a new pair of contracts, new addresses), from `al-core/chain/`:
+
+1. Fill in `.env` from `.env.example`: `AMOY_RPC_URL`, `DEPLOYER_PRIVATE_KEY` (testnet-only wallet), `MINTER_ADDRESS` (al-core's wallet) and `HOLDER_ADDRESS` (the bank).
+2. Fund the deployer with test POL from https://faucet.polygon.technology (Polygon Amoy, POL, GitHub sign-in, 1 POL per claim). A deploy costs about 0.065 POL. Give the minter some too, since it pays for every mint and audit write.
+3. `npm run deploy:amoy`, which writes `deployments/amoy.json`. That file is committed and al-core points at it, so the script refuses to replace it and sends nothing: a new pair of contracts must be asked for on purpose with `FORCE=1` (`FORCE=1 npm run deploy:amoy` in Git Bash, or `$env:FORCE="1"; npm run deploy:amoy` in PowerShell). Then al-core's AWS settings need the new addresses too.
+4. `npm run verify:amoy`, with a free Etherscan key as `ETHERSCAN_API_KEY` in `.env` (one key covers Polygonscan). It publishes both contracts' source, and is safe to run again. If the explorer times out, run it again.
+
+To run al-core on the laptop against Amoy, set `CHAIN_NETWORK=amoy`, `CHAIN_RPC_URL` to the RPC above, `CHAIN_MINTER_PRIVATE_KEY` and `CHAIN_REGISTRAR_PRIVATE_KEY` to the minter's key and `BORROWER_REF_SALT`. Every mint is then a real, public testnet transaction.
+
 ### The audit record and its hash (`app/audit.py`, `app/audit_store.py`, `app/chain.py`)
 
 When an application is signed off and approved, al-core builds one **audit record** from what is stored, hashes it, saves it at `applications/{id}/audit/record` and writes the hash to the registry. A declined application has none. `audit_store.anchor(application_id, registry)` does all of it and is safe to call again; the mint endpoint calls it.
@@ -517,7 +528,8 @@ With a local node and `npm run deploy:local` running, the live checks are `CHAIN
 
 - **Who signs transactions:** al-core, with a server-held testnet wallet (web3.py). The underwriter clicks sign-off in the portal and the API mints, so nobody needs a browser wallet. The wallet's address gets `MINTER_ROLE` at deploy (`MINTER_ADDRESS`, defaulting to the deployer for local work). The notes themselves go to a separate bank address (`HOLDER_ADDRESS`, also defaulting to the deployer), so replacing al-core's wallet never moves them.
 - **Libraries:** Hardhat and ethers.js for the contracts, tests and scripts; web3.py in al-core for minting.
-- **Where the chain runs:** a local Hardhat node for development. The live site can't reach a node on a laptop, so it will use a public testnet, most likely Polygon Amoy, set up in Sprint 3 (`--network amoy` once `.env` is filled in).
+- **Where the chain runs:** a local Hardhat node for development. The live site can't reach a node on a laptop, so it uses Polygon Amoy, deployed in Sprint 3 (AL-183; see "On Polygon Amoy" above).
+- **Polygon's blocks:** they carry more than the 32 bytes of `extraData` a standard block has, which web3.py refuses (`ExtraDataLengthError`) on every write. `chain.connect()` adds web3.py's `ExtraDataToPOAMiddleware`, so the registry and the loan notes both work on Amoy; it changes nothing on the local node.
 - **Docker Compose:** not for now (team decision, 13 Oct). `npx hardhat node` runs fine on its own and al-core only needs its URL, so Compose would add a container without changing anything. Revisit when the chain is deployed.
 - **Audit registry:** the second contract, `contracts/AuditRegistry.sol` (Sprint 2, agreed with Nic on 18 Oct). It stores one SHA-256 hash and the time stored per application reference (the same SHA-256 of the application id the loan note uses), emits `HashStored`, and refuses a second write for the same application, so a stored hash can't change. Only the registrar role, al-core's wallet (the same wallet as the minter), can write, and the admin can hand that role on. Only a hash and the reference go on-chain. Read it with `recordOf(applicationRef)`. How the hash is built is in `SCHEMA.md` and `app/audit.py`.
 - **Keys:** testnet wallets only. Private keys live in `chain/.env`, which git ignores; `chain/.env.example` lists the names with empty values.

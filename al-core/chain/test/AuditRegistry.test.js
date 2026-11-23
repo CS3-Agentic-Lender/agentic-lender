@@ -87,10 +87,18 @@ describe("AuditRegistry", function () {
       expect(storedAt).to.equal(firstTime);
     });
 
-    it("has no function to update or delete a hash", async function () {
+    it("has no function to update or delete a hash: its functions are exactly the allowed list", async function () {
+      // An allowed list, not a list of banned names: any new function (an update, a delete, under any name) fails this test
+      // until it is added here on purpose. `store` is the only function that writes a hash; the role ones are OpenZeppelin's.
+      const allowed = [
+        "DEFAULT_ADMIN_ROLE", "REGISTRAR_ROLE", "getRoleAdmin", "grantRole", "hasRole", "recordOf", "renounceRole",
+        "revokeRole", "store", "supportsInterface",
+      ];
       const { registry } = await loadFixture(deploy);
       const names = registry.interface.fragments.filter((f) => f.type === "function").map((f) => f.name);
-      expect(names).to.not.include.members(["update", "remove", "delete", "set", "overwrite"]);
+      expect([...names].sort()).to.deep.equal([...allowed].sort());
+      const writes = registry.interface.fragments.filter((f) => f.type === "function" && !["view", "pure"].includes(f.stateMutability));
+      expect(writes.map((f) => f.name).sort()).to.deep.equal(["grantRole", "renounceRole", "revokeRole", "store"]);
     });
   });
 
