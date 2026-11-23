@@ -42,7 +42,7 @@ from google.cloud import firestore
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, call_log, committee, official_rates, rates, reasoning_trail, retry_policy, risk_tier, run_log, valuation_review
+from app import approval_likelihood, call_log, committee, dti_review, official_rates, rates, reasoning_trail, retry_policy, risk_tier, run_log, valuation_review
 from app import market_agent as ma
 from app.valuation_endpoint import ValuationResponse
 
@@ -216,6 +216,16 @@ class FirestoreRunStore:
             log.warning("run %s no longer holds %s, so its valuation detail is not saved", run_id, application_id)
             return
         valuation_review.write_valuation(self.db, application_id, response)
+
+    def save_dti_breakdown(self, application_id: str, run_id: str, breakdown: dict) -> None:
+        """Save the run's DTI breakdown on `review/underwriting` (dti_review.write_dti_breakdown), called by the committee right
+        after its calculations step, so the figures and the run's rate are there even if a later step fails. Skipped when this
+        run no longer holds the application, as for the valuation detail."""
+        held = (self.db.collection(APPLICATIONS).document(application_id).get().to_dict() or {}).get("aiRunId")
+        if held != run_id:
+            log.warning("run %s no longer holds %s, so its DTI breakdown is not saved", run_id, application_id)
+            return
+        dti_review.write_dti_breakdown(self.db, application_id, breakdown)
 
 
 def _crashed(run_id: str, application_id: str, exc: Exception) -> dict:

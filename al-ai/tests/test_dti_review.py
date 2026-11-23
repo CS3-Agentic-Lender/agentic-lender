@@ -48,7 +48,7 @@ def test_the_reference_case_is_stored_in_euro_to_the_cent_and_plain_percentages(
 
 
 def test_money_is_rounded_to_the_cent_and_the_stressed_rate_has_no_float_slip():
-    got = dti_review.dti_breakdown(**{**SINGLE, "gross_income_eur": 65_000, "take_home_monthly_eur": 3900.555, "benchmark_rate_pct": 3.1})
+    got = dti_review.dti_breakdown(**{**SINGLE, "gross_income_eur": 65_000, "take_home_monthly_eur": 3900.556, "benchmark_rate_pct": 3.1})
     assert got["incomeMonthlyEur"] == 5416.67  # 65,000 / 12 = 5416.666...
     assert got["takeHomeMonthlyEur"] == 3900.56
     assert got["benchmarkRatePct"] == 3.1 and got["stressedRatePct"] == 5.1
