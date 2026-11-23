@@ -51,6 +51,8 @@ export interface LoanNote {
   // Written by al-core when the loan is closed; null while the note is open.
   closedAt: Date | null;
   closeTxHash: string | null;
+  // A close field is stored but cannot be read: the note itself is still shown, the close record is not trusted.
+  closeUnreadable: boolean;
 }
 
 // Every figure is null when it is missing or unusable, so the page can say "Unavailable"
@@ -209,11 +211,12 @@ function readLoanNote(value: unknown): LoanNote | null {
 
   // Only network is optional on older notes. Preserve identifiers exactly as stored.
   if (!tokenId || !contractAddress || !txHash || !auditHash || !mintedAt ||
-      (note.network != null && network === null) ||
-      (note.closedAt != null && closedAt === null) || (note.closeTxHash != null && closeTxHash === null)) {
+      (note.network != null && network === null)) {
     return null;
   }
-  return { tokenId, contractAddress, txHash, auditHash, network, mintedAt, closedAt, closeTxHash };
+  // A malformed close field must not hide the minted note: keep the note and flag the close record instead.
+  const closeUnreadable = (note.closedAt != null && closedAt === null) || (note.closeTxHash != null && closeTxHash === null);
+  return { tokenId, contractAddress, txHash, auditHash, network, mintedAt, closedAt, closeTxHash, closeUnreadable };
 }
 
 export function toLoanFileApplication(id: string, data: DocumentData): LoanFileApplication {

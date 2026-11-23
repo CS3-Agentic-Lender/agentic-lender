@@ -15,6 +15,9 @@ function shortTx(value: string) {
 // Polygon Amoy is the only network with a public explorer. Its chain id is in al-core/chain/deployments/amoy.json.
 const AMOY_CHAIN_ID = 80002;
 const AMOY_EXPLORER = 'https://amoy.polygonscan.com';
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const TOKEN_ID = /^\d+$/;
 
 interface LoanNotePanelProps {
   note: LoanNote;
@@ -32,7 +35,9 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const canCopy = typeof navigator.clipboard?.writeText === 'function';
   const onAmoy = note.network === 'amoy';
-  const tx = (hash: string) => `${AMOY_EXPLORER}/tx/${hash}`;
+  // A link is built only from a well-formed stored value; anything else is shown as plain text.
+  const tx = (hash: string | null) => (onAmoy && hash !== null && TX_HASH.test(hash) ? `${AMOY_EXPLORER}/tx/${hash}` : undefined);
+  const contractOk = ADDRESS.test(note.contractAddress);
   const rows: {
     label: string;
     value: string;
@@ -45,18 +50,18 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
       label: 'Token ID',
       value: note.tokenId,
       mono: true,
-      href: onAmoy ? `${AMOY_EXPLORER}/token/${note.contractAddress}?a=${encodeURIComponent(note.tokenId)}` : undefined,
+      href: onAmoy && contractOk && TOKEN_ID.test(note.tokenId) ? `${AMOY_EXPLORER}/token/${note.contractAddress}?a=${note.tokenId}` : undefined,
       linkText: 'View the token on Polygonscan',
     },
     { label: 'Loan type', value: loanTypeLabel(loanType) ?? 'Not recorded' },
     { label: 'Network', value: note.network === null ? 'Not recorded' : networkLabels[note.network] ?? note.network },
     ...(onAmoy ? [{ label: 'Chain ID', value: String(AMOY_CHAIN_ID), mono: true }] : []),
-    { label: 'Mint transaction', value: note.txHash, mono: true, href: onAmoy ? tx(note.txHash) : undefined, linkText: 'View on Polygonscan', copy: true },
+    { label: 'Mint transaction', value: note.txHash, mono: true, href: tx(note.txHash), linkText: 'View on Polygonscan', copy: true },
     {
       label: 'Loan note contract',
       value: note.contractAddress,
       mono: true,
-      href: onAmoy ? `${AMOY_EXPLORER}/address/${note.contractAddress}` : undefined,
+      href: onAmoy && contractOk ? `${AMOY_EXPLORER}/address/${note.contractAddress}` : undefined,
       linkText: 'View the contract on Polygonscan',
     },
     { label: 'Audit hash', value: note.auditHash, mono: true },
@@ -64,18 +69,20 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
       label: 'Audit registry transaction',
       value: auditTxHash ?? 'Not recorded',
       mono: true,
-      href: onAmoy && auditTxHash !== null ? tx(auditTxHash) : undefined,
+      href: tx(auditTxHash),
       linkText: 'View on Polygonscan',
     },
     { label: 'Minted', value: formatDate(note.mintedAt) },
-    ...(note.closedAt !== null || note.closeTxHash !== null
+    // A close field is stored but unreadable: say so, and never show the loan as open or closed on a guess.
+    ...(note.closeUnreadable ? [{ label: 'Close record', value: 'Stored but unreadable' }] : []),
+    ...(!note.closeUnreadable && (note.closedAt !== null || note.closeTxHash !== null)
       ? [
           { label: 'Closed', value: formatDate(note.closedAt) },
           {
             label: 'Close transaction',
             value: note.closeTxHash ?? 'Not recorded',
             mono: true,
-            href: onAmoy && note.closeTxHash !== null ? tx(note.closeTxHash) : undefined,
+            href: tx(note.closeTxHash),
             linkText: 'View on Polygonscan',
           },
         ]
@@ -85,7 +92,7 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
   const baseNetwork = note.network === null ? 'Network not recorded' : networkLabels[note.network] ?? note.network;
   // Only Amoy has a known chain id; the local Hardhat chain and unknown networks get no number.
   const network = onAmoy ? `${baseNetwork} · chain ${AMOY_CHAIN_ID}` : baseNetwork;
-  const closed = note.closedAt !== null || note.closeTxHash !== null;
+  const closed = !note.closeUnreadable && (note.closedAt !== null || note.closeTxHash !== null);
   // What the note means, in the words of the two contracts (al-core/chain/contracts/LoanNote.sol and
   // AuditRegistry.sol). The portal does not re-check the hash itself; the audit pack does.
   const points = [

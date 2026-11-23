@@ -204,7 +204,8 @@ function LoanFile({ application, review }: LoanFileProps) {
           figures={[
             { label: heloc ? 'Credit limit requested' : 'Amount requested', value: euro(application.loanAmountEur) },
             {
-              label: heloc ? 'Combined LTV' : 'Valuation LTV',
+              // The figure is the loan over the model estimate, not a formal valuation (the Collateral card says the same).
+              label: heloc ? 'Combined LTV' : 'Indicative LTV',
               value: ltvText(application),
               note: heloc ? null : ltvBandText(application),
             },
@@ -218,7 +219,12 @@ function LoanFile({ application, review }: LoanFileProps) {
                     : null,
               note: review.state === 'available' ? review.stressTest?.dtiBand ?? null : null,
             },
-            { label: 'Risk tier', value: riskTierText(application, review), note: 'of A to D' },
+            {
+              label: 'Risk tier',
+              value: riskTierText(application, review),
+              // The scale note only makes sense next to an actual tier.
+              note: /^[A-D]$/.test(riskTierText(application, review) ?? '') ? 'of A to D' : null,
+            },
           ]}
         />
       </div>

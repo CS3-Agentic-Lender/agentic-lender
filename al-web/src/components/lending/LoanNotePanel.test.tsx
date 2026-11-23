@@ -7,7 +7,7 @@ import { LoanNotePanel } from './LoanNotePanel';
 const note: LoanNote = {
   tokenId: '23', contractAddress: `0x${'AB'.repeat(20)}`, txHash: `0x${'CD'.repeat(32)}`,
   auditHash: 'EF'.repeat(32), network: 'amoy', mintedAt: new Date('2026-10-01T12:00:00Z'),
-  closedAt: null, closeTxHash: null,
+  closedAt: null, closeTxHash: null, closeUnreadable: false,
 };
 const auditTxHash = `0x${'12'.repeat(32)}`;
 
@@ -97,6 +97,29 @@ describe('loan note panel', () => {
     expect(screen.queryByText('Close transaction', { selector: 'dt' })).not.toBeInTheDocument();
   });
 
+  it('gives a malformed hash, address or token id no link and shows it as plain text', () => {
+    const closedAt = new Date('2026-11-05T09:00:00Z');
+    render(
+      <LoanNotePanel
+        note={{ ...note, tokenId: '1/../x', contractAddress: '0xnotanaddress', txHash: '0x12', closedAt, closeTxHash: `0xzz${'z'.repeat(62)}` }}
+        auditTxHash="https://evil.example/"
+        loanType="mortgage"
+      />,
+    );
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(row('Mint transaction')).toHaveTextContent('0x12');
+    expect(row('Loan note contract')).toHaveTextContent('0xnotanaddress');
+    expect(row('Audit registry transaction')).toHaveTextContent('https://evil.example/');
+  });
+
+  it('links only the well-formed values when others are malformed', () => {
+    render(<LoanNotePanel note={{ ...note, contractAddress: '0xabc' }} auditTxHash={auditTxHash} loanType="mortgage" />);
+    expect(within(row('Mint transaction')).getByRole('link')).toBeInTheDocument();
+    expect(within(row('Audit registry transaction')).getByRole('link')).toBeInTheDocument();
+    expect(within(row('Loan note contract')).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(row('Token ID')).queryByRole('link')).not.toBeInTheDocument();
+  });
+
   it('shows a closed note with its close transaction linked on Amoy', () => {
     const closeTxHash = `0x${'34'.repeat(32)}`;
     const closedAt = new Date('2026-11-05T09:00:00Z');
@@ -138,5 +161,12 @@ describe('loan note panel', () => {
     render(<LoanNotePanel note={note} auditTxHash={null} loanType="mortgage" />);
     expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
     expect(row('Mint transaction')).toHaveTextContent(note.txHash);
+  });
+  it('keeps the note and says the close record is unreadable instead of guessing open or closed', () => {
+    render(<LoanNotePanel note={{ ...note, closedAt: null, closeTxHash: null, closeUnreadable: true }} auditTxHash={null} loanType="mortgage" />);
+    expect(row('Token ID')).toHaveTextContent(note.tokenId);
+    expect(row('Close record')).toHaveTextContent('Stored but unreadable');
+    expect(screen.queryByText('Closed', { selector: 'dt' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/· closed/)).not.toBeInTheDocument();
   });
 });

@@ -70,7 +70,7 @@ function radialTexture(stops: [number, string][], size = 256) {
 export function createCouncilScene(
   host: HTMLElement,
   data: CouncilData,
-  { onPick, reduceMotion }: { onPick(agent: SceneAgent): void; reduceMotion: boolean },
+  { onPick, reduceMotion, onContextLost: onContextLostCb }: { onPick(agent: SceneAgent): void; reduceMotion: boolean; onContextLost?(): void },
 ): CouncilHandle {
   const colours = {
     night: token('--color-night', '#0d1814'),
@@ -105,7 +105,9 @@ export function createCouncilScene(
   scene.background = new THREE.Color(colours.night);
   scene.fog = new THREE.Fog(colours.night, 14, 30);
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const roomEnv = new RoomEnvironment();
+  const envMap = pmrem.fromScene(roomEnv, 0.04).texture;
+  roomEnv.dispose();
   scene.environment = envMap;
   scene.environmentIntensity = 0.4;
 
@@ -124,6 +126,15 @@ export function createCouncilScene(
   controls.autoRotate = !reduceMotion;
   controls.autoRotateSpeed = TUNE.autoRotate;
   controls.target.copy(target);
+  // On a phone a vertical swipe over the stage should scroll the page: lock the vertical angle and leave only
+  // horizontal one-finger turning. OrbitControls sets touch-action to none in its constructor, so this comes after.
+  if (window.matchMedia?.('(pointer: coarse)').matches) {
+    renderer.domElement.style.touchAction = 'pan-y';
+    controls.update();
+    const polar = controls.getPolarAngle();
+    controls.minPolarAngle = polar;
+    controls.maxPolarAngle = polar;
+  }
   let resumeTimer = 0;
   let dragging = false;
   controls.addEventListener('start', () => {
@@ -481,7 +492,7 @@ export function createCouncilScene(
     else running = false;
   }
 
-  const onContextLost = (event: Event) => { event.preventDefault(); cancelAnimationFrame(frameId); running = false; };
+  const onContextLost = (event: Event) => { event.preventDefault(); cancelAnimationFrame(frameId); running = false; onContextLostCb?.(); };
   renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
   resize();
@@ -508,6 +519,7 @@ export function createCouncilScene(
       bloom.dispose();
       for (const item of disposables) item.dispose();
       renderer.dispose();
+      renderer.forceContextLoss();
       renderer.domElement.remove();
       for (const el of labels.values()) el.remove();
       tip.remove();

@@ -86,7 +86,7 @@ function radialTexture(stops: [number, string][], size = 256) {
   return new THREE.CanvasTexture(canvas);
 }
 
-export function createChainScene(host: HTMLElement, data: ChainData, { reduceMotion }: { reduceMotion: boolean }): ChainHandle {
+export function createChainScene(host: HTMLElement, data: ChainData, { reduceMotion, onContextLost: onContextLostCb }: { reduceMotion: boolean; onContextLost?(): void }): ChainHandle {
   const colours = {
     night: readToken('--color-night', '#0d1814'),
     brass: readToken('--color-brass', '#c9b27c'),
@@ -110,7 +110,9 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
   scene.background = new THREE.Color(colours.night);
   scene.fog = new THREE.Fog(colours.night, 13, 30);
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const roomEnv = new RoomEnvironment();
+  const envMap = pmrem.fromScene(roomEnv, 0.04).texture;
+  roomEnv.dispose();
   scene.environment = envMap;
   scene.environmentIntensity = 0.45;
 
@@ -132,6 +134,15 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
   controls.maxAzimuthAngle = TUNE.maxAzimuth;
   let idle = !reduceMotion;
   controls.target.copy(target);
+  // On a phone a vertical swipe over the stage should scroll the page: lock the vertical angle and leave only
+  // horizontal one-finger turning. OrbitControls sets touch-action to none in its constructor, so this comes after.
+  if (window.matchMedia?.('(pointer: coarse)').matches) {
+    renderer.domElement.style.touchAction = 'pan-y';
+    controls.update();
+    const polar = controls.getPolarAngle();
+    controls.minPolarAngle = polar;
+    controls.maxPolarAngle = polar;
+  }
   let resumeTimer = 0;
   let dragging = false;
   controls.addEventListener('start', () => { dragging = true; idle = false; window.clearTimeout(resumeTimer); host.dataset.dragging = 'true'; kick(); });
@@ -393,7 +404,7 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
     else running = false;
   }
 
-  const onContextLost = (event: Event) => { event.preventDefault(); cancelAnimationFrame(frameId); running = false; };
+  const onContextLost = (event: Event) => { event.preventDefault(); cancelAnimationFrame(frameId); running = false; onContextLostCb?.(); };
   renderer.domElement.addEventListener('webglcontextlost', onContextLost);
   resize();
   kick();
@@ -414,6 +425,7 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
       bloom.dispose();
       for (const item of disposables) item.dispose();
       renderer.dispose();
+      renderer.forceContextLoss();
       renderer.domElement.remove();
       for (const { el } of labels) el.remove();
     },
