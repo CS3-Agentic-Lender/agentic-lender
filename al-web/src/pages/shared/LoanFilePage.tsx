@@ -173,9 +173,10 @@ function NotReady({ state, viewer }: { state: Exclude<LoanFileState, { status: '
 interface LoanFileProps {
   application: LoanFileApplication;
   review: LoanFileReview;
+  viewer: LoanFileViewer;
 }
 
-function LoanFile({ application, review }: LoanFileProps) {
+function LoanFile({ application, review, viewer }: LoanFileProps) {
   const { property } = application;
   const heloc = application.loanType === 'heloc';
 
@@ -254,7 +255,9 @@ function LoanFile({ application, review }: LoanFileProps) {
       <div className="mt-5 animate-rise" style={stagger(4)}>
         <DtiBreakdown application={application} review={review} />
       </div>
-      <CommitteeConsole applicationId={application.id} />
+      {/* Team decision (AL-333, 23 Nov): the committee's votes and reasoning are for underwriters only.
+          Brokers keep the outcome and conditions shown elsewhere on the file. */}
+      {viewer === 'underwriter' ? <CommitteeConsole applicationId={application.id} /> : null}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <FactSection
@@ -368,7 +371,7 @@ function ReadyLoanFile({ application, review, viewer }: {
 
   return (
     <>
-      <LoanFile application={application} review={review} />
+      <LoanFile application={application} review={review} viewer={viewer} />
       {recorded ? (
         <p className="mt-5 rounded-xl border border-success/20 bg-success-soft px-5 py-4 font-medium text-success" role="status">
           Decision recorded: {decisionLabels[recorded.decision.outcome]}. Saved status: {recorded.status}.
