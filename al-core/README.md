@@ -451,7 +451,7 @@ The deployed contracts, wallets and the checks done on them are in `docs/infrast
 
 1. Fill in `.env` from `.env.example`: `AMOY_RPC_URL`, `DEPLOYER_PRIVATE_KEY` (testnet-only wallet), `MINTER_ADDRESS` (al-core's wallet) and `HOLDER_ADDRESS` (the bank).
 2. Fund the deployer with test POL from https://faucet.polygon.technology (Polygon Amoy, POL, GitHub sign-in, 1 POL per claim). A deploy costs about 0.065 POL. Give the minter some too, since it pays for every mint and audit write.
-3. `npm run deploy:amoy`, which writes `deployments/amoy.json`.
+3. `npm run deploy:amoy`, which writes `deployments/amoy.json`. That file is committed and al-core points at it, so the script refuses to replace it and sends nothing: a new pair of contracts must be asked for on purpose with `FORCE=1` (`FORCE=1 npm run deploy:amoy` in Git Bash, or `$env:FORCE="1"; npm run deploy:amoy` in PowerShell). Then al-core's AWS settings need the new addresses too.
 4. `npm run verify:amoy`, with a free Etherscan key as `ETHERSCAN_API_KEY` in `.env` (one key covers Polygonscan). It publishes both contracts' source, and is safe to run again. If the explorer times out, run it again.
 
 To run al-core on the laptop against Amoy, set `CHAIN_NETWORK=amoy`, `CHAIN_RPC_URL` to the RPC above, `CHAIN_MINTER_PRIVATE_KEY` and `CHAIN_REGISTRAR_PRIVATE_KEY` to the minter's key and `BORROWER_REF_SALT`. Every mint is then a real, public testnet transaction.
