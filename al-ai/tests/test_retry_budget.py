@@ -89,6 +89,48 @@ def test_each_call_is_limited_to_60_seconds():
     assert net.timeouts == [60.0]
 
 
+# ---- an overloaded provider (live: Gemini answered 503 "high demand" three times in 77 s and the step gave up) ----------
+
+OVERLOADED = (503, {}, json.dumps({"error": {"code": 503, "message": "This model is currently experiencing high demand.", "status": "UNAVAILABLE"}}).encode())
+
+
+def test_an_overloaded_provider_is_waited_out_with_longer_pauses():
+    net, sleeps = Net(OVERLOADED, OVERLOADED, json.dumps(GOOD_REPLY)), []
+    result = run(net, sleeps=sleeps)
+    assert result.ok and sleeps == [10.0, 30.0]
+
+
+def test_a_rate_limit_gets_the_same_longer_pauses_and_a_longer_retry_after_still_wins():
+    net, sleeps = Net((429, {"retry-after": "45"}, b"slow down"), (429, {}, b"slow down"), json.dumps(GOOD_REPLY)), []
+    assert run(net, sleeps=sleeps).ok and sleeps == [45.0, 30.0]
+
+
+def test_a_provider_that_stays_overloaded_fails_with_its_own_error_after_10_30_and_60_seconds_inside_the_budget():
+    clock = Clock()
+    budget = retry_policy.Budget(retry_policy.RUN_BUDGET_S, clock)
+    net, sleeps = Net(OVERLOADED), []
+    result = ag.run(FACTS, run_id="r", agent=OLLAMA, transport=net, env=ENV, budget=budget, sleep=lambda s: (sleeps.append(s), clock.sleep(s)))
+    assert not result.ok and len(net.calls) == 4 and sleeps == [10.0, 30.0, 60.0]
+    assert result.failure_reason.startswith("ollama answered HTTP 503") and sum(sleeps) < retry_policy.RUN_BUDGET_S
+
+
+def test_an_overload_pause_the_budget_cannot_cover_ends_the_step_early_with_the_budget_as_the_reason():
+    clock = Clock()
+    budget = retry_policy.Budget(50, clock)
+    net = Net(OVERLOADED)
+    result = ag.run(FACTS, run_id="r", agent=OLLAMA, transport=net, env=ENV, budget=budget, sleep=clock.sleep)
+    # waits 10 s (40 left), then 30 s (10 left); the 60 s pause would not fit: stop without waiting
+    assert not result.ok and len(net.calls) == 3 and clock.now == 40.0
+    assert result.failure_reason == "the run's time budget of 50 s ran out"
+
+
+def test_an_ordinary_outage_keeps_the_short_pauses_and_a_wrong_request_is_not_retried():
+    net, sleeps = Net((500, {}, b"down")), []
+    assert not run(net, sleeps=sleeps).ok and len(net.calls) == 3 and sleeps == [2.0, 8.0]
+    net, sleeps = Net((400, {}, b"bad request")), []
+    assert not run(net, sleeps=sleeps).ok and len(net.calls) == 1 and sleeps == []
+
+
 # ---- criterion 2: the time budget -------------------------------------------------------------
 
 def test_a_call_gets_only_the_time_the_budget_has_left():

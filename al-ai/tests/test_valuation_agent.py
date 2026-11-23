@@ -277,6 +277,13 @@ def test_a_provider_error_that_clears_is_recovered_from():
     assert result.ok and sleeps == [2.0] and [a["outcome"] for a in result.attempts] == ["provider_error", "ok"]
 
 
+def test_an_overloaded_provider_is_waited_out_with_longer_pauses():
+    net = Net((503, "high demand"), (503, "high demand"), (200, GOOD))
+    sleeps = []
+    result = run(net, sleeps=sleeps)
+    assert result.ok and sleeps == [10.0, 30.0]
+
+
 def test_a_retry_after_a_provider_error_sends_the_same_prompt_again():
     net = Net((500, "down"), (200, GOOD))
     run(net)
