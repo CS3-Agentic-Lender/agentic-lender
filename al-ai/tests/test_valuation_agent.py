@@ -271,7 +271,7 @@ def test_a_provider_error_is_retried_twice_with_backoff_and_then_the_step_fails(
 
 
 def test_a_provider_error_that_clears_is_recovered_from():
-    net = Net((429, "slow down"), (200, GOOD))
+    net = Net((502, "bad gateway"), (200, GOOD))
     sleeps = []
     result = run(net, sleeps=sleeps)
     assert result.ok and sleeps == [2.0] and [a["outcome"] for a in result.attempts] == ["provider_error", "ok"]

@@ -31,7 +31,7 @@ def test_a_normal_run_logs_all_three_ids_on_every_attempt_of_every_model_step():
 
 
 def test_a_failed_run_still_logs_the_ids_on_the_attempts_it_made():
-    record, _, _ = tc.go(tc.MORTGAGE, tc.Providers(ollama=(503, b"down")))
+    record, _, _ = tc.go(tc.MORTGAGE, tc.Providers(ollama=(500, b"down")))
     assert record["status"] == "failed" and record["failed_step"] == "affordability"
     assert len(record["steps"]["affordability"]["attempts"]) == 3
     assert_every_attempt_carries_the_ids(record, {"affordability", "valuation_agent"})

@@ -53,20 +53,20 @@ def run(net, budget=None, sleeps=None):
 # ---- criterion 1: retries ---------------------------------------------------------------------
 
 def test_a_provider_error_is_retried_at_most_twice_after_2_then_8_seconds():
-    net, sleeps = Net((503, {}, b"down")), []
+    net, sleeps = Net((500, {}, b"down")), []
     result = run(net, sleeps=sleeps)
     assert not result.ok and len(net.calls) == 3 and sleeps == [2.0, 8.0]
     assert [a["outcome"] for a in result.attempts] == ["provider_error"] * 3
 
 
 def test_a_longer_retry_after_is_waited_for_and_a_shorter_one_is_not():
-    net, sleeps = Net((429, {"retry-after": "20"}, b"slow down"), (429, {"retry-after": "1"}, b"slow down"), json.dumps(GOOD_REPLY)), []
+    net, sleeps = Net((502, {"retry-after": "20"}, b"bad gateway"), (502, {"retry-after": "1"}, b"bad gateway"), json.dumps(GOOD_REPLY)), []
     result = run(net, sleeps=sleeps)
     assert result.ok and sleeps == [20.0, 8.0]
 
 
 def test_a_retry_after_we_cannot_read_is_ignored():
-    net, sleeps = Net((503, {"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"}, b"down"), json.dumps(GOOD_REPLY)), []
+    net, sleeps = Net((502, {"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"}, b"bad gateway"), json.dumps(GOOD_REPLY)), []
     assert run(net, sleeps=sleeps).ok and sleeps == [2.0]
 
 
@@ -145,7 +145,7 @@ def test_a_call_gets_only_the_time_the_budget_has_left():
 def test_a_pause_the_budget_cannot_cover_ends_the_step_with_the_budget_as_the_reason():
     clock = Clock()
     budget = retry_policy.Budget(10, clock)
-    net, result = Net((503, {}, b"down")), None
+    net, result = Net((500, {}, b"down")), None
     result = ag.run(FACTS, run_id="r", agent=OLLAMA, transport=net, env=ENV, budget=budget, sleep=clock.sleep)
     # call 1 fails, waits 2 s (8 s left), call 2 fails, the 8 s pause would use all that is left: stop
     assert not result.ok and len(net.calls) == 2 and clock.now == 2.0
