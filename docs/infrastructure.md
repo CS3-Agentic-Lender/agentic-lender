@@ -261,10 +261,10 @@ The live site can't reach a Hardhat node on a laptop, so the contracts run on Po
 | Minter and registrar (al-core's wallet) | `0x1F747BCB55a0e8D960e1709B4BD4fD7c03d03092`. Its key is in `al-core/chain/.env` and in AWS as `agentic-lender/al-core/chain-keys` |
 | RPC | `https://polygon-amoy-bor-rpc.publicnode.com` (free, no key, so it is a plain setting, not a secret) |
 | Explorer | https://amoy.polygonscan.com |
-| Deployed in | a block between 53619185 and 53619838 |
-| Record in the repo | `al-core/chain/deployments/amoy.json` (addresses only) |
+| Deployed in | block 53619738 (LoanNote) and 53619740 (AuditRegistry) |
+| Record in the repo | `al-core/chain/deployments/amoy.json` (addresses and `deployBlock`, nothing secret) |
 
-Both wallets are testnet-only, funded from the Polygon faucet. al-core's settings on AWS: `CHAIN_NETWORK=amoy`, `CHAIN_RPC_URL`, `LOAN_NOTE_ADDRESS` and `AUDIT_REGISTRY_ADDRESS` as above, and the two keys from the secret. How to deploy again and verify is in `al-core/README.md`, "On Polygon Amoy".
+Both wallets are testnet-only, funded from the Polygon faucet. al-core's settings on AWS: `CHAIN_NETWORK=amoy`, `CHAIN_RPC_URL`, `LOAN_NOTE_ADDRESS` and `AUDIT_REGISTRY_ADDRESS` as above, `CHAIN_START_BLOCK=53619738`, and the two keys from the secret. The start block matters because PublicNode refuses a log query over 10,000 blocks and Amoy makes about 43,000 a day: al-core looks a past mint, close or audit write up newest first in 10,000-block windows and stops there (AL-331). How to deploy again and verify is in `al-core/README.md`, "On Polygon Amoy".
 
 **Checked on 23 November:** al-core, run on the laptop against the emulators and Amoy, minted the seeded `app-approved` (token 1, [mint transaction](https://amoy.polygonscan.com/tx/0x6469aa6e955908253ab4e715052c1d49623031ba9db583501cdf07ba32180664)) and wrote its audit hash ([registry transaction](https://amoy.polygonscan.com/tx/0x97656fa2799e2858967085e9f75fd2f634852adfad6f730043e1eaef0aa282c7)). A second mint call found the same note and sent nothing, and the audit pack's hash matched the registry's. The same from the API on AWS waits for al-core's first deploy there.
 

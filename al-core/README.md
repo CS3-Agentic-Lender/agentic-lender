@@ -162,6 +162,7 @@ GitHub Actions builds the same `Dockerfile` for `linux/amd64` (what Fargate runs
 | `CHAIN_RPC_URL` | yes | The public testnet's RPC URL. Unset, it is the local Hardhat node |
 | `CHAIN_NETWORK` | yes | The network's name, saved on each loan note. Unset, it is `localhost` |
 | `LOAN_NOTE_ADDRESS` | yes | The deployed `LoanNote`. Set it: the `chain/deployments/` fallback is not in the image |
+| `CHAIN_START_BLOCK` | yes | The block the contracts were deployed in (`53619738` on Amoy), where looking up a past mint, close or audit write stops. Set it for the same reason; unset it is 0, and on a public chain the lookup then walks back far further than it needs |
 | `AUDIT_REGISTRY_ADDRESS` | yes | The deployed `AuditRegistry`. Set it for the same reason |
 | `CHAIN_MINTER_PRIVATE_KEY` | yes, secret | Testnet wallet that holds `MINTER_ROLE` |
 | `CHAIN_REGISTRAR_PRIVATE_KEY` | yes, secret | Testnet wallet that writes the audit hash |
@@ -497,6 +498,7 @@ and compare it with the `auditHash` and with the value in the registry. The shar
 | `CHAIN_RPC_URL` | the node, default `http://127.0.0.1:8545` (the local Hardhat node) |
 | `CHAIN_REGISTRAR_PRIVATE_KEY` | the registrar wallet's key. Locally, account #0's key as `npx hardhat node` prints it |
 | `AUDIT_REGISTRY_ADDRESS` | the deployed registry; if unset, `chain/deployments/<CHAIN_NETWORK>.json` is used (`CHAIN_NETWORK` defaults to `localhost`) |
+| `CHAIN_START_BLOCK` | where looking up a past event stops; if unset, that file's `deployBlock`, else 0. A public RPC refuses a log query over 10,000 blocks, so `app/chain.py` `find_logs` searches newest first in 10,000-block windows down to it |
 
 **Checking it against a real chain:** with the node and `npm run deploy:local` running as above, `CHAIN_LIVE_TEST=1 CHAIN_REGISTRAR_PRIVATE_KEY=<account #0's key> uv run pytest tests/test_chain_live.py`. Without those, that test is skipped and CI uses stand-ins for web3.
 
