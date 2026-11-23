@@ -32,23 +32,26 @@ def valuation_detail(response: ValuationResponse) -> dict:
     }
 
 
-def write_valuation(db, application_id: str, response: ValuationResponse) -> dict:
+def write_valuation(db, application_id: str, response: ValuationResponse, *, transaction=None) -> dict:
     """Save the model's result after a run or re-run, replacing whatever the last run saved. Returns the map that was written.
 
     `db` is a Firestore client. The committee flow calls this after the valuation step. The application itself is only read,
     for its broker (the asking price on it is the borrower's own input and is never written here).
+    With `transaction`, the read and the write are made in it, so the caller's checks and this write land together or not at all.
     Raises ValueError if the application does not exist or has no brokerId.
     """
     application = db.collection("applications").document(application_id)
-    snapshot = application.get()
+    snapshot = application.get(transaction=transaction)
     if not snapshot.exists:
         raise ValueError(f"Application {application_id} does not exist")
     broker_id = (snapshot.to_dict() or {}).get("brokerId")
     if not broker_id:
         raise ValueError(f"Application {application_id} has no brokerId")
     detail = valuation_detail(response)
-    application.collection("review").document("underwriting").set(
-        {"applicationId": application_id, "brokerId": broker_id, "updatedAt": SERVER_TIMESTAMP, "valuationDetail": detail},
-        merge=OWNED_FIELDS,
-    )
+    review = application.collection("review").document("underwriting")
+    fields = {"applicationId": application_id, "brokerId": broker_id, "updatedAt": SERVER_TIMESTAMP, "valuationDetail": detail}
+    if transaction is None:
+        review.set(fields, merge=OWNED_FIELDS)
+    else:
+        transaction.set(review, fields, merge=OWNED_FIELDS)
     return detail
