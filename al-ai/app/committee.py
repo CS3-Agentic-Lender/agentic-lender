@@ -25,7 +25,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
 from app import affordability_agent as aa
-from app import call_log, committee_input, official_rates, policy_gate, rates, retry_policy, serper, valuation_endpoint, valuation_model
+from app import call_log, committee_input, official_rates, policy_gate, rates, retry_policy, run_log, serper, valuation_endpoint, valuation_model
 from app import market_agent as ma
 from app import strategist_agent as sa
 from app import valuation_agent as va
@@ -37,6 +37,7 @@ AL_AI = Path(__file__).resolve().parents[1]
 SAMPLES = Path(__file__).with_name("committee_samples")
 RUNS_FOLDER = AL_AI / "docs" / "committee-runs"
 NODE_ORDER = ("validate", "valuation_model", "market", "calculations", "affordability", "valuation_agent", "strategist", "policy_gate", "save")
+AGENT_OF = {"market": "market", "affordability": "affordability", "valuation_agent": "valuation", "strategist": "strategist"}  # step -> its agent in agents.json
 
 
 class StepFailed(Exception):
@@ -109,30 +110,49 @@ class State(TypedDict, total=False):
     record: dict
 
 
-def _failure(name: str, reason: str, evidence: dict | None = None) -> dict:
+def _failure(name: str, reason: str, kind: str, evidence: dict | None = None) -> dict:
+    """`kind` is the class name of what failed the step, the only part of a failure run_log writes for most steps."""
     return {
         "node_order": [name],
         "steps": {name: {"ok": False, "error": reason, **(evidence or {})}},
-        "failures": [{"step": name, "reason": reason}],
+        "failures": [{"step": name, "reason": reason, "kind": kind}],
     }
 
 
-def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget):
-    """Wrap a step: skip it once an earlier step has failed or the run's time is up, and turn StepFailed into a failure on the record."""
+def _configured_agent(deps: "Deps", name: str) -> config.AgentModel | None:
+    """The model a step is set to call, for its log line; None for a step with no agent or a config that cannot be read."""
+    if name not in AGENT_OF:
+        return None
+    try:
+        return deps.agent(AGENT_OF[name]) or config.load().agent(AGENT_OF[name])
+    except Exception:
+        return None
+
+
+def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget, agent: config.AgentModel | None = None):
+    """Wrap a step: skip it once an earlier step has failed or the run's time is up, and turn StepFailed into a failure on the record.
+    The start and end of each step that runs is one run_log line."""
+
+    def attempt(state: State) -> dict:
+        if budget.remaining() <= 0:
+            return _failure(name, budget.reason(), run_log.OUT_OF_TIME)
+        try:
+            update = work(state)
+        except StepFailed as exc:
+            return _failure(name, exc.reason, "StepFailed", exc.evidence)
+        except Exception as exc:  # a bug or an outage nobody planned for must still leave a failed record, not lose the run
+            log.exception("committee step %s raised", name)
+            return _failure(name, f"unexpected error: {type(exc).__name__}: {exc}"[:300], type(exc).__name__)
+        return {"node_order": [name], **update}
 
     def run(state: State) -> dict:
         if state.get("failures"):
             return {}
-        if budget.remaining() <= 0:
-            return _failure(name, budget.reason())
-        try:
-            update = work(state)
-        except StepFailed as exc:
-            return _failure(name, exc.reason, exc.evidence)
-        except Exception as exc:  # a bug or an outage nobody planned for must still leave a failed record, not lose the run
-            log.exception("committee step %s raised", name)
-            return _failure(name, f"unexpected error: {type(exc).__name__}: {exc}"[:300])
-        return {"node_order": [name], **update}
+        started = time.monotonic()
+        run_log.step_started(state, name, agent)
+        update = attempt(state)
+        run_log.step_ended(state, name, update, time.monotonic() - started)
+        return update
 
     return run
 
@@ -285,6 +305,8 @@ def build_graph(deps: Deps):
         """Always runs, whether the run finished or failed, so every run leaves a record."""
         record = make_record(state)
         deps.store.save(record)
+        failed = next((f for f in state.get("failures", []) if f["step"] == record["failed_step"]), {})
+        run_log.finished(record, failed.get("kind"))
         return {"record": record, "node_order": ["save"]}
 
     graph = StateGraph(State)
@@ -292,7 +314,7 @@ def build_graph(deps: Deps):
         ("validate", validate), ("valuation_model", valuation_model_step), ("market", market), ("calculations", calculations),
         ("affordability", affordability), ("valuation_agent", valuation_agent), ("strategist", strategist), ("policy_gate", gate),
     ):
-        graph.add_node(name, _node(name, work, budget))
+        graph.add_node(name, _node(name, work, budget, _configured_agent(deps, name)))
     graph.add_node("save", save)
 
     graph.add_edge(START, "validate")

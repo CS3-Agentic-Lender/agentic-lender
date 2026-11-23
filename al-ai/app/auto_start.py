@@ -40,7 +40,7 @@ from google.cloud import firestore
 from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP, ArrayUnion
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail, retry_policy, risk_tier
+from app import approval_likelihood, call_log, committee, official_rates, reasoning_trail, retry_policy, risk_tier, run_log
 from app import market_agent as ma
 
 log = logging.getLogger("al-ai.auto-start")
@@ -335,13 +335,16 @@ def process(
     application = gate.claim(take) if gate is not None else take()
     if application is None:
         return None
+    run_log.claimed(run_id, application_id, rerun_of)
     try:
         if deps_error is not None:
             raise deps_error
         return committee.run_committee(application, deps=deps, application_id=application_id, run_id=run_id, rerun_of=rerun_of)
     except Exception as exc:
         log.exception("committee run %s for %s crashed", run_id, application_id)
-        finish(db, _crashed(run_id, application_id, exc))
+        crashed = _crashed(run_id, application_id, exc)
+        run_log.finished({**crashed, "rerun_of": rerun_of}, type(exc).__name__)
+        finish(db, crashed)
         return None
 
 
