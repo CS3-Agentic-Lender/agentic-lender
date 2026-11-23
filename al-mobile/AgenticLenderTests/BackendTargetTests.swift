@@ -4,7 +4,10 @@ import XCTest
 /// The demo build switch: the `AL_BACKEND` build setting points the app at the local emulators
 /// and gateway (`LOCAL`, the default) or the hosted Firebase project and API (`HOSTED`).
 final class BackendTargetTests: XCTestCase {
-    private let complete = HostedFirebase(projectID: "al-demo", apiKey: "key", appID: "1:2:ios:3", senderID: "2")
+    private let complete = HostedFirebase(
+        projectID: "al-demo", apiKey: "key", appID: "1:2:ios:3", senderID: "2",
+        googleClientID: "2-abc.apps.googleusercontent.com", googleReversedClientID: "com.googleusercontent.apps.2-abc"
+    )
 
     // MARK: - The API address
 
@@ -45,11 +48,14 @@ final class BackendTargetTests: XCTestCase {
     }
 
     func testAHostedBuildNamesEveryMissingFirebaseSetting() {
-        let partial = HostedFirebase(projectID: "al-demo", apiKey: " ", appID: "", senderID: "2")
+        let partial = HostedFirebase(
+            projectID: "al-demo", apiKey: " ", appID: "", senderID: "2",
+            googleClientID: "2-abc.apps.googleusercontent.com", googleReversedClientID: ""
+        )
 
         let plan = FirebaseSetup.plan(for: BackendConfig(environment: [:], target: .hosted), hosted: partial)
 
-        XCTAssertEqual(plan, .missing(["AL_FIREBASE_API_KEY", "AL_FIREBASE_APP_ID"]))
+        XCTAssertEqual(plan, .missing(["AL_FIREBASE_API_KEY", "AL_FIREBASE_APP_ID", "AL_GOOGLE_REVERSED_CLIENT_ID"]))
     }
 
     // MARK: - Reading the hosted settings (gitignored Config/Hosted.xcconfig, through Info.plist)
@@ -60,6 +66,8 @@ final class BackendTargetTests: XCTestCase {
             "ALFirebaseAPIKey": "key",
             "ALFirebaseAppID": "1:2:ios:3",
             "ALFirebaseSenderID": "2",
+            "GIDClientID": "2-abc.apps.googleusercontent.com",
+            "ALGoogleReversedClientID": "com.googleusercontent.apps.2-abc",
         ]
 
         XCTAssertEqual(HostedFirebase(info: info), complete)
@@ -69,6 +77,9 @@ final class BackendTargetTests: XCTestCase {
         // An ordinary checkout has no Config/Hosted.xcconfig, so the settings arrive empty or not at all.
         let info: [String: Any] = ["ALFirebaseProjectID": "al-demo", "ALFirebaseAPIKey": ""]
 
-        XCTAssertEqual(HostedFirebase(info: info).missing, ["AL_FIREBASE_API_KEY", "AL_FIREBASE_APP_ID", "AL_FIREBASE_SENDER_ID"])
+        XCTAssertEqual(HostedFirebase(info: info).missing, [
+            "AL_FIREBASE_API_KEY", "AL_FIREBASE_APP_ID", "AL_FIREBASE_SENDER_ID",
+            "AL_GOOGLE_CLIENT_ID", "AL_GOOGLE_REVERSED_CLIENT_ID",
+        ])
     }
 }

@@ -1,3 +1,4 @@
+import GoogleSignIn
 import SwiftUI
 
 @main
@@ -29,6 +30,8 @@ struct AgenticLenderApp: App {
             // A new root after signing out, so nothing from the signed-in screens is left behind.
             .id(session.stackID)
             .environment(session)
+            // Google's sign-in comes back to the app through the reversed client ID URL scheme (AL-320).
+            .onOpenURL { url in GIDSignIn.sharedInstance.handle(url) }
         }
     }
 }

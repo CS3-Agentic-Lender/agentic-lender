@@ -10,6 +10,7 @@
 		A10000000000000000000301 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000A01 /* FirebaseAuth */; };
 		A10000000000000000000302 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000A02 /* FirebaseFirestore */; };
 		A10000000000000000000303 /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000A03 /* StripePaymentSheet */; };
+		A10000000000000000000304 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000A04 /* GoogleSignIn */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +65,7 @@
 				A10000000000000000000301 /* FirebaseAuth in Frameworks */,
 				A10000000000000000000302 /* FirebaseFirestore in Frameworks */,
 				A10000000000000000000303 /* StripePaymentSheet in Frameworks */,
+				A10000000000000000000304 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +140,7 @@
 				A10000000000000000000A01 /* FirebaseAuth */,
 				A10000000000000000000A02 /* FirebaseFirestore */,
 				A10000000000000000000A03 /* StripePaymentSheet */,
+				A10000000000000000000A04 /* GoogleSignIn */,
 			);
 			productName = AgenticLender;
 			productReference = A10000000000000000000101 /* AgenticLender.app */;
@@ -220,6 +223,7 @@
 			packageReferences = (
 				A10000000000000000000B01 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				A10000000000000000000B02 /* XCRemoteSwiftPackageReference "stripe-ios" */,
+				A10000000000000000000B03 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000012 /* Products */;
@@ -525,6 +529,14 @@
 				version = 26.16.1;
 			};
 		};
+		A10000000000000000000B03 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = exactVersion;
+				version = 10.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -542,6 +554,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A10000000000000000000B02 /* XCRemoteSwiftPackageReference "stripe-ios" */;
 			productName = StripePaymentSheet;
+		};
+		A10000000000000000000A04 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000B03 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

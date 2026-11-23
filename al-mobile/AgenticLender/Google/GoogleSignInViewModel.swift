@@ -28,6 +28,27 @@ final class GoogleSignInViewModel {
         destination = nil
     }
 
+    /// Google's own sign-in first (the hosted build), then the same Firebase sign-in as the emulator sheet.
+    /// Cancelling Google's screen leaves the borrower on Welcome with no error.
+    func continueWithGoogle(from source: GoogleTokenSource) async {
+        errorMessage = nil
+        isWorking = true
+        let token: GoogleToken?
+        do {
+            token = try await source.token()
+        } catch {
+            isWorking = false
+            logger.error("Google's sign-in failed: \(error.localizedDescription, privacy: .public)")
+            errorMessage = Self.failureMessage
+            return
+        }
+        guard let token else {
+            isWorking = false
+            return
+        }
+        await continueWithGoogle(token)
+    }
+
     func continueWithGoogle(_ token: GoogleToken) async {
         errorMessage = nil
         isWorking = true
