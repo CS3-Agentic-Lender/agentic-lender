@@ -20,7 +20,8 @@ import pytest
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 import test_committee as tc
-from app import approval_likelihood, auto_start, committee, rates, risk_tier
+from app import approval_likelihood, auto_start, committee, rates, risk_tier, valuation_review
+from app.valuation_endpoint import ValuationResponse
 
 EMULATOR = os.getenv("FIRESTORE_EMULATOR_HOST")
 pytestmark = pytest.mark.skipif(not EMULATOR, reason="needs the Firestore emulator (set FIRESTORE_EMULATOR_HOST)")
@@ -864,3 +865,68 @@ def test_an_application_with_no_broker_writes_no_band_or_tier_and_the_status_sti
     assert application(db, application_id)["status"] == "AI Deliberated"
     assert_no_risk_written(db, application_id)
     assert "no brokerId" in caplog.text
+
+
+# ---- the valuation model's result is saved on review/underwriting as soon as the valuation step has it ------------------
+
+def no_rate(name):
+    raise rates.RateUnavailable("the ECB is down and the cached rate is too old")
+
+
+def detail_of(record):
+    """The valuationDetail map the run's valuation step should have saved (SCHEMA.md valuationDetail)."""
+    return valuation_review.valuation_detail(ValuationResponse.model_validate(record["steps"]["valuation_model"]["output"]))
+
+
+def test_a_complete_run_saves_the_valuation_detail_beside_the_gate_and_the_tier(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    stored = underwriting(db, application_id)
+    assert stored["valuationDetail"] == detail_of(record)
+    assert stored["valuationDetail"]["displayEstimateEur"] == record["steps"]["valuation_model"]["output"]["display_estimate_eur"]
+    assert stored["policyGate"] == record["steps"]["policy_gate"]["output"]  # neither write clobbers the other
+    assert stored["riskTier"] == expected_risk(record)[1]
+    assert (stored["applicationId"], stored["brokerId"]) == (application_id, "broker-1")
+
+
+def test_a_run_that_fails_after_the_valuation_step_still_saves_the_valuation_detail(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    assert (record["status"], record["failed_step"]) == ("failed", "market")
+    stored = underwriting(db, application_id)
+    assert stored["valuationDetail"] == detail_of(record)
+    assert "policyGate" not in stored and "riskTier" not in stored
+
+
+def test_a_run_that_fails_before_the_valuation_step_saves_no_valuation_detail(db):
+    application_id = applied(db, grossIncomeEur=-1)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["failed_step"] == "validate"
+    assert underwriting(db, application_id) is None
+
+
+def test_a_re_run_replaces_the_valuation_detail(db):
+    application_id = applied(db)
+    failed = auto_start.process(db, application_id, deps_factory=factory(get_rate=no_rate))
+    first = underwriting(db, application_id)["valuationDetail"]
+    bigger = {**copy.deepcopy(tc.MORTGAGE["property"]), "floorAreaSqm": 200}
+    db.collection("applications").document(application_id).update({"property": bigger})
+    again = auto_start.rerun(db, application_id, failed["run_id"], deps_factory=factory())
+    assert again["status"] == "complete", again["failure_reason"]
+    stored = underwriting(db, application_id)["valuationDetail"]
+    assert stored == detail_of(again) and stored["estimatedValueEur"] != first["estimatedValueEur"]
+
+
+def test_a_failure_saving_the_valuation_detail_never_fails_the_run(db, monkeypatch, caplog):
+    def broken(*args, **kwargs):
+        raise RuntimeError("firestore said no")
+
+    monkeypatch.setattr(valuation_review, "write_valuation", broken)
+    application_id = applied(db)
+    with caplog.at_level("ERROR", logger="al-ai.committee"):
+        record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete", record["failure_reason"]
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert "valuationDetail" not in underwriting(db, application_id)
+    assert "valuation detail" in caplog.text
