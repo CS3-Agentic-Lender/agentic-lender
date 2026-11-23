@@ -1,22 +1,23 @@
-# ecs.tf: runs al-ai on Fargate behind /ai/* (AL-230).
+# ecs.tf: runs al-ai on Fargate behind /ai/* (AL-230) and al-core behind /core/* (AL-228).
 #
 # Three pieces:
-#   - the cluster: a named group the services live in. al-core joins it later.
-#   - the task definition: the recipe for one al-ai container, i.e. which image, how much CPU and memory,
-#     its settings and secrets, and where its output goes.
-#   - the service: keeps one task from that recipe running, and puts it in the al-ai target group so
-#     the load balancer sends it /ai/* (load-balancer.tf).
+#   - the cluster: a named group both services live in.
+#   - a task definition per service: the recipe for one container, i.e. which image, how much CPU and
+#     memory, its settings and secrets, and where its output goes.
+#   - a service per service: keeps one task from that recipe running, and puts it in its target group so
+#     the load balancer sends it /ai/* or /core/* (load-balancer.tf).
 #
 #   ./deploy/al deploy <commit>
-#     └─▶ new task definition (image al-ai:<commit>)
-#           └─▶ service starts a new task next to the old one ──▶ /ai/health passes ──▶ old task stops
-#                                                             └─▶ keeps failing ──▶ rolls back to the old one
+#     └─▶ new task definitions (images al-ai:<commit> and al-core:<commit>)
+#           └─▶ each service starts a new task next to the old one ──▶ its health check passes ──▶ old task stops
+#                                                                  └─▶ keeps failing ──▶ rolls back to the old one
 #
 # Fargate means AWS runs the machine; we only say how big the task is. ARM64 (Graviton) is about 20%
 # cheaper than x86 and matches the images GitHub Actions builds.
 #
-# Costs about EUR 17 a month for the task (0.5 vCPU and 2 GB on ARM64, about USD 0.023 an hour) and
-# EUR 3.50 for its public IPv4 address. The cluster itself is free.
+# Costs about EUR 17 a month for the al-ai task (0.5 vCPU and 2 GB on ARM64, about USD 0.023 an hour),
+# EUR 7 for the al-core task (0.25 vCPU and 0.5 GB, about USD 0.010 an hour), and EUR 3.50 for each
+# task's public IPv4 address. The cluster itself is free.
 
 # ---- the cluster ---------------------------------------------------------------------------------
 
@@ -139,5 +140,138 @@ resource "aws_ecs_service" "al_ai" {
   }
 
   # ECS can only register tasks in a target group the load balancer already uses, so the rules come first.
+  depends_on = [aws_lb_listener_rule.service]
+}
+
+# ---- the al-core task definition -----------------------------------------------------------------
+
+locals {
+  al_core_port = local.services.core.port # 5002, the same as on the laptop
+
+  # Plain settings, safe to show in the console. No *_EMULATOR_HOST here, so al-core talks to the real
+  # Firebase. No GOOGLE_APPLICATION_CREDENTIALS either: al-core/entrypoint.sh sets it from
+  # FIREBASE_SERVICE_ACCOUNT_JSON.
+  al_core_environment = {
+    FIREBASE_PROJECT_ID  = "agentic-lender-a0f1c"
+    CORS_ALLOWED_ORIGINS = "https://app.${var.domain}"
+  }
+
+  # Where the contracts are. All null for now: they aren't on the public testnet yet (the testnet deploy
+  # is waiting on test POL), so al-core starts with the chain off. Only the settings that are filled in
+  # reach the container. With the addresses unset, al-core looks for chain/deployments/<network>.json,
+  # which isn't in the image, so mint and close answer 503 ("The blockchain is not set up on this server")
+  # and the audit pack is built without the chain's answer. The rest of the API works as normal.
+  #
+  # Leave a setting null rather than "": al-core treats an empty CHAIN_NETWORK or address as unset, but an
+  # empty CHAIN_RPC_URL is used as it is instead of falling back to the local node.
+  #
+  # If the RPC URL turns out to be a provider URL with an API key in it (Alchemy, Infura), it's a secret:
+  # put it in the chain-keys secret and add it to al_core_secret_keys below, not here.
+  al_core_chain = {
+    CHAIN_RPC_URL          = null
+    CHAIN_NETWORK          = null
+    LOAN_NOTE_ADDRESS      = null
+    AUDIT_REGISTRY_ADDRESS = null
+  }
+
+  # Which secret holds each key (foundations/al-core-secrets.tf). Both are JSON objects, and
+  # "<arn>:<key>::" tells ECS to pull out just that key. A name missing from the secret's JSON stops the
+  # task from starting, so these must match deploy/README.md, "Filling the al-core secrets", exactly.
+  al_core_secret_keys = {
+    BORROWER_REF_SALT           = data.aws_secretsmanager_secret.al_core_keys.arn
+    STRIPE_SECRET_KEY           = data.aws_secretsmanager_secret.al_core_keys.arn
+    STRIPE_WEBHOOK_SECRET       = data.aws_secretsmanager_secret.al_core_keys.arn
+    CHAIN_MINTER_PRIVATE_KEY    = data.aws_secretsmanager_secret.al_core_chain_keys.arn
+    CHAIN_REGISTRAR_PRIVATE_KEY = data.aws_secretsmanager_secret.al_core_chain_keys.arn
+  }
+}
+
+resource "aws_ecs_task_definition" "al_core" {
+  family                   = "agentic-lender-al-core"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256 # 0.25 vCPU: al-core forwards requests to Firestore, Stripe and the chain, and loads no model
+  memory                   = 512 # 0.5 GB, the smallest Fargate allows with 0.25 vCPU
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "ARM64"
+  }
+
+  # Two roles (foundations/al-core-roles.tf): ECS uses the execution role to start the task and read the
+  # secrets. The task role has no permissions, because al-core's code makes no AWS calls.
+  execution_role_arn = data.aws_iam_role.al_core_execution.arn
+  task_role_arn      = data.aws_iam_role.al_core_task.arn
+
+  container_definitions = jsonencode([{
+    name      = "al-core"
+    image     = "${data.aws_ecr_repository.al_core.repository_url}:${var.image_tag}"
+    essential = true
+
+    portMappings = [{ containerPort = local.al_core_port, protocol = "tcp" }]
+
+    environment = [
+      for name, value in merge(local.al_core_environment, local.al_core_chain) : { name = name, value = value }
+      if value != null
+    ]
+
+    # Read by ECS when the task starts, as with al-ai: only the secrets' addresses are in here.
+    secrets = concat(
+      [for key, arn in local.al_core_secret_keys : { name = key, valueFrom = "${arn}:${key}::" }],
+      # The whole service account file. al-core/entrypoint.sh writes it to a file at start-up.
+      [{ name = "FIREBASE_SERVICE_ACCOUNT_JSON", valueFrom = data.aws_secretsmanager_secret.al_core_firebase_service_account.arn }],
+    )
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = data.aws_cloudwatch_log_group.al_core.name
+        awslogs-region        = var.region
+        awslogs-stream-prefix = "al-core" # streams are named al-core/al-core/<task id>
+      }
+    }
+
+    # No container health check here either: the load balancer's check on /core/health is the one ECS
+    # acts on. (The image's own Docker HEALTHCHECK is ignored by ECS unless a task definition names one.)
+  }])
+}
+
+# ---- the al-core service -------------------------------------------------------------------------
+
+resource "aws_ecs_service" "al_core" {
+  name            = "al-core"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.al_core.arn
+  launch_type     = "FARGATE"
+  desired_count   = 1
+
+  # The same place and the same security group as al-ai: in only from the load balancer.
+  network_configuration {
+    subnets          = [for subnet in aws_subnet.public : subnet.id]
+    security_groups  = [aws_security_group.tasks.id]
+    assign_public_ip = true
+  }
+
+  # Register each task in the al-core target group, so the load balancer sends it /core/*.
+  load_balancer {
+    target_group_arn = aws_lb_target_group.service["core"].arn
+    container_name   = "al-core"
+    container_port   = local.al_core_port
+  }
+
+  # al-core has no model to load: uvicorn answers /core/health within seconds (the image's own check
+  # allows 15). One minute covers that on a quarter of a vCPU with room to spare, and half of al-ai's
+  # two means a build that never comes up is rolled back sooner.
+  health_check_grace_period_seconds = 60
+
+  # The same safe swap as al-ai: the new task starts next to the old one, and /core/* never goes down.
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   depends_on = [aws_lb_listener_rule.service]
 }

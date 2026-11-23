@@ -41,3 +41,8 @@ output "al_ai_service_name" {
   description = "The ECS service that keeps one al-ai task running behind /ai/*."
   value       = aws_ecs_service.al_ai.name
 }
+
+output "al_core_service_name" {
+  description = "The ECS service that keeps one al-core task running behind /core/*."
+  value       = aws_ecs_service.al_core.name
+}

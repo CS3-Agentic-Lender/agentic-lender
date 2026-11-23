@@ -1,7 +1,7 @@
 # lookups.tf: finds the things deploy/foundations made, so this folder can use them.
 #
-# foundations made the DNS zone, the api certificate, the alarm email list, the image registry and al-ai's
-# secrets, roles and log group once, by hand, and they outlive every `./deploy/al down`. This folder just looks them up by name each run. That works the
+# foundations made the DNS zone, the api certificate, the alarm email list, the image registries and each
+# service's secrets, roles and log group once, by hand, and they outlive every `./deploy/al down`. This folder just looks them up by name each run. That works the
 # same on Floci and AWS, and doesn't tie this folder to where foundations keeps its state.
 #
 # Costs nothing: lookups create no AWS resources.
@@ -52,4 +52,38 @@ data "aws_iam_role" "al_ai_task" {
 # Where al-ai's output goes, kept 14 days (foundations/al-ai-secrets.tf).
 data "aws_cloudwatch_log_group" "al_ai" {
   name = "/agentic-lender/al-ai"
+}
+
+# ---- what the al-core service needs (ecs.tf) -----------------------------------------------------
+
+# Where GitHub Actions pushes the al-core images (foundations/ecr.tf).
+data "aws_ecr_repository" "al_core" {
+  name = "agentic-lender/al-core"
+}
+
+# al-core's three secrets (foundations/al-core-secrets.tf), looked up by name like al-ai's.
+data "aws_secretsmanager_secret" "al_core_keys" {
+  name = "agentic-lender/al-core/keys"
+}
+
+data "aws_secretsmanager_secret" "al_core_chain_keys" {
+  name = "agentic-lender/al-core/chain-keys"
+}
+
+data "aws_secretsmanager_secret" "al_core_firebase_service_account" {
+  name = "agentic-lender/al-core/firebase-service-account"
+}
+
+# The two roles an al-core task runs with (foundations/al-core-roles.tf).
+data "aws_iam_role" "al_core_execution" {
+  name = "agentic-lender-app-al-core-execution"
+}
+
+data "aws_iam_role" "al_core_task" {
+  name = "agentic-lender-app-al-core-task"
+}
+
+# Where al-core's output goes, kept 14 days (foundations/al-core-secrets.tf).
+data "aws_cloudwatch_log_group" "al_core" {
+  name = "/agentic-lender/al-core"
 }
