@@ -33,7 +33,9 @@ import os
 import threading
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Callable
 
 from google.cloud import firestore
@@ -310,17 +312,28 @@ class StopGate:
             return None if self.closed else take()
 
 
-def process(
+@dataclass(frozen=True)
+class ClaimedRun:
+    """A run whose claim was won: what `run_claimed` needs to run the committee for it."""
+
+    run_id: str
+    application_id: str
+    rerun_of: str | None
+    application: dict  # the application as the claim read it
+    deps: committee.Deps | None
+    deps_error: Exception | None  # building the deps failed: the run is claimed anyway and then fails with this
+
+
+def claim_run(
     db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None,
     now: datetime | None = None, gate: StopGate | None = None,
-) -> dict | None:
-    """Claim the application and run the committee for it. Returns the run record, or None if the claim was not won.
+) -> ClaimedRun | None:
+    """Build the run's deps and claim the application for it. Returns the claimed run, or None if the claim was not won.
 
-    The deps come first, because the figures written with the claim need the benchmark rate. The committee turns its own step
-    failures into a failed record. This also turns a crash outside the steps (building the deps, or the save itself failing)
-    into a failed run, so an application is not left `running` because of a bug. With a `gate`, the claim goes through it after
-    the figures are worked out (fetching the rate can be slow): once the gate is closed the application is not claimed (the
-    service is shutting down, AL-327), and None is returned.
+    The deps come first, because the figures written with the claim need the benchmark rate. A crash building them does not
+    stop the claim: the run is claimed and then fails (run_claimed), so the failure is recorded. With a `gate`, the claim goes
+    through it after the figures are worked out (fetching the rate can be slow): once the gate is closed the application is
+    not claimed (the service is shutting down, AL-327), and None is returned.
     """
     run_id = str(uuid.uuid4())
     try:
@@ -336,10 +349,20 @@ def process(
     if application is None:
         return None
     run_log.claimed(run_id, application_id, rerun_of)
+    return ClaimedRun(run_id, application_id, rerun_of, application, deps, deps_error)
+
+
+def run_claimed(db, claimed: ClaimedRun) -> dict | None:
+    """Run the committee for a claimed run. Returns the run record, or None if the run crashed outside its steps.
+
+    The committee turns its own step failures into a failed record. This also turns a crash outside the steps (building the
+    deps, or the save itself failing) into a failed run, so an application is not left `running` because of a bug.
+    """
+    run_id, application_id, rerun_of = claimed.run_id, claimed.application_id, claimed.rerun_of
     try:
-        if deps_error is not None:
-            raise deps_error
-        return committee.run_committee(application, deps=deps, application_id=application_id, run_id=run_id, rerun_of=rerun_of)
+        if claimed.deps_error is not None:
+            raise claimed.deps_error
+        return committee.run_committee(claimed.application, deps=claimed.deps, application_id=application_id, run_id=run_id, rerun_of=rerun_of)
     except Exception as exc:
         log.exception("committee run %s for %s crashed", run_id, application_id)
         crashed = _crashed(run_id, application_id, exc)
@@ -348,9 +371,59 @@ def process(
         return None
 
 
+def process(
+    db, application_id: str, *, deps_factory: DepsFactory, rerun_of: str | None = None,
+    now: datetime | None = None, gate: StopGate | None = None,
+) -> dict | None:
+    """Claim the application and run the committee for it, in this thread (claim_run, then run_claimed). Returns the run
+    record, or None if the claim was not won or the run crashed outside its steps."""
+    claimed = claim_run(db, application_id, deps_factory=deps_factory, rerun_of=rerun_of, now=now, gate=gate)
+    return None if claimed is None else run_claimed(db, claimed)
+
+
 def rerun(db, application_id: str, failed_run_id: str, *, deps_factory: DepsFactory) -> dict | None:
-    """Run the committee again for an application whose last run is `failed_run_id`, failed or stale. Nothing calls this yet: what triggers a re-run is not decided."""
+    """Run the committee again, in this thread, for an application whose last run is `failed_run_id`, failed or stale.
+    The service re-runs through Listener.rerun instead, which answers at once and runs in the background (POST /ai/committee/runs)."""
     return process(db, application_id, deps_factory=deps_factory, rerun_of=failed_run_id)
+
+
+class Refusal(StrEnum):
+    """Why a re-run was not started."""
+
+    NOT_FOUND = "not_found"  # no such application
+    RUNNING = "running"  # its run is still going and not stale (or another re-run has just started)
+    NOTHING_TO_RERUN = "nothing_to_rerun"  # not Applied, never run, or its run is complete
+    STOPPING = "stopping"  # the service is shutting down
+
+
+@dataclass(frozen=True)
+class RerunStarted:
+    run_id: str
+
+
+@dataclass(frozen=True)
+class RerunRefused:
+    reason: Refusal
+
+
+def rerun_target(db, application_id: str, now: datetime) -> str | Refusal:
+    """The run a re-run would replace (the application's aiRunId, when that run failed or is stale at `now`), or why there is none.
+
+    Only a read, to pick the run and to say why a re-run is refused: the claim reads the application and the run again in its
+    transaction, so what this read saw can never start a second run."""
+    snapshot = db.collection(APPLICATIONS).document(application_id).get()
+    if not snapshot.exists:
+        return Refusal.NOT_FOUND
+    data = snapshot.to_dict() or {}
+    run_id, ai_run_status = data.get("aiRunId"), data.get("aiRunStatus")
+    if data.get("status") != APPLIED or not run_id:
+        return Refusal.NOTHING_TO_RERUN
+    if ai_run_status == "failed":
+        return run_id
+    if ai_run_status == "running":
+        held = db.collection(AI_RUNS).document(run_id).get()
+        return run_id if run_is_stale(held.to_dict() if held.exists else None, now) else Refusal.RUNNING
+    return Refusal.NOTHING_TO_RERUN
 
 
 class Listener:
@@ -425,6 +498,31 @@ class Listener:
             if (change.document.to_dict() or {}).get("aiRunStatus") is not None:
                 continue  # already taken: skips a transaction, the claim would refuse it anyway
             self._submit(change.document.id)
+
+    def rerun(self, application_id: str) -> RerunStarted | RerunRefused:
+        """Re-run the committee for an application whose run failed or is stale (POST /ai/committee/runs). The claim is made
+        here, so the caller gets the new run id at once; the run itself goes on this listener's pool, like any other run.
+
+        The claim is the same transaction as every other (rerun_of = the run it replaces), so two calls at once, or a call and
+        a sweep, start one run between them: the call that loses is refused as RUNNING.
+        """
+        if self.stopping.is_set():
+            return RerunRefused(Refusal.STOPPING)
+        now = self.clock()
+        target = rerun_target(self.db, application_id, now)
+        if isinstance(target, Refusal):
+            return RerunRefused(target)
+        claimed = claim_run(self.db, application_id, deps_factory=self.deps_factory, rerun_of=target, now=now, gate=self.gate)
+        if claimed is None:
+            if self.stopping.is_set():
+                return RerunRefused(Refusal.STOPPING)
+            again = rerun_target(self.db, application_id, now)  # most often another call has just won the claim
+            return RerunRefused(again if isinstance(again, Refusal) else Refusal.RUNNING)
+        try:
+            self.pool.submit(run_claimed, self.db, claimed)
+        except RuntimeError:  # the service stopped just after the claim: the run stays running and a later sweep reclaims it as stale
+            log.warning("run %s for %s was claimed as the service stopped, so a later sweep restarts it", claimed.run_id, application_id)
+        return RerunStarted(claimed.run_id)
 
     def _submit(self, application_id: str, rerun_of: str | None = None) -> Future | None:
         if self.stopping.is_set():
