@@ -1,11 +1,14 @@
 """Every error leaves the service in the shape from docs/api-design.md section 8."""
 
+import time
 import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException  # base class, so unknown-route 404s get the shape too
+
+from app import request_log
 
 CODES = {
     400: "BAD_REQUEST",
@@ -27,8 +30,14 @@ def install(app: FastAPI) -> None:
     @app.middleware("http")
     async def request_id(request: Request, call_next):
         request.state.request_id = str(uuid.uuid4())
-        response = await call_next(request)
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            request_log.record(request, 500, started, error=type(exc).__name__)  # the handler below answers 500 with the same id
+            raise
         response.headers["X-Request-ID"] = request.state.request_id
+        request_log.record(request, response.status_code, started)
         return response
 
     @app.exception_handler(HTTPException)

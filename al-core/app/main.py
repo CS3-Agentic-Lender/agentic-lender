@@ -1,8 +1,21 @@
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI
 
-from app import applications, audit_pack, close, cors, decision, errors, fees, me, messages, mint, reviews, saved_checks, support_requests
+from app import (
+    applications, audit_pack, close, cors, decision, errors, fees, me, messages, mint, request_log, reviews, saved_checks,
+    support_requests,
+)
 
-app = FastAPI(title="al-core", docs_url="/core/docs", openapi_url="/core/openapi.json", redoc_url=None)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # At start-up, not on import, so tests keep their own logging. On ECS stdout goes to CloudWatch.
+    request_log.send_to_stdout()
+    yield
+
+
+app = FastAPI(title="al-core", docs_url="/core/docs", openapi_url="/core/openapi.json", redoc_url=None, lifespan=lifespan)
 errors.install(app)
 cors.install(app)
 
