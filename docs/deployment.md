@@ -6,7 +6,7 @@
 | Version | 1.0 |
 | Date | October 2026 |
 | Owner | Nic |
-| Status | Design. Nothing has been deployed yet. Items marked Open need a team decision |
+| Status | Live since 23 November 2026: the portal at `agentic-lender.com` and the API at `api.agentic-lender.com`. Items marked Open need a team decision |
 
 ## 1. Overview
 
@@ -14,18 +14,18 @@ AL will have one deployed environment, production, as well as a local setup on e
 
 | Piece | Where it runs | Status |
 |---|---|---|
-| Web portal | AWS Amplify Hosting at `agentic-lender.com`, uploaded by GitHub Actions (`deploy/foundations/portal.tf`) | Written |
-| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each | al-ai and al-core written (`deploy/app/ecs.tf`) |
-| Front door | Route 53 resolves `api.<domain>` to one Application Load Balancer, which has a WAF attached | Planned |
-| Container images | Amazon ECR, ARM64 images built only by GitHub Actions (section 6) | Planned |
-| Secrets | AWS Secrets Manager | Planned |
-| Logs | CloudWatch Logs, kept 14 days | Planned |
+| Web portal | AWS Amplify Hosting at `agentic-lender.com`, uploaded by GitHub Actions (`deploy/foundations/portal.tf`) | Live since 23 November 2026 |
+| al-ai and al-core | AWS ECS Fargate (ARM64) in eu-west-1, one task each (`deploy/app/ecs.tf`) | Live since 23 November 2026 |
+| Front door | Route 53 resolves `api.<domain>` to one Application Load Balancer, which has a WAF attached | Live |
+| Container images | Amazon ECR, ARM64 images built only by GitHub Actions (section 6), kept 90 days | Live |
+| Secrets | AWS Secrets Manager | Live |
+| Logs | CloudWatch Logs, kept 14 days | Live |
 | Affordability LLM | Qwen3 32B on Amazon Bedrock on the live site in place of Ollama. Qwen3.5 9B on Ollama locally (`qwen3.5:9b`), from the same Qwen family | Decided |
-| Data and login | Firebase: Firestore and Auth | Decided (the hosted project is its own ticket) |
+| Data and login | Firebase: Firestore and Auth, hosted project `agentic-lender-a0f1c` | Live |
 | Smart contracts | Polygon Amoy, deployed and source-verified on 23 November 2026. Addresses in `docs/infrastructure.md`, "Contracts on Polygon Amoy" | Deployed and verified, mint from AWS pending |
 | iOS app | The App Store through Ibrahima's paid Apple Developer account, bought at the end of October 2026. The Simulator is the backup | Decided |
-| Stripe | Test mode. Its webhook calls the load balancer | Later |
-| Infrastructure | Terraform in a `deploy/` folder | Planned |
+| Stripe | Test mode. Its webhook calls the load balancer | Not set up on AWS yet |
+| Infrastructure | Terraform in a `deploy/` folder, run with `./deploy/al` | Live |
 
 The domain is `agentic-lender.com`, registered through Route 53 on 6 October 2026 (the registration was still in progress when this was written). The addresses are `agentic-lender.com` for the portal (`www.agentic-lender.com` redirects to it) and `api.agentic-lender.com`.
 
@@ -102,13 +102,13 @@ AWS groups good cloud design into six pillars. This table records AL's plans for
 | **Operational excellence** | Terraform will define all AWS resources. Four wrapper commands handle up, deploy, status and down. Both services have health checks. CloudWatch logs include a request id on every call. Alarms cover unhealthy tasks, load balancer 5xx errors and the budget. GitHub Actions builds the images | No distributed tracing, automatic test gate before a deploy or on-call rota. Those go beyond a student prototype |
 | **Security** | HTTPS only, using a free AWS certificate. The WAF has a rate limit. The task security group accepts traffic only from the load balancer. Secrets stay in Secrets Manager. Each task role gets only the access it needs, such as one Bedrock model. Every call checks its Firebase token. Client Firestore rules allow reads only; each service's IAM role and endpoint checks limit its Firestore access. People use SSO and MFA to sign in. GitHub deploys with a short-lived role that trusts this repository only. Every commit gets a secret scan | GuardDuty and Security Hub are excluded because they add cost. During the Sprint 3 test run, tasks have public IPs and can make HTTPS calls to any address, which is broader than private subnets. If the budget allows, private subnets with a NAT gateway will close that gap in demo week |
 | **Reliability** | The load balancer uses two availability zones and checks task health. ECS replaces a task if it stops or fails a health check. The services store no state; Firebase holds the data. Recovery means rebuilding with Terraform. The team will time that rebuild before the demo | Each service has one task in one zone, so a zone failure or task replacement causes downtime. A second task in each zone would double compute costs. There is no blue/green release (section 3) |
-| **Performance efficiency** | The ML model stays loaded in memory. Tasks start small (al-ai 0.5 vCPU and 2 GB, al-core 0.25 vCPU and 0.5 GB), then are resized after memory and load are measured. Firebase Hosting serves the portal through a CDN. Region eu-west-1 is close to Cork | There is no autoscaling, since only a handful of users are expected at the demo |
+| **Performance efficiency** | The ML model stays loaded in memory. Tasks start small (al-ai 0.5 vCPU and 2 GB, al-core 0.25 vCPU and 0.5 GB), then are resized after memory and load are measured. Amplify Hosting serves the portal through a CDN. Region eu-west-1 is close to Cork | There is no autoscaling, since only a handful of users are expected at the demo |
 | **Cost optimization** | The services share one load balancer. Task counts stay fixed. There is no NAT gateway in the test run. Logs are kept 14 days, and budget alerts are enabled. Hourly resources are removed after the demo. Firebase stays on its free tier | Reserved capacity and savings plans do not fit a deployment that runs for days |
 | **Sustainability** | Tasks have small fixed sizes. The deployment uses one region and is removed after the demo | There are no separate measurements. Turning off unneeded resources is the main saving |
 
 ## 6. How a deploy runs
 
-The commands below are planned; the Terraform and wrapper scripts still need to be written.
+The commands below are in `deploy/al`; `deploy/README.md` has the details.
 
 **Two kinds of image.** Each developer builds images on their own laptop to test the product, with `docker compose`. Docker builds them for that laptop's CPU (ARM on a Mac, x86 on most Windows PCs) and they never leave the laptop. Only GitHub Actions builds the images that are deployed, always for ARM64, for both al-ai and al-core. Nobody pushes images to ECR by hand. If CI is broken, Nic's Mac builds ARM64 natively and pushes as a backup.
 
@@ -140,7 +140,7 @@ Estimated monthly costs if the full setup runs all month. These estimates use pu
 
 Nic's own AWS account has no active credits, because its sign-up credits expired on 14 September 2026. The deployment will run in Nikoloz's account instead. Before the first deploy, check that account's credits and payment method in its Billing console. Nic covers any charges the credits do not. Budgets send alerts but do not limit spending. Guardrails:
 - Set two budget alerts on actual charges, one at about EUR 20 and one at about EUR 50.
-- An AWS Budgets action on the `agentic-lender-monthly` budget (USD 50) attaches a deny-all policy to the GitHub deploy role, without waiting for approval, when actual spend reaches 100% (`deploy/foundations/budget-kill-switch.tf`). Nothing new can then be deployed. It does not stop tasks, the load balancer or the WAF that are already running, which keep billing until someone runs `./deploy/al down`. Billing data arrives hours late, so this slows runaway spend and is not a hard cap.
+- An AWS Budgets action on the `agentic-lender-monthly` budget (USD 50) attaches a deny-all policy to the GitHub deploy role, without waiting for approval, when actual spend reaches 100% (`deploy/foundations/budget-kill-switch.tf`). Only the GitHub deploy role is locked: a deploy by hand with `./deploy/al`, signed in as yourself, still works. It does not stop tasks, the load balancer or the WAF that are already running, which keep billing until someone runs `./deploy/al down`. Billing data arrives hours late, so this slows runaway spend and is not a hard cap.
 - Everyone on the team gets the budget alert emails.
 - Use the AWS account spend limit if this account can access it (paid plan only, limited release).
 - Keep task counts fixed with no autoscaling, and set a WAF rate limit on the load balancer.
@@ -161,7 +161,7 @@ The WAF allows about 300 requests per source IP in a rolling five-minute window,
 
 ## 9. Issues met
 
-Problems found while writing this design, and how each was resolved.
+Problems found while writing this design and running it live, and how each was resolved.
 
 | Issue | What happened | Resolution |
 |---|---|---|
@@ -170,3 +170,5 @@ Problems found while writing this design, and how each was resolved.
 | The first cost estimate was too low | It missed the charge for public IPv4 addresses, so EUR 58 became about EUR 68 a month | Corrected after a review, and the table in section 7 now lists the addresses |
 | Who builds images, and for which CPU | The team mixes ARM Macs and x86 Windows laptops, so it was unclear whether images would need emulation and whose laptop would build the deployed ones | Deploy images are built only by GitHub Actions, for ARM64. Laptops build their own native images for local testing only. The ARM64 build also runs on every PR, so an x86-only problem shows up before merge (section 6) |
 | The first diagram showed the wrong request path | It drew Route 53, then the WAF, then the load balancer as one chain, and put the WAF inside the VPC | Route 53 now appears as a DNS lookup. The WAF is attached to the load balancer and sits in the Region, outside the VPC |
+| A committee run failed at the market step | On the first live runs, one run stopped at the market step. The ECB took 16 s to answer a cold query, and the limit was 6 s | Fixed: background ECB calls now wait up to 30 s, and the rate cache is warmed when al-ai starts |
+| A committee run failed when Gemini was busy | Another live run stopped because Gemini answered HTTP 503 ("high demand") three times in 77 s. Failed runs are not retried automatically | In progress: a fix that retries more patiently is on its own branch, and a way to rerun a failed run is planned |
