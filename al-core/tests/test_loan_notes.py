@@ -62,8 +62,9 @@ class Events:
         self.contract.errors_mode = errors
         return self.contract.receipt_events
 
-    def get_logs(self, from_block, argument_filters):
+    def get_logs(self, from_block, argument_filters, to_block=None):
         self.contract.logs_asked = argument_filters
+        self.contract.ranges_asked.append((from_block, to_block))
         return self.contract.logs
 
 
@@ -71,12 +72,14 @@ class FakeContract:
     def __init__(self, token=0, note=None, logs=None):
         self.token, self.note, self.logs = token, note, logs or []
         self.revert = self.read_error = None
-        self.minted_with, self.logs_asked = [], None
+        self.minted_with, self.logs_asked, self.ranges_asked = [], None, []
         self.receipt_events = [{"args": {"tokenId": 7}}]
         self.functions, self.events = Functions(self), Events(self)
 
 
 class FakeEth:
+    block_number = 50  # a short local chain: one log query covers all of it
+
     def __init__(self, status=1, fail=None):
         self.status, self.fail, self.sent = status, fail, []
 

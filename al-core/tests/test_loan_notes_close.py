@@ -55,8 +55,9 @@ class CloseEvents:
     def NoteClosed(self):
         return self
 
-    def get_logs(self, from_block, argument_filters):
+    def get_logs(self, from_block, argument_filters, to_block=None):
         self.contract.logs_asked = argument_filters
+        self.contract.ranges_asked.append((from_block, to_block))
         return self.contract.logs
 
 
@@ -66,7 +67,7 @@ class CloseContract:
     def __init__(self, token=5, status=1, closed_at=0, logs=None):
         self.token, self.status, self.closed_at, self.logs = token, status, closed_at, logs or []
         self.revert = self.read_error = None
-        self.closed_with, self.logs_asked, self.asked_refs = [], None, []
+        self.closed_with, self.logs_asked, self.asked_refs, self.ranges_asked = [], None, [], []
         self.functions, self.events = CloseFunctions(self), CloseEvents(self)
 
     def note(self):

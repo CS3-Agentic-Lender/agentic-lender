@@ -10,6 +10,7 @@ The signing wallet is a server-held testnet key from the environment. Settings (
     CHAIN_MINTER_PRIVATE_KEY    the wallet holding the contract's MINTER_ROLE, a testnet wallet only
     LOAN_NOTE_ADDRESS           the deployed LoanNote; if unset, chain/deployments/<CHAIN_NETWORK>.json is used
     CHAIN_NETWORK               default localhost
+    CHAIN_START_BLOCK           where looking up a past mint or close stops (see app/chain.py)
     BORROWER_REF_SALT           the secret mixed into the borrower reference; it never leaves al-core
 """
 
@@ -24,7 +25,7 @@ from web3.exceptions import ContractLogicError, Web3Exception
 from web3.logs import DISCARD
 
 from app.audit import application_ref
-from app.chain import DEFAULT_RPC_URL, DEPLOYMENTS, RECEIPT_TIMEOUT_S, ChainError, NotConfigured, connect
+from app.chain import DEFAULT_RPC_URL, DEPLOYMENTS, RECEIPT_TIMEOUT_S, ChainError, NotConfigured, connect, find_logs, start_block
 
 LOAN_TYPES = {"mortgage": 0, "heloc": 1}  # the contract's LoanType enum
 
@@ -117,9 +118,12 @@ def borrower_ref(uid: str, salt: str) -> str:
 
 
 class LoanNotes:
-    def __init__(self, w3: Web3, address: str, private_key: str, network: str = "localhost"):
+    start_block = 0  # where looking up a past mint or close stops
+
+    def __init__(self, w3: Web3, address: str, private_key: str, network: str = "localhost", start_block: int = 0):
         self.w3 = w3
         self.network = network
+        self.start_block = start_block
         self.account = w3.eth.account.from_key(private_key)
         self.address = Web3.to_checksum_address(address)
         self.contract = w3.eth.contract(address=self.address, abi=ABI)
@@ -138,7 +142,7 @@ class LoanNotes:
                 address = json.loads(path.read_text())["LoanNote"]["address"]
             except (OSError, KeyError, ValueError):
                 raise NotConfigured(f"LOAN_NOTE_ADDRESS is not set and {path.name} has no LoanNote address") from None
-        return cls(connect(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL)), address, key, network)
+        return cls(connect(env.get("CHAIN_RPC_URL", DEFAULT_RPC_URL)), address, key, network, start_block(env, network))
 
     def mint(self, application_id: str, terms: NoteTerms) -> Minted:
         """Mint the application's note, or return the one that is already there. A note with other terms is an error."""
@@ -223,7 +227,7 @@ class LoanNotes:
         """A note that is already closed, with the transaction that closed it."""
         note = self._note(token_id)
         try:
-            events = self.contract.events.NoteClosed().get_logs(from_block=0, argument_filters={"tokenId": token_id})
+            events = find_logs(self.w3, self.contract.events.NoteClosed(), {"tokenId": token_id}, self.start_block)
         except (ContractLogicError, Web3Exception, OSError) as exc:
             raise ChainError(f"the chain could not be read: {type(exc).__name__}") from None
         if note[6] != STATUS_CLOSED or not events:
@@ -243,7 +247,7 @@ class LoanNotes:
         """The note already on the chain for this application, after checking it is the one these terms describe."""
         try:
             note = self.contract.functions.noteOf(token_id).call()
-            events = self.contract.events.NoteMinted().get_logs(from_block=0, argument_filters={"applicationRef": ref})
+            events = find_logs(self.w3, self.contract.events.NoteMinted(), {"applicationRef": ref}, self.start_block)
         except (ContractLogicError, Web3Exception, OSError) as exc:
             raise ChainError(f"the chain could not be read: {type(exc).__name__}") from None
         on_chain = (note[2], note[3], note[4], note[5], bytes(note[1]).hex())

@@ -54,8 +54,8 @@ class Events:
     def HashStored(self):
         return self
 
-    def get_logs(self, from_block, argument_filters):
-        self.registry.log_filters.append((from_block, argument_filters))
+    def get_logs(self, from_block, argument_filters, to_block=None):
+        self.registry.log_filters.append((from_block, to_block, argument_filters))
         if self.registry.log_error:
             raise self.registry.log_error
         return [{"transactionHash": bytes.fromhex(tx)} for tx in self.registry.log_txs]
@@ -78,6 +78,8 @@ class FakeContract:
 
 
 class FakeEth:
+    block_number = 50  # a short local chain: one log query covers all of it
+
     def __init__(self, status=1, fail=None):
         self.status, self.fail, self.sent = status, fail, []
 
@@ -213,7 +215,7 @@ def test_tx_of_reads_the_transaction_back_from_the_event_with_a_0x_prefix():
 def test_tx_of_asks_for_the_events_of_this_applications_reference_only():
     reg = registry()
     reg.tx_of("app-funded")
-    assert reg.contract.log_filters == [(0, {"applicationRef": bytes.fromhex(audit.application_ref("app-funded"))})]
+    assert reg.contract.log_filters == [(0, 50, {"applicationRef": bytes.fromhex(audit.application_ref("app-funded"))})]
 
 
 def test_tx_of_is_none_when_the_registry_has_no_event_for_the_application():
