@@ -8,10 +8,11 @@
 #
 #   - Scan on push: ECR's basic scan checks each new image for known CVEs. It reports, it doesn't block.
 #   - Immutable tags: a commit id always means the same image, so nobody can quietly swap what's deployed.
-#   - Keep the last 30: older images are deleted. Every merge to main pushes a pair, so 30 is about a week
-#     of merges, and the deployed build stays pullable for a restart or `up`. (At 10 it could be gone
-#     after a busy day.) al-ai is about 1.4 GB unpacked and al-core 0.4 GB, so 30 of each is roughly
-#     18 GB compressed in ECR, about USD 1.80 a month.
+#   - Keep 90 days: an image is deleted 90 days after it was pushed, however many merges came since.
+#     So a build deployed now can still be pulled by `up` for the demo on 4 Jan 2027. (A count limit
+#     can't promise that: a busy fortnight of merges could push the deployed build out of 30.)
+#     An image is about 310 MB compressed for al-ai and 100 MB for al-core, but images share all but
+#     their last few layers, and ECR stores a shared layer once, so each merge adds only a few MB.
 #
 # Costs: USD 0.10 per GB a month for what's stored. Pulls from inside eu-west-1 are free.
 
@@ -35,20 +36,26 @@ resource "aws_ecr_repository" "service" {
   }
 }
 
-resource "aws_ecr_lifecycle_policy" "keep_last_30" {
+resource "aws_ecr_lifecycle_policy" "keep_90_days" {
   for_each   = aws_ecr_repository.service
   repository = each.value.name
 
   policy = jsonencode({
     rules = [{
       rulePriority = 1
-      description  = "Keep the 30 newest images, delete the rest"
+      description  = "Delete images 90 days after they were pushed"
       selection = {
         tagStatus   = "any"
-        countType   = "imageCountMoreThan"
-        countNumber = 30
+        countType   = "sinceImagePushed"
+        countUnit   = "days"
+        countNumber = 90
       }
       action = { type = "expire" }
     }]
   })
+}
+
+moved {
+  from = aws_ecr_lifecycle_policy.keep_last_30
+  to   = aws_ecr_lifecycle_policy.keep_90_days
 }
