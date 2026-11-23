@@ -13,11 +13,13 @@
 # Rules 1 and 2 are the same limits the laptop gateway enforces (gateway/nginx.conf), so AWS and the
 # laptop behave alike. Stopping a flood here means it never costs a load balancer hit or an LLM call.
 #
-# Two things worth knowing:
+# Three things worth knowing:
 #   - AWS checks the counts every few seconds, so a burst can slip a little over a limit before the
 #     block starts. That's why the ticket says "about" 300.
 #   - WAF normally blocks with a bare 403. docs/api-design.md promises clients a 429 with Retry-After,
 #     so the rate rules send that instead, with the laptop gateway's plain-text body.
+#   - Sampled requests are off: AWS keeps each sample's headers, so the samples would hold live
+#     Firebase bearer tokens. The CloudWatch metrics still count what each rule matched.
 #
 # Costs about EUR 7 to 8 a month: USD 5 for the rulebook, USD 1 per rule (the AWS managed rule group
 # counts as one rule and has no subscription fee), and USD 0.60 per million requests.
@@ -101,7 +103,7 @@ resource "aws_wafv2_web_acl" "api" {
     visibility_config {
       metric_name                = "signup-limit"
       cloudwatch_metrics_enabled = true
-      sampled_requests_enabled   = true
+      sampled_requests_enabled   = false
     }
   }
 
@@ -134,7 +136,7 @@ resource "aws_wafv2_web_acl" "api" {
     visibility_config {
       metric_name                = "per-ip-limit"
       cloudwatch_metrics_enabled = true
-      sampled_requests_enabled   = true
+      sampled_requests_enabled   = false
     }
   }
 
@@ -168,14 +170,14 @@ resource "aws_wafv2_web_acl" "api" {
     visibility_config {
       metric_name                = "aws-common"
       cloudwatch_metrics_enabled = true
-      sampled_requests_enabled   = true
+      sampled_requests_enabled   = false
     }
   }
 
   visibility_config {
     metric_name                = "agentic-lender-api"
     cloudwatch_metrics_enabled = true
-    sampled_requests_enabled   = true
+    sampled_requests_enabled   = false
   }
 }
 

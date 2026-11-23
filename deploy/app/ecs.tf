@@ -67,12 +67,23 @@ resource "aws_ecs_task_definition" "al_ai" {
   execution_role_arn = data.aws_iam_role.al_ai_execution.arn
   task_role_arn      = data.aws_iam_role.al_ai_task.arn
 
+  # Fargate task storage with no host path: empty when the task starts, deleted when it stops.
+  volume {
+    name = "tmp"
+  }
+
   container_definitions = jsonencode([{
     name      = "al-ai"
     image     = "${data.aws_ecr_repository.al_ai.repository_url}:${var.image_tag}"
     essential = true # if this container stops, the whole task stops and ECS starts a new one
 
     portMappings = [{ containerPort = local.al_ai_port, protocol = "tcp" }]
+
+    # The image can't be changed while it runs. The only writable place is /tmp, the scratch volume above,
+    # that holds the Firebase key file entrypoint.sh writes and matplotlib's cache, and goes with the task.
+    # The Dockerfile's VOLUME ["/tmp"] gives it the image's permissions, so the non-root user can write it.
+    readonlyRootFilesystem = true
+    mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
 
     environment = [for name, value in local.al_ai_environment : { name = name, value = value }]
 

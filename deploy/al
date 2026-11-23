@@ -10,7 +10,8 @@
 #
 # Every command that changes something works the same way:
 #   1. terraform plan saves exactly what it would do to a file,
-#   2. this script lists it in plain words and asks,
+#   2. this script lists it in plain words, adds Terraform's old -> new diff when anything is changed
+#      or replaced, and asks,
 #   3. terraform apply runs THAT saved plan, so what you approved is exactly what happens.
 #
 # It only ever touches deploy/app. deploy/foundations (state bucket, deploy role, DNS, certificate)
@@ -121,6 +122,12 @@ plan_and_apply() {
   say "$summary"
   say "On $(where), Terraform will:"
   printf '  %s\n' "${changes//$'\n'/$'\n'  }"
+  # Unless every line is a create (up, a first deploy) or every line is a remove (down), old and new
+  # values matter, so show Terraform's own diff of the saved plan. It hides sensitive values itself.
+  if grep -qv '^+ create' <<<"$changes" && grep -qv '^- remove' <<<"$changes"; then
+    say "In detail, old -> new:"
+    tf show -no-color "$PLAN_FILE"
+  fi
   echo
   ask "Go ahead?" "yes"
   if [[ "${DOWN:-}" == "1" ]]; then

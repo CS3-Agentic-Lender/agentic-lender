@@ -7,7 +7,7 @@ Everything that puts AL on AWS, written in Terraform. The design and the costs a
 
 | Folder | What's in it | Run by | Removed by `down`? |
 |---|---|---|---|
-| `foundations/` | One-time pieces: the state bucket, the GitHub deploy role, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles, the portal on Amplify and its upload role | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
+| `foundations/` | One-time pieces: the state bucket, the GitHub deploy and images roles, the DNS zone, the HTTPS certificate, the alarm email list, the image registries, al-ai's and al-core's secrets, log groups and roles, the portal on Amplify and its upload role | Nic, by hand with `terraform` | Never. They cost about USD 4.50 a month and are slow to set up again |
 | `app/` | Everything billed by the hour: network, load balancer, WAF, alarms, the ECS cluster and the al-ai and al-core services | `./deploy/al` | Yes |
 
 Each `.tf` file holds one idea and starts with a comment saying what it creates, why, and what it costs.
@@ -24,6 +24,7 @@ deploy/
 │   ├── state-bucket.tf         where Terraform keeps its memory
 │   ├── backend.tf              ...and the lock on it
 │   ├── github-deploy-role.tf   GitHub Actions on main may deploy, nothing else
+│   ├── github-images-role.tf   GitHub Actions on main may push images, nothing else
 │   ├── guardrails.tf           the ceiling on what that role (and roles it makes) can do
 │   ├── dns.tf                  the agentic-lender.com zone
 │   ├── certificate.tf          the certificate for api.agentic-lender.com
@@ -58,7 +59,10 @@ deploy/
 ./deploy/al up                # bring it all back with the last build
 ```
 
-Each one lists what it will change in plain words and asks first. It applies exactly the plan you
+Each one lists what it will change in plain words and asks first. When anything is changed or
+replaced, it also prints Terraform's diff with the old and new value of every attribute (secrets stay
+hidden), so a build switch can't hide a changed port, CIDR, role or WAF rule. A plan that only creates
+(`up`, a first deploy) or only removes (`down`) shows just the list. It applies exactly the plan you
 saw. Add `--floci` to any of them to practise on Floci.
 
 ## Deploying al-ai
@@ -108,9 +112,14 @@ The deploy images are built by GitHub Actions (`.github/workflows/images.yml`), 
   `agentic-lender/al-ai:<commit>` and `agentic-lender/al-core:<commit>`, using the full commit id.
   That commit id is what `./deploy/al deploy` takes.
 
+The workflow signs in as `agentic-lender-github-images` (`foundations/github-images-role.tf`), not the
+deploy role. It trusts the same thing (a job on `main`) but may only push to the two registries, so a
+build step can't reach anything else in the account.
+
 ECR scans each image when it arrives (Console: ECR, then the repository, then the image). Tags can't
-be overwritten, and each repository keeps its 30 newest images (about a week of merges).
-An image older than that is deleted, so redeploy a recent commit rather than an old one.
+be overwritten, and each image is deleted 90 days after it was pushed, however many merges follow it.
+So `./deploy/al up` can bring back the last build for up to 90 days after its merge: a build pushed
+after 6 Oct 2026 is still there for the demo on 4 Jan 2027. Older than that, deploy a recent commit.
 
 ### Backup: pushing from Nic's Mac
 
@@ -208,7 +217,7 @@ ssh -f -N pc-aws                                              # open the tunnel 
 cd deploy/foundations
 export TF_DATA_DIR=.terraform-floci                           # keeps Floci's files apart from the real account's
 printf 'terraform {\n  backend "local" { path = "floci.tfstate" }\n}\n' > first_run_override.tf   # the bucket doesn't exist yet
-terraform init && terraform apply -var target=floci
+terraform init && terraform apply -var target=floci -var 'alarm_emails=["you@example.com"]'   # Floci sends no email
 rm first_run_override.tf
 terraform init -migrate-state -backend-config=../backend-floci.hcl     # move the state into the bucket
 cd ../.. && ./deploy/al deploy 3166a3b --floci
@@ -280,11 +289,17 @@ gitignored and read automatically, then `terraform apply` in `deploy/foundations
 alarm_emails = ["someone@example.com", "someone-else@example.com"]
 ```
 
+The list is required: `terraform plan` and `apply` in `deploy/foundations` stop with an error when
+the file is missing or empty, because an empty list would delete every subscription. A fresh checkout
+doesn't have the file, so recreate it with every team address before the first plan.
+
 Each address gets a "Confirm subscription" email from AWS and receives nothing until it's clicked.
 Because the list is in foundations, `down` and `up` never make anyone confirm again. `app/` needs the
 list to exist, so apply foundations first.
 
-The budget alerts are separate (AL-224) and keep running while `app/` is down.
+The budget alerts are separate (AL-224) and keep running while `app/` is down. The budget's kill
+switch (`foundations/budget-kill-switch.tf`) emails the same list when it locks the deploy role at
+100% of actual spend. It stops new deploys only: run `./deploy/al down` to stop what is already billing.
 
 ## Filling the al-ai secrets
 

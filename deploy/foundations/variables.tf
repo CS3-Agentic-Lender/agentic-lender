@@ -1,6 +1,6 @@
 # variables.tf: the few settings you can change without editing the other files.
 #
-# Each one has a default, so a plain `terraform plan` works. Override one on the command line,
+# Each one but alarm_emails has a default. Override one on the command line,
 # e.g. `terraform plan -var target=floci`.
 #
 # Costs nothing: this file creates no AWS resources.
@@ -52,7 +52,12 @@ variable "domain" {
 }
 
 variable "alarm_emails" {
-  description = "Who gets the CloudWatch alarm emails (alarm-emails.tf). Set in alarm-emails.auto.tfvars, which is gitignored, so the addresses never reach the public repo."
+  description = "Required. Who gets the CloudWatch alarm emails (alarm-emails.tf). Set in alarm-emails.auto.tfvars, which is gitignored, so the addresses never reach the public repo."
   type        = list(string)
-  default     = []
+
+  # No default: an empty list would make apply delete every subscription.
+  validation {
+    condition     = length(var.alarm_emails) > 0 && alltrue([for e in var.alarm_emails : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", e))])
+    error_message = "alarm_emails must be a non-empty list of email addresses. Create deploy/foundations/alarm-emails.auto.tfvars with alarm_emails = [\"you@example.com\", ...] holding every team address (see deploy/README.md, \"Who gets the alarm emails\")."
+  }
 }

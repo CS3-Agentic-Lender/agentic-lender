@@ -349,3 +349,20 @@ def test_the_firestore_cache_makes_one_short_try_each_way():
 def test_a_cache_miss_stays_well_inside_the_apps_15_second_limit():
     assert rates.WORST_CASE_S == rates.FIRESTORE_TIMEOUT_S + rates.TIMEOUT_S + rates.FIRESTORE_TIMEOUT_S
     assert rates.WORST_CASE_S <= 12
+
+
+class SlowEcb(Net):
+    """The ECB on a cold query: it answers after 16 s (measured when the first live committee run failed), so a shorter limit times out."""
+
+    def __call__(self, url, headers, timeout):
+        if timeout < 16:
+            self.calls.append({"url": url, "headers": headers, "timeout": timeout})
+            raise TimeoutError("The read operation timed out")
+        return super().__call__(url, headers, timeout)
+
+
+def test_a_slow_ecb_fails_the_apps_request_but_not_a_caller_that_can_wait():
+    with pytest.raises(RateUnavailable, match="TimeoutError"):
+        rates.get_rate("ecb_mrr", cache=MemoryCache(), transport=SlowEcb(), now=NOW)
+    rate = rates.get_rate("ecb_mrr", cache=MemoryCache(), transport=SlowEcb(), now=NOW, timeout=rates.BACKGROUND_TIMEOUT_S)
+    assert rate.pct == 2.65

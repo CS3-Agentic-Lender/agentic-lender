@@ -12,6 +12,11 @@ output "github_deploy_role_arn" {
   value       = aws_iam_role.github_deploy.arn
 }
 
+output "github_images_role_arn" {
+  description = "The role the Images workflow (.github/workflows/images.yml) signs in as to push images. Its ROLE_ARN."
+  value       = aws_iam_role.github_images.arn
+}
+
 output "name_servers" {
   description = "Paste these four into the domain's name servers in the personal AWS account, once."
   value       = aws_route53_zone.main.name_servers

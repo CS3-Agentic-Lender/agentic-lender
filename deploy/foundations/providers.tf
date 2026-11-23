@@ -41,6 +41,7 @@ provider "aws" {
     route53        = local.floci_url
     acm            = local.floci_url
     sns            = local.floci_url
+    budgets        = local.floci_url
     ecr            = local.floci_url
     secretsmanager = local.floci_url
     cloudwatchlogs = local.floci_url
