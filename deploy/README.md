@@ -216,7 +216,9 @@ Each address gets a "Confirm subscription" email from AWS and receives nothing u
 Because the list is in foundations, `down` and `up` never make anyone confirm again. `app/` needs the
 list to exist, so apply foundations first.
 
-The budget alerts are separate (AL-224) and keep running while `app/` is down.
+The budget alerts are separate (AL-224) and keep running while `app/` is down. The budget's kill
+switch (`foundations/budget-kill-switch.tf`) emails the same list when it locks the deploy role at
+100% of actual spend. It stops new deploys only: run `./deploy/al down` to stop what is already billing.
 
 ## Filling the al-ai secrets
 
