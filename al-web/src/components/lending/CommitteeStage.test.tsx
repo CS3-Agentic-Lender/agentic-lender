@@ -85,6 +85,19 @@ describe('committee stage', () => {
     expect(scene.dispose).toHaveBeenCalledOnce();
   });
 
+  it('frees a scene that fails and leaves the page text to carry the run', async () => {
+    render(<CommitteeStage onPick={() => {}} run={run} selected={null} />);
+    act(() => nearScreen?.([{ isIntersecting: true }]));
+    await act(async () => { idle?.(); });
+    await vi.waitFor(() => expect(scene.create).toHaveBeenCalledOnce());
+    const { onContextLost } = scene.create.mock.calls[0][2] as { onContextLost(): void };
+
+    act(() => onContextLost());
+
+    expect(stage()).toBeNull();
+    expect(scene.dispose).toHaveBeenCalledOnce();
+  });
+
   it('leaves the page text to carry the run when WebGL is missing', async () => {
     vi.resetModules();
     vi.doMock('./council/canDraw3d', async (original) => ({

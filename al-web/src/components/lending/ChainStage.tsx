@@ -23,7 +23,7 @@ export function ChainStage({ tokenId, auditHashShort, mintTxShort, auditTxShort,
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!supported || !host) return;
+    if (!supported || failed || !host) return;
     let cancelled = false;
     let handle: ChainHandle | null = null;
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -39,7 +39,8 @@ export function ChainStage({ tokenId, auditHashShort, mintTxShort, auditTxShort,
       cancelStart();
       handle?.dispose();
     };
-  }, [supported, tokenId, auditHashShort, mintTxShort, auditTxShort]);
+  // A failed scene turns `failed` on, which runs the cleanup above and disposes it.
+  }, [supported, failed, tokenId, auditHashShort, mintTxShort, auditTxShort]);
 
   if (!supported || failed) return null;
 

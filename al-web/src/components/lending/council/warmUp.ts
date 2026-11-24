@@ -34,6 +34,9 @@ interface Job {
 type Alive = () => boolean;
 
 const flatCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+// A driver that never reports its shaders ready would leave the stage an empty box: past this, warm-up gives up
+// and the page shows the text version instead.
+export const WARM_UP_DEADLINE_MS = 8000;
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 function compile(renderer: THREE.WebGLRenderer, jobs: Job[], alive: Alive): Promise<void> {
@@ -49,11 +52,16 @@ function compile(renderer: THREE.WebGLRenderer, jobs: Job[], alive: Alive): Prom
   // Every program the renderer holds, not each material's latest only: a two-sided transparent material gets a
   // program per side. isReady is missing from three's published types.
   const programs = (renderer.info.programs ?? []) as unknown as { isReady(): boolean; getUniforms(): unknown }[];
-  return new Promise((resolve) => {
+  const deadline = performance.now() + WARM_UP_DEADLINE_MS;
+  return new Promise((resolve, reject) => {
     const check = () => {
       // A disposed scene's context never reports ready, so polling stops with it.
       if (!alive()) return resolve();
-      if (programs.some((program) => !program.isReady())) return void window.setTimeout(check, 16);
+      if (renderer.getContext().isContextLost()) return reject(new Error('WebGL context lost while compiling shaders'));
+      if (programs.some((program) => !program.isReady())) {
+        if (performance.now() > deadline) return reject(new Error('Shaders not ready before the warm-up deadline'));
+        return void window.setTimeout(check, 16);
+      }
       // Reading a program's uniforms waits for the driver to finish it: quick once it reports ready, a freeze on
       // first use inside a frame.
       for (const program of programs) program.getUniforms();
@@ -92,6 +100,7 @@ async function drawPieceByPiece({ renderer, scene, camera, composer }: Pipeline,
   try {
     for (const piece of pieces) {
       if (!alive()) return;
+      if (renderer.getContext().isContextLost()) throw new Error('WebGL context lost while drawing the scene');
       piece.visible = true;
       renderer.setRenderTarget(composer.readBuffer);
       renderer.render(scene, camera);
@@ -105,7 +114,7 @@ async function drawPieceByPiece({ renderer, scene, camera, composer }: Pipeline,
 
 // Bakes the environment into scene.environment, compiles every shader one frame uses, then draws the scene once
 // offscreen piece by piece. Resolves to stand-in materials the caller disposes with the scene, or null when the
-// scene was disposed first.
+// scene was disposed first. Rejects when the context is lost or the shaders miss the deadline.
 export async function prepareScene(pipeline: Pipeline, alive: Alive): Promise<{ dispose(): void } | null> {
   const { renderer, scene, camera, composer, bloom } = pipeline;
   const envMap = await roomEnvironment(renderer, alive);
@@ -133,13 +142,18 @@ export async function prepareScene(pipeline: Pipeline, alive: Alive): Promise<{ 
     },
   };
   const offscreen = composer.readBuffer;
-  await compile(renderer, [
-    { object: scene, camera, target: offscreen },
-    { object: on(depth), camera: flatCamera, target: offscreen, lights: scene, withoutFog: true },
-    { object: on(bloom.materialHighPassFilter, ...bloom.separableBlurMaterials, bloom.compositeMaterial, bloom.blendMaterial), camera: flatCamera, target: offscreen },
-    { object: on(output), camera: flatCamera, target: null },
-  ], alive);
-  await drawPieceByPiece(pipeline, alive);
+  try {
+    await compile(renderer, [
+      { object: scene, camera, target: offscreen },
+      { object: on(depth), camera: flatCamera, target: offscreen, lights: scene, withoutFog: true },
+      { object: on(bloom.materialHighPassFilter, ...bloom.separableBlurMaterials, bloom.compositeMaterial, bloom.blendMaterial), camera: flatCamera, target: offscreen },
+      { object: on(output), camera: flatCamera, target: null },
+    ], alive);
+    await drawPieceByPiece(pipeline, alive);
+  } catch (error) {
+    standIns.dispose();
+    throw error;
+  }
   if (alive()) return standIns;
   standIns.dispose();
   return null;

@@ -33,7 +33,7 @@ export function CommitteeStage({ run, selected, onPick }: CommitteeStageProps) {
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!supported || !host) return;
+    if (!supported || failed || !host) return;
     let cancelled = false;
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     const cancelStart = startWhenNearAndIdle(host, () => {
@@ -51,7 +51,8 @@ export function CommitteeStage({ run, selected, onPick }: CommitteeStageProps) {
       handleRef.current?.dispose();
       handleRef.current = null;
     };
-  }, [supported, data]);
+  // A failed scene turns `failed` on, which runs the cleanup above and disposes it.
+  }, [supported, failed, data]);
 
   useEffect(() => { handleRef.current?.focus(selected); }, [selected]);
 
