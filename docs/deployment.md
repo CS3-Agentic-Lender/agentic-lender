@@ -23,7 +23,7 @@ AL will have one deployed environment, production, as well as a local setup on e
 | Affordability LLM | Qwen3 32B on Amazon Bedrock on the live site in place of Ollama. Qwen3.5 9B on Ollama locally (`qwen3.5:9b`), from the same Qwen family | Decided |
 | Data and login | Firebase: Firestore and Auth, hosted project `agentic-lender-a0f1c` | Live |
 | Smart contracts | Polygon Amoy, deployed and source-verified on 23 November 2026. Addresses in `docs/infrastructure.md`, "Contracts on Polygon Amoy" | Deployed and verified. First mint from AWS on 23 November 2026 (loan note token 2) |
-| iOS app | The App Store through Ibrahima's paid Apple Developer account, bought at the end of October 2026. The Simulator is the backup | Decided |
+| iOS app | The demo build (`AL_BACKEND=HOSTED`) on the iOS Simulator on the presenting Mac, against the hosted Firebase project and the API on AWS. No App Store or TestFlight. See `docs/infrastructure.md`, "Demo build of the iOS app" (AL-184) | Decided |
 | Stripe | Test mode. Its webhook calls the load balancer at `/core/webhooks/stripe` | Live: test event answered 200 on 23 November 2026, and a fast-track fee paid on the hosted iOS build went through |
 | Infrastructure | Terraform in a `deploy/` folder, run with `./deploy/al` | Live |
 
