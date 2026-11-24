@@ -33,7 +33,7 @@ class FakeDoc:
     def __init__(self, path, db):
         self.path, self.db = path, db
 
-    def get(self):
+    def get(self, transaction=None):
         data = self.db.documents.get(self.path)
         return type("Snapshot", (), {"exists": data is not None, "to_dict": lambda self: data})()
 

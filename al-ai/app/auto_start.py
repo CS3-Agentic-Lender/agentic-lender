@@ -211,21 +211,28 @@ class FirestoreRunStore:
         """Save the valuation model's result on `review/underwriting` (valuation_review.write_valuation), called by the committee
         right after its valuation step, so the estimate is there even if a later step fails. Skipped when this run no longer
         holds the application (it was replaced), so a late run never overwrites the newer run's detail."""
-        held = (self.db.collection(APPLICATIONS).document(application_id).get().to_dict() or {}).get("aiRunId")
-        if held != run_id:
-            log.warning("run %s no longer holds %s, so its valuation detail is not saved", run_id, application_id)
-            return
-        valuation_review.write_valuation(self.db, application_id, response)
+        self._save_while_held(application_id, run_id, "valuation detail", lambda transaction: valuation_review.write_valuation(self.db, application_id, response, transaction=transaction))
 
     def save_dti_breakdown(self, application_id: str, run_id: str, breakdown: dict) -> None:
         """Save the run's DTI breakdown on `review/underwriting` (dti_review.write_dti_breakdown), called by the committee right
         after its calculations step, so the figures and the run's rate are there even if a later step fails. Skipped when this
         run no longer holds the application, as for the valuation detail."""
-        held = (self.db.collection(APPLICATIONS).document(application_id).get().to_dict() or {}).get("aiRunId")
-        if held != run_id:
-            log.warning("run %s no longer holds %s, so its DTI breakdown is not saved", run_id, application_id)
-            return
-        dti_review.write_dti_breakdown(self.db, application_id, breakdown)
+        self._save_while_held(application_id, run_id, "DTI breakdown", lambda transaction: dti_review.write_dti_breakdown(self.db, application_id, breakdown, transaction=transaction))
+
+    def _save_while_held(self, application_id: str, run_id: str, what: str, write: Callable) -> None:
+        """Run `write(transaction)` only while this run holds the application, checked in the same transaction as the write:
+        a re-run that claims the application between the check and the write makes the transaction retry, and the retry sees
+        the new aiRunId and writes nothing."""
+        application = self.db.collection(APPLICATIONS).document(application_id)
+
+        @firestore.transactional
+        def save(transaction):
+            if (application.get(transaction=transaction).to_dict() or {}).get("aiRunId") != run_id:
+                log.warning("run %s no longer holds %s, so its %s is not saved", run_id, application_id, what)
+                return
+            write(transaction)
+
+        save(self.db.transaction(max_attempts=TRANSACTION_ATTEMPTS))
 
 
 def _crashed(run_id: str, application_id: str, exc: Exception) -> dict:

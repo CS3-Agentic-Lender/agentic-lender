@@ -59,21 +59,24 @@ def dti_breakdown(
     }
 
 
-def write_dti_breakdown(db, application_id: str, breakdown: dict) -> dict:
+def write_dti_breakdown(db, application_id: str, breakdown: dict, *, transaction=None) -> dict:
     """Save a run's breakdown, replacing whatever the last run saved. Returns the map that was written.
 
     `db` is a Firestore client. The application is only read, for its broker.
+    With `transaction`, the read and the write are made in it, so the caller's checks and this write land together or not at all.
     Raises ValueError if the application does not exist or has no brokerId.
     """
     application = db.collection("applications").document(application_id)
-    snapshot = application.get()
+    snapshot = application.get(transaction=transaction)
     if not snapshot.exists:
         raise ValueError(f"Application {application_id} does not exist")
     broker_id = (snapshot.to_dict() or {}).get("brokerId")
     if not broker_id:
         raise ValueError(f"Application {application_id} has no brokerId")
-    application.collection("review").document("underwriting").set(
-        {"applicationId": application_id, "brokerId": broker_id, "updatedAt": SERVER_TIMESTAMP, "dtiBreakdown": breakdown},
-        merge=OWNED_FIELDS,
-    )
+    review = application.collection("review").document("underwriting")
+    fields = {"applicationId": application_id, "brokerId": broker_id, "updatedAt": SERVER_TIMESTAMP, "dtiBreakdown": breakdown}
+    if transaction is None:
+        review.set(fields, merge=OWNED_FIELDS)
+    else:
+        transaction.set(review, fields, merge=OWNED_FIELDS)
     return breakdown
