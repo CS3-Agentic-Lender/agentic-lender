@@ -278,3 +278,42 @@ def test_a_heloc_above_the_80_percent_cap_gets_cltv_cap_and_the_surveyor_conditi
     assert gate["breaches"] == [policy_gate.CLTV_CAP]
     assert f"{policy_gate.EXCEPTION_CONDITION} ({policy_gate.CLTV_CAP})" in gate["conditions"] and policy_gate.SURVEYOR_CONDITION in gate["conditions"]
     assert gate["original"] == "Approve" and gate["effective"] == "Conditionally Approve" and gate["changed"] is True
+
+
+# ---- AL-345: each step's start and end goes to the store while the run goes ------------------------
+
+class ProgressStore(MemoryRunStore):
+    """A store that keeps each step's start (result None) and end (the step's result), in the order the committee sent them."""
+
+    def __init__(self, broken=False):
+        super().__init__()
+        self.progress, self.broken = [], broken
+
+    def save_step(self, application_id, run_id, step, result):
+        if self.broken:
+            raise RuntimeError("firestore said no")
+        self.progress.append((step, None if result is None else result["ok"]))
+
+
+def test_each_step_that_runs_is_sent_to_the_store_when_it_starts_and_when_it_ends():
+    record, _, store = go(MORTGAGE, store=ProgressStore())
+    assert record["status"] == "complete"
+    for step in committee.STEPS:
+        assert store.progress.index((step, None)) < store.progress.index((step, True))
+    assert len(store.progress) == 2 * len(committee.STEPS)
+    ended = [step for step, ok in store.progress if ok is not None]
+    assert ended[:4] == ["validate", "valuation_model", "market", "calculations"] and ended[6:] == ["strategist", "policy_gate"]
+
+
+def test_a_failed_step_is_sent_as_failed_and_the_steps_it_skips_are_never_sent():
+    record, _, store = go(MORTGAGE, Providers(ollama=(500, b"down")), store=ProgressStore())
+    assert record["failed_step"] == "affordability"
+    assert ("affordability", False) in store.progress
+    assert not [step for step, _ in store.progress if step in ("strategist", "policy_gate")]
+
+
+def test_a_store_that_cannot_save_progress_never_fails_the_run(caplog):
+    with caplog.at_level("ERROR", logger="al-ai.committee"):
+        record, _, store = go(MORTGAGE, store=ProgressStore(broken=True))
+    assert record["status"] == "complete" and store.saved == [record]
+    assert "progress" in caplog.text

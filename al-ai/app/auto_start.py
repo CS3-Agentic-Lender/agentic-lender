@@ -22,14 +22,16 @@ background thread. The design is the one Dumi agreed on the ticket:
            does not finish before the task stops, it becomes stale and is reclaimed.
 
 The claim writes the base `ai_runs` fields (applicationId, brokerId, status, trigger, startedAt, finishedAt) plus rerunOf,
-failedStep and failureReason. The finish adds the agents, the credit memo, the recommendations and the consensus (AL-62, see
-reasoning_trail.py), and the policy gate's result (policyGate, AL-305).
+failedStep and failureReason, and every step as queued under `steps`. While the run goes, each step's start and end, and each
+agent's report as its step ends, are written by FirestoreRunStore.save_step (AL-345). The finish adds the agents, the credit
+memo, the recommendations and the consensus (AL-62, see reasoning_trail.py), and the policy gate's result (policyGate, AL-305).
 
     cd al-ai && FIRESTORE_EMULATOR_HOST=localhost:8080 uv run python -m app.auto_start
 """
 
 import logging
 import os
+import queue
 import threading
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -101,6 +103,7 @@ def claim(db, application_id: str, *, run_id: str, rerun_of: str | None = None, 
             "applicationId": application_id, "brokerId": data.get("brokerId"), "status": "running",
             "trigger": "rerun" if rerun_of else "submit", "rerunOf": rerun_of, "startedAt": started,
             "finishedAt": None, "failedStep": None, "failureReason": None,
+            "steps": {step: {"status": "queued", "startedAt": None, "finishedAt": None} for step in committee.STEPS},
         })
         return data
 
@@ -198,14 +201,85 @@ def save_policy_gate(transaction, application, application_id: str, data: dict, 
     )
 
 
+def progress_fields(step: str, result: dict | None, at: datetime) -> dict:
+    """The `ai_runs` field paths for one step's start (`result` None) or end (the step's result), at `at` (AL-345, SCHEMA.md).
+
+    Only leaf paths, so a start and an end of the same step merge into one write. An agent's step that ends ok also writes
+    `agents.<name>`, the same map the finish writes, so a report appears as soon as its agent is done and the finish leaves it as it was.
+    """
+    path = f"steps.{step}"
+    if result is None:
+        return {f"{path}.status": "running", f"{path}.startedAt": at}
+    if not result.get("ok"):
+        return {f"{path}.status": "failed", f"{path}.finishedAt": at, f"{path}.failureReason": result.get("error")}
+    fields = {f"{path}.status": "ok", f"{path}.finishedAt": at}
+    agent = reasoning_trail.AGENT_OF_STEP.get(step)
+    if agent:
+        fields[f"agents.{agent}"] = reasoning_trail.agent(agent, result)
+    return fields
+
+
+PROGRESS_FLUSH_S = 10.0  # how long the finish waits for the progress still queued; the finish's own write does not depend on it
+_FLUSH = object()
+
+
 class FirestoreRunStore:
-    """The committee's RunStore for the service: saving a record is finishing the run in Firestore, reasoning trail included."""
+    """The committee's RunStore for the service: saving a record is finishing the run in Firestore, reasoning trail included.
+    One store per run (claim_run makes it), so its progress queue holds one run's steps."""
 
     def __init__(self, db):
         self.db = db
+        self.progress: queue.SimpleQueue = queue.SimpleQueue()
+        self.progress_writer: threading.Thread | None = None
+        self.progress_lock = threading.Lock()  # the two agents' steps start side by side
+        self.lost = False  # set once a progress write finds the run no longer holds the application: nothing more is written
 
     def save(self, record: dict) -> None:
+        self.flush_progress()
         finish(self.db, record)
+
+    def save_step(self, application_id: str, run_id: str, step: str, result: dict | None) -> None:
+        """Queue a step's start or end for `ai_runs/{runId}` and return at once: a background thread writes it, so the run never waits
+        on Firestore. The thread writes whatever has queued up since its last write as one write, so the two agents' starts are
+        usually one. A write that fails is logged and the run goes on."""
+        self.progress.put((application_id, run_id, progress_fields(step, result, datetime.now(UTC))))
+        with self.progress_lock:
+            if self.progress_writer is None:
+                self.progress_writer = threading.Thread(target=self._write_queued_progress, name=f"progress-{run_id}", daemon=True)
+                self.progress_writer.start()
+
+    def flush_progress(self) -> None:
+        """Wait, at most PROGRESS_FLUSH_S, for the progress queued so far to be written, then stop the writer thread."""
+        with self.progress_lock:
+            writer, self.progress_writer = self.progress_writer, None
+        if writer is not None:
+            self.progress.put(_FLUSH)
+            writer.join(PROGRESS_FLUSH_S)
+
+    def _write_queued_progress(self) -> None:
+        while True:
+            batch = [self.progress.get()]
+            while not self.progress.empty():
+                batch.append(self.progress.get_nowait())
+            merged: dict[tuple[str, str], dict] = {}
+            for item in batch:
+                if item is not _FLUSH:
+                    application_id, run_id, fields = item
+                    merged.setdefault((application_id, run_id), {}).update(fields)
+            for (application_id, run_id), fields in merged.items():
+                if self.lost:
+                    break
+                try:
+                    self._write_progress(application_id, run_id, fields)
+                except Exception:
+                    log.exception("could not save the progress of run %s", run_id)
+            if _FLUSH in batch:
+                return
+
+    def _write_progress(self, application_id: str, run_id: str, fields: dict) -> None:
+        run = self.db.collection(AI_RUNS).document(run_id)
+        if not self._save_while_held(application_id, run_id, "progress", lambda transaction: transaction.update(run, fields)):
+            self.lost = True
 
     def save_valuation(self, application_id: str, run_id: str, response: ValuationResponse) -> None:
         """Save the valuation model's result on `review/underwriting` (valuation_review.write_valuation), called by the committee
@@ -219,20 +293,21 @@ class FirestoreRunStore:
         run no longer holds the application, as for the valuation detail."""
         self._save_while_held(application_id, run_id, "DTI breakdown", lambda transaction: dti_review.write_dti_breakdown(self.db, application_id, breakdown, transaction=transaction))
 
-    def _save_while_held(self, application_id: str, run_id: str, what: str, write: Callable) -> None:
+    def _save_while_held(self, application_id: str, run_id: str, what: str, write: Callable) -> bool:
         """Run `write(transaction)` only while this run holds the application, checked in the same transaction as the write:
         a re-run that claims the application between the check and the write makes the transaction retry, and the retry sees
-        the new aiRunId and writes nothing."""
+        the new aiRunId and writes nothing. Returns whether it wrote."""
         application = self.db.collection(APPLICATIONS).document(application_id)
 
         @firestore.transactional
         def save(transaction):
             if (application.get(transaction=transaction).to_dict() or {}).get("aiRunId") != run_id:
                 log.warning("run %s no longer holds %s, so its %s is not saved", run_id, application_id, what)
-                return
+                return False
             write(transaction)
+            return True
 
-        save(self.db.transaction(max_attempts=TRANSACTION_ATTEMPTS))
+        return save(self.db.transaction(max_attempts=TRANSACTION_ATTEMPTS))
 
 
 def _crashed(run_id: str, application_id: str, exc: Exception) -> dict:

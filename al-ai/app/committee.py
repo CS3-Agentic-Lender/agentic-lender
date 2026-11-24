@@ -37,6 +37,7 @@ AL_AI = Path(__file__).resolve().parents[1]
 SAMPLES = Path(__file__).with_name("committee_samples")
 RUNS_FOLDER = AL_AI / "docs" / "committee-runs"
 NODE_ORDER = ("validate", "valuation_model", "market", "calculations", "affordability", "valuation_agent", "strategist", "policy_gate", "save")
+STEPS = NODE_ORDER[:-1]  # the steps whose progress the run reports; save is the run's own end
 AGENT_OF = {"market": "market", "affordability": "affordability", "valuation_agent": "valuation", "strategist": "strategist"}  # step -> its agent in agents.json
 
 
@@ -49,6 +50,9 @@ class StepFailed(Exception):
 
 
 class RunStore(Protocol):
+    """`save` keeps the finished record. A store may also have `save_step(application_id, run_id, step, result)`, told each
+    step's start (result None) and end (the step's result) as the run goes; the Firestore store has it (AL-345), others do not."""
+
     def save(self, record: dict) -> None: ...
 
 
@@ -134,9 +138,25 @@ def _configured_agent(deps: "Deps", name: str) -> config.AgentModel | None:
         return None
 
 
-def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget, agent: config.AgentModel | None = None):
+def _progress(store: RunStore) -> Callable[..., None]:
+    """Tell the store a step started (result None) or ended. A store without `save_step` is told nothing, and an error here is
+    logged and never fails the run: the progress is for the portal to watch, the record at the end is what counts."""
+    save_step = getattr(store, "save_step", None)
+
+    def tell(state: State, name: str, result: dict | None = None) -> None:
+        if save_step is None:
+            return
+        try:
+            save_step(state["application_id"], state["run_id"], name, result)
+        except Exception:
+            log.exception("could not save the progress of step %s for run %s", name, state["run_id"])
+
+    return tell
+
+
+def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget, agent: config.AgentModel | None, progress: Callable[..., None]):
     """Wrap a step: skip it once an earlier step has failed or the run's time is up, and turn StepFailed into a failure on the record.
-    The start and end of each step that runs is one run_log line."""
+    The start and end of each step that runs is one run_log line, and is told to the store as progress."""
 
     def attempt(state: State) -> dict:
         if budget.remaining() <= 0:
@@ -155,8 +175,10 @@ def _node(name: str, work: Callable[[State], dict], budget: retry_policy.Budget,
             return {}
         started = time.monotonic()
         run_log.step_started(state, name, agent)
+        progress(state, name)
         update = attempt(state)
         run_log.step_ended(state, name, update, time.monotonic() - started)
+        progress(state, name, update["steps"][name])
         return update
 
     return run
@@ -174,6 +196,7 @@ def _llm_result(name: str, result: va.AgentResult, extra: dict | None = None) ->
 
 def build_graph(deps: Deps):
     budget = retry_policy.Budget(deps.budget_s, deps.clock)  # one per run: the graph is built once for each run
+    progress = _progress(deps.store)
 
     def ids(state: State) -> dict:
         """The three IDs every logged call carries, under the names the AI call log reads."""
@@ -337,7 +360,7 @@ def build_graph(deps: Deps):
         ("validate", validate), ("valuation_model", valuation_model_step), ("market", market), ("calculations", calculations),
         ("affordability", affordability), ("valuation_agent", valuation_agent), ("strategist", strategist), ("policy_gate", gate),
     ):
-        graph.add_node(name, _node(name, work, budget, _configured_agent(deps, name)))
+        graph.add_node(name, _node(name, work, budget, _configured_agent(deps, name), progress))
     graph.add_node("save", save)
 
     graph.add_edge(START, "validate")
