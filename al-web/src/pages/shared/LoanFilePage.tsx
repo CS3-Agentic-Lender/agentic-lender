@@ -270,9 +270,12 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
       <div className="mt-5 animate-rise" style={stagger(4)}>
         <DtiBreakdown application={application} review={review} />
       </div>
-      {/* Team decision (AL-333, 23 Nov): the committee's votes and reasoning are for underwriters only.
-          Brokers keep the outcome and conditions shown elsewhere on the file. An admin reads it without its controls. */}
-      {viewer === 'broker' ? null : <CommitteeConsole applicationId={application.id} readOnly={viewer === 'admin'} />}
+      {/* Team decision (AL-333, 23 Nov): the committee's votes and reasoning are for underwriters, not brokers, who keep
+          the outcome and conditions shown elsewhere on the file. Read-only admins (AL-337, 24 Nov) read it too, without
+          its controls. Named viewers only, so a new viewer does not see it by default. */}
+      {viewer === 'underwriter' || viewer === 'admin' ? (
+        <CommitteeConsole applicationId={application.id} readOnly={viewer === 'admin'} />
+      ) : null}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <FactSection
