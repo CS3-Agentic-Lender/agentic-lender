@@ -16,7 +16,7 @@ import { ApiError } from './services/apiClient';
 import type { SettlementResult, SettlementService } from './services/settlementService';
 import type { DecisionResult, DecisionService } from './services/decisionService';
 import { PipelineServiceContext } from './context/PipelineContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
 import {
   buildBrokerClients,
@@ -36,6 +36,9 @@ import {
   type LoanFileUpdate,
 } from './services/loanFileService';
 import { withRiskTiers, type PipelineService } from './services/pipelineService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 function authUser(uid: string): AuthUser {
   return {

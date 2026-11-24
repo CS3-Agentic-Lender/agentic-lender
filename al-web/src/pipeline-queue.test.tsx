@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { PipelineServiceContext } from './context/PipelineContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
 import { toApplicationSummary } from './services/clientsService';
 import { withRiskTiers } from './services/pipelineService';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
@@ -18,6 +18,9 @@ import type {
   RiskTier,
   RiskTierState,
 } from './services/pipelineService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 function authUser(uid: string): AuthUser {
   return {

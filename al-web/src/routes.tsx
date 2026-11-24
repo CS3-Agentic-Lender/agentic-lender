@@ -43,10 +43,18 @@ const { Page: MessagesPage } = messages;
 const { Page: PipelinePage } = pipeline;
 const { Page: RateShockPage } = rateShock;
 
+const pages = [loanFile, clientDetail, clients, messages, pipeline, rateShock];
+
+// Loads every page chunk now, so the routes render their pages in the first pass. Tests await it before rendering:
+// on a busy machine a chunk's first import can take longer than a query's wait.
+export function preloadPages(): Promise<void> {
+  return Promise.all(pages.map(({ preload }) => preload())).then(() => undefined);
+}
+
 function usePrefetchPages() {
   useEffect(() => {
     const prefetch = () => {
-      for (const { preload } of [loanFile, clientDetail, clients, messages, pipeline, rateShock]) void preload().catch(() => {});
+      for (const { preload } of pages) void preload().catch(() => {});
     };
     // Older Safari has no requestIdleCallback.
     if (typeof (window as Partial<Window>).requestIdleCallback !== 'function') {

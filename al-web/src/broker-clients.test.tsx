@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { CLIENTS_LOAD_TIMEOUT_MS, ClientsServiceContext } from './context/BrokerClientsContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
 import {
   buildBrokerClients,
@@ -16,6 +16,9 @@ import {
   type ClientsListener,
   type ClientsService,
 } from './services/clientsService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 function authUser(uid: string): AuthUser {
   return {

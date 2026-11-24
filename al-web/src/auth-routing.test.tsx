@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
 import { AdminServices, adminFakes } from './test/adminHarness';
 import type {
   AuthService,
@@ -12,6 +12,9 @@ import type {
   AuthUser,
   RoleResolution,
 } from './services/authService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 const brokerUser: AuthUser = {
   uid: 'broker-1',
