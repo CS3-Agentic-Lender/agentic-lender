@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 
 // What a chart's mark explains about itself: the exact figure, its share of the whole, and what it counts.
 export interface Tip {
@@ -22,6 +22,20 @@ export function useChartTips() {
   const [active, setActive] = useState<number | null>(null);
   const [armed, setArmed] = useState<number | null>(null);
   const pointer = useRef<string>('mouse');
+
+  // A tap anywhere but the open tooltip's own mark closes it: on touch the mark is not always focused, so its blur
+  // would never come.
+  useEffect(() => {
+    if (active === null) return;
+    const open = `${base}-tip-${active}`;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest(`[aria-describedby="${open}"]`)) return;
+      setActive(null);
+      setArmed(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [active, base]);
 
   return (index: number, linked: boolean) => {
     const id = `${base}-tip-${index}`;

@@ -1,4 +1,4 @@
-import { act, cleanup, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { Timestamp } from 'firebase/firestore';
 import { afterEach, describe, expect, it } from 'vitest';
 import { isoDay } from './pages/admin/business/figures';
@@ -210,6 +210,21 @@ describe('business overview chart tooltips', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Business' })).toBeInTheDocument();
     await user.pointer({ keys: '[TouchA]', target: complete });
     expect(await screen.findByRole('heading', { level: 1, name: 'AI runs' })).toBeInTheDocument();
+  });
+
+  it('closes a tapped tooltip when the admin taps somewhere else', async () => {
+    renderAdmin('/admin/business', { business: business() });
+    const complete = await screen.findByRole('link', { name: 'Complete: 2 runs. Show them.' });
+    // Raw events, because a tap in iOS Safari does not focus the link, so no blur ever closes its tooltip.
+    fireEvent.pointerDown(complete, { pointerType: 'touch' });
+    fireEvent.click(complete);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    expect(complete).not.toHaveFocus();
+
+    fireEvent.pointerDown(screen.getByRole('heading', { level: 1, name: 'Business' }), { pointerType: 'touch' });
+
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Business' })).toBeInTheDocument();
   });
 
   it('explains a bar with no list behind it on focus too', async () => {
