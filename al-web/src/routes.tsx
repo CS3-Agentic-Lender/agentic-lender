@@ -83,7 +83,7 @@ function LoanFileRoute({ children }: { children: ReactNode }) {
   return <Suspense fallback={fallback}>{children}</Suspense>;
 }
 
-const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
+const AdminApp = lazy(() => import('./pages/admin/AdminApp').then((module) => ({ default: module.AdminApp })));
 
 export const appRoutes: RouteObject[] = [
   { path: '/', element: <Navigate replace to="/login" /> },

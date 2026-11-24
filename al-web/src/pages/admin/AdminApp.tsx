@@ -16,7 +16,7 @@ import { StaffPage } from './StaffPage';
 // Everything under /admin, loaded as its own chunk so brokers and underwriters never download it.
 // Motion honours the reduced-motion setting, like the portal's CSS animations. Only its small DOM
 // animation features load (`m` components, strict), which keeps this chunk light.
-export default function AdminApp() {
+export function AdminApp() {
   return (
     <LazyMotion features={domAnimation} strict>
       <MotionConfig reducedMotion="user">
