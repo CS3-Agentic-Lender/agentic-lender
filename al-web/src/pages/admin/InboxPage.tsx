@@ -137,7 +137,8 @@ export function InboxPage() {
         <div aria-label="Inbox" className="flex flex-wrap border-b border-line" onKeyDown={onKeyDown} role="tablist">
           {TABS.map((item) => (
             <button
-              aria-controls={`${id}-panel-${item.id}`}
+              // Only the selected tab's panel is rendered, so only that tab points at one.
+              aria-controls={tab === item.id ? `${id}-panel-${item.id}` : undefined}
               aria-selected={tab === item.id}
               className={`${tabClass} ${tab === item.id ? 'border-pine text-pine' : 'border-transparent text-muted'}`}
               id={`${id}-tab-${item.id}`}
