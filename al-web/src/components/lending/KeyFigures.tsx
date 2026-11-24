@@ -1,9 +1,9 @@
-import { Figure } from './Figure';
+import { Figure, type FigureValue } from './Figure';
 
 export interface KeyFigure {
   label: string;
   // Null is a missing figure and reads Unavailable, as everywhere else in the file.
-  value: string | null;
+  value: FigureValue;
   note?: string | null;
 }
 

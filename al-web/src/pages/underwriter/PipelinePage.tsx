@@ -1,6 +1,7 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
+import { Skeleton } from '../../components/Skeleton';
 import { StatusBadge } from '../../components/StatusBadge';
 import { usePipeline } from '../../context/PipelineContext';
 import { APPLICATION_STATUSES } from '../../services/clientsService';
@@ -98,7 +99,10 @@ function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps)
         ) : application.storedRiskTier ? (
           <span className="font-mono">{application.storedRiskTier}</span>
         ) : riskTierState === 'pending' ? (
-          <span className="text-muted">Checking</span>
+          <>
+            <Skeleton className="inline-block h-4 w-8 align-middle" />
+            <span className="sr-only">Checking</span>
+          </>
         ) : riskTierState !== 'available' ? (
           <span className="text-muted">Unavailable</span>
         ) : application.riskTier ? (

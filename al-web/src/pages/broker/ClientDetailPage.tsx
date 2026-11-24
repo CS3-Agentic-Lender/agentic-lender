@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
+import { Skeleton } from '../../components/Skeleton';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useBrokerClients } from '../../context/BrokerClientsContext';
 import { clientName } from '../../services/clientsService';
@@ -7,6 +8,33 @@ import { formatDate, formatEuro, formatPercent } from '../../utils/formatters';
 import { BrokerClientsStatus } from './BrokerClientsStatus';
 
 const backLinkClass = 'font-medium text-pine underline-offset-4 hover:underline';
+
+// The client file as it will sit: eyebrow, name, contact details and the applications card.
+const clientSkeleton = (
+  <div aria-hidden="true">
+    <Skeleton className="h-3 w-24" />
+    <Skeleton className="mt-5 h-10 w-72 max-w-full" />
+    <div className="mt-6 flex flex-wrap gap-x-12 gap-y-4">
+      {['w-28', 'w-40', 'w-24'].map((width) => (
+        <div key={width}>
+          <Skeleton className="h-3.5 w-16" />
+          <Skeleton className={`mt-2 h-4 ${width}`} />
+        </div>
+      ))}
+    </div>
+    <div className="mt-10 rounded-2xl border border-line bg-surface p-8">
+      <Skeleton className="h-5 w-32" />
+      {[0, 1].map((row) => (
+        <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-2" key={row}>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-6 w-28 rounded-full" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 export function ClientDetailPage() {
   const { clientId } = useParams();
@@ -26,11 +54,11 @@ export function ClientDetailPage() {
 
         <div className="mt-8">
           {state.status !== 'ready' ? (
-            <BrokerClientsStatus headingLevel="h1" status={state.status} />
+            <BrokerClientsStatus headingLevel="h1" skeleton={clientSkeleton} status={state.status} />
           ) : !client && state.profilesState === 'pending' ? (
             // A client with no application yet appears only in the profiles result, so it is not
             // known to be missing until that query answers.
-            <BrokerClientsStatus headingLevel="h1" status="loading" />
+            <BrokerClientsStatus headingLevel="h1" skeleton={clientSkeleton} status="loading" />
           ) : !client && state.profilesState === 'unavailable' ? (
             // The profiles query failed, so a client with no application cannot be told apart from
             // one that is not this broker's. Not found is only said once profiles have answered.
@@ -52,7 +80,12 @@ export function ClientDetailPage() {
             <>
               <p className="font-mono text-xs font-medium tracking-widest text-muted uppercase">Client file</p>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-                {clientName(client) ?? (state.profilesState === 'pending' ? 'Loading name' : 'Name unavailable')}
+                {clientName(client) ?? (state.profilesState === 'pending' ? (
+                  <>
+                    <Skeleton className="h-10 w-72 max-w-full" />
+                    <span className="sr-only">Loading name</span>
+                  </>
+                ) : 'Name unavailable')}
               </h1>
               {state.profilesState === 'unavailable' ? (
                 <p className="mt-6 rounded-lg border border-line bg-tint p-3 text-sm text-ink">

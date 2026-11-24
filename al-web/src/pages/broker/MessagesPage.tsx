@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PortalHeader } from '../../components/PortalHeader';
+import { Skeleton } from '../../components/Skeleton';
 import { Conversation } from '../../components/messaging/Conversation';
 import { useAuth } from '../../context/AuthContext';
 import { useBrokerClients } from '../../context/BrokerClientsContext';
@@ -60,7 +61,22 @@ export function MessagesPage() {
         <p className="mt-3 text-muted">Your clients' threads, unread first.</p>
 
         {state.status === 'loading' ? (
-          <p aria-live="polite" className="mt-8 text-muted" role="status">Loading your clients…</p>
+          <section aria-busy="true" className="mt-8">
+            <p aria-live="polite" className="sr-only" role="status">Loading your clients…</p>
+            {/* The thread list beside the reading pane, as they will sit once the clients arrive. */}
+            <div aria-hidden="true" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+              <div className="divide-y divide-line rounded-2xl border border-line bg-surface">
+                {['w-40', 'w-32', 'w-44', 'w-36'].map((width) => (
+                  <div className="p-4" key={width}>
+                    <Skeleton className={`h-4 ${width}`} />
+                    <Skeleton className="mt-2 h-3 w-24" />
+                    <Skeleton className="mt-2 h-3.5 w-3/4" />
+                  </div>
+                ))}
+              </div>
+              <Skeleton className="h-28 rounded-2xl max-lg:hidden" />
+            </div>
+          </section>
         ) : state.status === 'denied' || state.status === 'error' ? (
           <p className="mt-8 rounded-lg bg-danger-soft p-3 text-error" role="alert">
             Your clients' threads could not be loaded. Reload the page to try again.
@@ -90,9 +106,12 @@ export function MessagesPage() {
                     </span>
                     <span className="mt-1 block font-mono text-xs text-muted">{row.applicationId}</span>
                     <span className="mt-1 block truncate text-sm text-muted">
-                      {!row.loaded
-                        ? 'Loading…'
-                        : row.last
+                      {!row.loaded ? (
+                        <>
+                          <Skeleton className="mt-0.5 h-3.5 w-3/4" />
+                          <span className="sr-only">Loading…</span>
+                        </>
+                      ) : row.last
                           ? `${row.last.sentAt ? `${timeFormat.format(row.last.sentAt)}: ` : ''}${row.last.text}`
                           : 'No messages yet'}
                     </span>

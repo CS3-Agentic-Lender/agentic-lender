@@ -241,6 +241,11 @@ function dtiTable() {
 
 // The cells of the DTI table row whose label starts with the given text: [label, offered, stressed]
 // or [label, both rates].
+// The grey loading shapes; each sits inside an aria-hidden block, so it is not in the accessibility tree.
+function placeholders() {
+  return [...document.querySelectorAll('[data-skeleton]')];
+}
+
 function dtiRow(label: string) {
   const header = within(dtiTable()).getByRole('rowheader', { name: new RegExp(`^${label}`) });
   return [...header.closest('tr')!.children] as HTMLElement[];
@@ -821,7 +826,9 @@ describe('loan file page', () => {
 
     expect(screen.getByText('Loading the underwriting review.')).toBeInTheDocument();
     expect(dtiRow('New loan repayment')[1]).toHaveTextContent('Loading');
+    expect(dtiRow('New loan repayment')[1].querySelector('[data-skeleton]')).not.toBeNull();
     expect(dtiRow('Debt to income')[1]).toHaveTextContent('33.4%');
+    expect(screen.getByRole('region', { name: 'Key figures' })).toHaveTextContent('Loading');
 
     act(() => loanFiles.push(loanFile()));
     expect(screen.queryByText('Loading the underwriting review.')).not.toBeInTheDocument();
@@ -845,6 +852,21 @@ describe('loan file page', () => {
 
     expect(await screen.findByRole('heading', { name: 'Loading the loan file' })).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('shows the file in placeholders while it loads, then the file in their place', async () => {
+    const loanFiles = new FakeLoanFileService();
+    renderUnderwriterFile(loanFiles);
+    await screen.findByRole('heading', { name: 'Loading the loan file' });
+
+    expect(placeholders().length).toBeGreaterThan(10);
+    expect(placeholders().every((placeholder) => placeholder.closest('[aria-hidden="true"]'))).toBe(true);
+
+    await loanFiles.subscribed();
+    act(() => loanFiles.push(loanFile()));
+    expect(screen.getByRole('heading', { level: 1, name: 'Alice Byrne' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Loading the loan file' })).not.toBeInTheDocument();
+    expect(placeholders()).toHaveLength(0);
   });
 
   it('shows not found for an application that does not exist', async () => {

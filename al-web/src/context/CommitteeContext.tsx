@@ -20,7 +20,7 @@ function useCommitteeSubscription<T>(id: string, subscribe: Subscribe<T>, loadin
   useEffect(() => {
     let active = true;
     setCurrent({ key, state: loading });
-    if (!uid || (role !== 'broker' && role !== 'underwriter')) return;
+    if (!uid || (role !== 'broker' && role !== 'underwriter' && role !== 'admin')) return;
     const receive = (state: T) => {
       if (active) setCurrent({ key, state });
     };

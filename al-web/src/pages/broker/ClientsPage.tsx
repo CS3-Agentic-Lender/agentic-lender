@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
+import { Skeleton, SkeletonTable } from '../../components/Skeleton';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useBrokerClients } from '../../context/BrokerClientsContext';
 import { APPLICATION_STATUSES, clientName, type BrokerClientsSnapshot } from '../../services/clientsService';
@@ -14,6 +15,25 @@ const BROKER_STATUSES = APPLICATION_STATUSES.filter((status) => status !== 'Draf
 const headerCellClass = 'px-4 py-3 text-left text-xs font-semibold tracking-wide text-muted uppercase';
 const cellClass = 'px-4 py-4 align-middle';
 
+// The filters and the client table, as they will sit once the list arrives.
+const clientsSkeleton = (
+  <div aria-hidden="true">
+    <div className="flex flex-wrap items-end gap-4">
+      <div className="w-full sm:w-96">
+        <Skeleton className="h-3.5 w-14" />
+        <Skeleton className="mt-2.5 h-11 w-full rounded-lg" />
+      </div>
+      <div>
+        <Skeleton className="h-3.5 w-12" />
+        <Skeleton className="mt-2.5 h-11 w-40 rounded-lg" />
+      </div>
+    </div>
+    <div className="mt-6">
+      <SkeletonTable columns={6} />
+    </div>
+  </div>
+);
+
 function ClientTableRow({ client, application, profilesState }: ClientRow & Pick<BrokerClientsSnapshot, 'profilesState'>) {
   const displayName = clientName(client) ?? (profilesState === 'pending' ? 'Loading name' : 'Name unavailable');
 
@@ -25,7 +45,14 @@ function ClientTableRow({ client, application, profilesState }: ClientRow & Pick
           className="font-medium text-pine underline-offset-4 hover:underline"
           to={`/broker/clients/${encodeURIComponent(client.id)}`}
         >
-          {displayName}
+          {clientName(client) === null && profilesState === 'pending' ? (
+            <>
+              <Skeleton className="inline-block h-4 w-32 align-middle" />
+              <span className="sr-only">{displayName}</span>
+            </>
+          ) : (
+            displayName
+          )}
         </Link>
         <span className="mt-1 block font-mono text-xs text-muted">{client.id}</span>
       </th>
@@ -69,11 +96,11 @@ export function ClientsPage() {
 
         <div className="mt-10">
           {state.status !== 'ready' ? (
-            <BrokerClientsStatus status={state.status} />
+            <BrokerClientsStatus skeleton={clientsSkeleton} status={state.status} />
           ) : rows.length === 0 && state.profilesState === 'pending' ? (
             // A client with no application yet appears only in the profiles result, so an empty
             // list is not known to be empty until that query answers.
-            <BrokerClientsStatus status="loading" />
+            <BrokerClientsStatus skeleton={clientsSkeleton} status="loading" />
           ) : rows.length === 0 && state.profilesState === 'unavailable' ? (
             <section className="rounded-2xl border border-line bg-surface p-8">
               <h2 className="text-xl font-semibold">Clients could not be fully loaded</h2>

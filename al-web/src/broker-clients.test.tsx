@@ -233,6 +233,18 @@ describe('broker client list', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('shows the client list in placeholders while it loads, then the table in their place', async () => {
+    const clients = new FakeClientsService();
+    renderAs('broker-1', 'broker', '/broker/clients', clients);
+    await screen.findByRole('heading', { name: 'Loading your clients' });
+    expect(document.querySelectorAll('[data-skeleton]').length).toBeGreaterThan(10);
+
+    await clients.subscribed('broker-1');
+    act(() => clients.push('broker-1', files([alice], [])));
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-skeleton]')).toHaveLength(0);
+  });
+
   // The applications query excludes Drafts, so such a borrower arrives from profiles only.
   it('lists a borrower whose only application is a Draft with no application', async () => {
     renderAs('broker-1', 'broker', '/broker/clients', new FakeClientsService({ 'broker-1': files([ben], []) }));

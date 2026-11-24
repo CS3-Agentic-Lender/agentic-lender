@@ -1,8 +1,11 @@
+import type { ReactNode } from 'react';
 import type { BrokerClientsState } from '../../context/BrokerClientsContext';
 
 interface BrokerClientsStatusProps {
   status: Exclude<BrokerClientsState['status'], 'ready'>;
   headingLevel?: 'h1' | 'h2';
+  // Shown while loading, in the shape of the content it stands in for; the message is then for screen readers.
+  skeleton: ReactNode;
 }
 
 const messages = {
@@ -20,12 +23,21 @@ const messages = {
   },
 };
 
-export function BrokerClientsStatus({ status, headingLevel: Heading = 'h2' }: BrokerClientsStatusProps) {
+export function BrokerClientsStatus({ status, headingLevel: Heading = 'h2', skeleton }: BrokerClientsStatusProps) {
   const { heading, detail } = messages[status];
+
+  if (status === 'loading') {
+    return (
+      <section aria-busy="true" aria-live="polite">
+        <Heading className="sr-only">{heading}</Heading>
+        <p className="sr-only">{detail}</p>
+        {skeleton}
+      </section>
+    );
+  }
 
   return (
     <section
-      aria-busy={status === 'loading'}
       aria-live="polite"
       className="rounded-2xl border border-line bg-surface p-8"
     >

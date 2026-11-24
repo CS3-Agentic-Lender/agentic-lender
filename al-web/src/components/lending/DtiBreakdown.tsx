@@ -5,7 +5,7 @@ import {
   type StressTest,
 } from '../../services/loanFileService';
 import { formatEuro, formatPercent } from '../../utils/formatters';
-import { Figure } from './Figure';
+import { Figure, PENDING, type FigureValue } from './Figure';
 
 interface DtiBreakdownProps {
   application: LoanFileApplication;
@@ -85,8 +85,8 @@ function hasStressResults(stress: StressTest | null) {
 interface RowProps {
   label: string;
   unit?: string;
-  offered: string | null;
-  stressed: string | null;
+  offered: FigureValue;
+  stressed: FigureValue;
   mono?: boolean;
 }
 
@@ -110,7 +110,7 @@ function Row({ label, unit, offered, stressed, mono = true }: RowProps) {
 interface SharedRowProps {
   label: string;
   unit?: string;
-  value: string | null;
+  value: FigureValue;
   note?: string;
   mono?: boolean;
   band?: boolean;
@@ -126,7 +126,7 @@ function SharedRow({ label, unit, value, note = 'Same at both rates', mono = tru
         {unit ? <span className="block text-sm font-normal text-muted">{unit}</span> : null}
       </th>
       <td className={cellClass} colSpan={2}>
-        {band && value !== null && value !== 'Loading' ? <BandChip value={value} /> : <Figure mono={mono} value={value} />}
+        {band && typeof value === 'string' ? <BandChip value={value} /> : <Figure mono={mono} value={value} />}
         <span className="ml-3 font-sans text-sm text-muted">{note}</span>
       </td>
     </tr>
@@ -143,7 +143,7 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
   const marginPct = stress?.stressMarginPct ?? DEFAULT_STRESS_MARGIN_PCT;
   const stressedHeading = `Stressed (${stressMarginLabel(marginPct)})`;
   // While the review loads its cells say so; once it has answered a missing figure is Unavailable.
-  const fromReview = (value: string | null) => (loading ? 'Loading' : value);
+  const fromReview = (value: string | null): FigureValue => (loading ? PENDING : value);
 
   return (
     <section aria-labelledby="dti-heading" className="card">
@@ -158,7 +158,8 @@ export function DtiBreakdown({ application, review }: DtiBreakdownProps) {
       {review.state === 'available' ? null : (
         <p
           aria-live="polite"
-          className="mt-4 rounded-lg border border-line bg-tint p-3 text-sm text-ink"
+          // While loading, the table's cells show placeholders and the notice is for screen readers.
+          className={loading ? 'sr-only' : 'mt-4 rounded-lg border border-line bg-tint p-3 text-sm text-ink'}
           role="status"
         >
           {reviewNotices[review.state]}

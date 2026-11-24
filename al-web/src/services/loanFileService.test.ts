@@ -149,15 +149,19 @@ describe('loan file application parser', () => {
     expect(toLoanFileApplication('a', { applicants: 'Joint' }).applicants).toBeNull();
   });
 
-  it('reads a decision and marks an unknown outcome invalid', () => {
+  it('reads a decision, who made it, and marks an unknown outcome invalid', () => {
     const decidedAt = Timestamp.fromDate(new Date('2026-10-01T12:00:00Z'));
 
-    expect(toLoanFileApplication('a', { decision: { outcome: 'approved', decidedAt } }).decision).toEqual({
+    expect(
+      toLoanFileApplication('a', { decision: { outcome: 'approved', underwriterId: 'underwriter1', decidedAt } }).decision,
+    ).toEqual({
       outcome: 'approved',
+      underwriterId: 'underwriter1',
       decidedAt: new Date('2026-10-01T12:00:00Z'),
     });
     expect(toLoanFileApplication('a', { decision: { outcome: 'maybe' } }).decision).toEqual({
       outcome: 'invalid',
+      underwriterId: null,
       decidedAt: null,
     });
   });

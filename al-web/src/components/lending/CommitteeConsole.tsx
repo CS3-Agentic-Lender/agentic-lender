@@ -1,10 +1,15 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useCommittee, useCommitteeCalls } from '../../context/CommitteeContext';
-import { runDuration, type CommitteeCall, type CommitteeRun } from '../../services/committeeService';
+import { runDuration, type CommitteeCall, type CommitteeRun, type VotingAgent } from '../../services/committeeService';
+import { Skeleton } from '../Skeleton';
 import { AgentMetadata, AgentVote, StoredList, voteDot } from './AgentVote';
 import { CommitteeStage } from './CommitteeStage';
+import { canDraw3d } from './council/canDraw3d';
 import { CreditMemo } from './CreditMemo';
 import type { SceneAgent } from './council/councilScene';
+import {
+  runProgress, STEP_LABELS, type CommitteeTab, type LiveProgress, type TabProgress, type TabState,
+} from './committeeProgress';
 
 function timestamp(value: Date | null) {
   return value?.toLocaleString('en-IE') ?? 'Not stored';
@@ -48,14 +53,32 @@ function CallFacts({ call }: { call: CommitteeCall }) {
 
 function CallsList({ runId }: { runId: string }) {
   const state = useCommitteeCalls(runId);
+  if (state.status === 'loading') {
+    return (
+      <div aria-busy="true" className="mt-4">
+        <p className="sr-only" role="status">Loading logged AI calls…</p>
+        {/* Two call cards, as the logged calls will sit. */}
+        <div aria-hidden="true" className="space-y-3">
+          {[0, 1].map((card) => (
+            <div className="rounded-xl border border-line p-4" key={card}>
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="mt-2 h-3.5 w-64 max-w-full" />
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[0, 1, 2, 3].map((fact) => <Skeleton className="h-8" key={fact} />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (state.status !== 'ready') {
     const message = {
-      loading: 'Loading logged AI calls…',
       'permission-denied': 'Permission denied: your account cannot read the logged AI calls.',
       error: 'Logged AI calls could not be loaded. Reload the page to try again.',
     }[state.status];
     return (
-      <p role={state.status === 'loading' ? 'status' : 'alert'} className="mt-4 text-muted">
+      <p role="alert" className="mt-4 text-muted">
         {message}
       </p>
     );
@@ -168,7 +191,17 @@ function MarketDetails({ run }: { run: CommitteeRun }) {
         {state.status === 'ready' ? (
           <MarketSources calls={state.calls} />
         ) : state.status === 'loading' ? (
-          <p className="text-muted" role="status">Loading the stored outlook and sources…</p>
+          <div aria-busy="true">
+            <p className="sr-only" role="status">Loading the stored outlook and sources…</p>
+            <div aria-hidden="true">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="mt-3 h-4 w-full max-w-prose" />
+              <Skeleton className="mt-2 h-4 w-5/6 max-w-prose" />
+              <Skeleton className="mt-5 h-3 w-16" />
+              <Skeleton className="mt-3 h-4 w-2/3" />
+              <Skeleton className="mt-2 h-4 w-1/2" />
+            </div>
+          </div>
         ) : (
           <p className="text-error" role="alert">
             {state.status === 'permission-denied'
@@ -181,8 +214,6 @@ function MarketDetails({ run }: { run: CommitteeRun }) {
   );
 }
 
-type CommitteeTab = SceneAgent | 'memo' | 'gate';
-
 const TABS: { key: CommitteeTab; label: string }[] = [
   { key: 'affordability', label: 'Affordability' },
   { key: 'valuation', label: 'Valuation' },
@@ -194,7 +225,66 @@ const TABS: { key: CommitteeTab; label: string }[] = [
 
 const isAgentTab = (tab: CommitteeTab): tab is SceneAgent => tab !== 'memo' && tab !== 'gate';
 
-function RunDetails({ run }: { run: CommitteeRun }) {
+const stateWords: Record<TabState, string> = { queued: 'queued', thinking: 'thinking', done: 'done', failed: 'failed' };
+const stateDot: Record<Exclude<TabState, 'done'>, string> = {
+  queued: 'border-2 border-vote-observer',
+  thinking: 'animate-pulse bg-brass',
+  failed: 'bg-error',
+};
+
+const listWords = new Intl.ListFormat('en-IE', { type: 'conjunction' });
+
+// How far the run has got, from the steps al-ai has written. The width eases between steps; under reduced motion it
+// jumps.
+function OverallProgress({ live }: { live: LiveProgress }) {
+  const words = `${live.done} of ${live.total} steps done`;
+  return (
+    <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
+        <p className="font-medium">{words}</p>
+        {live.working.length > 0 ? (
+          <p className="text-muted">Working on: {listWords.format(live.working.map((step) => STEP_LABELS[step]))}</p>
+        ) : null}
+      </div>
+      <div
+        aria-label="Committee progress"
+        aria-valuemax={live.total}
+        aria-valuemin={0}
+        aria-valuenow={live.done}
+        aria-valuetext={words}
+        className="mt-2 h-2 overflow-hidden rounded-full bg-tint"
+        role="progressbar"
+      >
+        <span className="block h-full rounded-full bg-pine transition-[width] duration-500 ease-out" style={{ width: `${(live.done / live.total) * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// A tab whose step has not finished. The thinking bar slides while the step runs; under reduced motion it holds
+// still and the words carry the state.
+function StepWaiting({ label, progress }: { label: string; progress: TabProgress }) {
+  return (
+    <section aria-label={`${label} progress`} className="rounded-xl border border-line bg-surface p-5">
+      <h3 className="text-lg font-semibold">{label}</h3>
+      {progress.state === 'thinking' ? (
+        <>
+          <p className="mt-2 font-medium text-pine">Thinking…</p>
+          <div aria-label={`${label} in progress`} className="mt-3 h-1.5 max-w-md overflow-hidden rounded-full bg-tint" role="progressbar">
+            <span className="block h-full w-2/5 animate-indeterminate rounded-full bg-brass" />
+          </div>
+          {progress.startedAt ? (
+            <p className="mt-3 text-sm text-muted">Started {progress.startedAt.toLocaleTimeString('en-IE')}</p>
+          ) : null}
+        </>
+      ) : (
+        <p className="mt-2 text-muted">Queued. It starts when the steps before it finish.</p>
+      )}
+    </section>
+  );
+}
+
+function RunDetails({ run, readOnly }: { run: CommitteeRun; readOnly: boolean }) {
   const [showCalls, setShowCalls] = useState(false);
   const [tab, setTab] = useState<CommitteeTab>('affordability');
   const callsId = useId();
@@ -206,6 +296,10 @@ function RunDetails({ run }: { run: CommitteeRun }) {
   const gate = run.policyGate;
   const duration = runDuration(run);
   const failureText = run.failureReason === null ? null : failureWording[run.failureReason] ?? null;
+  const progress = runProgress(run);
+  const current = progress.tabs[tab];
+  // While the run goes, an agent's own recommendation stands in for its vote until the finish writes the consensus.
+  const voteOf = (agent: VotingAgent) => run.consensus.votes[agent] ?? (progress.live ? run.agents[agent]?.recommendation ?? null : null);
 
   function moveTab(event: KeyboardEvent<HTMLDivElement>) {
     const index = TABS.findIndex((item) => item.key === tab);
@@ -251,6 +345,7 @@ function RunDetails({ run }: { run: CommitteeRun }) {
       {run.status === 'running' && (
         <p className="text-muted">The committee is running. Outputs not stored yet are pending.</p>
       )}
+      {progress.live ? <OverallProgress live={progress.live} /> : null}
       {run.status === 'failed' && (
         <div className="rounded-xl bg-danger-soft p-5 text-error">
           <h3 className="font-semibold">Committee run failed</h3>
@@ -259,15 +354,19 @@ function RunDetails({ run }: { run: CommitteeRun }) {
           {failureText !== null && (
             <p className="mt-1 text-sm">Stored reason: <code className="font-mono">{run.failureReason}</code></p>
           )}
-          <button
-            aria-describedby={rerunNoteId}
-            className="mt-4 min-h-11 cursor-not-allowed rounded-lg border border-line bg-neutral px-4 py-2 text-muted"
-            disabled
-            type="button"
-          >
-            Re-run
-          </button>
-          <p className="mt-2 text-sm" id={rerunNoteId}>Re-running is not available yet.</p>
+          {readOnly ? null : (
+            <>
+              <button
+                aria-describedby={rerunNoteId}
+                className="mt-4 min-h-11 cursor-not-allowed rounded-lg border border-line bg-neutral px-4 py-2 text-muted"
+                disabled
+                type="button"
+              >
+                Re-run
+              </button>
+              <p className="mt-2 text-sm" id={rerunNoteId}>Re-running is not available yet.</p>
+            </>
+          )}
         </div>
       )}
 
@@ -302,7 +401,12 @@ function RunDetails({ run }: { run: CommitteeRun }) {
           role="tablist"
         >
           {TABS.map((item) => {
-            const vote = isAgentTab(item.key) && item.key !== 'market' ? run.consensus.votes[item.key] : null;
+            const vote = isAgentTab(item.key) && item.key !== 'market' ? voteOf(item.key) : null;
+            const step = progress.tabs[item.key];
+            const dot = step && step.state !== 'done' ? stateDot[step.state]
+              : item.key === 'market' ? 'bg-vote-observer'
+                : vote ? voteDot[vote]
+                  : step ? 'bg-pine' : null;
             const on = tab === item.key;
             return (
               <button
@@ -317,21 +421,29 @@ function RunDetails({ run }: { run: CommitteeRun }) {
                 tabIndex={on ? 0 : -1}
                 type="button"
               >
-                {vote ? <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${voteDot[vote]}`} /> : null}
-                {item.key === 'market' ? <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-vote-observer" /> : null}
+                {dot ? <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${dot}`} /> : null}
                 {item.label}
+                {step ? <span className="sr-only">, {stateWords[step.state]}</span> : null}
               </button>
             );
           })}
         </div>
-        <div aria-labelledby={`${tabsId}-${tab}`} className="animate-rise pt-5" id={`${tabsId}-panel`} key={tab} role="tabpanel">
-          {tab === 'affordability' || tab === 'valuation' || tab === 'strategist' ? (
+        {/* Keyed by the step's state too, so a report that arrives mid-run rises in like a newly opened tab. */}
+        <div aria-labelledby={`${tabsId}-${tab}`} className="animate-rise pt-5" id={`${tabsId}-panel`} key={`${tab}:${current?.state ?? ''}`} role="tabpanel">
+          {current?.state === 'failed' ? (
+            <p className="mb-4 rounded-lg bg-danger-soft p-4 whitespace-pre-wrap break-words text-error">
+              This step failed: {current.reason ?? 'no reason stored'}
+            </p>
+          ) : null}
+          {current && (current.state === 'queued' || current.state === 'thinking') ? (
+            <StepWaiting label={TABS.find((item) => item.key === tab)?.label ?? ''} progress={current} />
+          ) : tab === 'affordability' || tab === 'valuation' || tab === 'strategist' ? (
             <AgentVote
               agent={run.agents[tab]}
               creditMemo={run.creditMemo}
               name={tab}
               onOpenMemo={() => { setTab('memo'); tabRefs.current.get('memo')?.focus(); }}
-              vote={run.consensus.votes[tab]}
+              vote={voteOf(tab)}
             />
           ) : tab === 'market' ? (
             <section aria-label="Market & Macro outlook" className="min-w-0 rounded-xl border border-line bg-surface p-5">
@@ -396,7 +508,32 @@ function RunDetails({ run }: { run: CommitteeRun }) {
     </div>
   );
 }
-export function CommitteeConsole({ applicationId }: { applicationId: string }) {
+
+// The run's layout in placeholders: its facts and status, the 3D stage at its full size (only where it will be
+// drawn), the recommendation and the member tabs.
+function RunSkeleton() {
+  return (
+    <div aria-hidden="true" className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-3.5 w-48" />
+          <Skeleton className="h-3.5 w-40" />
+          <Skeleton className="h-3.5 w-36" />
+        </div>
+        <Skeleton className="h-9 w-40 rounded-lg" />
+      </div>
+      {canDraw3d() ? <Skeleton className="h-[460px] rounded-xl sm:h-[500px]" /> : null}
+      <Skeleton className="h-36 rounded-xl" />
+      <div className="flex flex-wrap gap-1 border-b border-line pb-3">
+        {['w-28', 'w-20', 'w-24', 'w-32', 'w-28', 'w-24'].map((width, tab) => <Skeleton className={`h-7 ${width}`} key={tab} />)}
+      </div>
+      <Skeleton className="h-40 rounded-xl" />
+    </div>
+  );
+}
+
+// `readOnly` drops the run controls, for a viewer who may read the committee but not act on it.
+export function CommitteeConsole({ applicationId, readOnly = false }: { applicationId: string; readOnly?: boolean }) {
   const state = useCommittee(applicationId);
   return (
     <section
@@ -407,11 +544,15 @@ export function CommitteeConsole({ applicationId }: { applicationId: string }) {
       <h2 className="card-title">Committee</h2>
       <p className="mt-2 text-sm text-muted">Stored reasoning for this application. Run status is separate from the application status.</p>
       {state.status === 'ready' ? (
-        <RunDetails key={state.run.id} run={state.run} />
+        <RunDetails key={state.run.id} readOnly={readOnly} run={state.run} />
+      ) : state.status === 'loading' ? (
+        <div className="mt-5">
+          <p className="sr-only" role="status">Loading the committee run…</p>
+          <RunSkeleton />
+        </div>
       ) : (
         <p className="mt-5 text-muted" role={state.status === 'error' || state.status === 'permission-denied' ? 'alert' : 'status'}>
           {{
-            loading: 'Loading the committee run…',
             missing: 'No committee run stored yet.',
             'permission-denied': 'Permission denied: your account cannot read this committee run.',
             error: 'The committee run could not be loaded. Reload the page to try again.',

@@ -94,6 +94,27 @@ describe('JSON API client', () => {
     await expect(client.request('/core/test', { method: 'GET' })).rejects.toMatchObject({ kind: 'http', status: 502 });
   });
 
+  it('keeps the field al-core names on a refusal', async () => {
+    const body = { error: { code: 'INVALID_FIELD', message: 'firm: is required for a broker', field: 'firm', request_id: 'r-5' } };
+    const { client } = setup(Response.json(body, { status: 422 }));
+    await expect(client.request('/core/admin/staff', { method: 'POST' })).rejects.toMatchObject({
+      status: 422,
+      field: 'firm',
+      message: 'firm: is required for a broker',
+    });
+  });
+
+  it('sends PATCH with a JSON body and DELETE without one', async () => {
+    const { client, fetcher } = setup(Response.json({ uid: 'u1' }));
+    fetcher.mockResolvedValueOnce(Response.json({ uid: 'u1' })).mockResolvedValueOnce(Response.json({ deleted: 'u1' }));
+    await client.request('/core/admin/staff/u1', { method: 'PATCH', body: { disabled: true } });
+    await expect(client.request('/core/admin/staff/u1', { method: 'DELETE' })).resolves.toEqual({ deleted: 'u1' });
+    expect(fetcher.mock.calls.map(([, init]) => [init?.method, init?.body])).toEqual([
+      ['PATCH', JSON.stringify({ disabled: true })],
+      ['DELETE', undefined],
+    ]);
+  });
+
   it('distinguishes a network failure from an HTTP error without retrying', async () => {
     const { client, fetcher } = setup();
     fetcher.mockRejectedValue(new TypeError('Failed to fetch'));

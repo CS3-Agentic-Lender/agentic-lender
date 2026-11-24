@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
+import { LoanFileSkeleton } from './LoanFileSkeleton';
 import { StatusBadge } from '../../components/StatusBadge';
 import { AuditPackActions } from '../../components/lending/AuditPackActions';
 import { CommitteeConsole } from '../../components/lending/CommitteeConsole';
 import { DtiBreakdown } from '../../components/lending/DtiBreakdown';
-import { Figure } from '../../components/lending/Figure';
+import { Figure, PENDING } from '../../components/lending/Figure';
 import { HelocCollateral } from '../../components/lending/HelocCollateral';
 import { MortgageCollateral } from '../../components/lending/MortgageCollateral';
 import { LoanNotePanel } from '../../components/lending/LoanNotePanel';
@@ -26,7 +27,8 @@ import {
 import { formatDate, formatEuro, formatPercent, loanTypeLabel } from '../../utils/formatters';
 import { INVALID_RISK_TIER, applicationLtvBand, formatLtv, NO_LTV, NO_LTV_FIGURE } from '../underwriter/pipelineGroups';
 
-export type LoanFileViewer = 'broker' | 'underwriter';
+// An admin reads any application's file, with every control that acts on it left out.
+export type LoanFileViewer = 'broker' | 'underwriter' | 'admin';
 
 interface LoanFilePageProps {
   viewer: LoanFileViewer;
@@ -152,15 +154,28 @@ const forbiddenMessages: Record<LoanFileViewer, { heading: string; detail: strin
     heading: 'You are not allowed to read this application',
     detail: 'Your account is not allowed to read this application. Ask an administrator to check your access.',
   },
+  admin: {
+    heading: 'You are not allowed to read this application',
+    detail: 'This account is not allowed to read applications. Check that it has the admin role.',
+  },
 };
 
 function NotReady({ state, viewer }: { state: Exclude<LoanFileState, { status: 'ready' }>; viewer: LoanFileViewer }) {
   const { heading, detail } =
     state.status === 'forbidden' ? forbiddenMessages[viewer] : notReadyMessages[state.status];
 
+  if (state.status === 'loading') {
+    return (
+      <section aria-busy="true" aria-live="polite">
+        <h1 className="sr-only">{heading}</h1>
+        <p className="sr-only">{detail}</p>
+        <LoanFileSkeleton />
+      </section>
+    );
+  }
+
   return (
     <section
-      aria-busy={state.status === 'loading'}
       aria-live="polite"
       className={sectionClass}
     >
@@ -218,7 +233,7 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
               label: 'Stressed DTI',
               value:
                 review.state === 'pending'
-                  ? 'Loading'
+                  ? PENDING
                   : review.state === 'available' && review.stressTest?.stressedDtiPct != null
                     ? formatPercent(review.stressTest.stressedDtiPct)
                     : null,
@@ -240,7 +255,7 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
             <HelocCollateral
               application={application}
               policyGate={
-                review.state === 'available' ? review.policyGate : review.state === 'absent' ? null : undefined
+                review.state === 'available' ? review.policyGate : review.state === 'absent' ? null : review.state === 'pending' ? PENDING : undefined
               }
             />
           ) : (
@@ -256,8 +271,8 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
         <DtiBreakdown application={application} review={review} />
       </div>
       {/* Team decision (AL-333, 23 Nov): the committee's votes and reasoning are for underwriters only.
-          Brokers keep the outcome and conditions shown elsewhere on the file. */}
-      {viewer === 'underwriter' ? <CommitteeConsole applicationId={application.id} /> : null}
+          Brokers keep the outcome and conditions shown elsewhere on the file. An admin reads it without its controls. */}
+      {viewer === 'broker' ? null : <CommitteeConsole applicationId={application.id} readOnly={viewer === 'admin'} />}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <FactSection
@@ -423,7 +438,8 @@ function ReadyLoanFile({ application, review, viewer }: {
             loanType={application.loanType}
             note={application.loanNote}
           />
-          <AuditPackActions applicationId={application.id} />
+          {/* al-core serves the audit pack to underwriters and brokers only. */}
+          {viewer === 'admin' ? null : <AuditPackActions applicationId={application.id} />}
         </>
       ) : null}
       {viewer === 'underwriter' && application.status !== 'Draft' ? (
@@ -434,7 +450,7 @@ function ReadyLoanFile({ application, review, viewer }: {
 }
 
 // One application's file. Underwriters read any application; brokers read only their own
-// clients', and see the same file with no decision or stress controls.
+// clients', and see the same file with no decision or stress controls. Admins read any, and act on none.
 export function LoanFilePage({ viewer }: LoanFilePageProps) {
   const { applicationId } = useParams();
   const state = useLoanFile(applicationId);
@@ -442,7 +458,9 @@ export function LoanFilePage({ viewer }: LoanFilePageProps) {
   const back =
     viewer === 'underwriter'
       ? { to: '/underwriter/pipeline', label: 'Back to the pipeline' }
-      : borrowerId
+      : viewer === 'admin'
+        ? { to: '/admin/business/applications', label: 'Back to the applications' }
+        : borrowerId
         ? { to: `/broker/clients/${encodeURIComponent(borrowerId)}`, label: 'Back to the client file' }
         : { to: '/broker/clients', label: 'Back to my clients' };
 

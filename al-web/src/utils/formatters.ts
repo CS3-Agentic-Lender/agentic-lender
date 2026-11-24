@@ -39,3 +39,48 @@ export function formatPercent(valuePct: number | null) {
 export function formatDate(date: Date | null) {
   return date === null ? UNAVAILABLE : shortDate.format(date);
 }
+
+const rating = new Intl.NumberFormat('en-IE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+// An average star rating, to one decimal: 4.5.
+export function formatRating(value: number) {
+  return rating.format(value);
+}
+
+// "1 review", "3 reviews".
+export function plural(count: number, one: string, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+const dateTime = new Intl.DateTimeFormat('en-IE', { dateStyle: 'medium', timeStyle: 'short' });
+const relative = new Intl.RelativeTimeFormat('en-IE', { numeric: 'auto' });
+
+export function formatDateTime(date: Date | null) {
+  return date === null ? UNAVAILABLE : dateTime.format(date);
+}
+
+// "5 minutes ago", "yesterday"; past a week the date itself reads better.
+export function formatRelative(date: Date | null, now: Date = new Date()) {
+  if (date === null) {
+    return UNAVAILABLE;
+  }
+
+  const seconds = Math.round((date.getTime() - now.getTime()) / 1000);
+  const minutes = Math.round(seconds / 60);
+  const hours = Math.round(minutes / 60);
+  const days = Math.round(hours / 24);
+
+  if (Math.abs(seconds) < 60) {
+    return 'just now';
+  }
+
+  if (Math.abs(minutes) < 60) {
+    return relative.format(minutes, 'minute');
+  }
+
+  if (Math.abs(hours) < 24) {
+    return relative.format(hours, 'hour');
+  }
+
+  return Math.abs(days) <= 7 ? relative.format(days, 'day') : formatDate(date);
+}

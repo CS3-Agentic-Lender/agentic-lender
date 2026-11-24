@@ -254,4 +254,30 @@ describe('committee subscriptions', () => {
     const call = toCommitteeCall('run-1-market-1', { agent: 'market', parsedReply: { outlook: 'stable', summary: 'Stable.', sources } });
     expect(call.marketReply).toEqual({ outlook: 'stable', summary: 'Stable.', sources: null });
   });
+
+  it('reads each step\'s live progress, with its times and a failed step\'s reason', () => {
+    const at = (seconds: number) => Timestamp.fromMillis(seconds * 1000);
+    const run = toCommitteeRun('run-1', {
+      status: 'running',
+      steps: {
+        validate: { status: 'ok', startedAt: at(1), finishedAt: at(2) },
+        valuation_model: { status: 'failed', startedAt: at(2), finishedAt: at(3), failureReason: 'The model is not loaded.' },
+        market: { status: 'running', startedAt: at(3), finishedAt: null },
+        calculations: { status: 'queued', startedAt: null, finishedAt: null },
+      },
+    });
+    expect(run.steps?.validate).toEqual({ status: 'ok', startedAt: new Date(1000), finishedAt: new Date(2000), failureReason: null });
+    expect(run.steps?.valuation_model).toMatchObject({ status: 'failed', failureReason: 'The model is not loaded.' });
+    expect(run.steps?.market).toEqual({ status: 'running', startedAt: new Date(3000), finishedAt: null, failureReason: null });
+    expect(run.steps?.calculations.status).toBe('queued');
+  });
+
+  it('reads a step that is missing or has an unknown status as queued, and no steps as null', () => {
+    const run = toCommitteeRun('run-1', { status: 'running', steps: { validate: { status: 'done' }, market: 'running' } });
+    expect(run.steps?.validate).toEqual({ status: 'queued', startedAt: null, finishedAt: null, failureReason: null });
+    expect(run.steps?.market.status).toBe('queued');
+    expect(run.steps?.policy_gate.status).toBe('queued');
+    expect(toCommitteeRun('run-0', { status: 'complete' }).steps).toBeNull();
+    expect(toCommitteeRun('run-0', { status: 'complete', steps: ['validate'] }).steps).toBeNull();
+  });
 });

@@ -23,6 +23,19 @@ export interface CommitteeAgent {
   conditions: string[] | null;
 }
 
+// SCHEMA.md `ai_runs.steps`, in the order al-ai runs them.
+export const COMMITTEE_STEPS = [
+  'validate', 'valuation_model', 'market', 'calculations', 'affordability', 'valuation_agent', 'strategist', 'policy_gate',
+] as const;
+export type CommitteeStep = (typeof COMMITTEE_STEPS)[number];
+export type StepStatus = 'queued' | 'running' | 'ok' | 'failed';
+export interface StepProgress {
+  status: StepStatus;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  failureReason: string | null;
+}
+
 export interface CommitteeRun {
   id: string;
   applicationId: string | null;
@@ -47,6 +60,8 @@ export interface CommitteeRun {
     changed: boolean | null;
   } | null;
   agents: Record<VotingAgent | 'market', CommitteeAgent | null>;
+  // Each step's progress while the run goes. Null on a run stored before al-ai wrote progress.
+  steps: Record<CommitteeStep, StepProgress> | null;
 }
 
 export const CALL_OUTCOMES = ['ok', 'invalid_reply', 'provider_error', 'missing_key', 'error', 'reused'] as const;
@@ -119,6 +134,24 @@ function agent(value: unknown): CommitteeAgent | null {
   };
 }
 
+const STEP_STATUSES: readonly unknown[] = ['queued', 'running', 'ok', 'failed'] satisfies StepStatus[];
+
+// The claim writes every step as queued, so a step with no readable status has not started.
+function stepProgress(value: unknown): StepProgress {
+  const data = map(value);
+  return {
+    status: STEP_STATUSES.includes(data.status) ? data.status as StepStatus : 'queued',
+    startedAt: readDate(data.startedAt), finishedAt: readDate(data.finishedAt),
+    failureReason: readString(data.failureReason),
+  };
+}
+
+function steps(value: unknown): Record<CommitteeStep, StepProgress> | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const data = map(value);
+  return Object.fromEntries(COMMITTEE_STEPS.map((step) => [step, stepProgress(data[step])])) as Record<CommitteeStep, StepProgress>;
+}
+
 export function toCommitteeRun(id: string, data: DocumentData): CommitteeRun {
   const agents = map(data.agents);
   const consensus = map(data.consensus);
@@ -149,6 +182,7 @@ export function toCommitteeRun(id: string, data: DocumentData): CommitteeRun {
       affordability: agent(agents.affordability), valuation: agent(agents.valuation),
       strategist: agent(agents.strategist), market: agent(agents.market),
     },
+    steps: steps(data.steps),
   };
 }
 
