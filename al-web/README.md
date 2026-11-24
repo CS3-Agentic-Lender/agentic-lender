@@ -75,6 +75,43 @@ AL_EMULATOR_TEST_PASSWORD=<local-seed-password> npm run test:clients-emulator
 
 A broker missing from the seed is reported as `SKIP`, not as a pass.
 
+## Production build and AWS Amplify
+
+The deployed portal is served by AWS Amplify at `https://agentic-lender.com`. Amplify doesn't build
+it: GitHub Actions (`.github/workflows/portal.yml`) builds `al-web` on Node 22 on every merge to `main`
+that changes it, and uploads the `dist/` zip. How it's set up, and how to set its two repository
+variables, is in `deploy/README.md`, "The portal".
+
+The build reads these at build time, so `portal.yml` sets them, not the Amplify console:
+
+| Variable | Value |
+|---|---|
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` | the hosted Firebase project's web config (`docs/infrastructure.md`, "Hosted Firebase project") |
+| `VITE_API_BASE_URL` | `https://api.agentic-lender.com` |
+
+Everything in a `VITE_*` variable ends up in the JavaScript anyone can download. The Firebase web
+config is public by design; never put a service-account key, model provider key or wallet key in one.
+
+A production build that is missing one of these fails when the page loads instead of quietly calling a
+laptop: `src/services/firebase.ts` throws for a missing Firebase value, and `src/services/apiClient.ts`
+throws for a missing `VITE_API_BASE_URL` or one that is not `https://`, or points at `localhost`. The page
+stays blank and the error is in the browser console.
+
+The portal's origin, `https://agentic-lender.com`, must also be allowed by both APIs
+(`CORS_ALLOWED_ORIGINS` for al-core and al-ai) and listed in Firebase Auth's authorised domains, or
+sign-in and every API call fail in the browser. Reloading a deep link such as
+`/underwriter/applications/<id>` relies on Amplify rewriting every path that isn't a file to
+`/index.html`, so the app loads and the route guard runs as usual.
+
+To check a production build on the laptop before it is deployed, put the five values in `.env.local`
+(gitignored; Vite reads it for production builds too, unlike `.env.production.local`, which this repo
+does not ignore) and serve the bundle:
+
+```sh
+npm run build
+npx vite preview
+```
+
 ## Routes
 
 - `/` — redirects to sign in
