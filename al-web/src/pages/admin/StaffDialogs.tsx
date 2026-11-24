@@ -95,9 +95,9 @@ function ChangeDialog({
   const copy = {
     disable: {
       title: `Disable ${member.fullName}?`,
-      body: `${member.fullName} is signed out now and can't sign in until an admin enables the account again. Their work stays as it is.`,
+      body: `${member.fullName} can't sign in until an admin enables the account again, and is signed out of the portal within the hour. Their work stays as it is.`,
       confirm: 'Disable account',
-      done: `${member.fullName} is disabled and signed out.`,
+      done: `${member.fullName} is disabled and will be signed out within the hour.`,
     },
     enable: {
       title: `Enable ${member.fullName}?`,
@@ -107,7 +107,7 @@ function ChangeDialog({
     },
     role: {
       title: `Change ${member.fullName}'s role?`,
-      body: `${member.fullName} moves from ${roleWord(role)} to ${roleWord(target)}. They are signed out now, and the new role applies at their next sign-in.${
+      body: `${member.fullName} moves from ${roleWord(role)} to ${roleWord(target)}. They are signed out within the hour, and the new role applies at their next sign-in.${
         role === 'broker' ? ' Their firm is removed from the profile.' : ''
       }`,
       confirm: `Make ${target === 'broker' ? 'a broker' : 'an underwriter'}`,

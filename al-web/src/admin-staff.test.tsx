@@ -221,7 +221,7 @@ describe('changing a staff account', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Disable account' }));
     await waitFor(() => expect(staff.updates).toEqual([{ uid: 'broker1', change: { disabled: true } }]));
     expect(within(rowOf('Bob Murphy')).getByText('Disabled')).toBeInTheDocument();
-    expect(await screen.findByText('Bob Murphy is disabled and signed out.')).toBeInTheDocument();
+    expect(await screen.findByText('Bob Murphy is disabled and will be signed out within the hour.')).toBeInTheDocument();
   });
 
   it('enables a disabled account', async () => {
