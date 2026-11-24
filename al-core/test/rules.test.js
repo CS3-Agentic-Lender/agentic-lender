@@ -41,6 +41,7 @@ beforeEach(async () => {
     await set('users/broker1', { uid: 'broker1', role: 'broker', fullName: 'Bob' });
     await set('users/broker2', { uid: 'broker2', role: 'broker', fullName: 'Ciara' });
     await set('users/underwriter1', { uid: 'underwriter1', role: 'underwriter', fullName: 'Uma' });
+    await set('users/admin1', { uid: 'admin1', role: 'admin', fullName: 'Ada' });
     await set('users/borrower1/saved_checks/check1', { estimatedValueEur: 310000 });
 
     await set('applications/app1', {
@@ -69,7 +70,9 @@ beforeEach(async () => {
     await set('ai_calls/call2', { runId: 'run2', applicationId: 'app2', brokerId: 'broker2' });
 
     await set('support_requests/req1', { userId: 'borrower1', subject: 'Help', status: 'open' });
+    await set('support_requests/req1/notes/note1', { authorUid: 'admin1', text: 'Called the bank' });
     await set('reviews/borrower1', { userId: 'borrower1', rating: 5 });
+    await set('admin_actions/act1', { actorUid: 'admin1', action: 'support_request.close', targetRef: 'req1' });
   });
 });
 
@@ -80,6 +83,7 @@ const borrower2 = () => as('borrower2', 'borrower');
 const broker1 = () => as('broker1', 'broker');
 const broker2 = () => as('broker2', 'broker');
 const underwriter = () => as('underwriter1', 'underwriter');
+const admin = () => as('admin1', 'admin');
 const signedOut = () => testEnv.unauthenticatedContext().firestore();
 
 describe('users', () => {
@@ -274,6 +278,8 @@ test('firestore.indexes.json has an index for every queue and broker query', () 
     'applications:status ASCENDING,riskTier ASCENDING,submittedAt DESCENDING',
     // The broker's application query: brokerId == uid and status != 'Draft' (AL-263).
     'applications:brokerId ASCENDING,status ASCENDING',
+    // The admin inbox: open (or closed) support requests, newest first (AL-339).
+    'support_requests:status ASCENDING,createdAt DESCENDING',
   ]);
 });
 
@@ -446,8 +452,11 @@ describe('support_requests', () => {
     assertSucceeds(borrower1().doc('support_requests/req1').get()));
   test("a borrower can't read someone else's support request", () =>
     assertFails(borrower2().doc('support_requests/req1').get()));
-  test('an underwriter can read any support request', () =>
-    assertSucceeds(underwriter().doc('support_requests/req1').get()));
+  // Only admins answer support requests now (AL-339): no underwriter screen used them.
+  test("an underwriter can't read a support request", () =>
+    assertFails(underwriter().doc('support_requests/req1').get()));
+  test("an underwriter can't list support requests", () =>
+    assertFails(underwriter().collection('support_requests').get()));
   test("a broker can't read a support request, even their client's", () =>
     assertFails(broker1().doc('support_requests/req1').get()));
   test("a borrower can't create a support request directly", () =>
@@ -472,13 +481,40 @@ describe('support_requests', () => {
     assertFails(signedOut().doc('support_requests/req1').get()));
 });
 
+// Staff notes on a request (AL-339): admins only. The sender reads their request but never its notes.
+describe('support_requests notes', () => {
+  test("an admin can read and list a request's notes", async () => {
+    await assertSucceeds(admin().doc('support_requests/req1/notes/note1').get());
+    await assertSucceeds(admin().collection('support_requests/req1/notes').get());
+  });
+  test("the sender can't read or list the notes on their own request", async () => {
+    await assertFails(borrower1().doc('support_requests/req1/notes/note1').get());
+    await assertFails(borrower1().collection('support_requests/req1/notes').get());
+  });
+  test("no one else can read the notes", async () => {
+    await assertFails(borrower2().doc('support_requests/req1/notes/note1').get());
+    await assertFails(broker1().doc('support_requests/req1/notes/note1').get());
+    await assertFails(underwriter().doc('support_requests/req1/notes/note1').get());
+    await assertFails(underwriter().collection('support_requests/req1/notes').get());
+    await assertFails(signedOut().doc('support_requests/req1/notes/note1').get());
+  });
+  test("no client writes a note, not even an admin: notes go through al-core", async () => {
+    await assertFails(admin().collection('support_requests/req1/notes').add({ authorUid: 'admin1', text: 'Hi' }));
+    await assertFails(admin().doc('support_requests/req1/notes/note1').update({ text: 'Changed' }));
+    await assertFails(admin().doc('support_requests/req1/notes/note1').delete());
+    await assertFails(borrower1().collection('support_requests/req1/notes').add({ authorUid: 'borrower1', text: 'Hi' }));
+  });
+});
+
 describe('reviews', () => {
   test('a borrower can read their own review', () =>
     assertSucceeds(borrower1().doc('reviews/borrower1').get()));
   test("a borrower can't read someone else's review", () =>
     assertFails(borrower2().doc('reviews/borrower1').get()));
-  test('an underwriter can read any review', () =>
-    assertSucceeds(underwriter().doc('reviews/borrower1').get()));
+  test("an underwriter can't read a review (AL-339)", () =>
+    assertFails(underwriter().doc('reviews/borrower1').get()));
+  test("an underwriter can't list reviews (AL-339)", () =>
+    assertFails(underwriter().collection('reviews').get()));
   test("a broker can't read a review, even their client's", () =>
     assertFails(broker1().doc('reviews/borrower1').get()));
   test("a borrower can't write their review directly", () =>
@@ -500,6 +536,53 @@ describe('reviews', () => {
     assertFails(borrower1().collection('reviews').get()));
   test("a signed-out visitor can't read a review", () =>
     assertFails(signedOut().doc('reviews/borrower1').get()));
+});
+
+// Admins (AL-339): read the whole business, write nothing. Agreed with Dumi on 24 Nov. Every admin change (closing a support request,
+// managing staff) goes through al-core, which writes with the Admin SDK and logs it to admin_actions.
+describe('admins', () => {
+  const docs = [
+    'users/borrower1', 'users/borrower2', 'users/broker1', 'users/underwriter1', 'users/admin1',
+    'applications/app1', 'applications/app2', 'applications/app3',
+    'applications/app1/review/underwriting', 'applications/app1/audit/record', 'applications/app3/audit/record',
+    'applications/app1/messages/msg1', 'applications/app3/messages/msg3',
+    'ai_runs/run1', 'ai_runs/run2', 'ai_calls/call1', 'ai_calls/call2',
+    'reviews/borrower1', 'support_requests/req1', 'admin_actions/act1',
+  ];
+  test.each(docs)('an admin can read %s', (p) => assertSucceeds(admin().doc(p).get()));
+
+  test.each([
+    ['every profile', (db) => db.collection('users').get()],
+    ['every application, Drafts included', (db) => db.collection('applications').get()],
+    ['every review document across applications', (db) => db.collectionGroup('review').get()],
+    ['every AI run', (db) => db.collection('ai_runs').get()],
+    ['every AI call', (db) => db.collection('ai_calls').get()],
+    ['every app review, newest first', (db) => db.collection('reviews').orderBy('updatedAt', 'desc').get()],
+    ['the open support requests, newest first',
+      (db) => db.collection('support_requests').where('status', '==', 'open').orderBy('createdAt', 'desc').get()],
+    ['the activity log, newest first', (db) => db.collection('admin_actions').orderBy('createdAt', 'desc').get()],
+  ])('an admin can list %s', (_name, query) => assertSucceeds(query(admin())));
+
+  test.each(docs.concat(['admin_actions/new-one', 'support_requests/SR-AAAAAAAA']))(
+    "an admin can't write or delete %s from a client", async (p) => {
+      await assertFails(admin().doc(p).set({ changed: true }, { merge: true }));
+      await assertFails(admin().doc(p).delete());
+    });
+  test("an admin can't close a support request directly: that goes through al-core", () =>
+    assertFails(admin().doc('support_requests/req1').update({ status: 'closed' })));
+
+  test("an admin doesn't read someone else's saved checks or last-read marker", async () => {
+    await assertFails(admin().doc('users/borrower1/saved_checks/check1').get());
+    await assertFails(admin().doc('applications/app1/readState/borrower1').get());
+  });
+
+  test.each([['borrower', borrower1], ['broker', broker1], ['underwriter', underwriter], ['signed-out visitor', signedOut]])(
+    "a %s can't read the admin activity log", async (_who, db) => {
+      await assertFails(db().doc('admin_actions/act1').get());
+      await assertFails(db().collection('admin_actions').get());
+    });
+  test("a role claim of anything else, such as 'Admin', reads nothing an admin does", () =>
+    assertFails(as('admin1', 'Admin').doc('support_requests/req1').get()));
 });
 
 // Real-time status (AL-59): clients listen to the application and see each status change as it is

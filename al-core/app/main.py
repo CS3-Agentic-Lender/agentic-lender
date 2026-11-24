@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 
 from app import (
-    applications, audit_pack, close, cors, decision, errors, fees, me, messages, mint, request_log, reviews, saved_checks,
+    admin, applications, audit_pack, close, cors, decision, errors, fees, me, messages, mint, request_log, reviews, saved_checks,
     support_requests,
 )
 
@@ -39,3 +39,4 @@ app.include_router(close.router)
 app.include_router(audit_pack.router)
 app.include_router(support_requests.router)
 app.include_router(fees.router)
+app.include_router(admin.router)

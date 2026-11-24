@@ -3,7 +3,8 @@
 // rules.test.js: firebase emulators:exec --only firestore --project demo-al-test "npx jest"
 // It finds the emulator through FIRESTORE_EMULATOR_HOST, which emulators:exec sets, so it works on any port.
 //
-// The fixture is only what the hosted project has: the five demo users. Every other probe is at an id that does not exist.
+// The fixture is only what the hosted project has: the five demo users, plus the local admin (admin@test.com, uid admin1 in
+// scripts/demo-users.js). The rules judge the admin by its `role` claim, so its uid and email don't change any answer. Every other probe is at an id that does not exist.
 
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
 const fs = require('fs');
@@ -38,6 +39,7 @@ beforeEach(async () => {
     await db.doc('users/broker1').set({ uid: 'broker1', role: 'broker', fullName: 'Bob Murphy' });
     await db.doc('users/broker2').set({ uid: 'broker2', role: 'broker', fullName: 'Ciara Kelly' });
     await db.doc('users/underwriter1').set({ uid: 'underwriter1', role: 'underwriter', fullName: 'Uma Nolan' });
+    await db.doc('users/admin1').set({ uid: 'admin1', role: 'admin', fullName: 'Admin' });
   });
 });
 
@@ -69,11 +71,11 @@ describe('the table itself', () => {
     expect(reads.filter((p) => p.expect === 'deny').length).toBeGreaterThan(20);
   });
 
-  test('every write and delete is expected to be refused, for all three roles and for no sign-in', () => {
+  test('every write and delete is expected to be refused, for all four roles and for no sign-in', () => {
     const writes = PROBES.filter((p) => p.op !== 'get');
-    expect(writes.length).toBeGreaterThanOrEqual(4 * 10);
+    expect(writes.length).toBeGreaterThanOrEqual(5 * 10);
     expect(writes.every((p) => p.expect === 'deny')).toBe(true);
-    expect(new Set(writes.map((p) => p.actor))).toEqual(new Set(['alice', 'bob', 'uma', null]));
+    expect(new Set(writes.map((p) => p.actor))).toEqual(new Set(['alice', 'bob', 'uma', 'admin', null]));
   });
 
   test('the write harness works: the same upsert succeeds when the rules are off, so a refusal above really is the rules', async () => {

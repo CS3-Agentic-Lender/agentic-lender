@@ -94,6 +94,11 @@ describe('accountsFor: who is created', () => {
     expect(accounts.map((a) => a.role).sort()).toEqual(['borrower', 'borrower', 'broker', 'broker', 'underwriter']);
   });
 
+  test('the emulator\'s admin is never a hosted demo account', () => {
+    expect(byUid).not.toHaveProperty('admin1');
+    expect(accounts.some((a) => a.role === 'admin')).toBe(false);
+  });
+
   test('Alice is verified and Ben is not, as in the emulator seed', () => {
     expect(byUid.borrower1.emailVerified).toBe(true);
     expect(byUid.borrower2.emailVerified).toBe(false);

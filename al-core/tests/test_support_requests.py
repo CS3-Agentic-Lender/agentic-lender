@@ -106,6 +106,7 @@ def test_a_request_is_stored_and_comes_back_with_its_reference(fake):
     assert body["category"] == "payment" and body["subject"] == REQUEST["subject"] and body["message"] == REQUEST["message"]
     assert body["application_id"] is None
     assert body["status"] == "open" and body["created_at"] == "2026-11-16T09:30:00.250Z"
+    assert body["closed_at"] is None and body["closed_by"] is None
 
 
 def test_it_is_stored_under_its_reference_with_the_borrower_id(fake):

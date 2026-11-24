@@ -32,10 +32,11 @@ Roles live in the Firebase Auth custom claim (`role`) set on each user — the `
 | bob@test.com | `broker1` | broker | |
 | ciara@test.com | `broker2` | broker | |
 | uma@test.com | `underwriter1` | underwriter | |
+| admin@test.com | `admin1` | admin | Manages staff accounts (`/core/admin/staff`). Emulator only. Admins are made only by script, never through the API |
 
 ## Demo accounts on the hosted Firebase project
 
-The seed only ever writes to the emulators (it refuses any project that isn't `demo-`). The hosted project gets its demo accounts from a separate script, `scripts/create-hosted-accounts.js`: the two borrowers, two brokers and the underwriter from the table above, each with its `role` claim and a `users/{uid}` profile. Alice is created with a verified email and Ben without, as in the seed. It does not create applications.
+The seed only ever writes to the emulators (it refuses any project that isn't `demo-`). The hosted project gets its demo accounts from a separate script, `scripts/create-hosted-accounts.js`: the two borrowers, two brokers and the underwriter from the table above (not the admin: see below), each with its `role` claim and a `users/{uid}` profile. Alice is created with a verified email and Ben without, as in the seed. It does not create applications.
 
 The emails use `@example.com`, not `@test.com`: test.com is a real domain, and the app's "resend verification email" would send mail to whoever owns it. Set `HOSTED_DEMO_EMAIL_DOMAIN` to use a domain the team owns.
 
@@ -54,18 +55,29 @@ node scripts/create-hosted-accounts.js             # asks you to type the projec
 
 It refuses to run if an emulator host is set, if the key belongs to another project or sits inside this repo, or if the password is short or is the seed's. It never prints the password. Running it again is safe: the accounts get the password and flags again, and a profile that already exists is left alone, so a borrower's choice of broker is kept. Its checks are in `test/hosted-accounts.test.js`; the accounts themselves are defined once, in `scripts/demo-users.js`, which the seed uses too.
 
+### The hosted admin
+
+The hosted project's admin is not a demo account. The repo is public, so its email must not be guessable from it: the email lives only in Bitwarden, never in the repo, and Firebase picks the uid. `scripts/create-hosted-admin.js` creates or refreshes that one account (`admin` claim, verified email, a staff `users/{uid}` profile) and touches no other, so the demo accounts keep their passwords. It needs `FIREBASE_PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS` (the service account key, outside the repo) as above, but not `HOSTED_DEMO_PASSWORD`. Run it in a terminal (a piped stdin is refused):
+
+```
+node scripts/create-hosted-admin.js --dry-run   # checks the settings, writes nothing
+node scripts/create-hosted-admin.js             # asks for the project id, the email and name, then the password twice (hidden)
+```
+
+The same refusals as above apply, and the password must meet the same rule (12 or more characters, not the seed's). Running it again with the same email refreshes that account; an email that belongs to a borrower, broker or underwriter is refused. It prints the uid and the email it wrote, never the password. Its checks are in `test/hosted-admin.test.js`.
+
 ### Checking the deployed rules with real sign-ins
 
-`scripts/check-hosted-rules.js` checks that the Firestore rules **deployed** on the hosted project behave as the repo's rules do on the emulator. It signs in as Alice (a borrower), Bob (a broker) and Uma (the underwriter), and also sends requests with no sign-in, through Firestore's REST API, so the rules decide. It tries 96 requests: reads that should be allowed or refused for each person, and writes and deletes, which no client may do (the rules have no `allow write`). Every write and delete is at an id that does not exist (`rules-probe-doc`), so no real data is touched; if a rule ever wrongly allowed a write, the script lists the documents it created so you can delete them in the console. No service account key is needed.
+`scripts/check-hosted-rules.js` checks that the Firestore rules **deployed** on the hosted project behave as the repo's rules do on the emulator. It signs in as Alice (a borrower), Bob (a broker), Uma (the underwriter) and, when `HOSTED_ADMIN_EMAIL` is set, the admin, and also sends requests with no sign-in, through Firestore's REST API, so the rules decide. It tries 133 requests (104 without the admin): reads that should be allowed or refused for each person, and writes and deletes, which no client may do (the rules have no `allow write`). Every write and delete is at an id that does not exist (`rules-probe-doc`), so no real data is touched; if a rule ever wrongly allowed a write, the script lists the documents it created so you can delete them in the console. No service account key is needed.
 
 ```
 node scripts/check-hosted-rules.js --dry-run   # shows what it would check, sends nothing
 node scripts/check-hosted-rules.js             # exit code 0 only if every request got the expected answer
 ```
 
-Set `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY` (the `API_KEY` in `GoogleService-Info.plist`) and `HOSTED_DEMO_PASSWORD` in your shell, as for the accounts script; `HOSTED_DEMO_EMAIL_DOMAIN` is optional. It refuses a `demo-` project and an emulator host, and never prints the password.
+Set `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY` (the `API_KEY` in `GoogleService-Info.plist`) and `HOSTED_DEMO_PASSWORD` in your shell, as for the accounts script. To check the admin's access too, also set `HOSTED_ADMIN_EMAIL` and `HOSTED_ADMIN_PASSWORD`: the hosted admin's email is chosen when the account is made and is kept in the team's password manager, never in the repo. Without them the script prints `admin probes skipped: HOSTED_ADMIN_EMAIL not set` and checks everyone else; `HOSTED_DEMO_EMAIL_DOMAIN` is optional. It refuses a `demo-` project and an emulator host, and never prints the password.
 
-**What "96 probes, all as expected" does not cover:** because every write and delete goes to an id that does not exist, the live check exercises Firestore's create rule and never an update or delete of a real document (for example Alice changing her own `users/borrower1`). The rules have no `allow write` at all, so every write is refused the same way, and the emulator rules tests (`test/rules.test.js`) cover updates and deletes of real documents. Read the live result as "the deployed rules read and refuse like the repo's rules", not as a test of every kind of write.
+**What "all as expected" does not cover:** because every write and delete goes to an id that does not exist, the live check exercises Firestore's create rule and never an update or delete of a real document (for example Alice changing her own `users/borrower1`). The rules have no `allow write` at all, so every write is refused the same way, and the emulator rules tests (`test/rules.test.js`) cover updates and deletes of real documents. Read the live result as "the deployed rules read and refuse like the repo's rules", not as a test of every kind of write.
 
 The expected answers are in `scripts/hosted-rules-probes.js`. `test/hosted-rules-probes.test.js` replays that same table through the rules engine on the emulator, so the table is checked against `firestore.rules` itself: change a rule, and that test says which expected answer is now wrong. `test/hosted-rules-check.test.js` covers the script (every refusal, how answers are read, what it reports).
 
@@ -115,7 +127,7 @@ npx jest
 
 Requires the emulator (above) running in a separate terminal on port 8080. `test/risk-tier.test.js` (the LTV band and risk tier rules) needs no emulator: `npx jest test/risk-tier.test.js`.
 
-The queue's composite indexes are in `firestore.indexes.json`: status on its own, status with LTV band, and status with risk tier, each newest first by `submittedAt`. The emulator doesn't enforce indexes, so the rules tests check the file has them; the cloud project needs `firebase deploy --only firestore:indexes` once it exists.
+The composite indexes are in `firestore.indexes.json`: the queue's (status on its own, status with LTV band, and status with risk tier, each newest first by `submittedAt`), the broker's (`brokerId` with status), and the admin inbox's (support requests by status, newest first by `createdAt`). The emulator doesn't enforce indexes, so the rules tests check the file has them; the cloud project needs `firebase deploy --only firestore:indexes` once it exists.
 ## Running the API (port 5002)
 
 The al-core API is a FastAPI service on port 5002, under `/core/*`. With the emulators running, from `al-core/`:
@@ -197,23 +209,35 @@ These need no emulator.
 | `GET /core/applications/{id}/messages/unread` | The same three | How many messages the caller has not read: `{"unread": n, "last_read_at": "..." or null}`. It counts the messages sent by anyone else after the time the caller last opened the thread (all of theirs if they never have), so each person has their own count: a broker reading the thread does not change an underwriter's. `404` for anyone not in the thread, `409` on a Draft. Read only |
 | `POST /core/applications/{id}/messages/read` | The same three | No body. Also records the caller's own last-read time, the send time of the newest message when they opened the thread (nothing is written again if nothing is new), together with the flags or not at all, so `GET .../messages/unread` gives `0` afterwards. Marks the unread messages sent *to the caller's side* as read and returns `{"marked": n}`: the borrower clears what the broker and the underwriters sent, and a broker or an underwriter clears what the borrower sent. So a broker opening the thread never clears an underwriter's message to the borrower, and the borrower's unread count stays right. The `read` flag of a message between the broker and an underwriter is left alone: use `GET .../messages/unread` for a per-person count, which does count it for the one it was sent to. The messages are updated together, all or none. Safe to repeat. The apps read the messages straight from Firestore (`applications/{id}/messages`); this is the only way to change `read` |
 | `POST /core/saved-checks` | Borrower | Keeps a property check the borrower ran. Send `property` (`county`, `eircode`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and an optional `asking_price_eur`, the application's names and limits) plus the result you already have: `estimated_value_eur`, `asking_price_gap`, `price_needs_review`, `support_warnings` and `model_version`. al-core validates and stores it and does not call al-ai again. `201` with the saved check and its `id`. The gap and the flag must be null or left out when there is no asking price. At most 20 per borrower: the 21st is `409`. `422` names the field (`property.eircode`) |
-| `POST /core/support-requests` | Borrower | Sends a support request. Send `category` (`application`, `payment`, `account` or `other`), `subject` (1 to 100 characters) and `message` (1 to 2000), all required, and optionally `application_id`, one of the borrower's own applications (someone else's or an unknown id is `404`). `201` with `reference` (for example `SR-7KQ2M9XD`, unique, also the document id), the fields, `application_id` (null if none), `status` (`open`) and `created_at`. The borrower's id comes from the token. The borrower reads their own requests from Firestore, underwriters read all. `422` names the field |
+| `POST /core/support-requests` | Borrower | Sends a support request. Send `category` (`application`, `payment`, `account` or `other`), `subject` (1 to 100 characters) and `message` (1 to 2000), all required, and optionally `application_id`, one of the borrower's own applications (someone else's or an unknown id is `404`). `201` with `reference` (for example `SR-7KQ2M9XD`, unique, also the document id), the fields, `application_id` (null if none), `status` (`open`), `created_at`, and `closed_at` and `closed_by` (null until closed). The borrower's id comes from the token. The borrower reads their own requests from Firestore, admins read all. `422` names the field |
+| `POST /core/admin/support-requests/{reference}/close` | Admin | Closes a support request. No body. Sets `status` to `closed`, `closedAt` and `closedBy` (the admin's uid), and writes an `admin_actions` record (`actorUid`, `action` `close_support_request`, `targetRef` `support_requests/{reference}`, `details` with the subject and the sender's uid, `createdAt`) in the same write. `200` with the request as `POST /core/support-requests` returns it. Closing a closed request is `200` with what it has, and changes and logs nothing. An unknown reference is `404` |
 | `POST /core/applications/{id}/fee-intent` | Borrower (their own) | Starts the EUR 150 fast-track fee for an application that is Applied or AI Deliberated. No body. `200` with `client_secret` (for the payment sheet), `payment_intent_id` and `amount_eur` (150). Saves `feeIntentId` and `feeStatus: "unpaid"` on the application. Asking again returns the same intent. `409` for a Draft, a decided application, or one already paid; `404` for someone else's; `502` if Stripe cannot be reached; `503` if the Stripe settings are missing. Test keys only |
 | `POST /core/webhooks/stripe` | Stripe (no Firebase token) | The only thing that marks the fee paid. Believed only when Stripe's signature on the raw body is valid (`400` otherwise). On `payment_intent.succeeded` for the saved intent, EUR 150, it sets `feeStatus: "paid"`, `feePaidAt` and `fastTrack: true` in one write. Anything else is acknowledged with `200` and changes nothing. See "The fast-track fee" below |
 | `DELETE /core/saved-checks/{id}` | Borrower (their own) | Removes a saved check: `204`, and `404` for someone else's or an unknown id. There is no list endpoint: read `users/{uid}/saved_checks` from Firestore |
-| `PUT /core/reviews/me` | Borrower | Saves the borrower's one review of the app, replacing the one they had. Send `rating` (a whole number, 1 to 5) and an optional `comment` (up to 500 characters; blank means none). `200` with `rating`, `comment`, `created_at` (the first save, kept on replacement) and `updated_at`. The borrower's id comes from the token, so nobody can write another borrower's review. The borrower reads their own from Firestore at `reviews/{uid}`, underwriters read all. `422` names the field |
+| `PUT /core/reviews/me` | Borrower | Saves the borrower's one review of the app, replacing the one they had. Send `rating` (a whole number, 1 to 5) and an optional `comment` (up to 500 characters; blank means none). `200` with `rating`, `comment`, `created_at` (the first save, kept on replacement) and `updated_at`. The borrower's id comes from the token, so nobody can write another borrower's review. The borrower reads their own from Firestore at `reviews/{uid}`, admins read all. `422` names the field |
 | `GET /core/applications/{id}` | Borrower, broker, underwriter | One application: the borrower's own, a broker's assigned client's, or any for an underwriter. Anything else is `404`. It includes `ltv_band` (`80_or_less`, `80_to_90` or `over_90`) and `risk_tier` (`A` to `D`), which are `null` until al-ai sets them after a run. `POST` and `PATCH` ignore them if sent |
 
 The `property` object takes `address_line_1`, `address_line_2` (optional, an empty string counts as none), `eircode` (capitals with a space, as on the profile), `county`, `property_type`, `bedrooms`, `floor_area_sqm`, `ber_rating` and `asking_price_eur`, both when creating and when editing a Draft. `asking_price_eur` only applies to a mortgage: on a HELOC it is `422` (`property.asking_price_eur`), and changing a Draft to a HELOC drops it, like the deposit.
 
 An edit and a submit can't overlap: each one writes only if the application hasn't changed since it read it, so an edit can never land on a submitted application. If they do collide, the later one gets `409` and can simply be sent again.
 
+Staff accounts (admin only; every other role gets `403`). Admins are made only by script, so nothing here creates, changes or deletes an admin. Every successful change writes one `admin_actions` record. The full contract is in `docs/api-design.md`, section 8:
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /core/admin/staff` | Admin | Every broker, underwriter and admin: `uid`, `full_name`, `email`, `role`, `firm`, `phone`, `enabled`, `created_at`. Admins are listed read-only |
+| `POST /core/admin/staff` | Admin | Creates a broker or underwriter with no password: the Firebase account, the `role` claim and a staff `users/{uid}` profile. `201` with the account. The portal then sends the set-your-password email. `400` for any role but `broker` or `underwriter`, `409` if the email exists, `422` naming the field (`firm` is required for a broker) |
+| `PATCH /core/admin/staff/{uid}` | Admin | `disabled` and/or `role` (`broker` or `underwriter`; `firm` is required when changing to broker). A role change or a disable revokes the person's refresh tokens. `200` with the account |
+| `DELETE /core/admin/staff/{uid}` | Admin | Removes the Firebase account and the profile: `200` with `{"deleted": uid}` |
+
+A `PATCH` or `DELETE` on an admin or a borrower is `403`. A delete or role change is `409` while a broker still has borrowers or applications, or an underwriter has signed off an application: disable the account instead.
+
 Choosing a broker:
 
 | Endpoint | Who | What |
 |---|---|---|
-| `GET /core/brokers` | Any signed-in user | Every broker as `uid`, `name` and `firm` (`null` when not set), sorted by name. No contact details |
-| `PUT /core/me/broker` | Borrower | Body `{"broker_id": "..."}`. Sets or changes the borrower's broker and returns the profile. `422` naming `broker_id` if that uid isn't a broker, `404` if there is no profile yet. Applications already created keep their original broker |
+| `GET /core/brokers` | Any signed-in user | Every broker as `uid`, `name` and `firm` (`null` when not set), sorted by name. No contact details. A disabled broker is left out |
+| `PUT /core/me/broker` | Borrower | Body `{"broker_id": "..."}`. Sets or changes the borrower's broker and returns the profile. `422` naming `broker_id` if that uid isn't a broker or the broker is disabled, `404` if there is no profile yet. Applications already created keep their original broker |
 
 `GET /core/me` also returns `broker_name` and `broker_firm` for the chosen broker (`null` when none), so the app never reads a broker's profile.
 
@@ -341,7 +365,13 @@ End-to-end check against the emulators (API running as above, from `al-core/`):
 uv run python scripts/smoke_me.py
 ```
 
-The close endpoint has its own end-to-end check against the emulators **and** a local chain (see "The loan note and the mint" below for starting the node and the chain settings). It mints the seeded `app-approved`, closes it, checks Firestore and the contract agree, and closes the seeded Declined application; 16 checks. It changes the emulator and the node, so to run it again re-import `seed-data/` and redeploy:
+Closing a support request has its own, which makes throwaway emulator accounts (a borrower, an admin, an underwriter) and a new request each run, so it is safe to repeat; 10 checks:
+
+```
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 uv run python scripts/smoke_support_close.py
+```
+
+The application close endpoint has its own end-to-end check against the emulators **and** a local chain (see "The loan note and the mint" below for starting the node and the chain settings). It mints the seeded `app-approved`, closes it, checks Firestore and the contract agree, and closes the seeded Declined application; 16 checks. It changes the emulator and the node, so to run it again re-import `seed-data/` and redeploy:
 
 ```
 uv run python scripts/smoke_close.py
