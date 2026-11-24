@@ -165,6 +165,8 @@ describe('support requests', () => {
     await user.click(screen.getByRole('button', { name: 'Resolve SR-A' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Resolve' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // The Resolve button left the Open list with the request, so focus goes to the page heading.
+    expect(screen.getByRole('heading', { level: 1 })).toHaveFocus();
     await user.click(screen.getByRole('radio', { name: 'Resolved 1' }));
     expect(within(card('SR-A')).queryByText('Resolution')).not.toBeInTheDocument();
   });
@@ -213,6 +215,8 @@ describe('support requests', () => {
     await user.click(within(card('SR-CLOSED')).getByRole('button', { name: 'Reopen SR-CLOSED' }));
     expect(await screen.findByText('SR-CLOSED is open again.')).toBeInTheDocument();
     expect(fake.reopened).toEqual(['SR-CLOSED']);
+    // The Reopen button left with the request, so focus goes to the page heading rather than the body.
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
     expect(screen.getByRole('radio', { name: 'Resolved 0' })).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'Open 2' }));
     expect(references(await requestList())).toEqual(['SR-A', 'SR-CLOSED']);

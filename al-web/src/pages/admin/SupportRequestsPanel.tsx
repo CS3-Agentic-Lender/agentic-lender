@@ -1,4 +1,5 @@
 import { useCallback, useContext, useId, useRef, useState, type FormEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { Link } from 'react-router';
 import { ConfirmationDialog } from '../../components/ConfirmationDialog';
 import { SegmentedFilter } from '../../components/admin/SegmentedFilter';
@@ -8,6 +9,7 @@ import { useToast } from '../../components/admin/Toasts';
 import { InboxServiceContext } from '../../context/AdminDataContext';
 import { useLive, type LiveState } from '../../hooks/useLive';
 import { ApiError } from '../../services/apiClient';
+import { focusPageHeading, focusWasLost } from '../../utils/focusPageHeading';
 import {
   oldestNoteFirst,
   type SupportNote,
@@ -380,7 +382,9 @@ export function SupportRequestsPanel({ state, nameOf, onChanged }: SupportReques
     try {
       const reopened = await service.reopenSupportRequest(reference);
       toast({ tone: 'success', message: `${reference} is open again.` });
-      onChanged(reopened);
+      // The reopened request leaves the Resolved list and takes its focused button with it.
+      flushSync(() => onChanged(reopened));
+      if (focusWasLost()) focusPageHeading();
     } catch (error) {
       toast({ tone: 'error', message: refusalOf(error, `${reference} could not be reopened. Try again.`) });
     } finally {

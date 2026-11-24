@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { focusPageHeading } from '../utils/focusPageHeading';
 
 const FOCUSABLE = [
   'button:not(:disabled)',
@@ -15,8 +16,8 @@ interface ConfirmationDialogProps {
   onClose(): void;
 }
 
-// A modal that keeps focus inside it until it closes, then hands focus back to whatever opened it.
-// Escape closes it. The caller renders it only while it is open.
+// A modal that keeps focus inside it until it closes, then hands focus back to whatever opened it, or to the page's
+// heading when that control went with the change (a deleted row, a request that left the list). Escape closes it. The caller renders it only while it is open.
 export function ConfirmationDialog({ title, children, onClose }: ConfirmationDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingId = useId();
@@ -28,6 +29,8 @@ export function ConfirmationDialog({ title, children, onClose }: ConfirmationDia
     return () => {
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
         previousFocus.focus();
+      } else {
+        focusPageHeading();
       }
     };
   }, []);
