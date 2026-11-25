@@ -165,6 +165,7 @@ def list_brokers(user: dict = Depends(current_user)):
         {"uid": snap.id, "name": doc.get("fullName"), "firm": doc.get("firm")}
         for snap in snaps
         for doc in [snap.to_dict()]
+        if not doc.get("disabled")  # an admin disabled the account (app/admin.py)
     ]
     return sorted(brokers, key=lambda b: (b["name"] or "").lower())
 
@@ -177,7 +178,7 @@ def choose_broker(body: BrokerChoice, user: dict = Depends(require_role("borrowe
         raise HTTPException(404, "No profile yet. Call POST /core/me to create one")
 
     broker = db().collection("users").document(body.broker_id).get()
-    if not broker.exists or broker.to_dict().get("role") != "broker":
+    if not broker.exists or broker.to_dict().get("role") != "broker" or broker.to_dict().get("disabled"):
         raise RequestValidationError(
             [{"loc": ("body", "broker_id"), "msg": "is not a broker", "type": "value_error"}]
         )

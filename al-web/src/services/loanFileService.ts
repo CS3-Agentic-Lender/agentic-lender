@@ -38,6 +38,8 @@ export interface LoanFileProperty {
 export interface LoanFileDecision {
   // Invalid marks a stored outcome outside the two agreed values.
   outcome: DecisionOutcome | 'invalid' | null;
+  // The underwriter who signed it off (SCHEMA.md decision map).
+  underwriterId: string | null;
   decidedAt: Date | null;
 }
 
@@ -190,6 +192,7 @@ function readDecision(value: unknown): LoanFileDecision | null {
   return {
     outcome:
       decision.outcome == null ? null : readOneOf(decision.outcome, DECISION_OUTCOMES) ?? 'invalid',
+    underwriterId: readString(decision.underwriterId),
     decidedAt: readDate(decision.decidedAt),
   };
 }

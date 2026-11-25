@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
+import { AdminServices, adminFakes } from './test/adminHarness';
 import type {
   AuthService,
   AuthErrorListener,
@@ -11,6 +12,9 @@ import type {
   AuthUser,
   RoleResolution,
 } from './services/authService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 const brokerUser: AuthUser = {
   uid: 'broker-1',
@@ -114,9 +118,11 @@ class FakeAuthService implements AuthService {
 function renderAt(pathname: string, auth: FakeAuthService, resetSession = vi.fn()) {
   return render(
     <AuthProvider service={auth} resetSession={resetSession}>
-      <MemoryRouter initialEntries={[pathname]}>
-        <AppRoutes />
-      </MemoryRouter>
+      <AdminServices fakes={adminFakes()}>
+        <MemoryRouter initialEntries={[pathname]}>
+          <AppRoutes />
+        </MemoryRouter>
+      </AdminServices>
     </AuthProvider>,
   );
 }
@@ -347,9 +353,23 @@ describe('login', () => {
     }
   });
 
+  it('signs an admin in on the same form and lands them on the admin dashboard', async () => {
+    const admin = { ...underwriterUser, uid: 'admin1', email: 'admin@test.com' };
+    const auth = new FakeAuthService({ resolution: { role: 'admin', denialReason: null }, signInUser: admin });
+    renderAt('/login', auth);
+    auth.restore(null);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Email address'), admin.email);
+    await user.type(screen.getByLabelText('Password'), TEST_PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Admin portal' })).toBeInTheDocument();
+  });
+
   it.each([
     ['broker', brokerUser, 'Broker portal'],
     ['underwriter', underwriterUser, 'Underwriter portal'],
+    ['admin', { ...underwriterUser, uid: 'admin1' }, 'Dashboard'],
   ] as const)('redirects a signed-in %s opening login to their portal home', async (role, account, heading) => {
     const auth = new FakeAuthService({ resolution: { role, denialReason: null } });
     renderAt('/login', auth);

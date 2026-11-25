@@ -1,9 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Timestamp } from 'firebase/firestore';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommitteeServiceContext } from '../../context/CommitteeContext';
 import {
-  toCommitteeRun, type CommitteeCall, type CommitteeCallsState, type CommitteeService, type CommitteeState,
+  COMMITTEE_STEPS, toCommitteeRun, type CommitteeCall, type CommitteeStep, type CommitteeCallsState, type CommitteeService, type CommitteeState,
 } from '../../services/committeeService';
 import { CommitteeConsole } from './CommitteeConsole';
 
@@ -191,6 +192,19 @@ describe('committee console', () => {
     expect(screen.getByText('Reason: Provider quota exceeded.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Re-run' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Re-run' })).toHaveAccessibleDescription('Re-running is not available yet.');
+  });
+
+  it('shows a read-only viewer the failed step and reason with no re-run control', () => {
+    const run = { ...sampleRun(), status: 'failed' as const, failedStep: 'valuation_agent', failureReason: 'Provider quota exceeded.' };
+    render(
+      <CommitteeServiceContext.Provider value={fakeService({ status: 'ready', run }).service}>
+        <CommitteeConsole applicationId="LN-1001" readOnly />
+      </CommitteeServiceContext.Provider>,
+    );
+    expect(screen.getByText('Failed step: valuation_agent')).toBeInTheDocument();
+    expect(screen.getByText('Reason: Provider quota exceeded.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-run' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Re-running is not available yet.')).not.toBeInTheDocument();
   });
 
   it('shows running and missing outputs without manufacturing completed results', () => {
@@ -408,5 +422,90 @@ describe('committee console', () => {
     expect(within(calls).getByText('Outcome: Provider error')).toBeInTheDocument();
     expect(within(calls).getByText('Error: HTTP 503 from the provider')).toBeInTheDocument();
     expect(calls).not.toHaveTextContent('Tokens:');
+  });
+});
+
+describe('committee console while the run goes', () => {
+  const at = (second: number) => Timestamp.fromMillis(Date.UTC(2026, 10, 24, 18, 0, second));
+  const affordabilityReport = {
+    recommendation: 'Approve', rating: 'adequate', concerns: ['Variable income'], conditions: ['Verify payslips'],
+    report: 'Repayments fit the household budget.', provider: 'ollama', model: 'qwen3.5:9b', promptVersion: 'affordability-v1',
+  };
+
+  // A run al-ai is still working on: every step queued unless `progress` says otherwise.
+  function liveRun(progress: Partial<Record<CommitteeStep, Record<string, unknown>>>, fields: Record<string, unknown> = {}, id = 'run-LN-1001') {
+    const steps = Object.fromEntries(COMMITTEE_STEPS.map((step) => [step, { status: 'queued', startedAt: null, finishedAt: null, ...progress[step] }]));
+    return toCommitteeRun(id, { applicationId: 'LN-1001', brokerId: 'broker-1', status: 'running', startedAt: at(0), steps, ...fields });
+  }
+  const ok = (second: number) => ({ status: 'ok', startedAt: at(second - 1), finishedAt: at(second) });
+  const running = (second: number) => ({ status: 'running', startedAt: at(second) });
+
+  it('shows each tab queued or thinking and the steps done so far', () => {
+    render(consoleWith(fakeService({ status: 'ready', run: liveRun({ validate: ok(1), valuation_model: ok(2), market: running(3) }) }).service));
+    const overall = screen.getByRole('progressbar', { name: 'Committee progress' });
+    expect(overall).toHaveAttribute('aria-valuenow', '2');
+    expect(overall).toHaveAttribute('aria-valuemax', '8');
+    expect(screen.getByText('2 of 8 steps done')).toBeInTheDocument();
+    expect(screen.getByText('Working on: Market & Macro')).toBeInTheDocument();
+    for (const name of ['Affordability, queued', 'Valuation, queued', 'Strategist, queued', 'Market & Macro, thinking', 'Credit memo, queued', 'Policy gate, queued']) {
+      expect(screen.getByRole('tab', { name })).toBeInTheDocument();
+    }
+    expect(within(screen.getByRole('tabpanel')).getByText('Queued. It starts when the steps before it finish.')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Affordability vote' })).not.toBeInTheDocument();
+    openTab('Market & Macro, thinking');
+    const panel = within(screen.getByRole('tabpanel'));
+    expect(panel.getByText('Thinking…')).toBeInTheDocument();
+    expect(panel.getByRole('progressbar', { name: 'Market & Macro in progress' })).not.toHaveAttribute('aria-valuenow');
+  });
+
+  it('fills a tab with its report as soon as its agent finishes, without a reload', () => {
+    const before = { validate: ok(1), valuation_model: ok(2), market: ok(3), calculations: ok(4), affordability: running(5), valuation_agent: running(5) };
+    const fake = fakeService({ status: 'ready', run: liveRun(before) });
+    render(consoleWith(fake.service));
+    expect(screen.getByRole('tab', { name: 'Affordability, thinking' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Working on: Affordability and Valuation')).toBeInTheDocument();
+    act(() => fake.pushRun({ status: 'ready', run: liveRun({ ...before, affordability: ok(9) }, { agents: { affordability: affordabilityReport } }) }));
+    expect(screen.getByRole('tab', { name: 'Affordability, done' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Valuation, thinking' })).toBeInTheDocument();
+    const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
+    expect(affordability.getByText('Repayments fit the household budget.')).toBeInTheDocument();
+    expect(affordability.getByText('Vote: Approve')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Committee progress' })).toHaveAttribute('aria-valuenow', '5');
+  });
+
+  it('shows a failed step and its reason on its tab while the run is still going', () => {
+    const run = liveRun({ validate: ok(1), valuation_agent: { status: 'failed', startedAt: at(5), finishedAt: at(6), failureReason: 'Groq answered 503 three times.' } });
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Valuation, failed');
+    expect(within(screen.getByRole('tabpanel')).getByText('This step failed: Groq answered 503 three times.')).toBeInTheDocument();
+  });
+
+  it('marks the failed step on a failed run with the run\'s stored reason', () => {
+    const run = { ...sampleRun(), status: 'failed' as const, failedStep: 'valuation_agent', failureReason: 'Provider quota exceeded.' };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Affordability' })).toBeInTheDocument();
+    openTab('Valuation, failed');
+    expect(within(screen.getByRole('tabpanel')).getByText('This step failed: Provider quota exceeded.')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Valuation vote' })).toBeInTheDocument();
+  });
+
+  it('renders a finished run the same whether or not it stored its steps', () => {
+    const allOk = liveRun(Object.fromEntries(COMMITTEE_STEPS.map((step, index) => [step, ok(index + 1)]))).steps;
+    const without = render(consoleWith(fakeService().service));
+    const expected = without.container.textContent;
+    without.unmount();
+    const withSteps = render(consoleWith(fakeService({ status: 'ready', run: { ...sampleRun(), steps: allOk } }).service));
+    expect(withSteps.container.textContent).toBe(expected);
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Affordability', 'Valuation', 'Strategist', 'Market & Macro', 'Credit memo', 'Policy gate']);
+  });
+
+  it('starts the progress again when a re-run replaces the run', () => {
+    const fake = fakeService();
+    render(consoleWith(fake.service));
+    act(() => fake.pushRun({ status: 'ready', run: liveRun({}, { trigger: 'rerun', rerunOf: 'run-LN-1001' }, 'run-LN-1001-rerun') }));
+    expect(screen.getByRole('progressbar', { name: 'Committee progress' })).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.getByRole('tab', { name: 'Affordability, queued' })).toBeInTheDocument();
   });
 });

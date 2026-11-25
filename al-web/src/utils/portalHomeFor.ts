@@ -1,13 +1,15 @@
-import type { TrustedRole } from '../services/authService';
+import type { PortalRole, TrustedRole } from '../services/authService';
+
+const PORTAL_HOMES: Record<PortalRole, string> = {
+  broker: '/broker',
+  underwriter: '/underwriter',
+  admin: '/admin',
+};
+
+export function isPortalRole(role: TrustedRole | null): role is PortalRole {
+  return role !== null && role in PORTAL_HOMES;
+}
 
 export function portalHomeFor(role: TrustedRole | null) {
-  if (role === 'broker') {
-    return '/broker';
-  }
-
-  if (role === 'underwriter') {
-    return '/underwriter';
-  }
-
-  return '/forbidden';
+  return isPortalRole(role) ? PORTAL_HOMES[role] : '/forbidden';
 }

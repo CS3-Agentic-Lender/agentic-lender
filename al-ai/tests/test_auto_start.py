@@ -20,7 +20,8 @@ import pytest
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 import test_committee as tc
-from app import approval_likelihood, auto_start, committee, dti_review, rates, risk_tier, valuation_review
+from app import strategist_agent
+from app import approval_likelihood, auto_start, committee, dti_review, rates, reasoning_trail, risk_tier, valuation_review
 from app.valuation_endpoint import ValuationResponse
 
 EMULATOR = os.getenv("FIRESTORE_EMULATOR_HOST")
@@ -78,7 +79,7 @@ def test_claiming_an_applied_application_marks_it_running_and_writes_the_base_ru
     assert run["applicationId"] == application_id and run["brokerId"] == "broker-1"
     assert (run["status"], run["trigger"], run["rerunOf"]) == ("running", "submit", None)
     assert isinstance(run["startedAt"], datetime) and run["finishedAt"] is None
-    assert set(run) == {"applicationId", "brokerId", "status", "trigger", "rerunOf", "startedAt", "finishedAt", "failedStep", "failureReason"}
+    assert set(run) == {"applicationId", "brokerId", "status", "trigger", "rerunOf", "startedAt", "finishedAt", "failedStep", "failureReason", "steps"}
 
 
 def test_a_second_trigger_for_the_same_application_starts_no_second_run(db):
@@ -1066,3 +1067,113 @@ def test_a_re_run_that_claims_the_application_mid_save_keeps_its_own_review(db, 
     save_from_old_run(db, application_id, record, writer)
     re_run.join(timeout=30)
     assert underwriting(db, application_id)[field] == "the re-run's"
+
+
+# ---- AL-345: each step's progress and each agent's report are on the ai_runs document while the run goes ----------------
+
+def run_document(db, run_id):
+    return db.collection("ai_runs").document(run_id).get().to_dict()
+
+
+def test_the_claim_lists_every_step_as_queued(db):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-1")
+    steps = run_document(db, "run-1")["steps"]
+    assert list(committee.STEPS) == ["validate", "valuation_model", "market", "calculations", "affordability", "valuation_agent", "strategist", "policy_gate"]
+    assert steps == {step: {"status": "queued", "startedAt": None, "finishedAt": None} for step in committee.STEPS}
+
+
+def test_a_complete_run_leaves_every_step_ok_with_its_times_and_the_agents_exactly_as_the_final_write_has_them(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    run = run_document(db, record["run_id"])
+    assert set(run["steps"]) == set(committee.STEPS)
+    for step in run["steps"].values():
+        assert set(step) == {"status", "startedAt", "finishedAt"} and step["status"] == "ok"
+        assert run["startedAt"] <= step["startedAt"] <= step["finishedAt"] <= run["finishedAt"]
+    assert run["agents"] == reasoning_trail.fields(record)["agents"]
+
+
+def test_while_the_strategist_runs_the_two_agents_reports_are_already_there(db, monkeypatch):
+    """The portal shows each report as soon as its agent finishes: the strategist waits until the document says so, or times out."""
+    seen = {}
+    real = strategist_agent.run
+
+    def strategist_looks_first(facts, *, run_id, **kwargs):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            run = run_document(db, run_id)
+            if run["steps"]["strategist"]["status"] == "running" and {"affordability", "valuation", "market"} <= set(run.get("agents", {})):
+                break
+            time.sleep(0.05)
+        seen.update(run)
+        return real(facts, run_id=run_id, **kwargs)
+
+    monkeypatch.setattr(strategist_agent, "run", strategist_looks_first)
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete"
+    assert seen["status"] == "running" and seen["finishedAt"] is None
+    assert {name: step["status"] for name, step in seen["steps"].items()} == {
+        "validate": "ok", "valuation_model": "ok", "market": "ok", "calculations": "ok", "affordability": "ok",
+        "valuation_agent": "ok", "strategist": "running", "policy_gate": "queued",
+    }
+    assert seen["steps"]["strategist"]["startedAt"] is not None and seen["steps"]["strategist"]["finishedAt"] is None
+    assert set(seen["agents"]) == {"affordability", "valuation", "market"}
+    final = run_document(db, record["run_id"])["agents"]
+    assert all(seen["agents"][name] == final[name] for name in seen["agents"])  # what the portal saw live is what the run kept
+
+
+def test_a_failed_step_has_its_reason_and_the_steps_after_it_stay_queued(db):
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory(tc.Providers(ollama=(500, b"boom"))))
+    run = run_document(db, record["run_id"])
+    steps = run["steps"]
+    assert steps["affordability"]["status"] == "failed" and steps["affordability"]["failureReason"] == run["failureReason"]
+    assert isinstance(steps["affordability"]["finishedAt"], datetime)
+    assert (steps["strategist"]["status"], steps["policy_gate"]["status"]) == ("queued", "queued")
+    assert all(steps[name]["status"] == "ok" for name in ("validate", "valuation_model", "market", "calculations", "valuation_agent"))
+    assert set(run["agents"]) == {"market", "valuation"}
+
+
+def test_a_run_that_was_replaced_writes_no_more_progress(db):
+    application_id = applied(db)
+    auto_start.claim(db, application_id, run_id="run-old")
+    db.collection("applications").document(application_id).update({"aiRunId": "run-new"})
+    store = auto_start.FirestoreRunStore(db)
+    store.save_step(application_id, "run-old", "validate", None)
+    store.save_step(application_id, "run-old", "validate", {"ok": True, "output": {"loan_type": "mortgage"}})
+    store.flush_progress()
+    assert run_document(db, "run-old")["steps"]["validate"] == {"status": "queued", "startedAt": None, "finishedAt": None}
+
+
+def test_a_run_replaced_part_way_stops_writing_progress_from_then_on(db, monkeypatch):
+    real = strategist_agent.run
+
+    def replaced_before_the_strategist(facts, *, run_id, **kwargs):
+        application_id = run_document(db, run_id)["applicationId"]
+        db.collection("applications").document(application_id).update({"aiRunId": "run-new"})
+        return real(facts, run_id=run_id, **kwargs)
+
+    monkeypatch.setattr(strategist_agent, "run", replaced_before_the_strategist)
+    application_id = applied(db)
+    record = auto_start.process(db, application_id, deps_factory=factory())
+    steps = run_document(db, record["run_id"])["steps"]
+    assert steps["calculations"]["status"] == "ok"
+    assert steps["strategist"]["status"] in ("queued", "running")  # its start may have landed before the re-run's claim, never its end
+    assert steps["policy_gate"]["status"] == "queued"
+
+
+def test_a_progress_write_that_fails_is_logged_and_the_run_still_finishes(db, monkeypatch, caplog):
+    def broken(self, application_id, run_id, fields):
+        raise RuntimeError("firestore said no")
+
+    monkeypatch.setattr(auto_start.FirestoreRunStore, "_write_progress", broken)
+    application_id = applied(db)
+    with caplog.at_level("ERROR", logger="al-ai.auto-start"):
+        record = auto_start.process(db, application_id, deps_factory=factory())
+    assert record["status"] == "complete"
+    assert application(db, application_id)["status"] == "AI Deliberated"
+    assert "progress" in caplog.text
+    run = run_document(db, record["run_id"])
+    assert run["steps"]["validate"]["status"] == "queued" and run["agents"] == reasoning_trail.fields(record)["agents"]

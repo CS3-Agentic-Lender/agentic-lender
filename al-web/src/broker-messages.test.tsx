@@ -4,10 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { ClientsServiceContext } from './context/BrokerClientsContext';
 import { MessagesServiceContext } from './context/MessagesContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
 import type { AuthService, AuthStateListener, AuthUser } from './services/authService';
 import { buildBrokerClients, type ClientsService } from './services/clientsService';
 import type { MessagesService, ThreadSnapshot } from './services/messagesService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 const broker: AuthUser = {
   uid: 'broker-1',

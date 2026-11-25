@@ -44,6 +44,7 @@ describe('conversation', () => {
   it('shows each sender, with the underwriter as the bank lending officer and the reader as You', () => {
     const { service } = renderConversation();
     expect(screen.getByRole('status')).toHaveTextContent('Loading the messages…');
+    expect(document.querySelectorAll('[data-skeleton]').length).toBeGreaterThan(0);
 
     service.push({
       messages: [
@@ -57,6 +58,7 @@ describe('conversation', () => {
     const items = within(screen.getByRole('list', { name: 'Messages' })).getAllByRole('listitem');
     expect(items.map((item) => item.querySelector('span')?.textContent)).toEqual(['Borrower', 'Bank lending officer', 'You']);
     expect(items[1]).toHaveTextContent('We are reviewing it.');
+    expect(document.querySelectorAll('[data-skeleton]')).toHaveLength(0);
   });
 
   it('moves only this reader\'s read position, once, after the thread loads with something unread', () => {

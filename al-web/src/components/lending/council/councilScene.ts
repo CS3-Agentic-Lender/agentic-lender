@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { prepareScene } from './warmUp';
 
 // The committee drawn as a council: a frosted pillar per agent, lit in the colour of its stored vote, streaming
 // into the recommendation the underwriter is shown. Decorative only: every vote and outcome it draws is written
@@ -104,11 +104,6 @@ export function createCouncilScene(
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(colours.night);
   scene.fog = new THREE.Fog(colours.night, 14, 30);
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const roomEnv = new RoomEnvironment();
-  const envMap = pmrem.fromScene(roomEnv, 0.04).texture;
-  roomEnv.dispose();
-  scene.environment = envMap;
   scene.environmentIntensity = 0.4;
 
   const camera = new THREE.PerspectiveCamera(TUNE.fov, 1, 0.1, 100);
@@ -166,7 +161,7 @@ export function createCouncilScene(
   scene.add(key, fill, rim, new THREE.HemisphereLight('#ffffff', '#46584f', 0.3));
 
   // Everything made below is tracked so dispose() can free it.
-  const disposables: { dispose(): void }[] = [envMap, pmrem];
+  const disposables: { dispose(): void }[] = [];
   const track = <T extends { dispose(): void }>(item: T) => { disposables.push(item); return item; };
   const world = new THREE.Group();
   scene.add(world);
@@ -422,13 +417,15 @@ export function createCouncilScene(
   const introStart = new THREE.Vector3().copy(target).add(new THREE.Vector3(0, 9, 17));
   const introEnd = new THREE.Vector3();
   let intro = reduceMotion ? 1 : 0;
+  let ready = false;
+  let disposed = false;
   let running = false;
   let frameId = 0;
   let last = 0;
   let t = 0;
   let speed = 1;
   function kick() {
-    if (!running && visible) { running = true; last = performance.now(); frameId = requestAnimationFrame(frame); }
+    if (ready && !running && visible) { running = true; last = performance.now(); frameId = requestAnimationFrame(frame); }
   }
   function frame(now: number) {
     const dt = Math.max(0, Math.min((now - last) / 1000, 0.05)); // the first frame's timestamp can precede kick()
@@ -496,11 +493,21 @@ export function createCouncilScene(
   renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
   resize();
-  kick();
+  prepareScene({ renderer, scene, camera, composer, bloom }, () => !disposed)
+    .then((prepared) => {
+      if (!prepared) return;
+      disposables.push(prepared);
+      ready = true;
+      host.dataset.ready = 'true';
+      kick();
+    })
+    .catch(() => { if (!disposed) onContextLostCb?.(); });
 
   return {
     focus(agent) { selected = agent; kick(); },
     dispose() {
+      disposed = true;
+      delete host.dataset.ready;
       cancelAnimationFrame(frameId);
       running = false;
       visible = false;

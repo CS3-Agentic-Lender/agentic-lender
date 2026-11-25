@@ -52,16 +52,20 @@ Both services use the Admin SDK to read and write Firestore.
 
 | Collection | Who reads it | What it holds |
 |---|---|---|
-| `users/{uid}` | That user, underwriters | Profile and chosen broker |
-| `applications/{id}` | The borrower, the assigned broker, underwriters | Status, `aiRunStatus`, loan type, loan terms, LTV, DTI, approval likelihood, decision, loan note |
-| `applications/{id}/review/underwriting` | The assigned broker, underwriters | Risk tier (A to D), DTI breakdown, valuation detail |
-| `applications/{id}/audit/record` | The assigned broker, underwriters | The audit record behind the audit hash, written at mint |
-| `ai_runs` | The assigned broker, underwriters | One record per committee run: its outcome and conditions |
-| `ai_calls` | Underwriters only | One record per AI call (prompts, replies, tokens): the lender's working, so not shown to brokers |
-| `applications/{id}/messages` | The borrower, the assigned broker, underwriters | The message thread. Each message has a `read` flag, which `.../messages/read` sets |
-| `support_requests/{id}` | The borrower who sent it, underwriters | A support request from `POST /core/support-requests` |
-| `reviews/{uid}` | Underwriters | One review per borrower, replaced by `PUT /core/reviews/me` |
+| `users/{uid}` | That user, underwriters, admins | Profile and chosen broker |
+| `applications/{id}` | The borrower, the assigned broker, underwriters, admins | Status, `aiRunStatus`, loan type, loan terms, LTV, DTI, approval likelihood, decision, loan note |
+| `applications/{id}/review/underwriting` | The assigned broker, underwriters, admins | Risk tier (A to D), DTI breakdown, valuation detail |
+| `applications/{id}/audit/record` | The assigned broker, underwriters, admins | The audit record behind the audit hash, written at mint |
+| `ai_runs` | The assigned broker, underwriters, admins | One record per committee run: its outcome and conditions |
+| `ai_calls` | Underwriters and admins only | One record per AI call (prompts, replies, tokens): the lender's working, so not shown to brokers |
+| `applications/{id}/messages` | The borrower, the assigned broker, underwriters, admins | The message thread. Each message has a `read` flag, which `.../messages/read` sets |
+| `support_requests/{id}` | The borrower who sent it, admins | A support request from `POST /core/support-requests`. An admin closes it with `POST /core/admin/support-requests/{reference}/close` and reopens it with `…/reopen` |
+| `support_requests/{id}/notes/{noteId}` | Admins only, never the sender | Staff comments on a request, from `POST /core/admin/support-requests/{reference}/notes` |
+| `reviews/{uid}` | That borrower, admins | One review per borrower, replaced by `PUT /core/reviews/me` |
 | `users/{uid}/saved_checks/{id}` | That user | A saved property check |
+| `admin_actions` | Admins only | One record per admin change: who, what, which account or request, when |
+
+Admins read the business and write nothing directly, like every other client: their changes go through al-core (AL-339).
 
 The EUR 150 appraisal fee has no collection of its own: the webhook sets `feeStatus` and `feeIntentId` on the application.
 
@@ -149,6 +153,9 @@ All endpoints below use the same host: `http://localhost:8000` on a laptop (the 
 | `POST /core/webhooks/stripe` | Stripe | Record that the fee was paid: sets `feeStatus` `paid`, `feePaidAt` and `fastTrack` `true` in one write. `400` when Stripe's signature is missing or wrong |
 | `POST /core/applications/{id}/messages`, `.../messages/read` | Borrower, broker, underwriter on that application | Send a message or mark messages as read |
 | `POST /core/support-requests`, `PUT /core/reviews/me` | Borrower | Submit a support request or a review |
+| `POST /core/admin/support-requests/{reference}/close` | Admin | Close a support request: sets `status` `closed`, `closedAt` and `closedBy`, and logs it in `admin_actions` (`close_support_request`), in one write. Optional body `{"resolution": "…"}`, up to 2000 characters, stored as `resolution` and copied into the log record's `details`; blank or no body closes without one. Returns the request (`closed_at`, `closed_by`, `resolution`). Closing a closed request is `200` and changes and logs nothing. An unknown reference is `404`, a resolution over 2000 characters `422` |
+| `POST /core/admin/support-requests/{reference}/reopen` | Admin | Reopen a closed request: sets `status` `open`, removes `closedAt`, `closedBy` and `resolution`, keeps the notes, and logs `reopen_support_request`, in one write. No body. Returns the request. Reopening an open request is `200` and changes and logs nothing. An unknown reference is `404` |
+| `POST /core/admin/support-requests/{reference}/notes` | Admin | Add a staff note to an open request: body `{"text": "…"}`, 1 to 2000 characters after trimming. Stores it at `support_requests/{reference}/notes/{id}` and logs `comment_support_request` (`details.noteId`), in one write. `201` with `{id, author_uid, text, created_at}`. The portal reads the thread from Firestore; the API never returns notes to the sender. A resolved (closed) request is `409` `CONFLICT` "This request is resolved. Reopen it to add a note." and writes nothing; the status is read in the same transaction as the write, so a close that lands first also gives the `409`. An unknown reference is `404`, an empty or long note `422` |
 | `POST /core/saved-checks`, `DELETE /core/saved-checks/{id}` | Borrower | Add or remove a saved property check |
 | `GET /core/health` | Open | Report whether the service is running |
 

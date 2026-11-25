@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { statusTone, type BadgeTone } from '../utils/statusTone';
 
 interface StatusBadgeProps {
@@ -12,13 +13,15 @@ const toneClasses: Record<BadgeTone, string> = {
   danger: 'bg-danger-soft text-error',
 };
 
-// The status is always written out; the tone only supports it.
-export function StatusBadge({ status }: StatusBadgeProps) {
+// A badge in one of the agreed tones. Its text always says what the tone only supports.
+export function ToneBadge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {
   return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${toneClasses[statusTone(status)]}`}
-    >
-      {status}
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${toneClasses[tone]}`}>
+      {children}
     </span>
   );
+}
+
+export function StatusBadge({ status }: StatusBadgeProps) {
+  return <ToneBadge tone={statusTone(status)}>{status}</ToneBadge>;
 }

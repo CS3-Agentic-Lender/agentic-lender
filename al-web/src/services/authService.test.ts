@@ -48,13 +48,13 @@ describe('trusted Firebase role claims', () => {
     expect(user.getIdTokenResult).toHaveBeenCalledExactlyOnceWith();
   });
 
-  it.each(['broker', 'underwriter', 'borrower'] as const)('recognizes the %s custom claim', (role) => {
+  it.each(['broker', 'underwriter', 'admin', 'borrower'] as const)('recognizes the %s custom claim', (role) => {
     expect(resolveRoleClaim({ role })).toEqual({ role, denialReason: null });
   });
 
   it.each([
     ['missing', {}, 'missing-role'],
-    ['unknown', { role: 'admin' }, 'unknown-role'],
+    ['unknown', { role: 'superuser' }, 'unknown-role'],
     ['malformed', { role: ['broker'] }, 'malformed-role'],
   ] as const)('default-denies a %s role claim', (_label, claims, denialReason) => {
     expect(resolveRoleClaim(claims)).toEqual({ role: null, denialReason });
@@ -85,5 +85,11 @@ describe('authentication errors', () => {
       'Sign-in failed. Try again. In development, check that the Auth emulator is running.',
     );
     expect(message).not.toContain('internal implementation detail');
+  });
+
+  it('tells a disabled staff member to ask an administrator', () => {
+    expect(getSignInErrorMessage({ code: 'auth/user-disabled' })).toBe(
+      'This account is disabled. Ask an administrator to enable it.',
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { runDuration, type CommitteeRun } from '../../services/committeeService';
 import { agentLabels } from './AgentVote';
-import { canDraw3d } from './council/canDraw3d';
+import { canDraw3d, startWhenNearAndIdle } from './council/canDraw3d';
 import type { CouncilData, CouncilHandle, SceneAgent } from './council/councilScene';
 
 interface CommitteeStageProps {
@@ -11,7 +11,8 @@ interface CommitteeStageProps {
 }
 
 // The committee as a 3D council over the stored run. Three.js is loaded only when the stage is close to the
-// screen, so the rest of the loan file does not pay for it.
+// screen and the browser is idle, so the rest of the loan file does not pay for it. The stage keeps its size from
+// the start, so nothing around it moves when the scene appears.
 export function CommitteeStage({ run, selected, onPick }: CommitteeStageProps) {
   const [supported] = useState(canDraw3d);
   const [failed, setFailed] = useState(false);
@@ -32,12 +33,10 @@ export function CommitteeStage({ run, selected, onPick }: CommitteeStageProps) {
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!supported || !host) return;
+    if (!supported || failed || !host) return;
     let cancelled = false;
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    const near = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
-      near.disconnect();
+    const cancelStart = startWhenNearAndIdle(host, () => {
       import('./council/councilScene')
         .then(({ createCouncilScene }) => {
           if (cancelled) return;
@@ -45,15 +44,15 @@ export function CommitteeStage({ run, selected, onPick }: CommitteeStageProps) {
           handleRef.current.focus(selectedRef.current);
         })
         .catch(() => { if (!cancelled) setFailed(true); });
-    }, { rootMargin: '200px' });
-    near.observe(host);
+    });
     return () => {
       cancelled = true;
-      near.disconnect();
+      cancelStart();
       handleRef.current?.dispose();
       handleRef.current = null;
     };
-  }, [supported, data]);
+  // A failed scene turns `failed` on, which runs the cleanup above and disposes it.
+  }, [supported, failed, data]);
 
   useEffect(() => { handleRef.current?.focus(selected); }, [selected]);
 

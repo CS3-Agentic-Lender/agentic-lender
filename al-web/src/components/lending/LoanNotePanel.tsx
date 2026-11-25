@@ -3,7 +3,7 @@ import type { LoanNote } from '../../services/loanFileService';
 import { formatDate, loanTypeLabel } from '../../utils/formatters';
 import { ChainStage } from './ChainStage';
 
-function shortHash(value: string) {
+export function shortHash(value: string) {
   return value.length > 18 ? `${value.slice(0, 10)}…${value.slice(-6)}` : value;
 }
 
@@ -26,6 +26,11 @@ interface LoanNotePanelProps {
   loanType: string | null;
 }
 
+// The Polygonscan page of a transaction. A link is built only for a well-formed hash on Amoy; anything else stays text.
+export function explorerTxUrl(network: string | null, hash: string | null): string | undefined {
+  return network === 'amoy' && hash !== null && TX_HASH.test(hash) ? `${AMOY_EXPLORER}/tx/${hash}` : undefined;
+}
+
 export const networkLabels: Record<string, string> = {
   localhost: 'Local Hardhat chain',
   amoy: 'Polygon Amoy testnet',
@@ -35,8 +40,7 @@ export function LoanNotePanel({ note, auditTxHash, loanType }: LoanNotePanelProp
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const canCopy = typeof navigator.clipboard?.writeText === 'function';
   const onAmoy = note.network === 'amoy';
-  // A link is built only from a well-formed stored value; anything else is shown as plain text.
-  const tx = (hash: string | null) => (onAmoy && hash !== null && TX_HASH.test(hash) ? `${AMOY_EXPLORER}/tx/${hash}` : undefined);
+  const tx = (hash: string | null) => explorerTxUrl(note.network, hash);
   const contractOk = ADDRESS.test(note.contractAddress);
   const rows: {
     label: string;

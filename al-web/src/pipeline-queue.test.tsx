@@ -1,10 +1,10 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { PipelineServiceContext } from './context/PipelineContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
 import { toApplicationSummary } from './services/clientsService';
 import { withRiskTiers } from './services/pipelineService';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
@@ -18,6 +18,9 @@ import type {
   RiskTier,
   RiskTierState,
 } from './services/pipelineService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 function authUser(uid: string): AuthUser {
   return {
@@ -655,6 +658,18 @@ describe('underwriter pipeline queue', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Loading the pipeline');
     expect(screen.getByRole('status')).not.toHaveAttribute('aria-live');
+  });
+
+  it('shows the queue in placeholders while it loads, then the table in their place', async () => {
+    const pipeline = new FakePipelineService();
+    renderQueue(pipeline);
+    await screen.findByRole('heading', { name: 'Loading the pipeline' });
+    expect(document.querySelectorAll('[data-skeleton]').length).toBeGreaterThan(10);
+
+    await waitFor(() => expect(pipeline.subscriptions).not.toHaveLength(0));
+    act(() => pipeline.push(seededQueue));
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-skeleton]')).toHaveLength(0);
   });
 
   it('says so when there are no applications', async () => {

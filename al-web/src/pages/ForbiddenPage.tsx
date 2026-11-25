@@ -2,14 +2,14 @@ import { Link, useNavigate } from 'react-router';
 import { Mark } from '../components/Mark';
 import { AuthLoadingPage } from '../components/auth/AuthLoadingPage';
 import { SessionRetryPage } from '../components/auth/SessionRetryPage';
-import { portalHomeFor } from '../utils/portalHomeFor';
+import { isPortalRole, portalHomeFor } from '../utils/portalHomeFor';
 import { useAuth } from '../context/AuthContext';
 
 export function ForbiddenPage() {
   const { role, denialReason, status, action, authError, signOut } = useAuth();
   const navigate = useNavigate();
   const borrower = role === 'borrower';
-  const ownPortal = role === 'broker' || role === 'underwriter' ? portalHomeFor(role) : null;
+  const ownPortal = isPortalRole(role) ? portalHomeFor(role) : null;
 
   if (status === 'loading') {
     return <AuthLoadingPage />;

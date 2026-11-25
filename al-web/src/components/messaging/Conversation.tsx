@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useMessagesService } from '../../context/MessagesContext';
+import { Skeleton } from '../Skeleton';
 import { ApiError } from '../../services/apiClient';
 import {
   senderLabels,
@@ -118,9 +119,17 @@ export function Conversation({ applicationId, uid, title }: ConversationProps) {
           {threadErrors[threadError]}
         </p>
       ) : thread === null ? (
-        <p aria-live="polite" className="mt-4 text-sm text-muted" role="status">
-          Loading the messages…
-        </p>
+        <div aria-busy="true" className="mt-4">
+          <p aria-live="polite" className="sr-only" role="status">
+            Loading the messages…
+          </p>
+          {/* Message bubbles from both sides, as the thread will sit. */}
+          <div aria-hidden="true" className="space-y-3">
+            <Skeleton className="mr-8 h-16 rounded-xl" />
+            <Skeleton className="ml-8 h-12 rounded-xl" />
+            <Skeleton className="mr-8 h-14 rounded-xl" />
+          </div>
+        </div>
       ) : thread.messages.length === 0 ? (
         <p className="mt-4 text-sm text-muted">No messages yet.</p>
       ) : (

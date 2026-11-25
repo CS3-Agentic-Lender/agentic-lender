@@ -1,6 +1,7 @@
 import type { LoanFileApplication, LoanFileReview } from '../../services/loanFileService';
 import { formatEuro, formatPercent } from '../../utils/formatters';
-import { Figure } from './Figure';
+import { Skeleton } from '../Skeleton';
+import { Figure, PENDING } from './Figure';
 import { LtvGauge } from './LtvGauge';
 
 const LTV_LIMIT = 90;
@@ -118,7 +119,7 @@ export function MortgageCollateral({ application, review }: MortgageCollateralPr
             <span className="block">indicative estimate of a 2024 asking price, not a valuation</span>
           </dt>
           <dd className="mt-1 text-lg tabular-nums">
-            <Figure value={euro(estimate)} />
+            <Figure value={review.state === 'pending' ? PENDING : euro(estimate)} />
             {valuation?.modelVersion ? (
               <p className="mt-1 break-words font-sans text-sm text-muted">Model {valuation.modelVersion}</p>
             ) : null}
@@ -126,11 +127,15 @@ export function MortgageCollateral({ application, review }: MortgageCollateralPr
         </div>
       </dl>
       {notice === null ? null : (
-        <p className="mt-4 text-sm text-muted" role="status">
+        <p className={notice === 'pending' ? 'sr-only' : 'mt-4 text-sm text-muted'} role="status">
           {estimateNotices[notice]}
         </p>
       )}
-      <p className="mt-4 rounded-lg bg-tint px-3 py-2 text-sm font-medium text-pine">{gapText(valuation?.askingPriceGap ?? null)}</p>
+      {notice === 'pending' ? (
+        <Skeleton className="mt-4 h-9 rounded-lg" />
+      ) : (
+        <p className="mt-4 rounded-lg bg-tint px-3 py-2 text-sm font-medium text-pine">{gapText(valuation?.askingPriceGap ?? null)}</p>
+      )}
       {valuation?.priceNeedsReview === true ? (
         <span className="mt-3 inline-flex rounded-full bg-danger-soft px-3 py-1 text-sm font-medium text-error">
           Price needs review

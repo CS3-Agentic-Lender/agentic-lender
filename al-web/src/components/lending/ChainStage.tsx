@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { canDraw3d } from './council/canDraw3d';
+import { canDraw3d, startWhenNearAndIdle } from './council/canDraw3d';
 import type { ChainHandle } from './council/chainScene';
 
 interface ChainStageProps {
@@ -15,7 +15,7 @@ interface ChainStageProps {
 }
 
 // The loan note's place on the blockchain as a 3D illustration. Three.js loads only when the card is close
-// to the screen. Without WebGL the stage is left out; the card's text carries the same facts.
+// to the screen and the browser is idle. Without WebGL the stage is left out; the card's text carries the same facts.
 export function ChainStage({ tokenId, auditHashShort, mintTxShort, auditTxShort, networkLabel, closedLabel }: ChainStageProps) {
   const [supported] = useState(canDraw3d);
   const [failed, setFailed] = useState(false);
@@ -23,26 +23,24 @@ export function ChainStage({ tokenId, auditHashShort, mintTxShort, auditTxShort,
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!supported || !host) return;
+    if (!supported || failed || !host) return;
     let cancelled = false;
     let handle: ChainHandle | null = null;
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    const near = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return;
-      near.disconnect();
+    const cancelStart = startWhenNearAndIdle(host, () => {
       import('./council/chainScene')
         .then(({ createChainScene }) => {
           if (!cancelled) handle = createChainScene(host, { tokenId, auditHashShort, mintTxShort, auditTxShort }, { reduceMotion, onContextLost: () => setFailed(true) });
         })
         .catch(() => { if (!cancelled) setFailed(true); });
-    }, { rootMargin: '200px' });
-    near.observe(host);
+    });
     return () => {
       cancelled = true;
-      near.disconnect();
+      cancelStart();
       handle?.dispose();
     };
-  }, [supported, tokenId, auditHashShort, mintTxShort, auditTxShort]);
+  // A failed scene turns `failed` on, which runs the cleanup above and disposes it.
+  }, [supported, failed, tokenId, auditHashShort, mintTxShort, auditTxShort]);
 
   if (!supported || failed) return null;
 

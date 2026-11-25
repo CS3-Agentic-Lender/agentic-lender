@@ -15,6 +15,11 @@ service cloud.firestore {
       return signedIn() && request.auth.token.role == role;
     }
 
+    // Admins (AL-339) read the whole business and write nothing, like everyone else: their changes go through al-core.
+    function isAdmin() {
+      return isRole('admin');
+    }
+
     // The parent application, for subcollections that don't carry brokerId themselves.
     function application(appId) {
       return get(/databases/$(database)/documents/applications/$(appId)).data;
@@ -28,7 +33,7 @@ service cloud.firestore {
     }
 
     function canReadApplication(appId) {
-      return isRole('underwriter')
+      return isRole('underwriter') || isAdmin()
         || brokerOwns(application(appId).brokerId, application(appId).status)
         || (isRole('borrower') && application(appId).borrowerId == request.auth.uid);
     }
@@ -40,6 +45,7 @@ service cloud.firestore {
       allow read: if signedIn() && (
         request.auth.uid == userId
         || isRole('underwriter')
+        || isAdmin()
         || (isRole('broker') && resource.data.brokerId == request.auth.uid)
       );
 
@@ -51,13 +57,13 @@ service cloud.firestore {
     // ---------- applications ----------
 
     match /applications/{appId} {
-      allow read: if isRole('underwriter')
+      allow read: if isRole('underwriter') || isAdmin()
         || brokerOwns(resource.data.brokerId, resource.data.status)
         || (isRole('borrower') && resource.data.borrowerId == request.auth.uid);
 
       // Written once at mint. Not readable by the borrower.
       match /audit/{docId} {
-        allow read: if isRole('underwriter')
+        allow read: if isRole('underwriter') || isAdmin()
           || brokerOwns(application(appId).brokerId, application(appId).status);
       }
 
@@ -81,36 +87,46 @@ service cloud.firestore {
     // updated in the same write as the application's brokerId, or the old broker keeps
     // access to them.
     match /{path=**}/review/{docId} {
-      allow read: if isRole('underwriter')
+      allow read: if isRole('underwriter') || isAdmin()
         || (isRole('broker') && resource.data.brokerId == request.auth.uid);
     }
 
     // ---------- AI committee records ----------
 
     match /ai_runs/{runId} {
-      allow read: if isRole('underwriter')
+      allow read: if isRole('underwriter') || isAdmin()
         || (isRole('broker') && resource.data.brokerId == request.auth.uid);
     }
 
-    // Underwriters only (AL-334). The raw model calls (prompts, replies, tokens, retries) are the lender's working: the
+    // Underwriters only (AL-334), plus read-only admins (AL-339). The raw model calls (prompts, replies, tokens, retries) are the lender's working: the
     // team agreed on 23 Nov that a broker sees a committee's outcome and conditions, which are on ai_runs, and not its
     // calls, so this refuses them here as well as the portal hiding them.
     match /ai_calls/{callId} {
-      allow read: if isRole('underwriter');
+      allow read: if isRole('underwriter') || isAdmin();
     }
 
     // ---------- support and reviews ----------
 
+    // The sender reads their own; admins read all of them (AL-339). Underwriters lost access then: no underwriter screen used it.
+    // Closing, reopening and adding a note are al-core calls under /core/admin/support-requests/{reference}, never client writes.
     match /support_requests/{requestId} {
-      allow read: if signedIn() && (
-        isRole('underwriter') || resource.data.userId == request.auth.uid
-      );
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+
+      // Staff notes: admins only. The sender reads their request but never its notes.
+      match /notes/{noteId} {
+        allow read: if isAdmin();
+      }
     }
 
     match /reviews/{reviewerId} {
-      allow read: if signedIn() && (
-        request.auth.uid == reviewerId || isRole('underwriter')
-      );
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == reviewerId);
+    }
+
+    // ---------- admin activity log ----------
+
+    // One record per admin change, written by al-core. Admins only.
+    match /admin_actions/{actionId} {
+      allow read: if isAdmin();
     }
   }
 }

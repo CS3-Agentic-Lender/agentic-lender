@@ -31,10 +31,17 @@ const users = [
     phone: '+353871234521', addressLine1: '5 Grand Parade', county: 'Cork', eircode: 'T12 YH60',
     createdAt: at('2026-09-01T09:00:00Z'),
   },
+  {
+    // The emulators' admin (AL-338). Admins are made only by script: the staff API never creates, changes or deletes
+    // one. create-hosted-accounts.js skips it; the hosted admin comes from create-hosted-admin.js with an email kept
+    // out of this repo. A staff profile has no address, county or Eircode.
+    uid: 'admin1', role: 'admin', fullName: 'Ada Admin', email: 'admin@test.com', phone: '+353871234531',
+    createdAt: at('2026-09-01T09:00:00Z'),
+  },
 ];
 
 // Auth-only flag (not copied into the Firestore users documents). The iOS app shows a "check your
 // inbox" banner to any password account that is not verified: Alice's demo is clean, Ben's shows it.
-const EMAIL_VERIFIED = { borrower1: true, borrower2: false, broker1: true, broker2: true, underwriter1: true };
+const EMAIL_VERIFIED = { borrower1: true, borrower2: false, broker1: true, broker2: true, underwriter1: true, admin1: true };
 
 module.exports = { users, EMAIL_VERIFIED };

@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import type { PortalRole } from '../services/authService';
+import { isPortalRole } from '../utils/portalHomeFor';
 import { Mark } from './Mark';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -8,9 +10,46 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-tint text-pine' : 'text-muted hover:bg-tint hover:text-pine',
   ].join(' ');
 
+interface NavItem {
+  to: string;
+  label: string;
+  // Only the section's own page is active; deeper pages (a client file, a loan file) keep the parent link plain.
+  end?: boolean;
+}
+
+// Each portal role's navigation, in the order the header shows it.
+const portalNav: Record<PortalRole, { label: string; items: NavItem[] }> = {
+  broker: {
+    label: 'Broker portal',
+    items: [
+      { to: '/broker', label: 'Overview', end: true },
+      { to: '/broker/clients', label: 'My clients' },
+      { to: '/broker/messages', label: 'Messages' },
+    ],
+  },
+  underwriter: {
+    label: 'Underwriter portal',
+    items: [
+      { to: '/underwriter', label: 'Overview', end: true },
+      { to: '/underwriter/pipeline', label: 'Pipeline' },
+      { to: '/underwriter/stress', label: 'Stress test' },
+    ],
+  },
+  admin: {
+    label: 'Admin portal',
+    items: [
+      { to: '/admin', label: 'Dashboard', end: true },
+      { to: '/admin/staff', label: 'Staff' },
+      { to: '/admin/inbox', label: 'Inbox' },
+      { to: '/admin/business', label: 'Business' },
+    ],
+  },
+};
+
 export function PortalHeader() {
   const { signOut, action, role, authError } = useAuth();
   const navigate = useNavigate();
+  const nav = isPortalRole(role) ? portalNav[role] : null;
 
   const handleSignOut = async () => {
     try {
@@ -27,30 +66,13 @@ export function PortalHeader() {
         <div className="text-pine">
           <Mark />
         </div>
-        {role === 'broker' ? (
-          <nav aria-label="Broker portal" className="flex flex-wrap gap-1">
-            <NavLink className={navLinkClass} end to="/broker">
-              Overview
-            </NavLink>
-            <NavLink className={navLinkClass} to="/broker/clients">
-              My clients
-            </NavLink>
-            <NavLink className={navLinkClass} to="/broker/messages">
-              Messages
-            </NavLink>
-          </nav>
-        ) : null}
-        {role === 'underwriter' ? (
-          <nav aria-label="Underwriter portal" className="flex flex-wrap gap-1">
-            <NavLink className={navLinkClass} end to="/underwriter">
-              Overview
-            </NavLink>
-            <NavLink className={navLinkClass} to="/underwriter/pipeline">
-              Pipeline
-            </NavLink>
-            <NavLink className={navLinkClass} to="/underwriter/stress">
-              Stress test
-            </NavLink>
+        {nav ? (
+          <nav aria-label={nav.label} className="flex flex-wrap gap-1">
+            {nav.items.map((item) => (
+              <NavLink className={navLinkClass} end={item.end} key={item.to} to={item.to}>
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
         ) : null}
         <button

@@ -53,13 +53,13 @@ export function LoginPage() {
         </div>
 
         <p className="mt-12 font-mono text-xs font-medium uppercase tracking-widest text-muted">
-          Broker and underwriter portal
+          Staff portal
         </p>
         <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
           Portal access
         </h1>
         <p className="mt-5 max-w-prose text-base leading-7 text-muted">
-          Sign in with your broker or underwriter account.
+          Sign in with your broker, underwriter or admin account.
         </p>
 
         <form className="mt-10 grid gap-5" onSubmit={(event) => void handleSubmit(event)}>

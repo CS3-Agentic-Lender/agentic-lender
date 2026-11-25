@@ -16,17 +16,21 @@ Version 0.2 (draft for team confirmation). Follows the API design doc (AL-199).
 
 | Path | Who reads it | Written by | Holds |
 |---|---|---|---|
-| `users/{uid}` | That user, their broker, underwriters | al-core (`POST /core/me`) | Profile and chosen broker |
-| `applications/{id}` | The borrower, the assigned broker, underwriters | al-core, al-ai | Status, loan terms, results, decision, loan note |
-| `applications/{id}/review/underwriting` | The assigned broker, underwriters | al-ai | Risk tier, DTI breakdown, valuation detail |
-| `applications/{id}/audit/record` | The assigned broker, underwriters | al-core (at mint) | The record behind the on-chain audit hash |
-| `applications/{id}/messages/{messageId}` | The borrower, the assigned broker, underwriters | al-core | The message thread |
+| `users/{uid}` | That user, their broker, underwriters, admins | al-core (`POST /core/me`) | Profile and chosen broker |
+| `applications/{id}` | The borrower, the assigned broker, underwriters, admins | al-core, al-ai | Status, loan terms, results, decision, loan note |
+| `applications/{id}/review/underwriting` | The assigned broker, underwriters, admins | al-ai | Risk tier, DTI breakdown, valuation detail |
+| `applications/{id}/audit/record` | The assigned broker, underwriters, admins | al-core (at mint) | The record behind the on-chain audit hash |
+| `applications/{id}/messages/{messageId}` | The borrower, the assigned broker, underwriters, admins | al-core | The message thread |
 | `applications/{id}/readState/{uid}` | That person only | al-core | When that person last opened the thread |
-| `ai_runs/{runId}` | The assigned broker, underwriters | al-ai | One record per committee run |
-| `ai_calls/{callId}` | Underwriters only (a broker sees the committee's outcome and conditions on `ai_runs`, not its raw calls) | al-ai | One record per AI call |
-| `support_requests/{reference}` | The user who sent it, underwriters | al-core (`POST /core/support-requests`) | A support request from a user |
-| `reviews/{uid}` | That user, underwriters | al-core (`PUT /core/reviews/me`) | One review per user |
+| `ai_runs/{runId}` | The assigned broker, underwriters, admins | al-ai | One record per committee run |
+| `ai_calls/{callId}` | Underwriters and admins only (a broker sees the committee's outcome and conditions on `ai_runs`, not its raw calls) | al-ai | One record per AI call |
+| `support_requests/{reference}` | The user who sent it, admins | al-core (`POST /core/support-requests`, and the admin `close`, `reopen` and `notes` calls) | A support request from a user |
+| `support_requests/{reference}/notes/{id}` | Admins only, never the sender | al-core (`POST /core/admin/support-requests/{reference}/notes`) | Staff comments on a request |
+| `reviews/{uid}` | That user, admins | al-core (`PUT /core/reviews/me`) | One review per user |
 | `users/{uid}/saved_checks/{checkId}` | That user | al-core (`POST` and `DELETE /core/saved-checks`) | A borrower's saved property checks |
+| `admin_actions/{id}` | Admins only | al-core (every admin change) | The admin activity log |
+
+**Admins read, and write nothing from a client** (AL-339, agreed with Dumi on 24 Nov). The `admin` role claim reads every document above except saved checks and other people's `readState`, so the portal's admin pages can show the whole business. Like everyone else, admins change data only through al-core. Underwriters no longer read `support_requests` or `reviews`: no underwriter screen used them.
 
 **Brokers don't read Drafts.** A Draft is the borrower's working copy, so the rules close `applications/{id}` and its `audit` and `messages` subcollections to a broker while the status is `Draft`. Applied and every later status stay readable to the assigned broker. Borrowers and underwriters are unaffected. Because Firestore rules don't filter results, a broker's application query must exclude Drafts (`where('brokerId', '==', uid).where('status', '!=', 'Draft')`), or Firestore refuses it. That query needs the `brokerId` + `status` index in `firestore.indexes.json`.
 
@@ -249,12 +253,15 @@ One document per committee run, so the portal's deliberation console can show ea
 | `rerunOf` | string or null | The failed or stale run this one repeats |
 | `failedStep` | string or null | The step that failed: `validate`, `valuation_model`, `market`, `calculations`, `affordability`, `valuation_agent`, `strategist` or `policy_gate`. `run` means no single step failed: the run either crashed outside a step (`failureReason` starts with `the run stopped unexpectedly`) or was stale and replaced (`failureReason` is `interrupted`) |
 | `failureReason` | string or null | Why, in words an underwriter can read. Never contains a key. `interrupted` is the reason for a stale run: one still `running` more than 10 minutes after `startedAt`, because the task running it stopped part-way (a deploy replaced it, or it crashed). It is marked `failed` with `interrupted` when a new run replaces it, and the new run's `rerunOf` points at it |
-| `agents` | map | `affordability`, `valuation`, `strategist` and `market`; see below |
+| `steps` | map | Each step's progress while the run goes, for the portal to watch live: one entry per step, keyed `validate`, `valuation_model`, `market`, `calculations`, `affordability`, `valuation_agent`, `strategist` and `policy_gate`; see below |
+| `agents` | map | `affordability`, `valuation`, `strategist` and `market`. Each agent's entry is written as soon as its step ends ok, while the others are still working, and the finish writes the same map again; see below |
 | `creditMemo` | string | The strategist's memo. Named `creditMemo` because the audit record reads it by that name (a run without it cannot be minted) and its text is hashed |
 | `originalRecommendation` | string | The strategist's own: `Approve`, `Conditionally Approve` or `Decline` |
 | `effectiveRecommendation` | string | The one after the policy gate, same values. It can only be less favourable than the original |
 | `consensus` | map | `votes` (the three voting agents side by side: `affordability`, `valuation`, `strategist`, each a recommendation) and `disagreement` (true when they do not all give the same one). There is no majority rule |
 | `policyGate` | map | What the policy gate returned for this run, the same map as `review/underwriting.policyGate` (see there). Both are written in the same transaction when the run finishes, so a run record always keeps what the gate said, even after a re-run replaces the review document's copy |
+
+`steps.<step>` holds `status` (`queued`, `running`, `ok` or `failed`), `startedAt` and `finishedAt` (timestamps, null until the step starts and ends), and, on a failed step only, `failureReason` (the same kind of text as the run's `failureReason`). The claim writes every step as `queued`. al-ai then writes each step as it starts (`running`, `startedAt`) and as it ends (`ok` or `failed`, `finishedAt`); the times are al-ai's clock at that moment. The two agent steps run side by side, so `affordability` and `valuation_agent` can be `running` together. A step that never ran stays `queued`: the steps after a failed one, and the steps a run had not reached when it crashed outside its steps or was replaced. These writes are progress only: one that fails is logged and the run goes on, and a run that no longer holds the application (`aiRunId` has moved on) writes no more of them. Once `status` is not `running`, read the run from the fields above, not from `steps`.
 
 `agents.<name>` always holds `provider`, `model`, `promptVersion` and `report` (the text the agent wrote). The three voting agents also hold `recommendation` (its vote), `rating` (`affordability`: `strong`, `adequate`, `weak` or `unaffordable`; `valuation`: `strong`, `adequate`, `weak` or `unsupported`), `concerns` and `conditions` (lists of text). A field an agent's reply does not have is null: the strategist has no `rating` and no `concerns`. Market & Macro does not vote, so its `recommendation`, `rating`, `concerns` and `conditions` are all null.
 
@@ -293,7 +300,7 @@ If a call cannot be saved twice, the step fails, because no decision should rest
 
 ## support_requests/{reference}
 
-A support request a borrower sent from the app. The document id is the reference number the borrower sees (`SR-` and 8 characters, for example `SR-7KQ2M9XD`), so it is unique: al-core creates the document and never replaces one. Who reads it: the user who sent it, underwriters. Written by al-core only (`POST /core/support-requests`), never by a client.
+A support request a borrower sent from the app. The document id is the reference number the borrower sees (`SR-` and 8 characters, for example `SR-7KQ2M9XD`), so it is unique: al-core creates the document and never replaces one. Who reads it: the user who sent it, admins. Written by al-core only (`POST /core/support-requests`, and `POST /core/admin/support-requests/{reference}/close` and `…/reopen`), never by a client. The admin inbox lists them by `status`, newest first by `createdAt`, which needs the `status` + `createdAt` index in `firestore.indexes.json`.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -302,12 +309,25 @@ A support request a borrower sent from the app. The document id is the reference
 | `subject` | string | 1 to 100 characters |
 | `message` | string | 1 to 2000 characters |
 | `applicationId` | string or null | The id of one of the sender's own applications, when they chose to include it, so whoever answers can open it. Null otherwise. al-core checks it belongs to the sender before saving |
-| `status` | string | `open` when sent. Nothing closes a request yet, so `closed` is not written by anything |
+| `status` | string | `open` when sent, `closed` once an admin closes it (the portal calls it Resolved), `open` again if an admin reopens it. Closing a closed request, or reopening an open one, changes nothing |
 | `createdAt` | timestamp | |
+| `closedAt` | timestamp | When an admin closed it. Absent while `open`: a reopen removes it |
+| `closedBy` | string | uid of the admin who closed it. Absent while `open`: a reopen removes it |
+| `resolution` | string | The note the admin closed it with, 1 to 2000 characters. Absent when they gave none, and while `open`: a reopen removes it (the close's `admin_actions` record keeps a copy) |
+
+### support_requests/{reference}/notes/{id}
+
+A staff comment on a request, one document per note, so two admins commenting at once never overwrite each other. Notes are append-only: al-core adds them and nothing changes or deletes them, and a reopen keeps them. Who reads them: admins only. The sender reads their request but never its notes. Written by al-core only (`POST /core/admin/support-requests/{reference}/notes`), on an open request only: a resolved (closed) request takes no notes until it is reopened.
+
+| Field | Type | Notes |
+|---|---|---|
+| `authorUid` | string | uid of the admin who wrote it, taken from the token |
+| `text` | string | 1 to 2000 characters, trimmed |
+| `createdAt` | timestamp | The thread reads oldest first by this |
 
 ## reviews/{uid}
 
-A borrower's one review of the app. The document id is the borrower's uid, so a borrower has at most one and `PUT /core/reviews/me` replaces it. Who reads it: that user, underwriters. Written by al-core only, never by a client, so the star range and the comment length are enforced by the API (the rules refuse every client write).
+A borrower's one review of the app. The document id is the borrower's uid, so a borrower has at most one and `PUT /core/reviews/me` replaces it. Who reads it: that user, admins (the admin inbox lists them newest first by `updatedAt`). Written by al-core only, never by a client, so the star range and the comment length are enforced by the API (the rules refuse every client write).
 
 | Field | Type | Notes |
 |---|---|---|

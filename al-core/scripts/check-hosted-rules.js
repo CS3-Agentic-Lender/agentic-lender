@@ -1,7 +1,7 @@
 // Checks the Firestore rules that are DEPLOYED on the hosted Firebase project with real sign-ins (AL-321).
 //
 //   node scripts/check-hosted-rules.js --dry-run   show what it would check, send nothing
-//   node scripts/check-hosted-rules.js             sign in as Alice, Bob and Uma and try every probe
+//   node scripts/check-hosted-rules.js             sign in as Alice, Bob, Uma (and the admin, if set) and try every probe
 //
 // It needs, in your shell (never in a file in this repo):
 //
@@ -9,6 +9,9 @@
 //   FIREBASE_API_KEY              the project's web API key (the API_KEY in GoogleService-Info.plist). It is not a secret, but it is not printed.
 //   HOSTED_DEMO_PASSWORD          the demo accounts' password (see scripts/create-hosted-accounts.js). Never printed or stored.
 //   HOSTED_DEMO_EMAIL_DOMAIN      optional, default example.com, as for create-hosted-accounts.js
+//   HOSTED_ADMIN_EMAIL            optional: the hosted admin's email (it is not in the repo; it is in the team's password manager).
+//                                 Unset, the admin probes are skipped and the script says so.
+//   HOSTED_ADMIN_PASSWORD         the hosted admin's password. Needed when HOSTED_ADMIN_EMAIL is set. Never printed or stored.
 //
 // No service account key is needed: it signs in the way the app does, then asks Firestore's REST API with each person's ID token,
 // so the rules decide. The probes are in scripts/hosted-rules-probes.js, and test/hosted-rules-probes.test.js replays the same table
@@ -21,6 +24,18 @@
 // Exit code 0 only if every probe got the answer the table expects.
 
 const { ACTORS, NOBODY, PROBES, classify, roleFromToken, label, summarise } = require('./hosted-rules-probes');
+
+const ADMIN_SKIPPED = 'admin probes skipped: HOSTED_ADMIN_EMAIL not set';
+
+/** The probes to run: all of them, or all but the admin's when there is no admin to sign in as. */
+function probesFor(adminEmail) {
+  return adminEmail ? PROBES : PROBES.filter((p) => p.actor !== 'admin');
+}
+
+/** How a person is named in messages. The admin's email stays out of the output, since it is meant to be unguessable. */
+function accountName(actor, domain) {
+  return ACTORS[actor].emailFrom ? `the ${actor} account (${ACTORS[actor].emailFrom})` : `${ACTORS[actor].local}@${domain}`;
+}
 
 const EMULATOR_HOSTS = ['FIREBASE_AUTH_EMULATOR_HOST', 'FIRESTORE_EMULATOR_HOST'];
 const DEFAULT_DOMAIN = 'example.com';
@@ -41,18 +56,26 @@ function validate(env, { dryRun = false } = {}) {
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(domain)) {
     throw new SetupError(`HOSTED_DEMO_EMAIL_DOMAIN "${domain}" is not a domain name.`);
   }
-  if (dryRun) return { projectId, domain };
+  const adminEmail = (env.HOSTED_ADMIN_EMAIL || '').trim() || null;
+  if (adminEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(adminEmail)) throw new SetupError('HOSTED_ADMIN_EMAIL is not an email address.');
+  if (dryRun) return { projectId, domain, adminEmail };
 
   const apiKey = (env.FIREBASE_API_KEY || '').trim();
   if (!apiKey) throw new SetupError('FIREBASE_API_KEY is not set. It is the API_KEY in GoogleService-Info.plist (the project\'s web API key).');
   const password = env.HOSTED_DEMO_PASSWORD || '';
   if (!password) throw new SetupError('HOSTED_DEMO_PASSWORD is not set. Type it into this shell only, with a hidden prompt.');
   if (password.length < 12) throw new SetupError('HOSTED_DEMO_PASSWORD is shorter than 12 characters, so it is not the hosted demo password.');
-  return { projectId, domain, apiKey, password };
+  let adminPassword = null;
+  if (adminEmail) {
+    adminPassword = env.HOSTED_ADMIN_PASSWORD || '';
+    if (!adminPassword) throw new SetupError('HOSTED_ADMIN_EMAIL is set but HOSTED_ADMIN_PASSWORD is not. Type it into this shell only, with a hidden prompt.');
+    if (adminPassword.length < 12) throw new SetupError('HOSTED_ADMIN_PASSWORD is shorter than 12 characters, so it is not the hosted admin\'s password.');
+  }
+  return { projectId, domain, apiKey, password, adminEmail, adminPassword };
 }
 
 /** Signs in with email and password and returns the ID token. On failure, says which account and Firebase's reason code, never the password. */
-async function signIn(fetchFn, apiKey, email, password) {
+async function signIn(fetchFn, apiKey, email, password, name = email) {
   const response = await fetchFn(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -61,7 +84,7 @@ async function signIn(fetchFn, apiKey, email, password) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok || !body.idToken) {
     const reason = (body.error && body.error.message) || `HTTP ${response.status}`;
-    throw new SetupError(`could not sign in as ${email}: ${reason}`);
+    throw new SetupError(`could not sign in as ${name}: ${reason}`);
   }
   return body.idToken;
 }
@@ -88,16 +111,18 @@ async function ask(fetchFn, base, token, probe) {
  * Signs in as each person, checks the ID token carries the right role, tries every probe and compares the answer with the table.
  * Returns what happened; throws a SetupError if a sign-in fails or a token has the wrong role (then the rules answers would mean nothing).
  */
-async function check({ fetchFn, projectId, domain, apiKey, password, probes = PROBES }) {
+async function check({ fetchFn, projectId, domain, apiKey, password, adminEmail = null, adminPassword = null, probes = probesFor(adminEmail) }) {
   const base = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents`;
 
   const tokens = { [NOBODY]: null };
   const roles = {};
   for (const actor of new Set(probes.map((p) => p.actor).filter((a) => a !== NOBODY))) {
-    const { local, role } = ACTORS[actor];
-    tokens[actor] = await signIn(fetchFn, apiKey, `${local}@${domain}`, password);
+    const { local, role, emailFrom } = ACTORS[actor];
+    tokens[actor] = emailFrom
+      ? await signIn(fetchFn, apiKey, adminEmail, adminPassword, accountName(actor, domain))
+      : await signIn(fetchFn, apiKey, `${local}@${domain}`, password);
     roles[actor] = roleFromToken(tokens[actor]);
-    if (roles[actor] !== role) throw new SetupError(`the ID token for ${local}@${domain} carries role "${roles[actor]}", not "${role}", so the rules would judge it wrongly.`);
+    if (roles[actor] !== role) throw new SetupError(`the ID token for ${accountName(actor, domain)} carries role "${roles[actor]}", not "${role}", so the rules would judge it wrongly.`);
   }
 
   const results = [];
@@ -139,22 +164,27 @@ async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const settings = validate(process.env, { dryRun });
 
+  const probes = probesFor(settings.adminEmail);
+  if (!settings.adminEmail) console.log(ADMIN_SKIPPED);
+  const actors = [...new Set(probes.map((p) => p.actor).filter((a) => a !== NOBODY))];
+
   if (dryRun) {
-    console.log(`Dry run: would check the rules on the hosted project "${settings.projectId}" as ${Object.values(ACTORS).map((a) => `${a.local}@${settings.domain}`).join(', ')} and signed out.`);
-    for (const [who, c] of Object.entries(summarise())) console.log(`  ${who.padEnd(12)} ${c.get} reads, ${c.write} writes, ${c.delete} deletes`);
-    console.log(`\n${PROBES.length} probes in all. Nothing was sent.`);
+    console.log(`Dry run: would check the rules on the hosted project "${settings.projectId}" as ${actors.map((a) => accountName(a, settings.domain)).join(', ')} and signed out.`);
+    for (const [who, c] of Object.entries(summarise(probes))) console.log(`  ${who.padEnd(12)} ${c.get} reads, ${c.write} writes, ${c.delete} deletes`);
+    console.log(`\n${probes.length} probes in all. Nothing was sent.`);
     return 0;
   }
 
-  console.log(`Checking the deployed rules on "${settings.projectId}" with real sign-ins (${PROBES.length} probes)...\n`);
-  const outcome = await check({ fetchFn: fetch, ...settings });
+  console.log(`Checking the deployed rules on "${settings.projectId}" with real sign-ins (${probes.length} probes)...\n`);
+  const outcome = await check({ fetchFn: fetch, ...settings, probes });
   console.log(report(outcome));
   const ok = outcome.mismatches.length === 0;
-  console.log(`\n${ok ? 'PASS: every probe got the answer the rules should give.' : `FAIL: ${outcome.mismatches.length} of ${PROBES.length} probes got a different answer.`}`);
+  console.log(`\n${ok ? 'PASS: every probe got the answer the rules should give.' : `FAIL: ${outcome.mismatches.length} of ${probes.length} probes got a different answer.`}`);
+  if (!settings.adminEmail) console.log(ADMIN_SKIPPED);
   return ok ? 0 : 1;
 }
 
-module.exports = { validate, signIn, ask, check, report, SetupError };
+module.exports = { validate, signIn, ask, check, report, probesFor, ADMIN_SKIPPED, SetupError };
 
 if (require.main === module) {
   main().then((code) => process.exit(code)).catch((err) => {

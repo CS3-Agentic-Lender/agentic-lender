@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import { auth } from './firebase';
 
-export type PortalRole = 'broker' | 'underwriter';
+export type PortalRole = 'broker' | 'underwriter' | 'admin';
 export type TrustedRole = PortalRole | 'borrower';
 export type DenialReason = 'missing-role' | 'unknown-role' | 'malformed-role';
 
@@ -37,7 +37,7 @@ export function resolveRoleClaim(claims: Record<string, unknown>): RoleResolutio
     return { role: null, denialReason: 'malformed-role' };
   }
 
-  if (role === 'broker' || role === 'underwriter' || role === 'borrower') {
+  if (role === 'broker' || role === 'underwriter' || role === 'admin' || role === 'borrower') {
     return { role, denialReason: null };
   }
 
@@ -56,6 +56,11 @@ export function getSignInErrorMessage(error: unknown) {
     code === 'auth/wrong-password'
   ) {
     return 'Email or password is incorrect.';
+  }
+
+  // An admin disabled the account (AL-340); saying so saves the person retrying a correct password.
+  if (code === 'auth/user-disabled') {
+    return 'This account is disabled. Ask an administrator to enable it.';
   }
 
   if (code === 'auth/too-many-requests') {

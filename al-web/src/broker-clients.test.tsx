@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import { CLIENTS_LOAD_TIMEOUT_MS, ClientsServiceContext } from './context/BrokerClientsContext';
-import { AppRoutes } from './routes';
+import { AppRoutes, preloadPages } from './routes';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
 import {
   buildBrokerClients,
@@ -16,6 +16,9 @@ import {
   type ClientsListener,
   type ClientsService,
 } from './services/clientsService';
+
+// The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
+await preloadPages();
 
 function authUser(uid: string): AuthUser {
   return {
@@ -231,6 +234,18 @@ describe('broker client list', () => {
 
     expect(await screen.findByRole('heading', { name: 'Loading your clients' })).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('shows the client list in placeholders while it loads, then the table in their place', async () => {
+    const clients = new FakeClientsService();
+    renderAs('broker-1', 'broker', '/broker/clients', clients);
+    await screen.findByRole('heading', { name: 'Loading your clients' });
+    expect(document.querySelectorAll('[data-skeleton]').length).toBeGreaterThan(10);
+
+    await clients.subscribed('broker-1');
+    act(() => clients.push('broker-1', files([alice], [])));
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-skeleton]')).toHaveLength(0);
   });
 
   // The applications query excludes Drafts, so such a borrower arrives from profiles only.

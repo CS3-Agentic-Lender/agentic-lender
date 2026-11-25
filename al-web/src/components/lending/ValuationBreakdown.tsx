@@ -1,5 +1,6 @@
 import type { LoanFileApplication, LoanFileReview } from '../../services/loanFileService';
 import { formatEuro, signedEuro } from '../../utils/formatters';
+import { Skeleton } from '../Skeleton';
 import { Figure } from './Figure';
 
 interface ValuationBreakdownProps {
@@ -58,11 +59,24 @@ export function ValuationBreakdown({ review }: ValuationBreakdownProps) {
 
       <div className={valuation?.supportWarnings.length ? 'grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}>
         <div className="min-w-0">
-          {valuation === null ? (
+          {review.state === 'pending' ? (
+            <div aria-busy="true">
+              <p aria-live="polite" className="sr-only" role="status">{reviewNotices.pending}</p>
+              {/* The starting point and one row per detail, as the breakdown will sit. */}
+              <div aria-hidden="true">
+                <Skeleton className="mt-5 h-14 rounded-lg" />
+                {['w-24', 'w-28', 'w-20', 'w-24', 'w-16', 'w-28'].map((width, row) => (
+                  <div className="flex items-center gap-4 border-t border-line/70 px-3 py-4 first:border-t-0" key={row}>
+                    <Skeleton className={`h-4 ${width}`} />
+                    <Skeleton className="ml-auto h-2 w-1/3 rounded-full" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : valuation === null ? (
             <div aria-live="polite" className="mt-4 rounded-lg border border-line bg-tint p-3 text-sm text-ink" role="status">
-              {review.state === 'pending' ? null : (
-                <p className="font-medium">Valuation breakdown not available</p>
-              )}
+              <p className="font-medium">Valuation breakdown not available</p>
               <p>{reviewNotices[notice]}</p>
             </div>
           ) : (

@@ -7,6 +7,8 @@ export class ApiError extends Error {
     public readonly kind: ApiErrorKind,
     message: string,
     public readonly status: number | null = null,
+    // The request field al-core blamed, when it named one (a 422 usually does).
+    public readonly field: string | null = null,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -14,7 +16,7 @@ export class ApiError extends Error {
 }
 
 export interface JsonRequest {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
 }
 
@@ -94,6 +96,13 @@ export function apiBaseUrl(configured: string | undefined, development: boolean)
   return serviceUrl('VITE_API_BASE_URL', configured, development, 'http://localhost:8000');
 }
 
+function errorField(body: unknown): string | null {
+  return typeof body === 'object' && body !== null && 'error' in body &&
+    typeof body.error === 'object' && body.error !== null && 'field' in body.error
+    ? nonEmpty(body.error.field)
+    : null;
+}
+
 // Auth and transport are injected at the boundary; no retries or token persistence.
 export function createApiClient({
   authService = firebaseAuthService,
@@ -130,7 +139,12 @@ export function createApiClient({
 
       const data: unknown = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new ApiError('http', errorDetail(data) ?? 'The request failed. Please try again.', response.status);
+        throw new ApiError(
+          'http',
+          errorDetail(data) ?? 'The request failed. Please try again.',
+          response.status,
+          errorField(data),
+        );
       }
       if (data === null) {
         throw new ApiError('response', 'The server returned an unreadable response. Reload to see the current status.');

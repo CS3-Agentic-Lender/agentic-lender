@@ -8,11 +8,16 @@
 //
 // Fixture assumed (the demo accounts in scripts/demo-users.js): users/borrower1 (Alice, broker1), users/borrower2 (Ben, broker2),
 // users/broker1 (Bob), users/broker2 (Ciara), users/underwriter1 (Uma). Everything else is probed at ids that do not exist.
+//
+// The admin is not a demo account: on the hosted project its email is chosen when it is created and kept out of the repo, so the live
+// check takes it from HOSTED_ADMIN_EMAIL (scripts/check-hosted-rules.js). The admin probes only need the `admin` claim, never its uid,
+// except users/admin1, which an admin may read whether or not it exists. On the emulator the admin is uid admin1 (scripts/demo-users.js).
 
 const ACTORS = {
   alice: { uid: 'borrower1', role: 'borrower', local: 'alice' },
   bob: { uid: 'broker1', role: 'broker', local: 'bob' },
   uma: { uid: 'underwriter1', role: 'underwriter', local: 'uma' },
+  admin: { uid: 'admin1', role: 'admin', emailFrom: 'HOSTED_ADMIN_EMAIL' }, // no fixed email: see above
 };
 
 const NOBODY = null; // a request with no sign-in at all
@@ -38,6 +43,9 @@ read('bob', 'users/underwriter1', 'deny', 'a broker cannot read the underwriter'
 for (const uid of ['borrower1', 'borrower2', 'broker1', 'broker2', 'underwriter1']) {
   read('uma', `users/${uid}`, 'allow', 'the underwriter reads every profile');
 }
+for (const uid of ['borrower1', 'borrower2', 'broker1', 'broker2', 'underwriter1', 'admin1']) {
+  read('admin', `users/${uid}`, 'allow', 'an admin reads every profile (AL-339)');
+}
 read(NOBODY, 'users/borrower1', 'deny', 'no sign-in, no read');
 
 // ---------- a borrower's saved checks: only the owner, not even the underwriter ----------
@@ -45,6 +53,7 @@ read('alice', `users/borrower1/saved_checks/${PROBE_DOC}`, 'allow', 'a borrower 
 read('alice', `users/borrower2/saved_checks/${PROBE_DOC}`, 'deny', 'not another borrower\'s');
 read('bob', `users/borrower1/saved_checks/${PROBE_DOC}`, 'deny', 'not a broker');
 read('uma', `users/borrower1/saved_checks/${PROBE_DOC}`, 'deny', 'not even the underwriter');
+read('admin', `users/borrower1/saved_checks/${PROBE_DOC}`, 'deny', 'not even an admin');
 
 // ---------- applications and what hangs off them: the underwriter reads, the others only their own (none exist here) ----------
 read('uma', `applications/${GHOST_APP}`, 'allow', 'the underwriter may read any application');
@@ -63,6 +72,10 @@ read('alice', `applications/${GHOST_APP}/readState/borrower1`, 'deny', 'and only
 read('uma', `applications/${GHOST_APP}/review/underwriting`, 'allow', 'the underwriter reads the review');
 read('alice', `applications/${GHOST_APP}/review/underwriting`, 'deny', 'a borrower never reads the review');
 read('bob', `applications/${GHOST_APP}/review/underwriting`, 'deny', 'a broker only for their own client');
+for (const sub of ['', '/audit/record', `/messages/${PROBE_DOC}`, '/review/underwriting']) {
+  read('admin', `applications/${GHOST_APP}${sub}`, 'allow', 'an admin reads every application and what hangs off it (AL-339)');
+}
+read('admin', `applications/${GHOST_APP}/readState/borrower1`, 'deny', 'but not someone else\'s read marker');
 
 // ---------- the AI committee's records ----------
 for (const collection of ['ai_runs', 'ai_calls']) {
@@ -71,19 +84,30 @@ for (const collection of ['ai_runs', 'ai_calls']) {
   read('bob', `${collection}/${PROBE_DOC}`, 'deny', collection === 'ai_calls'
     ? 'a broker never reads ai_calls, even for their own client (AL-334)'
     : 'a broker reads ai_runs only for their own client');
+  read('admin', `${collection}/${PROBE_DOC}`, 'allow', `an admin reads ${collection} (AL-339)`);
   read(NOBODY, `${collection}/${PROBE_DOC}`, 'deny', 'no sign-in, no read');
 }
 
 // ---------- support requests and reviews ----------
-read('uma', `support_requests/${PROBE_DOC}`, 'allow', 'the underwriter reads support requests');
+read('admin', `support_requests/${PROBE_DOC}`, 'allow', 'an admin reads every support request (AL-339)');
+read('uma', `support_requests/${PROBE_DOC}`, 'deny', 'the underwriter no longer reads support requests (AL-339)');
 read('alice', `support_requests/${PROBE_DOC}`, 'deny', 'a borrower reads only their own');
 read('bob', `support_requests/${PROBE_DOC}`, 'deny', 'a broker does not read support requests');
+read('admin', `support_requests/${PROBE_DOC}/notes/${PROBE_DOC}`, 'allow', 'an admin reads the staff notes on a request (AL-339)');
+for (const actor of ['alice', 'bob', 'uma', NOBODY]) {
+  read(actor, `support_requests/${PROBE_DOC}/notes/${PROBE_DOC}`, 'deny', 'only admins read staff notes, never the sender');
+}
 read('alice', 'reviews/borrower1', 'allow', 'a borrower reads their own review');
 read('alice', 'reviews/borrower2', 'deny', 'not another borrower\'s');
 read('bob', 'reviews/broker1', 'allow', 'anyone signed in reads the review with their own uid');
 read('bob', 'reviews/borrower1', 'deny', 'a broker does not read a borrower\'s review');
-read('uma', 'reviews/borrower1', 'allow', 'the underwriter reads every review');
+read('uma', 'reviews/borrower1', 'deny', 'the underwriter no longer reads reviews (AL-339)');
+read('admin', 'reviews/borrower1', 'allow', 'an admin reads every review (AL-339)');
 read(NOBODY, 'reviews/borrower1', 'deny', 'no sign-in, no read');
+
+// ---------- the admin activity log: admins only ----------
+read('admin', `admin_actions/${PROBE_DOC}`, 'allow', 'an admin reads the activity log (AL-339)');
+for (const actor of ['alice', 'bob', 'uma', NOBODY]) read(actor, `admin_actions/${PROBE_DOC}`, 'deny', 'only admins read the activity log');
 
 // ---------- writes: there is no `allow write` anywhere, so every one is refused, for every role and for no sign-in ----------
 const WRITE_TARGETS = [
@@ -95,9 +119,11 @@ const WRITE_TARGETS = [
   `ai_runs/${PROBE_DOC}`,
   `ai_calls/${PROBE_DOC}`,
   `support_requests/${PROBE_DOC}`,
+  `support_requests/${PROBE_DOC}/notes/${PROBE_DOC}`,
   `reviews/${PROBE_DOC}`,
+  `admin_actions/${PROBE_DOC}`,
 ];
-for (const actor of ['alice', 'bob', 'uma', NOBODY]) {
+for (const actor of ['alice', 'bob', 'uma', 'admin', NOBODY]) {
   for (const target of WRITE_TARGETS) write(actor, target, 'no client may create or change anything');
   remove(actor, `applications/${PROBE_DOC}`, 'no client may delete anything');
   remove(actor, `reviews/${PROBE_DOC}`, 'no client may delete anything');

@@ -1,11 +1,14 @@
 // scripts/check-hosted-rules.js (AL-321): every refusal, how answers are read, and what it reports, against a stand-in for Firebase.
 // No emulator and no real project: the real run needs the hosted project and its demo password.
 
-const { validate, signIn, check, report, SetupError } = require('../scripts/check-hosted-rules');
+const { validate, signIn, check, report, probesFor, ADMIN_SKIPPED, SetupError } = require('../scripts/check-hosted-rules');
 const { ACTORS, NOBODY, PROBES, classify, roleFromToken, label, summarise } = require('../scripts/hosted-rules-probes');
 
 const GOOD_PASSWORD = 'a-long-demo-password'; // betterleaks:allow — fake test value, not a credential
+const ADMIN_EMAIL = 'staff-q7x2@example.org'; // a stand-in: the real hosted admin's email is not in the repo
+const ADMIN_PASSWORD = 'another-long-admin-pw'; // betterleaks:allow — fake test value, not a credential
 const goodEnv = () => ({ FIREBASE_PROJECT_ID: 'agentic-lender', FIREBASE_API_KEY: 'fake-api-key', HOSTED_DEMO_PASSWORD: GOOD_PASSWORD });
+const adminEnv = () => ({ ...goodEnv(), HOSTED_ADMIN_EMAIL: ADMIN_EMAIL, HOSTED_ADMIN_PASSWORD: ADMIN_PASSWORD });
 
 const b64url = (object) => Buffer.from(JSON.stringify(object)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const tokenFor = (actor, role = ACTORS[actor].role) => `${b64url({ alg: 'RS256' })}.${b64url({ role, user_id: ACTORS[actor].uid })}.signature`;
@@ -19,7 +22,7 @@ function fakeFirebase({ answer, roleOf = {}, signInFails = null }) {
     if (url.startsWith('https://identitytoolkit.googleapis.com/')) {
       const { email } = JSON.parse(options.body);
       if (signInFails) return { ok: false, status: 400, json: async () => ({ error: { message: signInFails } }) };
-      const actor = Object.keys(ACTORS).find((a) => email.startsWith(`${ACTORS[a].local}@`));
+      const actor = email === ADMIN_EMAIL ? 'admin' : Object.keys(ACTORS).find((a) => ACTORS[a].local && email.startsWith(`${ACTORS[a].local}@`));
       return { ok: true, status: 200, json: async () => ({ idToken: tokenFor(actor, roleOf[actor]) }) };
     }
     const docPath = url.split('/documents/')[1].split('?')[0];
@@ -34,11 +37,17 @@ function fakeFirebase({ answer, roleOf = {}, signInFails = null }) {
 // What Firestore would answer if it did exactly what the table says.
 const asTheTableExpects = (probe) => (probe.expect === 'allow' ? (probe.path.split('/').length % 2 === 0 ? 404 : 200) : 403);
 
-const run = (fake, settings = {}) => check({ fetchFn: fake.fetchFn, projectId: 'agentic-lender', domain: 'example.com', apiKey: 'fake-api-key', password: GOOD_PASSWORD, ...settings });
+const run = (fake, settings = {}) => check({
+  fetchFn: fake.fetchFn, projectId: 'agentic-lender', domain: 'example.com', apiKey: 'fake-api-key', password: GOOD_PASSWORD,
+  adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD, ...settings,
+});
 
 describe('validate: what it refuses', () => {
   test('a good setup is accepted', () => {
-    expect(validate(goodEnv())).toEqual({ projectId: 'agentic-lender', domain: 'example.com', apiKey: 'fake-api-key', password: GOOD_PASSWORD });
+    expect(validate(goodEnv())).toEqual({
+      projectId: 'agentic-lender', domain: 'example.com', apiKey: 'fake-api-key', password: GOOD_PASSWORD, adminEmail: null, adminPassword: null,
+    });
+    expect(validate(adminEnv())).toMatchObject({ adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD });
   });
 
   test('no project id, and the emulators\' demo project', () => {
@@ -68,9 +77,45 @@ describe('validate: what it refuses', () => {
   });
 
   test('a dry run needs neither the key nor the password, but still refuses a demo project and an emulator', () => {
-    expect(validate({ FIREBASE_PROJECT_ID: 'agentic-lender' }, { dryRun: true })).toEqual({ projectId: 'agentic-lender', domain: 'example.com' });
+    expect(validate({ FIREBASE_PROJECT_ID: 'agentic-lender' }, { dryRun: true })).toEqual({ projectId: 'agentic-lender', domain: 'example.com', adminEmail: null });
     expect(() => validate({ FIREBASE_PROJECT_ID: 'demo-al' }, { dryRun: true })).toThrow(/demo project/);
     expect(() => validate({ FIREBASE_PROJECT_ID: 'agentic-lender', FIRESTORE_EMULATOR_HOST: 'x' }, { dryRun: true })).toThrow(/is set/);
+  });
+});
+
+describe('the admin, whose email is not in the repo', () => {
+  test('HOSTED_ADMIN_EMAIL set needs HOSTED_ADMIN_PASSWORD, of a real length, and a real email address', () => {
+    const noPassword = adminEnv();
+    delete noPassword.HOSTED_ADMIN_PASSWORD;
+    expect(() => validate(noPassword)).toThrow(/HOSTED_ADMIN_PASSWORD is not/);
+    expect(() => validate({ ...adminEnv(), HOSTED_ADMIN_PASSWORD: 'short' })).toThrow(/HOSTED_ADMIN_PASSWORD is shorter than 12/); // betterleaks:allow — fake test value
+    expect(() => validate({ ...adminEnv(), HOSTED_ADMIN_EMAIL: 'not-an-email' })).toThrow(/not an email address/);
+  });
+
+  test('without HOSTED_ADMIN_EMAIL the admin probes are skipped, nobody signs in as an admin, and the rest still run', async () => {
+    expect(probesFor(null).some((p) => p.actor === 'admin')).toBe(false);
+    expect(probesFor(null).length).toBe(PROBES.filter((p) => p.actor !== 'admin').length);
+    const fake = fakeFirebase({ answer: asTheTableExpects });
+    const outcome = await run(fake, { adminEmail: null, adminPassword: null });
+    expect(outcome.mismatches).toEqual([]);
+    expect(Object.keys(outcome.roles).sort()).toEqual(['alice', 'bob', 'uma']);
+    expect(outcome.results.some((r) => r.probe.actor === 'admin')).toBe(false);
+    expect(ADMIN_SKIPPED).toBe('admin probes skipped: HOSTED_ADMIN_EMAIL not set');
+  });
+
+  test('the admin signs in with its own email and password, and neither appears in an error or the report', async () => {
+    const fake = fakeFirebase({ answer: asTheTableExpects });
+    const outcome = await run(fake);
+    const adminSignIn = fake.sent.filter((s) => s.url.includes('identitytoolkit') && JSON.parse(s.options.body).email === ADMIN_EMAIL);
+    expect(adminSignIn.map((s) => JSON.parse(s.options.body).password)).toEqual([ADMIN_PASSWORD]);
+    expect(report(outcome)).not.toContain(ADMIN_EMAIL);
+    const error = await run(fakeFirebase({ answer: asTheTableExpects, roleOf: { admin: 'underwriter' } })).catch((e) => e);
+    expect(error.message).toMatch(/the admin account \(HOSTED_ADMIN_EMAIL\) carries role "underwriter", not "admin"/);
+    expect(error.message).not.toContain(ADMIN_EMAIL);
+  });
+
+  test('no admin email is written anywhere in the probe table', () => {
+    expect(JSON.stringify(ACTORS)).not.toMatch(/admin@/);
   });
 });
 
@@ -91,7 +136,7 @@ describe('reading answers', () => {
     expect(label({ actor: 'alice', op: 'get', path: 'users/borrower2' })).toBe('alice (borrower) read users/borrower2');
     expect(label({ actor: NOBODY, op: 'delete', path: 'reviews/x' })).toBe('signed out delete reviews/x');
     const counts = summarise();
-    expect(Object.keys(counts).sort()).toEqual(['alice', 'bob', 'signed out', 'uma']);
+    expect(Object.keys(counts).sort()).toEqual(['admin', 'alice', 'bob', 'signed out', 'uma']);
     expect(Object.values(counts).reduce((n, c) => n + c.get + c.write + c.delete, 0)).toBe(PROBES.length);
   });
 });
@@ -112,14 +157,14 @@ describe('check: signing in and asking', () => {
     expect(outcome.results).toHaveLength(PROBES.length);
     expect(outcome.mismatches).toEqual([]);
     expect(outcome.createdByMistake).toEqual([]);
-    expect(outcome.roles).toEqual({ alice: 'borrower', bob: 'broker', uma: 'underwriter' });
+    expect(outcome.roles).toEqual({ alice: 'borrower', bob: 'broker', uma: 'underwriter', admin: 'admin' });
   });
 
-  test('it signs in as all three, once each, with the account\'s email, and asks signed-out probes with no token', async () => {
+  test('it signs in as each person once, with the account\'s email, and asks signed-out probes with no token', async () => {
     const fake = fakeFirebase({ answer: asTheTableExpects });
     await run(fake);
     const signIns = fake.sent.filter((s) => s.url.includes('identitytoolkit')).map((s) => JSON.parse(s.options.body).email);
-    expect(signIns.sort()).toEqual(['alice@example.com', 'bob@example.com', 'uma@example.com']);
+    expect(signIns.sort()).toEqual(['alice@example.com', 'bob@example.com', 'uma@example.com', ADMIN_EMAIL].sort());
     const signedOut = fake.sent.filter((s) => s.url.includes('firestore') && !(s.options.headers || {}).Authorization);
     expect(signedOut.length).toBe(PROBES.filter((p) => p.actor === NOBODY).length);
   });
@@ -161,7 +206,7 @@ describe('check: signing in and asking', () => {
       if (url.includes('firestore') && options.method === 'DELETE') throw new Error('network down');
       return fake.fetchFn(url, options);
     };
-    const outcomeDown = await check({ fetchFn: flaky, projectId: 'agentic-lender', domain: 'example.com', apiKey: 'k', password: GOOD_PASSWORD });
+    const outcomeDown = await check({ fetchFn: flaky, projectId: 'agentic-lender', domain: 'example.com', apiKey: 'k', password: GOOD_PASSWORD, adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD });
     expect(outcomeDown.mismatches.every((m) => m.status === 0 && m.got === 'error' && m.probe.op === 'delete')).toBe(true);
     expect(outcomeDown.mismatches.length).toBeGreaterThan(0);
   });
@@ -182,7 +227,9 @@ describe('check: signing in and asking', () => {
     const fake = fakeFirebase({ answer: asTheTableExpects });
     const outcome = await run(fake);
     const carriers = fake.sent.filter((s) => JSON.stringify(s).includes(GOOD_PASSWORD));
-    expect(carriers.length).toBe(3);
+    expect(carriers.length).toBe(Object.values(ACTORS).filter((a) => a.local).length); // one sign-in per demo account
+    expect(fake.sent.filter((s) => JSON.stringify(s).includes(ADMIN_PASSWORD)).length).toBe(1);
+    expect(JSON.stringify(outcome)).not.toContain(ADMIN_PASSWORD);
     expect(carriers.every((s) => s.url.startsWith('https://identitytoolkit.googleapis.com/'))).toBe(true);
     expect(JSON.stringify(outcome)).not.toContain(GOOD_PASSWORD);
     expect(report(outcome)).not.toContain(GOOD_PASSWORD);
@@ -193,6 +240,7 @@ describe('check: signing in and asking', () => {
     expect(text).toMatch(/alice \(borrower\)\s+\d+ probes, all as expected/);
     expect(text).toMatch(/bob \(broker\)\s+\d+ probes, all as expected/);
     expect(text).toMatch(/uma \(underwriter\)\s+\d+ probes, all as expected/);
+    expect(text).toMatch(/admin \(admin\)\s+\d+ probes, all as expected/);
     expect(text).toMatch(/signed out\s+\d+ probes, all as expected/);
   });
 });

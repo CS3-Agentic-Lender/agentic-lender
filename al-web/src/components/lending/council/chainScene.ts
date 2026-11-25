@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -8,6 +7,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { readToken } from './canDraw3d';
+import { prepareScene } from './warmUp';
 
 // The loan's place on the blockchain, as an illustration: glass data blocks joined by brass links, with pulses
 // running along the chain and the wider network behind it. Only the two highlighted blocks stand for real
@@ -109,14 +109,9 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(colours.night);
   scene.fog = new THREE.Fog(colours.night, 13, 30);
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const roomEnv = new RoomEnvironment();
-  const envMap = pmrem.fromScene(roomEnv, 0.04).texture;
-  roomEnv.dispose();
-  scene.environment = envMap;
   scene.environmentIntensity = 0.45;
 
-  const disposables: { dispose(): void }[] = [envMap, pmrem];
+  const disposables: { dispose(): void }[] = [];
   const track = <T extends { dispose(): void }>(item: T) => { disposables.push(item); return item; };
 
   const camera = new THREE.PerspectiveCamera(TUNE.fov, 1, 0.1, 100);
@@ -355,13 +350,15 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
   const visibility = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; kick(); });
   visibility.observe(host);
 
+  let ready = false;
+  let disposed = false;
   let running = false;
   let frameId = 0;
   let last = 0;
   let t = 0;
   const tmp = new THREE.Vector3();
   function kick() {
-    if (!running && visible) { running = true; last = performance.now(); frameId = requestAnimationFrame(frame); }
+    if (ready && !running && visible) { running = true; last = performance.now(); frameId = requestAnimationFrame(frame); }
   }
   function frame(now: number) {
     const dt = Math.max(0, Math.min((now - last) / 1000, 0.05)); // the first frame's timestamp can precede kick()
@@ -407,10 +404,20 @@ export function createChainScene(host: HTMLElement, data: ChainData, { reduceMot
   const onContextLost = (event: Event) => { event.preventDefault(); cancelAnimationFrame(frameId); running = false; onContextLostCb?.(); };
   renderer.domElement.addEventListener('webglcontextlost', onContextLost);
   resize();
-  kick();
+  prepareScene({ renderer, scene, camera, composer, bloom }, () => !disposed)
+    .then((prepared) => {
+      if (!prepared) return;
+      disposables.push(prepared);
+      ready = true;
+      host.dataset.ready = 'true';
+      kick();
+    })
+    .catch(() => { if (!disposed) onContextLostCb?.(); });
 
   return {
     dispose() {
+      disposed = true;
+      delete host.dataset.ready;
       cancelAnimationFrame(frameId);
       running = false;
       visible = false;

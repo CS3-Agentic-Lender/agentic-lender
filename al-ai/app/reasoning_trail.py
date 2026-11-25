@@ -8,6 +8,7 @@ did not get as far as the votes or the policy gate has null for those. A field a
 
 VOTERS = ("affordability", "valuation", "strategist")  # Market & Macro reports but does not vote
 STEP_FOR = {"affordability": "affordability", "valuation": "valuation_agent", "strategist": "strategist", "market": "market"}
+AGENT_OF_STEP = {step: name for name, step in STEP_FOR.items()}
 
 
 def _list_text(items: list[str]) -> str:
@@ -29,7 +30,8 @@ def _report(name: str, step: dict) -> str:
     return reply["summary"]
 
 
-def _agent(name: str, step: dict) -> dict:
+def agent(name: str, step: dict) -> dict:
+    """`agents.<name>` for an agent whose step finished: the run's live progress writes it as the step ends (AL-345), `fields` at the end."""
     reply = step["output"]
     voting = name in VOTERS
     return {
@@ -43,7 +45,7 @@ def _agent(name: str, step: dict) -> dict:
 
 def fields(record: dict) -> dict:
     steps = record.get("steps", {})
-    agents = {name: _agent(name, steps[step]) for name, step in STEP_FOR.items() if steps.get(step, {}).get("ok")}
+    agents = {name: agent(name, steps[step]) for name, step in STEP_FOR.items() if steps.get(step, {}).get("ok")}
     consensus = None
     if all(name in agents for name in VOTERS):
         votes = {name: agents[name]["recommendation"] for name in VOTERS}

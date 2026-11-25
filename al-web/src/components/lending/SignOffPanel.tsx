@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useId, useRef, useState } from 'react';
+import { ConfirmationDialog } from '../ConfirmationDialog';
 import { useDecisionService } from '../../context/DecisionContext';
 import { ApiError } from '../../services/apiClient';
 import type { DecisionResult } from '../../services/decisionService';
@@ -35,67 +35,6 @@ function failureMessage(error: unknown) {
     return 'Could not reach the server. Check your connection and try again.';
   }
   return error.message;
-}
-
-function ConfirmationDialog({ children, onClose }: { children: ReactNode; onClose(): void }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const headingId = useId();
-
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const dialog = dialogRef.current!;
-    dialog.focus();
-    return () => {
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
-        previousFocus.focus();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-      if (event.key === 'Tab') {
-        const dialog = dialogRef.current!;
-        const controls = dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
-        const first = controls[0];
-        const last = controls[controls.length - 1];
-        const outside = !dialog.contains(document.activeElement);
-        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog || outside)) {
-          event.preventDefault();
-          last?.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || outside)) {
-          event.preventDefault();
-          first?.focus();
-        }
-      }
-    }
-    // Disabling the focused confirm button can move focus to the body while saving.
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-sm sm:p-6">
-      <div
-        aria-labelledby={headingId}
-        aria-modal="true"
-        className="max-h-full w-full max-w-xl animate-rise overflow-y-auto rounded-2xl border border-line bg-surface p-6 shadow-raised sm:p-8"
-        ref={dialogRef}
-        role="dialog"
-        tabIndex={-1}
-      >
-        <h2 className="card-title" id={headingId}>
-          Confirm decision
-        </h2>
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
 }
 
 export function SignOffPanel({ applicationId, borrowerName, policyGate, onRecorded }: SignOffPanelProps) {
@@ -206,7 +145,7 @@ export function SignOffPanel({ applicationId, borrowerName, policyGate, onRecord
       </div>
 
       {confirmation ? (
-        <ConfirmationDialog onClose={() => setConfirmation(null)}>
+        <ConfirmationDialog onClose={() => setConfirmation(null)} title="Confirm decision">
           <dl className="mt-6 space-y-4 break-words">
             <div>
               <dt className="text-sm text-muted">Application</dt>

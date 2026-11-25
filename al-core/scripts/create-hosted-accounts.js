@@ -1,5 +1,6 @@
 // Creates the demo accounts in the HOSTED Firebase project (AL-181): one Auth user each for the two borrowers, the
 // two brokers and the underwriter, with the `role` claim the API and the rules read, and a `users/{uid}` profile.
+// Never the admin: scripts/create-hosted-admin.js makes that one, with an email that is not in this repo.
 //
 //   node scripts/create-hosted-accounts.js --dry-run   show what it would do, touch nothing
 //   node scripts/create-hosted-accounts.js             do it (asks you to type the project id first)
@@ -34,7 +35,9 @@ class SetupError extends Error {}
 
 /** The accounts to create, with the email on the chosen domain. The local part is the seed's (alice, ben, bob, ...). */
 function accountsFor(domain) {
-  return users.map((u) => {
+  // The hosted admin is never a demo account: its email and uid must not be guessable from this public repo, so it is
+  // made by scripts/create-hosted-admin.js with an email typed at the prompt.
+  return users.filter((u) => u.role !== 'admin').map((u) => {
     const email = `${u.email.split('@')[0]}@${domain}`;
     return {
       uid: u.uid,
@@ -52,7 +55,7 @@ function accountsFor(domain) {
  * functions as arguments so the tests can try every refusal without a real key. With dryRun, the password and the
  * credentials are not needed, because nothing is written.
  */
-function validate(env, { dryRun = false, exists = fs.existsSync, readFile = fs.readFileSync } = {}) {
+function validate(env, { dryRun = false, needPassword = true, exists = fs.existsSync, readFile = fs.readFileSync } = {}) {
   const projectId = (env.FIREBASE_PROJECT_ID || '').trim();
   if (!projectId) throw new SetupError('FIREBASE_PROJECT_ID is not set. It is the hosted project\'s id, from the Firebase console.');
   if (projectId.startsWith('demo-')) {
@@ -74,10 +77,13 @@ function validate(env, { dryRun = false, exists = fs.existsSync, readFile = fs.r
 
   if (dryRun) return { projectId, domain };
 
+  // scripts/create-hosted-admin.js asks for its password at the prompt instead (needPassword: false).
   const password = env.HOSTED_DEMO_PASSWORD || '';
-  if (!password) throw new SetupError('HOSTED_DEMO_PASSWORD is not set. Choose one, set it in this shell only, and share it privately.');
-  if (password.length < MIN_PASSWORD_LENGTH || WEAK_PASSWORDS.includes(password.toLowerCase())) {
-    throw new SetupError(`HOSTED_DEMO_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters and not the emulator seed's password.`);
+  if (needPassword) {
+    if (!password) throw new SetupError('HOSTED_DEMO_PASSWORD is not set. Choose one, set it in this shell only, and share it privately.');
+    if (!passwordIsStrong(password)) {
+      throw new SetupError(`HOSTED_DEMO_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters and not the emulator seed's password.`);
+    }
   }
 
   const keyPath = env.GOOGLE_APPLICATION_CREDENTIALS || '';
@@ -100,7 +106,12 @@ function validate(env, { dryRun = false, exists = fs.existsSync, readFile = fs.r
     throw new SetupError(`The key is for project "${key.project_id}", not "${projectId}". Use the key from the project you named.`);
   }
 
-  return { projectId, domain, password, keyPath: resolved };
+  return needPassword ? { projectId, domain, password, keyPath: resolved } : { projectId, domain, keyPath: resolved };
+}
+
+/** The demo password policy: 12+ characters and not one of the seed's. */
+function passwordIsStrong(password) {
+  return password.length >= MIN_PASSWORD_LENGTH && !WEAK_PASSWORDS.includes(password.toLowerCase());
 }
 
 /** A SetupError when Firebase says the email belongs to a different user, else null. */
@@ -183,7 +194,7 @@ async function main() {
   console.log('\nDone. Share the password privately: it is not printed here and must never go in git, Slack or the docs.');
 }
 
-module.exports = { accountsFor, validate, run, SetupError, MIN_PASSWORD_LENGTH };
+module.exports = { accountsFor, validate, run, confirm, passwordIsStrong, SetupError, MIN_PASSWORD_LENGTH };
 
 if (require.main === module) {
   main().catch((err) => {

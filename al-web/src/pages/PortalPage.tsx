@@ -2,13 +2,20 @@ import { PortalHeader } from '../components/PortalHeader';
 import { useAuth } from '../context/AuthContext';
 import type { PortalRole } from '../services/authService';
 
+type PlaceholderRole = Exclude<PortalRole, 'admin'>;
+
 interface PortalPageProps {
-  role: PortalRole;
+  role: PlaceholderRole;
 }
+
+const headings: Record<PlaceholderRole, string> = {
+  broker: 'Broker portal',
+  underwriter: 'Underwriter portal',
+};
 
 export function PortalPage({ role }: PortalPageProps) {
   const { user } = useAuth();
-  const heading = role === 'broker' ? 'Broker portal' : 'Underwriter portal';
+  const heading = headings[role];
 
   return (
     <div className="min-h-screen bg-oat text-ink">
