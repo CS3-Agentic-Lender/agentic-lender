@@ -49,6 +49,27 @@ export interface ApplicationSummary {
   // is paid and never writes false, so a missing field means not fast-track.
   fastTrack?: boolean;
   updatedAt: Date | null;
+  // Left out (undefined) when not stored, like the fields above, so a screen that does not use them is unchanged.
+  aiRunStatus?: AiRunStatus;
+  // The ai_runs document of the run that holds the application.
+  aiRunId?: string;
+  // Oldest first, as al-core writes it. Entries without a readable target status or time are dropped.
+  statusHistory?: StatusMove[];
+}
+
+// SCHEMA.md `aiRunStatus`: absent until the first run starts. There is no queued value.
+export const AI_RUN_STATUSES = ['running', 'failed', 'complete'] as const;
+export type AiRunStatus = (typeof AI_RUN_STATUSES)[number];
+
+// One entry of SCHEMA.md `statusHistory`: a status move written by the API (app/status.py).
+export interface StatusMove {
+  from: string | null;
+  to: string;
+  // `borrower`, `committee`, `underwriter` or `mint`.
+  actor: string | null;
+  // The person's uid, or a service name for the committee and the mint.
+  actorId: string | null;
+  at: Date;
 }
 
 export interface BrokerApplication extends ApplicationSummary {
@@ -97,7 +118,48 @@ export function readDate(value: unknown) {
   return value instanceof Timestamp ? value.toDate() : null;
 }
 
+export function readStatusHistory(value: unknown): StatusMove[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry): StatusMove[] => {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return [];
+    }
+
+    const move = entry as DocumentData;
+    const to = readString(move.to);
+    const at = readDate(move.at);
+
+    return to && at
+      ? [{ from: readString(move.from), to, actor: readString(move.actor), actorId: readString(move.actorId), at }]
+      : [];
+  });
+}
+
 export function toApplicationSummary(id: string, data: DocumentData): ApplicationSummary {
+  const summary = toStoredSummary(id, data);
+  const aiRunStatus = AI_RUN_STATUSES.find((status) => status === data.aiRunStatus);
+  const aiRunId = readString(data.aiRunId);
+  const statusHistory = readStatusHistory(data.statusHistory);
+
+  if (aiRunStatus) {
+    summary.aiRunStatus = aiRunStatus;
+  }
+
+  if (aiRunId) {
+    summary.aiRunId = aiRunId;
+  }
+
+  if (statusHistory.length > 0) {
+    summary.statusHistory = statusHistory;
+  }
+
+  return summary;
+}
+
+function toStoredSummary(id: string, data: DocumentData): ApplicationSummary {
   return {
     id,
     status: readString(data.status) ?? 'Unknown',

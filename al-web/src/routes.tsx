@@ -9,7 +9,6 @@ import { PipelineProvider } from './context/PipelineContext';
 import { ForbiddenPage } from './pages/ForbiddenPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { PortalPage } from './pages/PortalPage';
 import { LoanFileSkeleton } from './pages/shared/LoanFileSkeleton';
 
 // The data pages are their own chunks, so the sign-in screen and the portal frame do not wait for every page's
@@ -36,14 +35,16 @@ const clients = lazyPage(() => import('./pages/broker/ClientsPage').then((module
 const messages = lazyPage(() => import('./pages/broker/MessagesPage').then((module) => module.MessagesPage));
 const pipeline = lazyPage(() => import('./pages/underwriter/PipelinePage').then((module) => module.PipelinePage));
 const rateShock = lazyPage(() => import('./pages/underwriter/RateShockPage').then((module) => module.RateShockPage));
+const overview = lazyPage(() => import('./pages/PortalPage').then((module) => module.PortalPage));
 const { Page: LoanFilePage } = loanFile;
 const { Page: ClientDetailPage } = clientDetail;
 const { Page: ClientsPage } = clients;
 const { Page: MessagesPage } = messages;
 const { Page: PipelinePage } = pipeline;
 const { Page: RateShockPage } = rateShock;
+const { Page: PortalPage } = overview;
 
-const pages = [loanFile, clientDetail, clients, messages, pipeline, rateShock];
+const pages = [overview, loanFile, clientDetail, clients, messages, pipeline, rateShock];
 
 // Loads every page chunk now, so the routes render their pages in the first pass. Tests await it before rendering:
 // on a busy machine a chunk's first import can take longer than a query's wait.
@@ -92,7 +93,6 @@ export const appRoutes: RouteObject[] = [
   {
     element: <RequireRole allowedRoles={['broker']} />,
     children: [
-      { path: '/broker', element: <PortalPage role="broker" /> },
       {
         element: (
           <BrokerClientsProvider>
@@ -100,6 +100,7 @@ export const appRoutes: RouteObject[] = [
           </BrokerClientsProvider>
         ),
         children: [
+          { path: '/broker', element: <Page label="Loading the overview"><PortalPage role="broker" /></Page> },
           { path: '/broker/clients', element: <Page label="Loading your clients"><ClientsPage /></Page> },
           { path: '/broker/clients/:clientId', element: <Page label="Loading the client file"><ClientDetailPage /></Page> },
           { path: '/broker/messages', element: <Page label="Loading your messages"><MessagesPage /></Page> },
@@ -114,7 +115,14 @@ export const appRoutes: RouteObject[] = [
   {
     element: <RequireRole allowedRoles={['underwriter']} />,
     children: [
-      { path: '/underwriter', element: <PortalPage role="underwriter" /> },
+      {
+        path: '/underwriter',
+        element: (
+          <PipelineProvider>
+            <Page label="Loading the overview"><PortalPage role="underwriter" /></Page>
+          </PipelineProvider>
+        ),
+      },
       {
         path: '/underwriter/pipeline',
         element: (

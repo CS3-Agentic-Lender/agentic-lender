@@ -36,6 +36,11 @@ export const LOAN_TYPE_OPTIONS = [
   { value: 'heloc', label: 'HELOC' },
 ] as const;
 
+// The underwriter's loan file for an application.
+export function loanFilePath(applicationId: string) {
+  return `/underwriter/applications/${encodeURIComponent(applicationId)}`;
+}
+
 export interface PipelineGroup {
   key: string;
   label: string;

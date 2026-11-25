@@ -1,42 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PortalHeader } from '../../components/PortalHeader';
 import { Skeleton } from '../../components/Skeleton';
 import { Conversation } from '../../components/messaging/Conversation';
 import { useAuth } from '../../context/AuthContext';
 import { useBrokerClients } from '../../context/BrokerClientsContext';
-import { useMessagesService } from '../../context/MessagesContext';
-import type { ThreadSnapshot } from '../../services/messagesService';
+import { useThreads } from '../../hooks/useThreads';
 import { inboxThreads, sortThreads } from './inboxThreads';
 
 const timeFormat = new Intl.DateTimeFormat('en-IE', { day: 'numeric', month: 'short' });
-
-// Listens to every thread in the list, so unread counts and the order update live.
-function useThreads(applicationIds: string[], uid: string | null) {
-  const service = useMessagesService();
-  const [threads, setThreads] = useState<ReadonlyMap<string, ThreadSnapshot>>(new Map());
-  const key = applicationIds.join('|');
-
-  useEffect(() => {
-    setThreads(new Map());
-    if (!uid) {
-      return;
-    }
-    const stops = applicationIds.map((applicationId) =>
-      service.subscribeToThread(
-        applicationId,
-        uid,
-        (snapshot) => setThreads((current) => new Map(current).set(applicationId, snapshot)),
-        () => {
-          // A thread that can't be read stays out of the counts; opening it shows the error.
-        },
-      ),
-    );
-    return () => stops.forEach((stop) => stop());
-    // The ids are compared by value through `key`, so a new array with the same ids keeps the listeners.
-  }, [service, uid, key]);
-
-  return threads;
-}
 
 export function MessagesPage() {
   const state = useBrokerClients();
@@ -47,7 +18,7 @@ export function MessagesPage() {
     () => clients.flatMap((client) => client.applications.map((application) => application.id)).sort(),
     [clients],
   );
-  const threads = useThreads(applicationIds, uid);
+  const { threads } = useThreads(applicationIds, uid);
   const rows = sortThreads(inboxThreads(clients, threads, uid ?? ''));
   const [selected, setSelected] = useState<string | null>(null);
   const open = rows.find((row) => row.applicationId === selected) ?? null;

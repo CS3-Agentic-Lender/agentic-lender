@@ -19,6 +19,7 @@ import {
   filterByLoanType,
   formatLtv,
   groupApplications,
+  loanFilePath,
   type GroupBy,
 } from './pipelineGroups';
 
@@ -48,9 +49,7 @@ interface PipelineTableRowProps {
   riskTierState: RiskTierState;
 }
 
-export function loanFilePath(applicationId: string) {
-  return `/underwriter/applications/${encodeURIComponent(applicationId)}`;
-}
+export { loanFilePath };
 
 function PipelineTableRow({ application, riskTierState }: PipelineTableRowProps) {
   const navigate = useNavigate();
