@@ -14,9 +14,12 @@ export const voteDot: Record<Recommendation, string> = {
 // al-ai's reasoning trail writes the affordability report in this fixed form, because that reply has no free text.
 const FIXED_AFFORDABILITY_REPORT = /^Rating: [^\n]*\. Recommendation: [^\n]*\.\nConcerns: [^\n]*\.\nConditions: [^\n]*\.$/;
 
-export function StoredList({ items }: { items: string[] | null | undefined }) {
+export function StoredList({ items, emptyText = 'None recorded' }: {
+  items: string[] | null | undefined;
+  emptyText?: string;
+}) {
   if (items == null) return <p className="text-muted">Not stored</p>;
-  if (items.length === 0) return <p className="text-muted">None recorded</p>;
+  if (items.length === 0) return <p className="text-muted">{emptyText}</p>;
   return (
     <ul className="list-disc space-y-1.5 pl-5 marker:text-muted">
       {items.map((item, index) => (
@@ -78,6 +81,38 @@ function Report({ name, agent, creditMemo, onOpenMemo }: {
   return <p className="whitespace-pre-wrap break-words leading-7">{report}</p>;
 }
 
+// Two empty lists say so in one line; the two lists appear only when one of them has items
+// (or is not stored, which is not the same as empty).
+function ConcernsAndConditions({ agent, strategist }: { agent: CommitteeAgent | null; strategist: boolean }) {
+  const concerns = strategist ? [] : agent?.concerns;
+  const conditions = agent?.conditions;
+  if (concerns?.length === 0 && conditions?.length === 0) {
+    return (
+      <p className="mt-5 text-muted">
+        {strategist ? 'No conditions raised' : 'No concerns or conditions raised'}
+      </p>
+    );
+  }
+  return (
+    <div className="mt-5 grid gap-5 sm:grid-cols-2">
+      <div>
+        <h4 className="eyebrow">Concerns</h4>
+        <div className="mt-2">
+          {strategist
+            ? <p className="text-muted">Not applicable to the strategist</p>
+            : <StoredList emptyText="None" items={concerns} />}
+        </div>
+      </div>
+      <div>
+        <h4 className="eyebrow">Conditions</h4>
+        <div className="mt-2">
+          <StoredList emptyText="None" items={conditions} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo }: {
   name: VotingAgent;
   agent: CommitteeAgent | null;
@@ -111,18 +146,7 @@ export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo }: 
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5 sm:grid-cols-2">
-        <div>
-          <h4 className="eyebrow">Concerns</h4>
-          <div className="mt-2">
-            {strategist ? <p className="text-muted">Not applicable to the strategist</p> : <StoredList items={agent?.concerns} />}
-          </div>
-        </div>
-        <div>
-          <h4 className="eyebrow">Conditions</h4>
-          <div className="mt-2"><StoredList items={agent?.conditions} /></div>
-        </div>
-      </div>
+      <ConcernsAndConditions agent={agent} strategist={strategist} />
 
       <div className="mt-5 border-t border-line pt-4">
         <AgentMetadata agent={agent} />

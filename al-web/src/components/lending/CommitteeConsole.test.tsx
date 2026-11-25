@@ -410,6 +410,40 @@ describe('committee console', () => {
     expect(screen.getByText('interrupted').parentElement).toHaveTextContent('Stored reason: interrupted');
   });
 
+  it('says in one line when an agent raised no concerns or conditions', () => {
+    const run = sampleRun();
+    run.agents.valuation = { ...run.agents.valuation!, concerns: [], conditions: [] };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Valuation');
+    const valuation = within(screen.getByRole('region', { name: 'Valuation vote' }));
+    expect(valuation.getByText('No concerns or conditions raised')).toBeInTheDocument();
+    expect(valuation.queryByRole('heading', { name: 'Concerns' })).not.toBeInTheDocument();
+    expect(valuation.queryByRole('heading', { name: 'Conditions' })).not.toBeInTheDocument();
+    expect(valuation.queryByText('None recorded')).not.toBeInTheDocument();
+  });
+
+  it('shows both lists when one has items, with None beside an empty one', () => {
+    const run = sampleRun();
+    run.agents.valuation = { ...run.agents.valuation!, concerns: [], conditions: ['Obtain a survey'] };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Valuation');
+    const valuation = within(screen.getByRole('region', { name: 'Valuation vote' }));
+    expect(valuation.getByRole('heading', { name: 'Concerns' })).toBeInTheDocument();
+    expect(valuation.getByText('None')).toBeInTheDocument();
+    expect(valuation.getByText('Obtain a survey')).toBeInTheDocument();
+    expect(valuation.queryByText('No concerns or conditions raised')).not.toBeInTheDocument();
+  });
+
+  it('keeps Not stored apart from an empty list', () => {
+    const run = sampleRun();
+    run.agents.valuation = { ...run.agents.valuation!, concerns: null, conditions: [] };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Valuation');
+    const valuation = within(screen.getByRole('region', { name: 'Valuation vote' }));
+    expect(valuation.getByText('Not stored')).toBeInTheDocument();
+    expect(valuation.getByText('None')).toBeInTheDocument();
+  });
+
   it('shows a failed call outcome and its stored error', async () => {
     const fake = fakeService();
     render(consoleWith(fake.service));
