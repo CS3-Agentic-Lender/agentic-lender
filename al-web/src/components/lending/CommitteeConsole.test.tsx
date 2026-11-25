@@ -389,8 +389,61 @@ describe('committee console', () => {
       startedAt: new Date('2026-11-04T13:26:00.000Z'), finishedAt: new Date('2026-11-04T13:27:23.400Z'),
     };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
-    expect(screen.getByText('Took 1 min 23 s')).toBeInTheDocument();
-    expect(screen.getByText('run-LN-1001-old').parentElement).toHaveTextContent('Re-run of run-LN-1001-old');
+    expect(screen.getByRole('status')).toHaveTextContent('Run status: Complete · Took 1 min 23 s · Re-run');
+    expect(screen.getByText('Re-run of').nextElementSibling).toHaveTextContent('run-LN-1001-old');
+  });
+
+  it('keeps the run ID, times and original run behind a Run details disclosure', async () => {
+    const run = {
+      ...sampleRun(), trigger: 'rerun' as const, rerunOf: 'run-LN-1001-old',
+      startedAt: new Date('2026-11-04T13:26:00.000Z'), finishedAt: new Date('2026-11-04T13:27:23.400Z'),
+    };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    const summary = screen.getByText('Run details');
+    const details = summary.closest('details')!;
+    expect(details).not.toHaveAttribute('open');
+    for (const label of ['Run ID', 'Started', 'Finished', 'Re-run of']) {
+      expect(within(details).getByText(label)).not.toBeVisible();
+    }
+    expect(within(details).getByText('run-LN-1001')).not.toBeVisible();
+
+    // A native <details>: the summary is in the tab order and opens with Enter or a click.
+    const user = userEvent.setup();
+    await user.click(summary);
+    expect(details).toHaveAttribute('open');
+    expect(within(details).getByText('run-LN-1001')).toBeVisible();
+    expect(within(details).getByText('Started').nextElementSibling).toHaveTextContent('2026');
+    expect(within(details).getByText('Finished').nextElementSibling).toHaveTextContent('2026');
+  });
+
+  it('copies the run ID and the original run ID and says Copied politely', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const run = { ...sampleRun(), trigger: 'rerun' as const, rerunOf: 'run-LN-1001-old' };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    await user.click(screen.getByText('Run details'));
+
+    await user.click(screen.getByRole('button', { name: 'Copy run ID' }));
+    expect(writeText).toHaveBeenLastCalledWith('run-LN-1001');
+    const copied = await screen.findByText('Copied');
+    expect(copied).toHaveAttribute('aria-live', 'polite');
+
+    screen.getByRole('button', { name: 'Copy original run ID' }).focus();
+    await user.keyboard('{Enter}');
+    expect(writeText).toHaveBeenLastCalledWith('run-LN-1001-old');
+    expect(await screen.findAllByText('Copied')).toHaveLength(2);
+  });
+
+  it('says it could not copy when the clipboard is refused', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+    });
+    render(consoleWith(fakeService().service));
+    await user.click(screen.getByText('Run details'));
+    await user.click(screen.getByRole('button', { name: 'Copy run ID' }));
+    expect(await screen.findByText('Could not copy')).toBeInTheDocument();
   });
 
   it('shows a short run in seconds and no re-run marker for a submitted run', () => {
@@ -399,7 +452,8 @@ describe('committee console', () => {
       startedAt: new Date('2026-11-04T13:26:00.000Z'), finishedAt: new Date('2026-11-04T13:26:42.250Z'),
     };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
-    expect(screen.getByText('Took 42.3 s')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Run status: Complete · Took 42.3 s');
+    expect(screen.getByRole('status')).not.toHaveTextContent('Re-run');
     expect(screen.queryByText(/Re-run of/)).not.toBeInTheDocument();
   });
 
