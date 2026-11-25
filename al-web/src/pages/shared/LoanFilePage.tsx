@@ -15,7 +15,7 @@ import { SignOffPanel, decisionLabels } from '../../components/lending/SignOffPa
 import type { DecisionResult } from '../../services/decisionService';
 import { KeyFigures } from '../../components/lending/KeyFigures';
 import { StatusTimeline } from '../../components/lending/StatusTimeline';
-import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
+import { ValuationBreakdown, hasStoredValuation } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
 import { useSettlementService } from '../../context/SettlementContext';
 import { mintFailureMessage } from '../../services/settlementService';
@@ -194,6 +194,7 @@ interface LoanFileProps {
 function LoanFile({ application, review, viewer }: LoanFileProps) {
   const { property } = application;
   const heloc = application.loanType === 'heloc';
+  const valuationStored = hasStoredValuation(review);
 
   return (
     <>
@@ -249,8 +250,12 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
         />
       </div>
 
-      <div className="mt-5 grid animate-rise gap-5 lg:grid-cols-12 [&>div>section]:h-full" style={stagger(3)}>
-        <div className="min-w-0 lg:col-span-5">
+      {/* With no valuation stored, the Valuation card collapses to one line and Collateral takes the full row. */}
+      <div
+        className={`mt-5 grid animate-rise gap-5 lg:grid-cols-12 ${valuationStored ? '[&>div>section]:h-full' : ''}`}
+        style={stagger(3)}
+      >
+        <div className={`min-w-0 ${valuationStored ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
           {heloc ? (
             <HelocCollateral
               application={application}
@@ -262,7 +267,7 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
             <MortgageCollateral application={application} review={review} />
           )}
         </div>
-        <div className="min-w-0 lg:col-span-7">
+        <div className={`min-w-0 ${valuationStored ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
           <ValuationBreakdown application={application} review={review} />
         </div>
       </div>
