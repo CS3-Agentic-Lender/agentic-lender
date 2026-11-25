@@ -2,6 +2,7 @@ import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useCommittee, useCommitteeCalls } from '../../context/CommitteeContext';
 import { runDuration, type CommitteeCall, type CommitteeRun, type VotingAgent } from '../../services/committeeService';
 import { Skeleton } from '../Skeleton';
+import type { AffordabilityInputs } from './AffordabilityFigures';
 import { AgentMetadata, AgentVote, StoredList, voteDot } from './AgentVote';
 import { CommitteeStage } from './CommitteeStage';
 import { canDraw3d } from './council/canDraw3d';
@@ -360,7 +361,7 @@ function RunInfo({ run }: { run: CommitteeRun }) {
   );
 }
 
-function RunDetails({ run, readOnly }: { run: CommitteeRun; readOnly: boolean }) {
+function RunDetails({ run, readOnly, affordability }: { run: CommitteeRun; readOnly: boolean; affordability?: AffordabilityInputs }) {
   const [showCalls, setShowCalls] = useState(false);
   const [tab, setTab] = useState<CommitteeTab>('affordability');
   const callsId = useId();
@@ -506,6 +507,7 @@ function RunDetails({ run, readOnly }: { run: CommitteeRun; readOnly: boolean })
             <StepWaiting label={TABS.find((item) => item.key === tab)?.label ?? ''} progress={current} />
           ) : tab === 'affordability' || tab === 'valuation' || tab === 'strategist' ? (
             <AgentVote
+              affordability={affordability && { inputs: affordability, breaches: run.policyGate?.breaches ?? null }}
               agent={run.agents[tab]}
               creditMemo={run.creditMemo}
               name={tab}
@@ -600,7 +602,11 @@ function RunSkeleton() {
 }
 
 // `readOnly` drops the run controls, for a viewer who may read the committee but not act on it.
-export function CommitteeConsole({ applicationId, readOnly = false }: { applicationId: string; readOnly?: boolean }) {
+export function CommitteeConsole({ applicationId, readOnly = false, affordability }: {
+  applicationId: string;
+  readOnly?: boolean;
+  affordability?: AffordabilityInputs;
+}) {
   const state = useCommittee(applicationId);
   return (
     <section
@@ -611,7 +617,7 @@ export function CommitteeConsole({ applicationId, readOnly = false }: { applicat
       <h2 className="card-title">Committee</h2>
       <p className="mt-2 text-sm text-muted">Stored reasoning for this application. Run status is separate from the application status.</p>
       {state.status === 'ready' ? (
-        <RunDetails key={state.run.id} readOnly={readOnly} run={state.run} />
+        <RunDetails affordability={affordability} key={state.run.id} readOnly={readOnly} run={state.run} />
       ) : state.status === 'loading' ? (
         <div className="mt-5">
           <p className="sr-only" role="status">Loading the committee run…</p>

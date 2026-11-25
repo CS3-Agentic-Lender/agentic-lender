@@ -6,6 +6,8 @@ import { CommitteeServiceContext } from '../../context/CommitteeContext';
 import {
   COMMITTEE_STEPS, toCommitteeRun, type CommitteeCall, type CommitteeStep, type CommitteeCallsState, type CommitteeService, type CommitteeState,
 } from '../../services/committeeService';
+import { toLoanFileReview } from '../../services/loanFileService';
+import type { AffordabilityInputs } from './AffordabilityFigures';
 import { CommitteeConsole } from './CommitteeConsole';
 
 function callOf(fields: Partial<CommitteeCall> & { id: string }): CommitteeCall {
@@ -76,13 +78,24 @@ function fakeService(initial: CommitteeState = { status: 'ready', run: sampleRun
   return { service, stopRun, stopCalls, pushRun: (state: CommitteeState) => updateRun(state), pushCalls: (state: CommitteeCallsState) => updateCalls(state) };
 }
 
-function consoleWith(service: CommitteeService, applicationId = 'LN-1001') {
+function consoleWith(service: CommitteeService, applicationId = 'LN-1001', affordability?: AffordabilityInputs) {
   return (
     <CommitteeServiceContext.Provider value={service}>
-      <CommitteeConsole applicationId={applicationId} />
+      <CommitteeConsole affordability={affordability} applicationId={applicationId} />
     </CommitteeServiceContext.Provider>
   );
 }
+
+const storedFigures: AffordabilityInputs = {
+  dtiPct: 33.4,
+  review: toLoanFileReview({
+    dtiBreakdown: {
+      incomeMonthlyEur: 6250, newRepaymentMonthlyEur: 1265.13, stressedRepaymentMonthlyEur: 1555.4,
+      stressedDtiPct: 42.4, surplusMonthlyEur: 900, stressedSurplusMonthlyEur: 610.5,
+      dtiBand: 'Caution', surplusBand: 'Comfortable',
+    },
+  }),
+};
 
 afterEach(cleanup);
 
@@ -359,7 +372,7 @@ describe('committee console', () => {
     const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
     expect(affordability.getByText('Vote: Approve')).toBeInTheDocument();
     expect(affordability.getByText('Rating').nextElementSibling).toHaveTextContent('adequate');
-    expect(affordability.getByText(/its stored report repeats the rating/)).toBeInTheDocument();
+    expect(affordability.queryByText(/writes no free text/)).not.toBeInTheDocument();
     expect(affordability.getByText('Stored report text')).toBeInTheDocument();
     expect(affordability.getByText((_, node) => node?.tagName === 'P' && node.textContent === report)).not.toBeVisible();
     await userEvent.setup().click(affordability.getByText('Stored report text'));
@@ -368,6 +381,67 @@ describe('committee console', () => {
       expect(affordability.getByRole('heading', { level: 4, name: heading })).toBeInTheDocument();
     }
     expect(affordability.getAllByRole('list')).toHaveLength(2);
+  });
+
+  it('shows the stored figures the affordability agent judged, with bars against the band limits', async () => {
+    const run = sampleRun();
+    const report = 'Rating: adequate. Recommendation: Approve.\nConcerns: Variable income.\nConditions: Verify payslips.';
+    run.agents.affordability = { ...run.agents.affordability!, report };
+    render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', storedFigures));
+    const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
+
+    const repayment = affordability.getByText('Monthly repayment').closest('div')!;
+    expect(repayment).toHaveTextContent('€1,265 benchmark');
+    expect(repayment).toHaveTextContent('€1,555 stressed');
+    const dti = affordability.getByText('Debt to income').closest('div.py-3')!;
+    expect(dti).toHaveTextContent('33.4%');
+    expect(dti).toHaveTextContent('Within the 40% Comfortable limit');
+    const stressed = affordability.getByText('Stressed debt to income').closest('div.py-3')!;
+    expect(stressed).toHaveTextContent('42.4%');
+    expect(stressed).toHaveTextContent('Caution');
+    expect(stressed).toHaveTextContent('Above the 40% Comfortable limit, within the 50% Caution limit');
+    const bar = stressed.querySelector('[data-ratio-bar]')!;
+    expect(bar).toHaveAttribute('aria-hidden', 'true');
+    expect(bar.firstElementChild).toHaveClass('bg-vote-conditional');
+    const surplus = affordability.getByText('Monthly surplus').closest('div')!;
+    expect(surplus).toHaveTextContent('€900 benchmark');
+    expect(surplus).toHaveTextContent('€611 stressed');
+    expect(surplus).toHaveTextContent('Comfortable');
+    // The run's policy gate in sampleRun records one breach.
+    expect(affordability.getByRole('list', { name: 'Policy breaches' })).toHaveTextContent('Combined loan-to-value cap CLTV_CAP');
+    expect(affordability.getByText(/Source: the DTI breakdown stored on the underwriting review/)).toBeInTheDocument();
+
+    expect(affordability.queryByText(/writes no free text/)).not.toBeInTheDocument();
+    await userEvent.setup().click(affordability.getByText('Stored report text'));
+    expect(affordability.getByText((_, node) => node?.tagName === 'P' && node.textContent === report)).toBeVisible();
+  });
+
+  it('says Not stored for each figure the review does not hold, and for breaches without a stored gate', () => {
+    const run = { ...sampleRun(), policyGate: null };
+    render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', {
+      dtiPct: null, review: toLoanFileReview({}),
+    }));
+    const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
+    for (const label of ['Monthly repayment', 'Monthly surplus']) {
+      expect(within(affordability.getByText(label).closest('div')!).getAllByText('Not stored')).toHaveLength(2);
+    }
+    for (const label of ['Debt to income', 'Stressed debt to income']) {
+      const row = affordability.getByText(label).closest('div.py-3')!;
+      expect(row).toHaveTextContent('Not stored');
+      expect(row.querySelector('[data-ratio-bar]')).toBeNull();
+    }
+    expect(affordability.getByText('Policy breaches').nextElementSibling).toHaveTextContent(/^Not stored$/);
+  });
+
+  it('says None for a stored gate with no breaches and explains an unreadable review', () => {
+    const run = sampleRun();
+    run.policyGate = { ...run.policyGate!, breaches: [] };
+    const view = render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', storedFigures));
+    expect(screen.getByText('Policy breaches').nextElementSibling).toHaveTextContent(/^None$/);
+    view.unmount();
+    render(consoleWith(fakeService().service, 'LN-1001', { dtiPct: 33.4, review: { state: 'unavailable' } }));
+    expect(screen.getByText(/underwriting review could not be read/)).toBeInTheDocument();
+    expect(screen.queryByText('Monthly repayment')).not.toBeInTheDocument();
   });
 
   it('points the strategist report to the credit memo tab when it is the stored memo', () => {

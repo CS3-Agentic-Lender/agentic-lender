@@ -1,4 +1,5 @@
 import type { CommitteeAgent, Recommendation, VotingAgent } from '../../services/committeeService';
+import { AffordabilityFigures, type AffordabilityInputs } from './AffordabilityFigures';
 import { CreditMemo } from './CreditMemo';
 
 export const agentLabels = {
@@ -48,23 +49,44 @@ export function AgentMetadata({ agent }: { agent: CommitteeAgent | null }) {
   );
 }
 
-function Report({ name, agent, creditMemo, onOpenMemo }: {
+export interface AffordabilityEvidence {
+  inputs: AffordabilityInputs;
+  breaches: string[] | null;
+}
+
+function Report({ name, agent, creditMemo, onOpenMemo, affordability }: {
   name: VotingAgent;
   agent: CommitteeAgent | null;
   creditMemo: string | null;
   onOpenMemo?: () => void;
+  affordability?: AffordabilityEvidence;
 }) {
   const report = agent?.report ?? null;
+  if (name === 'affordability' && affordability) {
+    // The agent's reply is only rating, vote, concerns and conditions, so the report shows what it judged.
+    return (
+      <>
+        <AffordabilityFigures breaches={affordability.breaches} inputs={affordability.inputs} />
+        {report === null ? (
+          <p className="mt-2 text-muted">Report not stored yet</p>
+        ) : FIXED_AFFORDABILITY_REPORT.test(report) ? (
+          <details className="mt-2">
+            <summary className="min-h-11 cursor-pointer py-3 font-medium text-pine hover:underline">Stored report text</summary>
+            <p className="whitespace-pre-wrap break-words leading-7">{report}</p>
+          </details>
+        ) : (
+          <p className="mt-3 whitespace-pre-wrap break-words leading-7">{report}</p>
+        )}
+      </>
+    );
+  }
   if (report === null) return <p className="text-muted">Report not stored yet</p>;
   if (name === 'affordability' && FIXED_AFFORDABILITY_REPORT.test(report)) {
     return (
-      <>
-        <p className="text-muted">This agent writes no free text: its stored report repeats the rating, recommendation, concerns and conditions shown here.</p>
-        <details className="mt-2">
-          <summary className="min-h-11 cursor-pointer py-3 font-medium text-pine hover:underline">Stored report text</summary>
-          <p className="whitespace-pre-wrap break-words leading-7">{report}</p>
-        </details>
-      </>
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3 font-medium text-pine hover:underline">Stored report text</summary>
+        <p className="whitespace-pre-wrap break-words leading-7">{report}</p>
+      </details>
     );
   }
   if (name === 'strategist') {
@@ -113,12 +135,13 @@ function ConcernsAndConditions({ agent, strategist }: { agent: CommitteeAgent | 
   );
 }
 
-export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo }: {
+export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo, affordability }: {
   name: VotingAgent;
   agent: CommitteeAgent | null;
   vote: Recommendation | null;
   creditMemo?: string | null;
   onOpenMemo?: () => void;
+  affordability?: AffordabilityEvidence;
 }) {
   const strategist = name === 'strategist';
   const rating = strategist ? 'Not applicable to the strategist' : agent?.rating ?? 'Not stored';
@@ -142,7 +165,13 @@ export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo }: 
       <div className="mt-5">
         <h4 className="eyebrow">Report</h4>
         <div className="mt-2 max-w-prose">
-          <Report agent={agent} creditMemo={creditMemo} name={name} onOpenMemo={onOpenMemo} />
+          <Report
+            affordability={affordability}
+            agent={agent}
+            creditMemo={creditMemo}
+            name={name}
+            onOpenMemo={onOpenMemo}
+          />
         </div>
       </div>
 

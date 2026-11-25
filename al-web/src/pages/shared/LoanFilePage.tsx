@@ -279,7 +279,11 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
           the outcome and conditions shown elsewhere on the file. Read-only admins (AL-337, 24 Nov) read it too, without
           its controls. Named viewers only, so a new viewer does not see it by default. */}
       {viewer === 'underwriter' || viewer === 'admin' ? (
-        <CommitteeConsole applicationId={application.id} readOnly={viewer === 'admin'} />
+        <CommitteeConsole
+          affordability={{ review, dtiPct: application.dtiPct }}
+          applicationId={application.id}
+          readOnly={viewer === 'admin'}
+        />
       ) : null}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
