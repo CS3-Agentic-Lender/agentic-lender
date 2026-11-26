@@ -1,5 +1,7 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
-import { useCommittee, useCommitteeCalls } from '../../context/CommitteeContext';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { useCommittee, useCommitteeCalls, useCommitteeRunService } from '../../context/CommitteeContext';
+import { CommitteeRerunError } from '../../services/committeeRunService';
 import { runDuration, type CommitteeCall, type CommitteeRun, type VotingAgent } from '../../services/committeeService';
 import { Skeleton } from '../Skeleton';
 import type { AffordabilityInputs } from './AffordabilityFigures';
@@ -361,11 +363,86 @@ function RunInfo({ run }: { run: CommitteeRun }) {
   );
 }
 
-function RunDetails({ run, readOnly, affordability }: { run: CommitteeRun; readOnly: boolean; affordability?: AffordabilityInputs }) {
+type RerunState = { kind: 'idle' } | { kind: 'pending' } | { kind: 'started' } | { kind: 'error'; message: string };
+
+// Starts a new run for a failed one (al-ai POST /ai/committee/runs). No progress is shown here: once al-ai claims the
+// run, the console's live listener replaces this run with the new one and its own queued / thinking / done steps.
+// aria-disabled (not disabled) keeps focus on the button while it waits; the ref stops a second request.
+function RerunControl({ applicationId, onStarted }: { applicationId: string; onStarted: (runId: string) => void }) {
+  const service = useCommitteeRunService();
+  const [state, setState] = useState<RerunState>({ kind: 'idle' });
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  const noteId = useId();
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  async function start() {
+    if (busy.current) return;
+    busy.current = true;
+    setState({ kind: 'pending' });
+    try {
+      const started = await service.startCommitteeRerun(applicationId);
+      // Stays busy: the button waits for the new run to replace this one.
+      if (mounted.current) setState({ kind: 'started' });
+      onStarted(started.runId);
+    } catch (error) {
+      busy.current = false;
+      if (mounted.current) {
+        setState({
+          kind: 'error',
+          message: error instanceof CommitteeRerunError ? error.message : 'The re-run could not be started. Try again.',
+        });
+      }
+    }
+  }
+
+  const waiting = state.kind === 'pending' || state.kind === 'started';
+  return (
+    <div className="mt-4">
+      {state.kind === 'error' ? (
+        <p className="mb-3 rounded-lg border border-error bg-surface p-3 text-base text-error" role="alert">
+          {state.message}
+        </p>
+      ) : null}
+      <button
+        aria-describedby={noteId}
+        aria-disabled={waiting}
+        className="btn btn-primary"
+        onClick={() => void start()}
+        type="button"
+      >
+        {waiting ? 'Starting a new run…' : state.kind === 'error' ? 'Try again' : 'Re-run'}
+      </button>
+      <p aria-live="polite" className="mt-2 text-base" id={noteId}>
+        {state.kind === 'started'
+          ? 'New run started. Its progress shows here in a moment.'
+          : state.kind === 'pending'
+            ? 'Asking the AI service to start a new run.'
+            : 'Starts a new committee run for this application. The failed run stays on record.'}
+      </p>
+    </div>
+  );
+}
+
+function RunDetails({ run, readOnly, affordability, applicationId, focusStatus, onRerunStarted }: {
+  run: CommitteeRun;
+  readOnly: boolean;
+  affordability?: AffordabilityInputs;
+  applicationId: string;
+  focusStatus: boolean;
+  onRerunStarted: (runId: string) => void;
+}) {
   const [showCalls, setShowCalls] = useState(false);
   const [tab, setTab] = useState<CommitteeTab>('affordability');
+  const { role } = useAuth();
+  const statusRef = useRef<HTMLParagraphElement>(null);
   const callsId = useId();
-  const rerunNoteId = useId();
   const tabsId = useId();
   const tabRefs = useRef(new Map<CommitteeTab, HTMLButtonElement>());
   const votes = Object.values(run.consensus.votes).filter((vote) => vote !== null);
@@ -377,6 +454,14 @@ function RunDetails({ run, readOnly, affordability }: { run: CommitteeRun; readO
   const current = progress.tabs[tab];
   // While the run goes, an agent's own recommendation stands in for its vote until the finish writes the consensus.
   const voteOf = (agent: VotingAgent) => run.consensus.votes[agent] ?? (progress.live ? run.agents[agent]?.recommendation ?? null : null);
+  // al-ai re-runs a failed run (an `interrupted` one is failed too) for an underwriter only; a read-only admin and a
+  // broker never get the control.
+  const canRerun = !readOnly && role === 'underwriter' && run.status === 'failed';
+
+  // The re-run this underwriter started has replaced the failed run: the button is gone, so focus goes to the status.
+  useEffect(() => {
+    if (focusStatus) statusRef.current?.focus();
+  }, [focusStatus]);
 
   function moveTab(event: KeyboardEvent<HTMLDivElement>) {
     const index = TABS.findIndex((item) => item.key === tab);
@@ -400,7 +485,9 @@ function RunDetails({ run, readOnly, affordability }: { run: CommitteeRun; readO
         {/* One status line; the IDs and times sit in the Run details disclosure below it. */}
         <p
           role="status"
-          className={`rounded-lg px-3 py-2 text-base font-medium ${run.status === 'failed' ? 'bg-danger-soft text-error' : 'bg-tint text-pine'}`}
+          className={`rounded-lg px-3 py-2 text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine ${run.status === 'failed' ? 'bg-danger-soft text-error' : 'bg-tint text-pine'}`}
+          ref={statusRef}
+          tabIndex={focusStatus ? -1 : undefined}
         >
           {[
             `Run status: ${run.status === null ? 'Not stored' : { running: 'Running', failed: 'Failed', complete: 'Complete' }[run.status]}`,
@@ -422,19 +509,7 @@ function RunDetails({ run, readOnly, affordability }: { run: CommitteeRun; readO
           {failureText !== null && (
             <p className="mt-1 text-sm">Stored reason: <code className="font-mono">{run.failureReason}</code></p>
           )}
-          {readOnly ? null : (
-            <>
-              <button
-                aria-describedby={rerunNoteId}
-                className="mt-4 min-h-11 cursor-not-allowed rounded-lg border border-line bg-neutral px-4 py-2 text-muted"
-                disabled
-                type="button"
-              >
-                Re-run
-              </button>
-              <p className="mt-2 text-sm" id={rerunNoteId}>Re-running is not available yet.</p>
-            </>
-          )}
+          {canRerun ? <RerunControl applicationId={applicationId} onStarted={onRerunStarted} /> : null}
         </div>
       )}
 
@@ -608,6 +683,8 @@ export function CommitteeConsole({ applicationId, readOnly = false, affordabilit
   affordability?: AffordabilityInputs;
 }) {
   const state = useCommittee(applicationId);
+  // The run a re-run from this console started; when the listener brings it in, its status line takes focus.
+  const [startedRunId, setStartedRunId] = useState<string | null>(null);
   return (
     <section
       aria-label="Committee"
@@ -617,7 +694,15 @@ export function CommitteeConsole({ applicationId, readOnly = false, affordabilit
       <h2 className="card-title">Committee</h2>
       <p className="mt-2 text-sm text-muted">Stored reasoning for this application. Run status is separate from the application status.</p>
       {state.status === 'ready' ? (
-        <RunDetails affordability={affordability} key={state.run.id} readOnly={readOnly} run={state.run} />
+        <RunDetails
+          affordability={affordability}
+          applicationId={applicationId}
+          focusStatus={startedRunId !== null && state.run.id === startedRunId}
+          key={state.run.id}
+          onRerunStarted={setStartedRunId}
+          readOnly={readOnly}
+          run={state.run}
+        />
       ) : state.status === 'loading' ? (
         <div className="mt-5">
           <p className="sr-only" role="status">Loading the committee run…</p>

@@ -3,10 +3,18 @@ import {
   firestoreCommitteeService, type CommitteeService, type CommitteeState, type CommitteeCallsState,
   type CommitteeViewer,
 } from '../services/committeeService';
+import { apiCommitteeRunService, type CommitteeRunService } from '../services/committeeRunService';
 import { useAuth } from './AuthContext';
 
 // Like LoanFileServiceContext, the production default is replaceable with a fake in tests.
 export const CommitteeServiceContext = createContext<CommitteeService>(firestoreCommitteeService);
+
+// Starting a re-run goes to al-ai; watching the new run stays with CommitteeServiceContext's listener.
+export const CommitteeRunServiceContext = createContext<CommitteeRunService>(apiCommitteeRunService);
+
+export function useCommitteeRunService() {
+  return useContext(CommitteeRunServiceContext);
+}
 
 type Subscribe<T> = (service: CommitteeService, id: string, viewer: CommitteeViewer, listener: (state: T) => void) => () => void;
 

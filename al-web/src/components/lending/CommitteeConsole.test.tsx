@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { Timestamp } from 'firebase/firestore';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CommitteeServiceContext } from '../../context/CommitteeContext';
+import { CommitteeRunServiceContext, CommitteeServiceContext } from '../../context/CommitteeContext';
+import { CommitteeRerunError, type CommitteeRunService } from '../../services/committeeRunService';
 import {
   COMMITTEE_STEPS, toCommitteeRun, type CommitteeCall, type CommitteeStep, type CommitteeCallsState, type CommitteeService, type CommitteeState,
 } from '../../services/committeeService';
@@ -18,8 +19,9 @@ function callOf(fields: Partial<CommitteeCall> & { id: string }): CommitteeCall 
   };
 }
 
+const auth = vi.hoisted(() => ({ role: 'underwriter' as 'underwriter' | 'admin' | 'broker' }));
 vi.mock('../../context/AuthContext', () => ({
-  useAuth: () => ({ user: { uid: 'underwriter-1' }, role: 'underwriter' }),
+  useAuth: () => ({ user: { uid: 'underwriter-1' }, role: auth.role }),
 }));
 
 function sampleRun() {
@@ -78,10 +80,15 @@ function fakeService(initial: CommitteeState = { status: 'ready', run: sampleRun
   return { service, stopRun, stopCalls, pushRun: (state: CommitteeState) => updateRun(state), pushCalls: (state: CommitteeCallsState) => updateCalls(state) };
 }
 
-function consoleWith(service: CommitteeService, applicationId = 'LN-1001', affordability?: AffordabilityInputs) {
+function consoleWith(
+  service: CommitteeService, applicationId = 'LN-1001', affordability?: AffordabilityInputs,
+  runService: CommitteeRunService = { startCommitteeRerun: vi.fn() }, readOnly = false,
+) {
   return (
     <CommitteeServiceContext.Provider value={service}>
-      <CommitteeConsole affordability={affordability} applicationId={applicationId} />
+      <CommitteeRunServiceContext.Provider value={runService}>
+        <CommitteeConsole affordability={affordability} applicationId={applicationId} readOnly={readOnly} />
+      </CommitteeRunServiceContext.Provider>
     </CommitteeServiceContext.Provider>
   );
 }
@@ -97,7 +104,10 @@ const storedFigures: AffordabilityInputs = {
   }),
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  auth.role = 'underwriter';
+});
 
 // Each member's results sit behind its own tab.
 function openTab(name: string) {
@@ -197,26 +207,116 @@ describe('committee console', () => {
     expect(within(memo).getByRole('heading', { level: 4, name: 'Affordability' }).nextElementSibling?.textContent).toBe('Repayments fit the budget.');
   });
 
-  it('shows a failed step, reason and a disabled re-run with its explanation', () => {
+  it('shows a failed step, reason and an enabled re-run to an underwriter', () => {
     const run = { ...sampleRun(), status: 'failed' as const, failedStep: 'valuation_agent', failureReason: 'Provider quota exceeded.' };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
     expect(screen.getByRole('status')).toHaveTextContent('Run status: Failed');
     expect(screen.getByText('Failed step: valuation_agent')).toBeInTheDocument();
     expect(screen.getByText('Reason: Provider quota exceeded.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Re-run' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Re-run' })).toHaveAccessibleDescription('Re-running is not available yet.');
+    const button = screen.getByRole('button', { name: 'Re-run' });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('aria-disabled', 'true');
+    expect(button).toHaveAccessibleDescription(/Starts a new committee run/);
+    expect(screen.queryByText('Re-running is not available yet.')).not.toBeInTheDocument();
+  });
+
+  it('offers a re-run for an interrupted run, which al-ai stores as failed', () => {
+    const run = { ...sampleRun(), status: 'failed' as const, failedStep: 'run', failureReason: 'interrupted' };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    expect(screen.getByText('Reason: Interrupted by a restart or deploy')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-run' })).toBeEnabled();
+  });
+
+  it.each(['admin', 'broker'] as const)('gives a signed-in %s no re-run control on a failed run', (role) => {
+    auth.role = role;
+    const run = { ...sampleRun(), status: 'failed' as const, failedStep: 'valuation_agent', failureReason: 'Provider quota exceeded.' };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    expect(screen.getByText('Failed step: valuation_agent')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Re-run|Try again/ })).not.toBeInTheDocument();
+  });
+
+  it.each(['running', 'complete'] as const)('gives an underwriter no re-run control on a %s run', (status) => {
+    render(consoleWith(fakeService({ status: 'ready', run: { ...sampleRun(), status } }).service));
+    expect(screen.queryByRole('button', { name: /^Re-run$|Try again|Starting a new run/ })).not.toBeInTheDocument();
+  });
+
+  describe('re-running a failed run', () => {
+    const failedRun = () => ({ ...sampleRun(), status: 'failed' as const, failedStep: 'valuation_agent', failureReason: 'Provider quota exceeded.' });
+
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      let reject!: (reason: unknown) => void;
+      const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+      return { promise, resolve, reject };
+    }
+
+    it('asks al-ai once, even on a double click, and waits for the new run without faking progress', async () => {
+      const pending = deferred<{ runId: string; applicationId: string }>();
+      const startCommitteeRerun = vi.fn(() => pending.promise);
+      const fake = fakeService({ status: 'ready', run: failedRun() });
+      render(consoleWith(fake.service, 'LN-1001', undefined, { startCommitteeRerun }));
+      const button = screen.getByRole('button', { name: 'Re-run' });
+      button.focus();
+      await userEvent.dblClick(button);
+
+      expect(startCommitteeRerun).toHaveBeenCalledTimes(1);
+      expect(startCommitteeRerun).toHaveBeenCalledWith('LN-1001');
+      const waiting = screen.getByRole('button', { name: 'Starting a new run…' });
+      expect(waiting).toHaveAttribute('aria-disabled', 'true');
+      expect(waiting).toHaveFocus();
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      await userEvent.click(waiting);
+      expect(startCommitteeRerun).toHaveBeenCalledTimes(1);
+
+      await act(async () => pending.resolve({ runId: 'run-LN-1001-rerun', applicationId: 'LN-1001' }));
+      expect(screen.getByText('New run started. Its progress shows here in a moment.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Starting a new run…' })).toHaveAttribute('aria-disabled', 'true');
+      expect(screen.getByRole('status')).toHaveTextContent('Run status: Failed');
+
+      // The listener brings in the new run: its own status takes focus and the re-run control is gone.
+      act(() => fake.pushRun({
+        status: 'ready',
+        run: toCommitteeRun('run-LN-1001-rerun', { applicationId: 'LN-1001', status: 'running', trigger: 'rerun', rerunOf: 'run-LN-1001' }),
+      }));
+      expect(screen.getByRole('status')).toHaveTextContent('Run status: Running · Re-run');
+      expect(screen.getByRole('status')).toHaveFocus();
+      expect(screen.queryByRole('button', { name: /Re-run|Starting a new run/ })).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ['a run already in progress', new CommitteeRerunError('running', 'A run is already in progress. Its progress shows here as it goes.'), 'A run is already in progress'],
+      ['a 403', new CommitteeRerunError('forbidden', 'Only an underwriter can re-run the committee.'), 'Only an underwriter can re-run the committee.'],
+      ['a network failure', new CommitteeRerunError('network', 'Could not reach the AI service. Check your connection and try again.'), 'Could not reach the AI service'],
+      ['an unexpected error', new Error('boom'), 'The re-run could not be started. Try again.'],
+    ])('shows %s in place with Try again', async (_label, error, words) => {
+      const startCommitteeRerun = vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce({ runId: 'run-2', applicationId: 'LN-1001' });
+      render(consoleWith(fakeService({ status: 'ready', run: failedRun() }).service, 'LN-1001', undefined, { startCommitteeRerun }));
+      const button = screen.getByRole('button', { name: 'Re-run' });
+      button.focus();
+      await userEvent.click(button);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(words);
+      const again = screen.getByRole('button', { name: 'Try again' });
+      expect(again).toBe(button);
+      expect(again).toHaveFocus();
+      expect(again).not.toHaveAttribute('aria-disabled', 'true');
+
+      await userEvent.keyboard('{Enter}');
+      expect(startCommitteeRerun).toHaveBeenCalledTimes(2);
+      expect(await screen.findByText('New run started. Its progress shows here in a moment.')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
   });
 
   it('shows a read-only viewer the failed step and reason with no re-run control', () => {
     const run = { ...sampleRun(), status: 'failed' as const, failedStep: 'valuation_agent', failureReason: 'Provider quota exceeded.' };
-    render(
-      <CommitteeServiceContext.Provider value={fakeService({ status: 'ready', run }).service}>
-        <CommitteeConsole applicationId="LN-1001" readOnly />
-      </CommitteeServiceContext.Provider>,
-    );
+    // Even an underwriter's session gets no control when the console is read-only.
+    const startCommitteeRerun = vi.fn();
+    render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', undefined, { startCommitteeRerun }, true));
     expect(screen.getByText('Failed step: valuation_agent')).toBeInTheDocument();
     expect(screen.getByText('Reason: Provider quota exceeded.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-run' })).not.toBeInTheDocument();
+    expect(startCommitteeRerun).not.toHaveBeenCalled();
     expect(screen.queryByText('Re-running is not available yet.')).not.toBeInTheDocument();
   });
 
