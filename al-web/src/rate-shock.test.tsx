@@ -107,7 +107,7 @@ describe('the rate shock page', () => {
     const stress = new FakeStressService();
     renderStress(stress);
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Calculating +200 bps…');
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Calculating +200 bps…'));
     await stress.called(200);
     expect(screen.getByTestId('rate-shock-results')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getAllByTestId('skeleton').length).toBeGreaterThanOrEqual(4);
