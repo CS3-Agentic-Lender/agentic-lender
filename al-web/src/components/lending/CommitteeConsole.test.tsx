@@ -620,17 +620,24 @@ describe('committee console while the run goes', () => {
     expect(panel.getByRole('progressbar', { name: 'Market & Macro in progress' })).not.toHaveAttribute('aria-valuenow');
   });
 
-  it('fills a tab with its report as soon as its agent finishes, without a reload', () => {
+  it('fills a tab with its figures and report as soon as its agent finishes, without a reload', async () => {
+    const storedReport = 'Rating: adequate. Recommendation: Approve.\nConcerns: Variable income.\nConditions: Verify payslips.';
     const before = { validate: ok(1), valuation_model: ok(2), market: ok(3), calculations: ok(4), affordability: running(5), valuation_agent: running(5) };
     const fake = fakeService({ status: 'ready', run: liveRun(before) });
-    render(consoleWith(fake.service));
+    render(consoleWith(fake.service, 'LN-1001', storedFigures));
     expect(screen.getByRole('tab', { name: 'Affordability, thinking' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Working on: Affordability and Valuation')).toBeInTheDocument();
-    act(() => fake.pushRun({ status: 'ready', run: liveRun({ ...before, affordability: ok(9) }, { agents: { affordability: affordabilityReport } }) }));
+    expect(screen.queryByText('Monthly repayment')).not.toBeInTheDocument();
+    act(() => fake.pushRun({ status: 'ready', run: liveRun({ ...before, affordability: ok(9) }, { agents: { affordability: { ...affordabilityReport, report: storedReport } } }) }));
     expect(screen.getByRole('tab', { name: 'Affordability, done' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Valuation, thinking' })).toBeInTheDocument();
     const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
-    expect(affordability.getByText('Repayments fit the household budget.')).toBeInTheDocument();
+    expect(affordability.getByText('Monthly repayment')).toBeVisible();
+    expect(affordability.getByText('33.4%')).toBeVisible();
+    const report = affordability.getByText((_, node) => node?.tagName === 'P' && node.textContent === storedReport);
+    expect(report).not.toBeVisible();
+    await userEvent.setup().click(affordability.getByText('Stored report text'));
+    expect(report).toBeVisible();
     expect(affordability.getByText('Vote: Approve')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Committee progress' })).toHaveAttribute('aria-valuenow', '5');
   });
