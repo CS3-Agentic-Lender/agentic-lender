@@ -68,8 +68,16 @@ const TUNE = {
 
 const MIN_H = 0.05;
 const STEM = 14;
-const heightOf = (dtiPct: number) => Math.max(MIN_H, Math.min(dtiPct, TUNE.maxDtiPct) * TUNE.unit);
+export const heightOf = (dtiPct: number) => Math.max(MIN_H, Math.min(dtiPct, TUNE.maxDtiPct) * TUNE.unit);
 const fmt = new Intl.NumberFormat('en-IE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+// A tower's label. While it grows, the label counts with its height; once it stands, the label is the real debt
+// to income, so a tower held at the height cap still says, say, 120.0%, the same as the table.
+export function towerLabelText(dtiPct: number | null, shownHeight: number, goalHeight: number) {
+  if (dtiPct === null) return '';
+  const settled = Math.abs(shownHeight - goalHeight) < 1e-6;
+  return `${fmt.format(settled ? dtiPct : shownHeight / TUNE.unit)}%`;
+}
 
 function radialTexture(stops: [number, string][], size = 256) {
   const canvas = document.createElement('canvas');
@@ -643,7 +651,7 @@ export function createRateShockScene(
     }
     // Tower labels: above each tower; where two would collide, the lower one's label moves up and its stem grows.
     const entries = towers.map((tw) => {
-      tw.label.valueEl.textContent = tw.dti === null ? '' : `${fmt.format(tw.h / TUNE.unit)}%`;
+      tw.label.valueEl.textContent = towerLabelText(tw.dti, tw.h, tw.to);
       tw.label.el.dataset.selected = selected === tw || hovered === tw ? 'true' : 'false';
       tw.group.getWorldPosition(tmp);
       tmp.y += Math.max(MIN_H, tw.h) + 0.08;

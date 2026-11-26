@@ -149,11 +149,10 @@ function Tiles({ summary, shockBps, loading }: { summary: ShockSummary | null; s
   );
 }
 
-function FailureNotice({ failure, shown, onRetry, retrying }: {
+function FailureNotice({ failure, shown, onRetry }: {
   failure: Failure;
   shown: Shown | null;
   onRetry: () => void;
-  retrying: boolean;
 }) {
   return (
     <div
@@ -174,9 +173,9 @@ function FailureNotice({ failure, shown, onRetry, retrying }: {
         {shown ? (
           <p className="mt-1">The figures below are still the last result, for {bpsLabel(shown.result.shockBps)}.</p>
         ) : null}
+        {/* The notice closes as soon as the retry starts; onRetry moves focus to Recalculate first. */}
         <button
           className="btn btn-secondary mt-3"
-          disabled={retrying}
           onClick={onRetry}
           type="button"
         >
@@ -323,9 +322,26 @@ export function RateShockPage() {
     return () => window.clearTimeout(scheduled.current);
   }, [shockBps, run]);
 
+  const recalculateButton = useRef<HTMLButtonElement>(null);
+  const atDefault = shockBps === DEFAULT_SHOCK_BPS;
+
+  // Recalculate and Reset use aria-disabled rather than disabled, so a keyboard user pressing one keeps focus
+  // on it instead of dropping to the page body; the handlers ignore presses while they are unavailable.
   function recalculate() {
+    if (pending !== null) return;
     window.clearTimeout(scheduled.current);
     void run(shockBps, true);
+  }
+
+  function reset() {
+    if (atDefault) return;
+    setShockBps(DEFAULT_SHOCK_BPS);
+  }
+
+  // Try again unmounts its own notice, so focus goes to Recalculate, which does the same job.
+  function retry() {
+    recalculateButton.current?.focus();
+    recalculate();
   }
 
   // Leaving the page drops any answer still on its way.
@@ -423,17 +439,18 @@ export function RateShockPage() {
       </div>
       <div className="mt-5 flex flex-wrap gap-3">
         <button
-          className="btn border border-brass bg-brass text-pine-pressed hover:enabled:bg-brass-light focus-visible:outline-brass-light"
-          disabled={pending !== null}
+          aria-disabled={pending !== null}
+          className="btn border border-brass bg-brass text-pine-pressed hover:not-aria-disabled:bg-brass-light focus-visible:outline-brass-light"
           onClick={recalculate}
+          ref={recalculateButton}
           type="button"
         >
           Recalculate
         </button>
         <button
-          className="btn border border-tint/40 bg-transparent text-tint hover:enabled:border-tint hover:enabled:bg-tint/10 focus-visible:outline-brass-light"
-          disabled={shockBps === DEFAULT_SHOCK_BPS}
-          onClick={() => setShockBps(DEFAULT_SHOCK_BPS)}
+          aria-disabled={atDefault}
+          className="btn border border-tint/40 bg-transparent text-tint hover:not-aria-disabled:border-tint hover:not-aria-disabled:bg-tint/10 focus-visible:outline-brass-light"
+          onClick={reset}
           type="button"
         >
           Reset to {bpsLabel(DEFAULT_SHOCK_BPS)}
@@ -494,8 +511,7 @@ export function RateShockPage() {
           {failure ? (
             <FailureNotice
               failure={failure}
-              onRetry={recalculate}
-              retrying={pending !== null}
+              onRetry={retry}
               shown={shown}
             />
           ) : null}

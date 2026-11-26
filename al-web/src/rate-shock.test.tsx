@@ -130,7 +130,27 @@ describe('the rate shock page', () => {
     await stress.called(200);
     expect(screen.getByTestId('rate-shock-results')).toHaveAttribute('aria-busy', 'true');
     expect(screen.getAllByTestId('skeleton').length).toBeGreaterThanOrEqual(4);
-    expect(screen.getByRole('button', { name: 'Recalculate' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Recalculate' })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('keeps focus on Recalculate while it runs, and ignores a second press', async () => {
+    const user = userEvent.setup();
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.answer(200);
+
+    const recalculate = screen.getByRole('button', { name: 'Recalculate' });
+    recalculate.focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(stress.calls).toHaveLength(2));
+    expect(recalculate).toHaveAttribute('aria-disabled', 'true');
+    expect(recalculate).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+    expect(stress.calls).toHaveLength(2);
+    await stress.answer(200);
+    expect(recalculate).toHaveAttribute('aria-disabled', 'false');
+    expect(recalculate).toHaveFocus();
   });
 
   it('runs +200 bps on opening and fills the tiles from the result', async () => {
@@ -435,8 +455,12 @@ describe('the rate shock page', () => {
     expect(alert).not.toHaveTextContent('still the last result');
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
 
-    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+    within(alert).getByRole('button', { name: 'Try again' }).focus();
+    await userEvent.setup().keyboard('{Enter}');
     await waitFor(() => expect(stress.calls).toHaveLength(2));
+    // The notice closes on retry, so focus moves to Recalculate rather than dropping to the page body.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recalculate' })).toHaveFocus();
     await stress.answer(200);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(tableRows()).toHaveLength(4);
@@ -487,7 +511,7 @@ describe('the rate shock page', () => {
     renderStress(stress);
     await stress.answer(200);
     const reset = screen.getByRole('button', { name: 'Reset to +200 bps' });
-    expect(reset).toBeDisabled();
+    expect(reset).toHaveAttribute('aria-disabled', 'true');
 
     fireEvent.change(screen.getByRole('slider', { name: 'Rate rise' }), { target: { value: '150' } });
     await stress.answer(150);
@@ -496,6 +520,29 @@ describe('the rate shock page', () => {
     await stress.answer(200);
 
     expect(screen.getByRole('slider', { name: 'Rate rise' })).toHaveValue('200');
+    expect(stress.calls.map((call) => call.shockBps)).toEqual([200, 150, 200]);
+  });
+
+  it('keeps focus on Reset after pressing it from the keyboard, and a second press does nothing', async () => {
+    const user = userEvent.setup();
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.answer(200);
+    fireEvent.change(screen.getByRole('slider', { name: 'Rate rise' }), { target: { value: '150' } });
+    await stress.answer(150);
+
+    const reset = screen.getByRole('button', { name: 'Reset to +200 bps' });
+    expect(reset).toHaveAttribute('aria-disabled', 'false');
+    reset.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('slider', { name: 'Rate rise' })).toHaveValue('200');
+    expect(reset).toHaveAttribute('aria-disabled', 'true');
+    expect(reset).toHaveFocus();
+    await waitFor(() => expect(stress.calls).toHaveLength(3));
+    await stress.answer(200);
+
+    await user.keyboard('{Enter}');
+    expect(reset).toHaveFocus();
     expect(stress.calls.map((call) => call.shockBps)).toEqual([200, 150, 200]);
   });
 
