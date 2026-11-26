@@ -1,0 +1,1 @@
+`Jira.csv` was exported on 23 Nov 2026 at about 23:40 UTC with JQL `project = AL AND sprint = 103` (Sprint 3, 65 issues including subtasks). Statuses will change before the deadline: re-export on Sat 28 or Sun 29 Nov, after the last merge, so the zip has the final board. Columns as in Sprint 2, plus Story points.

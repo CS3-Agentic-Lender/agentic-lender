@@ -1,0 +1,66 @@
+Key,Type,Summary,Status,Assignee,Priority,Story points,Parent,Labels,Created,Resolved
+AL-30,Story,"As an underwriter, I read each agent's reasoning trail and the committee's consensus",In Progress,Nikoloz Chilachava,Highest,3,AL-7,ai web,2026-09-17,
+AL-40,Story,"As an underwriter, I apply a +100 to +300 bps rate shock and see how the portfolio holds up",To Do,Nikoloz Chilachava,Highest,5,AL-10,ai web,2026-09-17,
+AL-41,Story,"As an underwriter, I simulate a house price downturn and see the change in portfolio LTVs",To Do,Nikoloz Chilachava,High,3,AL-10,ai web,2026-09-17,
+AL-44,Story,"As a borrower, I pay a fast-track appraisal fee through Stripe Sandbox",Done,Ibrahima Toure,Highest,8,AL-12,core mobile,2026-09-17,2026-11-23
+AL-45,Story,"As a borrower, I submit a support request from the app",Done,Ibrahima Toure,Highest,3,AL-13,core mobile,2026-09-17,2026-11-17
+AL-46,Story,"As a borrower, I rate and review the app",Done,Ibrahima Toure,Highest,2,AL-13,core mobile,2026-09-17,2026-11-17
+AL-62,Subtask,Backend: persist each agent's reasoning trail and committee consensus in Firestore,Done,Nicholas Groenewald,Highest,,AL-30,ai,2026-09-17,2026-11-12
+AL-68,Subtask,Backend: rate shock calculation over the active portfolio,Done,Solomon,Highest,,AL-40,ai,2026-09-17,2026-11-19
+AL-69,Subtask,Backend: house price downturn LTV recalculation over the portfolio,Done,Solomon,High,,AL-41,ai,2026-09-17,2026-11-23
+AL-72,Subtask,Backend: Stripe sandbox payment intent + webhook that marks the fee paid,Done,Solomon,Highest,,AL-44,core,2026-09-17,2026-11-18
+AL-73,Subtask,Backend: support requests collection and rules,Done,Solomon,Highest,,AL-45,core,2026-09-17,2026-11-16
+AL-74,Subtask,Backend: reviews collection and rules,Done,Solomon,Highest,,AL-46,core,2026-09-17,2026-11-17
+AL-129,Task,AI: Amazon Bedrock variant for the deployed affordability agent,Done,Nicholas Groenewald,High,,AL-7,ai ready-agent-assisted,2026-09-29,2026-11-17
+AL-148,Subtask,iOS: appraisal fee screen with the Stripe payment sheet,Done,Ibrahima Toure,Highest,,AL-44,mobile,2026-09-29,2026-11-18
+AL-149,Subtask,iOS: support request form and automatic reply,Done,Ibrahima Toure,Highest,,AL-45,mobile,2026-09-29,2026-11-17
+AL-150,Subtask,iOS: rate and review screen,Done,Ibrahima Toure,Highest,,AL-46,mobile,2026-09-29,2026-11-17
+AL-156,Subtask,Web: deliberation console for a committee run,Done,Nikoloz Chilachava,Highest,,AL-30,web,2026-09-29,2026-11-12
+AL-162,Subtask,Web: rate-shock simulator page with chart,In Progress,Nikoloz Chilachava,Highest,,AL-40,web,2026-09-29,
+AL-163,Subtask,Web: house-price downturn view with chart,To Do,Nikoloz Chilachava,High,,AL-41,web,2026-09-29,
+AL-174,Task,Sprint 3 retrospective,To Do,Nikoloz Chilachava,Highest,,AL-15,docs,2026-09-29,
+AL-180,Task,Deploy the al-ai service to AWS,In Progress,Nicholas Groenewald,High,,AL-15,ai ready-for-human,2026-09-29,
+AL-181,Task,Set up the hosted Firebase project for the live site,Done,Solomon,High,,AL-15,core needs-triage,2026-09-29,2026-11-18
+AL-182,Task,Make the portal's production build ready for hosting on AWS Amplify,In Progress,Nikoloz Chilachava,High,,AL-15,web,2026-09-29,
+AL-183,Task,Deploy the contracts to a public testnet,Done,Solomon,High,,AL-15,core,2026-09-29,2026-11-23
+AL-184,Task,Demo build of the iOS app against the live backend,In Progress,Ibrahima Toure,High,,AL-15,blocked mobile,2026-09-29,
+AL-196,Story,"As an underwriter, I review a HELOC application with its combined LTV and collateral value",In Progress,Nikoloz Chilachava,High,5,AL-194,needs-triage web,2026-10-06,
+AL-204,Task,Sprint 3 submission: zip the deliverables and upload to Canvas,In Progress,Nicholas Groenewald,Highest,,,docs,2026-10-07,
+AL-212,Task,Get the al-core Docker image ready to deploy on AWS,Done,Solomon,Medium,,,core,2026-10-08,2026-11-17
+AL-213,Subtask,"Web: HELOC loan-file review, combined LTV and sign-off integration",In Progress,Nikoloz Chilachava,High,,AL-196,web,2026-10-08,
+AL-223,Task,Set up the shared AWS infrastructure with Terraform,In Progress,Nicholas Groenewald,High,,AL-15,ai,2026-10-08,
+AL-224,Subtask,AWS: account guardrails in the team AWS account,Done,Nicholas Groenewald,Medium,,AL-223,ai,2026-10-08,2026-11-17
+AL-225,Subtask,"AWS: Terraform state, deploy role, DNS, certificate and wrapper commands",Done,Nicholas Groenewald,Medium,,AL-223,ai,2026-10-08,2026-11-18
+AL-226,Subtask,"AWS: network, load balancer and WAF",Done,Nicholas Groenewald,Medium,,AL-223,ai,2026-10-08,2026-11-18
+AL-227,Subtask,AWS: ECR repositories and the ARM64 image build,Done,Nicholas Groenewald,Medium,,AL-223,ai,2026-10-08,2026-11-19
+AL-228,Subtask,AWS: run al-core on ECS,Done,Nicholas Groenewald,Medium,,AL-223,ai,2026-10-08,2026-11-23
+AL-229,Subtask,AWS: al-ai secrets and task role,Done,Nicholas Groenewald,Medium,,AL-180,ai,2026-10-08,2026-11-18
+AL-230,Subtask,AWS: run al-ai on ECS,Done,Nicholas Groenewald,Medium,,AL-180,ai,2026-10-08,2026-11-23
+AL-231,Subtask,"AWS: live check, docs and teardown",In Review,Nicholas Groenewald,Medium,,AL-180,ai,2026-10-08,
+AL-249,Bug,iOS: signing in with Google drops the password of an unverified email account,Done,Ibrahima Toure,Medium,,,mobile needs-triage,2026-10-19,2026-11-16
+AL-258,Bug,iOS: signed-in user with no email is stuck on Retry instead of being signed out,Done,Ibrahima Toure,Medium,,,mobile,2026-10-20,2026-11-16
+AL-261,Task,iOS: 15 second timeout on the affordability request,Done,Ibrahima Toure,Medium,,,mobile ready-agent-assisted,2026-10-21,2026-11-16
+AL-262,Task,iOS: retry the affordability request once after a 401 with a refreshed token,Done,Ibrahima Toure,Medium,,,mobile ready-agent-assisted,2026-10-21,2026-11-16
+AL-273,Bug,Web: loan file and broker client file tests fail now and then under full-suite load,Done,Nikoloz Chilachava,Medium,,,needs-triage web,2026-10-29,2026-11-21
+AL-281,Task,"iOS: softer can't-borrow wording when more than one limit could be at €0, and a CallGate doc note",Done,Ibrahima Toure,Low,,,mobile,2026-10-30,2026-11-16
+AL-284,Task,Backend: fill in auditTxHash when the audit hash was already on the registry,Done,Solomon,Medium,,,core needs-triage,2026-10-31,2026-11-17
+AL-295,Bug,iOS: a signed-in account that no longer exists in Firebase is stuck on Retry,Done,Ibrahima Toure,Medium,,,mobile needs-triage,2026-11-06,2026-11-16
+AL-296,Bug,iOS: scrolled content shows through the status bar and under the back button,Done,Ibrahima Toure,Low,,,mobile needs-triage,2026-11-06,2026-11-16
+AL-309,Bug,Web: audit pack download can be cancelled because the blob URL is revoked straight after click,Done,Nikoloz Chilachava,Low,,,needs-triage web,2026-11-13,2026-11-21
+AL-310,Story,iOS: show who sent each message when the lending officer replies,Done,Ibrahima Toure,Medium,2,AL-11,mobile,2026-11-13,2026-11-16
+AL-311,Story,"As a borrower, I'm told to verify my email after sign-up and can resend the link",Done,Ibrahima Toure,Medium,,AL-4,mobile,2026-11-16,2026-11-18
+AL-312,Task,iOS: Profile screen (Figma 19),Done,Ibrahima Toure,High,,,mobile,2026-11-16,2026-11-16
+AL-313,Story,"As a borrower, I move around the app with a tab bar (Home, Property, Messages, Profile)",Done,Ibrahima Toure,High,,AL-4,mobile,2026-11-16,2026-11-18
+AL-314,Task,iOS: Home's cards use a 10pt corner radius where Figma uses 16,Done,Ibrahima Toure,Low,,,mobile,2026-11-16,2026-11-18
+AL-315,Task,"iOS: sign out with ""Your session has ended"" when the session ends outside the Home gate",Done,Ibrahima Toure,Medium,,,mobile,2026-11-16,2026-11-17
+AL-318,Bug,iOS: amount fields sometimes lose their grouping when typed fast,Done,Ibrahima Toure,Medium,,,mobile,2026-11-17,2026-11-18
+AL-319,Subtask,Web: sort fast-track applications first in the underwriter queue,Done,Nikoloz Chilachava,Medium,,AL-44,web,2026-11-18,2026-11-21
+AL-320,Subtask,iOS: real Google sign-in on the hosted demo build,Done,Ibrahima Toure,Medium,,AL-184,mobile,2026-11-18,2026-11-23
+AL-326,Subtask,AWS: al-core secrets and roles,Done,Nicholas Groenewald,Medium,,AL-223,ai,2026-11-18,2026-11-18
+AL-327,Bug,"AI: a committee run interrupted mid-way stays ""running"" for ever",Done,Nicholas Groenewald,Medium,,,ai,2026-11-18,2026-11-20
+AL-328,Subtask,AWS: host the portal on Amplify at agentic-lender.com,Done,Nicholas Groenewald,Medium,,AL-223,ai,2026-11-19,2026-11-23
+AL-329,Task,SCHEMA.md: document the interrupted failure reason and the stale-run rerun,Done,Solomon,Medium,,,core,2026-11-19,2026-11-23
+AL-330,Bug,al-core: a 500's request id has no log line to find,Done,Solomon,High,,,core,2026-11-23,2026-11-23
+AL-331,Bug,al-core: looking up past chain events fails on Polygon Amoy,Done,Solomon,High,,,core,2026-11-23,2026-11-23
+AL-333,Story,"As an underwriter, I read a loan file whose committee and loan note are shown as clear 3D views of the stored data",In Review,Nikoloz Chilachava,Medium,,,web,2026-11-23,
+AL-334,Task,Firestore rules: only underwriters can read ai_calls,In Review,Solomon,Medium,,,core,2026-11-23,
