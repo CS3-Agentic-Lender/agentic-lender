@@ -4,11 +4,11 @@ import { formatEuro, formatPercent, signedEuro } from '../../utils/formatters';
 import { CHART_AXIS, CHART_TOP, LABEL_WIDTH, ROW_HEIGHT, RowChart, chartHeight } from './RowChart';
 import { crossesDtiLimit, DTI_CAUTION_MAX_PCT, DTI_COMFORTABLE_MAX_PCT, surplusChangeEur } from './rateShockFigures';
 
-// Bands on the dark stage take the committee's vote colours: approve, conditional, decline.
+// Match the loan file's Comfortable, Caution and Adverse band tokens.
 const bandColours: Record<AffordabilityBand, string> = {
-  Comfortable: 'var(--color-vote-approve)',
-  Caution: 'var(--color-vote-conditional)',
-  Adverse: 'var(--color-vote-decline)',
+  Comfortable: 'var(--color-success)',
+  Caution: 'var(--color-neutral-text)',
+  Adverse: 'var(--color-error)',
 };
 
 export function bandColour(band: AffordabilityBand) {
@@ -79,7 +79,7 @@ export function DtiDumbbellChart({ applications }: { applications: ShockedApplic
               {gridSteps.map((pct) => (
                 <g key={pct}>
                   <line
-                    stroke="color-mix(in srgb, var(--color-tint) 9%, transparent)"
+                    stroke="var(--color-line)"
                     x1={x(pct)}
                     x2={x(pct)}
                     y1={CHART_TOP - 4}
@@ -87,8 +87,8 @@ export function DtiDumbbellChart({ applications }: { applications: ShockedApplic
                   />
                   {width > 420 || pct % 20 === 0 ? (
                     <text
-                      fill="var(--color-vote-observer)"
-                      fontSize="14"
+                      fill="var(--color-muted)"
+                      fontSize="16"
                       textAnchor="middle"
                       x={x(pct)}
                       y={height - 10}
@@ -100,12 +100,12 @@ export function DtiDumbbellChart({ applications }: { applications: ShockedApplic
               ))}
               <LimitLine
                 bottom={bottom}
-                colour="var(--color-brass)"
+                colour="var(--color-neutral-text)"
                 x={x(DTI_COMFORTABLE_MAX_PCT)}
               />
               <LimitLine
                 bottom={bottom}
-                colour="var(--color-vote-decline)"
+                colour="var(--color-error)"
                 x={x(DTI_CAUTION_MAX_PCT)}
               />
             </g>
@@ -161,9 +161,9 @@ export function DtiDumbbellChart({ applications }: { applications: ShockedApplic
                     className="shock-move"
                     cx="0"
                     cy={MID}
-                    fill="var(--color-night)"
+                    fill="var(--color-surface)"
                     r="6"
-                    stroke="var(--color-vote-observer)"
+                    stroke="var(--color-muted)"
                     strokeWidth="2"
                     style={along(before)}
                   />
@@ -216,15 +216,15 @@ export function SurplusChangeChart({ applications }: { applications: ShockedAppl
           backdrop: (
             <g aria-hidden="true">
               <line
-                stroke="color-mix(in srgb, var(--color-tint) 40%, transparent)"
+                stroke="var(--color-line)"
                 x1={x(0)}
                 x2={x(0)}
                 y1={CHART_TOP - 6}
                 y2={bottom + 6}
               />
               <text
-                fill="var(--color-vote-observer)"
-                fontSize="14"
+                fill="var(--color-muted)"
+                fontSize="16"
                 textAnchor="end"
                 x={x(0)}
                 y={height - 10}
@@ -272,8 +272,8 @@ export function SurplusChangeChart({ applications }: { applications: ShockedAppl
                   </g>
                   <text
                     className="shock-move"
-                    fill="var(--color-tint)"
-                    fontSize="14"
+                    fill="var(--color-ink)"
+                    fontSize="16"
                     style={along(start - 8)}
                     textAnchor="end"
                     x="0"

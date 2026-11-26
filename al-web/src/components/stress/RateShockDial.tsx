@@ -27,7 +27,7 @@ interface RateShockDialProps {
   pointsText: string;
 }
 
-// The brass gauge beside the slider. It repeats what the slider already says, so it is hidden
+// The pine gauge beside the slider. It repeats what the slider already says, so it is hidden
 // from screen readers; the needle and the fill glide by CSS transition, which reduced motion turns off.
 export function RateShockDial({ shockBps, pointsText }: RateShockDialProps) {
   const filled = ((shockBps - SHOCK_MIN_BPS) / SPAN) * 100;
@@ -43,42 +43,10 @@ export function RateShockDial({ shockBps, pointsText }: RateShockDialProps) {
         className="h-auto w-full max-w-[26rem] overflow-visible"
         viewBox="0 0 320 190"
       >
-        <defs>
-          <linearGradient
-            id="shock-dial-brass"
-            x1="0"
-            x2="1"
-          >
-            <stop
-              offset="0"
-              stopColor="var(--color-brass)"
-            />
-            <stop
-              offset="1"
-              stopColor="var(--color-brass-light)"
-            />
-          </linearGradient>
-          <filter
-            height="200%"
-            id="shock-dial-glow"
-            width="200%"
-            x="-50%"
-            y="-50%"
-          >
-            <feGaussianBlur
-              result="blur"
-              stdDeviation="4"
-            />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
         <path
           d={arc(R)}
           fill="none"
-          stroke="color-mix(in srgb, var(--color-tint) 14%, transparent)"
+          stroke="var(--color-line)"
           strokeLinecap="round"
           strokeWidth="10"
         />
@@ -87,9 +55,8 @@ export function RateShockDial({ shockBps, pointsText }: RateShockDialProps) {
           d={arc(R)}
           data-filled={filled}
           fill="none"
-          filter="url(#shock-dial-glow)"
           pathLength={100}
-          stroke="url(#shock-dial-brass)"
+          stroke="var(--color-pine)"
           strokeLinecap="round"
           strokeWidth="10"
           style={{ strokeDasharray: `${filled} 100` }}
@@ -103,7 +70,7 @@ export function RateShockDial({ shockBps, pointsText }: RateShockDialProps) {
           return (
             <g key={bps}>
               <line
-                stroke={major ? 'var(--color-brass)' : 'color-mix(in srgb, var(--color-tint) 35%, transparent)'}
+                stroke={major ? 'var(--color-muted)' : 'var(--color-line)'}
                 strokeWidth={major ? 2 : 1.25}
                 x1={x0}
                 x2={x1}
@@ -113,8 +80,8 @@ export function RateShockDial({ shockBps, pointsText }: RateShockDialProps) {
               {major ? (
                 <text
                   className="font-mono"
-                  fill="var(--color-vote-observer)"
-                  fontSize="14"
+                  fill="var(--color-muted)"
+                  fontSize="16"
                   textAnchor="middle"
                   x={tx}
                   y={ty + 5}
@@ -133,17 +100,16 @@ export function RateShockDial({ shockBps, pointsText }: RateShockDialProps) {
           <circle
             cx={CX}
             cy={CY - R}
-            fill="var(--color-brass-light)"
-            filter="url(#shock-dial-glow)"
+            fill="var(--color-ink)"
             r="7"
           />
         </g>
       </svg>
       <div className="pointer-events-none absolute inset-x-0 bottom-[4%] text-center">
-        <span className="shock-dial-number block font-mono text-[clamp(3rem,14vw,4.75rem)] leading-none font-semibold text-brass-light tabular-nums">
+        <span className="shock-dial-number block font-mono text-[clamp(3rem,14vw,4.75rem)] leading-none font-semibold text-ink tabular-nums">
           +{shockBps}
         </span>
-        <span className="mt-1.5 block font-mono text-base text-tint">bps · {pointsText}</span>
+        <span className="mt-1.5 block font-mono text-base text-muted">bps · {pointsText}</span>
       </div>
     </div>
   );

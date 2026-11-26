@@ -51,7 +51,7 @@ function useMeasuredWidth() {
   return [ref, width] as const;
 }
 
-// One row per application on the dark stage, each a keyboard stop with a tooltip on hover, focus or tap.
+// One row per application on the light card, each a keyboard stop with a tooltip on hover, focus or tap.
 // Rows move with a CSS transform, so a new result glides them into place; reduced motion turns it off.
 export function RowChart({ label, draw }: RowChartProps) {
   const [hostRef, width] = useMeasuredWidth();
@@ -103,8 +103,8 @@ export function RowChart({ label, draw }: RowChartProps) {
               y="3"
             />
             <text
-              fill={row.emphasis ? 'var(--color-vote-decline)' : 'var(--color-tint)'}
-              fontSize="15"
+              fill={row.emphasis ? 'var(--color-error)' : 'var(--color-ink)'}
+              fontSize="16"
               fontWeight={row.emphasis ? 600 : 500}
               x="4"
               y={ROW_HEIGHT / 2 + 5}
@@ -139,7 +139,7 @@ export function RowChart({ label, draw }: RowChartProps) {
       {activeRow ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute z-[5] max-w-[17rem] min-w-[13rem] animate-rise rounded-xl bg-surface px-3.5 py-3 text-[15px] leading-snug text-ink shadow-raised"
+          className="pointer-events-none absolute z-[5] max-w-[17rem] min-w-[13rem] animate-rise rounded-xl bg-surface px-3.5 py-3 text-base leading-snug text-ink shadow-raised"
           data-testid="chart-tip"
           style={{
             left: Math.max(0, Math.min(width - TIP_WIDTH, width * 0.42)),

@@ -13,7 +13,7 @@ const bandChip: Record<AffordabilityBand, string> = {
 
 function BandChip({ band }: { band: AffordabilityBand }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold whitespace-nowrap ${bandChip[band]}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-base font-semibold whitespace-nowrap ${bandChip[band]}`}>
       {band}
     </span>
   );
@@ -45,7 +45,7 @@ interface ShockResultsTableProps {
   linkTo: (applicationId: string) => string;
 }
 
-const headerCell = 'bg-oat px-3.5 py-3 text-left align-top font-mono text-sm font-medium tracking-[0.06em] text-muted uppercase';
+const headerCell = 'bg-oat px-3.5 py-3 text-left align-top font-mono text-base font-medium tracking-[0.06em] text-muted uppercase';
 const cell = 'px-3.5 py-3 align-top';
 
 // Every measured application, worst first. Below 760px each row becomes a card with its own labels,
@@ -124,7 +124,7 @@ export function ShockResultsTable({ applications, pointsText, linkTo }: ShockRes
                     to={ratePct(application.shockedRatePct)}
                   />
                   {application.rateSource === 'current' ? (
-                    <span className="mt-0.5 block text-sm text-muted">Today&apos;s ECB rate: no committee run yet</span>
+                    <span className="mt-0.5 block text-base text-muted">Today&apos;s ECB rate: no committee run yet</span>
                   ) : null}
                 </span>
               </td>

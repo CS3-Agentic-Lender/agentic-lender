@@ -64,18 +64,18 @@ function failureMessage(error: unknown) {
   return 'The rate shock could not be calculated. Try again.';
 }
 
-function Skeleton({ tone, lines = 0 }: { tone: 'night' | 'light'; lines?: number }) {
+function Skeleton({ lines = 0 }: { lines?: number }) {
   return (
     <div
       aria-hidden="true"
-      className={`absolute inset-0 z-[4] rounded-[inherit] ${tone === 'night' ? 'shock-skeleton-night' : 'shock-skeleton-light'}`}
+      className="absolute inset-0 z-[4] rounded-[inherit] shock-skeleton-light"
       data-testid="skeleton"
     >
       {lines > 0 ? (
         <div className="absolute inset-[22px] grid content-start gap-3.5">
           {Array.from({ length: lines }, (_, index) => (
             <i
-              className={`block h-3.5 rounded-full first:h-5 first:w-2/5 even:w-[86%] ${tone === 'night' ? 'bg-tint/12' : 'bg-line'}`}
+              className="block h-3.5 rounded-full bg-line first:h-5 first:w-2/5 even:w-[86%]"
               key={index}
             />
           ))}
@@ -95,14 +95,14 @@ function Tile({
   label: string;
   value: string;
   detail: string;
-  tone?: 'plain' | 'warn' | 'brass';
+  tone?: 'plain' | 'warn';
   loading: boolean;
 }) {
-  const valueColour = tone === 'warn' ? 'text-vote-decline' : tone === 'brass' ? 'text-brass-light' : 'text-surface';
+  const valueColour = tone === 'warn' ? 'text-error' : 'text-ink';
   return (
-    <div className="relative m-0 overflow-hidden rounded-2xl border border-tint/12 bg-linear-to-b from-tint/6 to-transparent px-5 py-4.5">
-      {loading ? <Skeleton tone="night" /> : null}
-      <dt className="font-mono text-sm tracking-[0.08em] text-vote-observer uppercase">{label}</dt>
+    <div className="relative m-0 overflow-hidden rounded-2xl border border-line bg-oat px-5 py-4.5">
+      {loading ? <Skeleton /> : null}
+      <dt className="font-mono text-base tracking-[0.08em] text-muted uppercase">{label}</dt>
       <dd className="mt-2">
         <span
           className={`block animate-rise font-mono text-[2rem] leading-tight font-semibold tabular-nums ${valueColour}`}
@@ -110,7 +110,7 @@ function Tile({
         >
           {value}
         </span>
-        <span className="mt-1.5 block text-base text-tint/80">{detail}</span>
+        <span className="mt-1.5 block text-base text-muted">{detail}</span>
       </dd>
     </div>
   );
@@ -137,7 +137,6 @@ function Tiles({ summary, shockBps, loading }: { summary: ShockSummary | null; s
         detail={`per application at ${pointsLabel(shockBps)}`}
         label="Average DTI change"
         loading={loading}
-        tone="brass"
         value={summary ? signedPoints(summary.averageDtiChangePts) : blank}
       />
       <Tile
@@ -161,21 +160,18 @@ function Panel({ id, title, sub, loading, legend, children }: {
   return (
     <section
       aria-labelledby={id}
-      className={`shock-panel shock-dark relative min-w-0 overflow-hidden rounded-[20px] bg-night p-5.5 text-tint shadow-raised ${loading ? 'min-h-72' : ''}`}
+      className={`card relative min-w-0 overflow-hidden text-ink ${loading ? 'min-h-72' : ''}`}
     >
       {loading ? (
-        <Skeleton
-          lines={7}
-          tone="night"
-        />
+        <Skeleton lines={7} />
       ) : null}
       <h2
-        className="text-xl font-semibold text-surface"
+        className="text-xl font-semibold text-ink"
         id={id}
       >
         {title}
       </h2>
-      <p className="mt-1.5 text-base text-tint/80">{sub}</p>
+      <p className="mt-1.5 text-base text-muted">{sub}</p>
       {legend}
       {children}
     </section>
@@ -210,17 +206,17 @@ function DtiLegend() {
   return (
     <ul
       aria-hidden="true"
-      className="mt-3.5 flex list-none flex-wrap gap-x-4.5 gap-y-2 p-0 text-sm text-tint"
+      className="mt-3.5 flex list-none flex-wrap gap-x-4.5 gap-y-2 p-0 text-base text-ink"
     >
       <li className="inline-flex items-center gap-2">
-        <span className="size-3 flex-none rounded-full border-2 border-vote-observer" />
+        <span className="size-3 flex-none rounded-full border-2 border-muted" />
         Before
       </li>
       <LegendDot colour={bandColour('Comfortable')}>Comfortable</LegendDot>
       <LegendDot colour={bandColour('Caution')}>Caution</LegendDot>
       <LegendDot colour={bandColour('Adverse')}>Adverse</LegendDot>
-      <LegendLine colour="var(--color-brass)">40% Comfortable limit</LegendLine>
-      <LegendLine colour="var(--color-vote-decline)">50% Caution limit</LegendLine>
+      <LegendLine colour="var(--color-neutral-text)">40% Comfortable limit</LegendLine>
+      <LegendLine colour="var(--color-error)">50% Caution limit</LegendLine>
     </ul>
   );
 }
@@ -233,17 +229,17 @@ function FailureNotice({ failure, shown, onRetry, retrying }: {
 }) {
   return (
     <div
-      className="shock-dark mb-6 grid animate-rise grid-cols-[auto_1fr] gap-3.5 rounded-2xl border border-vote-decline/70 bg-night px-5 py-4.5 text-tint shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-vote-decline)_14%,transparent),var(--shadow-raised)]"
+      className="mb-6 grid animate-rise grid-cols-[auto_minmax(0,1fr)] gap-3.5 rounded-2xl border border-error bg-danger-soft px-5 py-4.5 text-ink shadow-card"
       role="alert"
     >
       <span
         aria-hidden="true"
-        className="grid size-9 place-items-center rounded-full bg-vote-decline/22 font-mono font-semibold text-vote-decline"
+        className="grid size-9 place-items-center rounded-full bg-danger-soft font-mono font-semibold text-error"
       >
         !
       </span>
       <div>
-        <h2 className="text-lg font-semibold text-surface">
+        <h2 className="text-lg font-semibold text-ink">
           The {bpsLabel(failure.shockBps)} rate shock could not be calculated.
         </h2>
         <p className="mt-1">{failure.message}</p>
@@ -251,7 +247,7 @@ function FailureNotice({ failure, shown, onRetry, retrying }: {
           <p className="mt-1">The figures below are still the last result, for {bpsLabel(shown.result.shockBps)}.</p>
         ) : null}
         <button
-          className="btn mt-3 border border-tint/40 bg-transparent text-tint hover:not-disabled:border-tint hover:not-disabled:bg-tint/8"
+          className="btn btn-secondary mt-3"
           disabled={retrying}
           onClick={onRetry}
           type="button"
@@ -312,7 +308,6 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
             {loading ? (
               <Skeleton
                 lines={6}
-                tone="light"
               />
             ) : null}
             <h2
@@ -332,7 +327,7 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
               />
             ) : null}
             {shown && !loading ? (
-              <p className="mt-4 text-sm text-muted">
+              <p className="mt-4 text-base text-muted">
                 al-ai answered in {shown.serverMs} ms, from asking to answer (sign-in token, network and calculation).
               </p>
             ) : null}
@@ -343,7 +338,7 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
       {result && result.skipped.length > 0 ? (
         <section
           aria-labelledby="skipped-heading"
-          className="mt-6 rounded-[20px] bg-tint px-5.5 py-5"
+          className="mt-6 rounded-[20px] border border-line bg-surface px-5.5 py-5"
         >
           <h2
             className="text-lg font-semibold"
@@ -449,38 +444,36 @@ export function RateShockPage() {
     <div className="min-h-screen overflow-x-hidden bg-oat text-ink">
       <PortalHeader />
 
-      <main>
+      <main className={`${wrap} py-12`}>
         <section
           aria-labelledby="rate-shock-title"
-          className="shock-hero shock-dark"
+          className="card"
         >
-          <div className="shock-hairline" />
-          <div className={`${wrap} pt-10 pb-8`}>
-            <p className="font-mono text-sm font-medium tracking-[0.14em] text-brass uppercase">
-              Underwriter portal / stress test
+          <div>
+            <p className="font-mono text-base font-medium tracking-[0.14em] text-muted uppercase">
+              Underwriter portal / Stress test
             </p>
             <h1
-              className="mt-3 text-[clamp(2.25rem,6vw,3.5rem)] leading-[1.05] font-semibold tracking-tight text-surface"
+              className="mt-4 text-4xl font-semibold tracking-tight"
               id="rate-shock-title"
             >
               Rate shock
             </h1>
-            <p className="mt-3.5 max-w-[38rem] text-base leading-7 text-tint/86">
-              Raise every active application&apos;s benchmark rate by 100 to 300 basis points and see how the portfolio
-              holds up, with the committee&apos;s own affordability maths.
+            <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
+              Raise active applications&apos; benchmark rates by 100 to 300 basis points to see how the portfolio holds up.
             </p>
 
             <div className="mt-8 grid items-center gap-8 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] min-[900px]:gap-12">
-              <div className="rounded-[20px] border border-tint/14 bg-night/55 p-6 backdrop-blur-sm">
+              <div className="min-w-0 rounded-2xl border border-line bg-oat p-5 sm:p-6">
                 <label
-                  className="block font-mono text-sm tracking-[0.1em] text-brass uppercase"
+                  className="block font-mono text-base tracking-[0.1em] text-muted uppercase"
                   htmlFor="shock-bps"
                 >
                   Rate rise
                 </label>
                 <input
                   aria-valuetext={`${bpsLabel(shockBps)}, ${pointsLabel(shockBps)}`}
-                  className="shock-range focus-visible:outline-brass-light"
+                  className="shock-range focus-visible:outline-pine"
                   id="shock-bps"
                   max={SHOCK_MAX_BPS}
                   min={SHOCK_MIN_BPS}
@@ -492,7 +485,7 @@ export function RateShockPage() {
                 />
                 <div
                   aria-hidden="true"
-                  className="flex justify-between font-mono text-sm text-vote-observer"
+                  className="flex justify-between font-mono text-base text-muted"
                 >
                   <span>{bpsLabel(SHOCK_MIN_BPS)}</span>
                   <span>{bpsLabel(SHOCK_MAX_BPS)}</span>
@@ -506,7 +499,7 @@ export function RateShockPage() {
                     <button
                       aria-label={bpsLabel(bps)}
                       aria-pressed={shockBps === bps}
-                      className="min-h-11 cursor-pointer rounded-full border border-tint/22 bg-transparent px-4 font-mono text-base text-tint transition-[border-color,background-color,color,box-shadow] duration-200 hover:border-brass focus-visible:outline-brass-light aria-pressed:border-brass-light aria-pressed:bg-brass/14 aria-pressed:text-brass-light aria-pressed:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-brass-light)_14%,transparent)]"
+                      className="min-h-11 cursor-pointer rounded-full border border-line bg-surface px-4 font-mono text-base text-ink transition-colors duration-200 hover:border-pine focus-visible:outline-pine aria-pressed:border-pine aria-pressed:bg-pine aria-pressed:text-surface"
                       key={bps}
                       onClick={() => setShockBps(bps)}
                       type="button"
@@ -517,7 +510,7 @@ export function RateShockPage() {
                 </div>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <button
-                    className="btn border border-brass bg-brass text-pine-pressed hover:not-disabled:bg-brass-light focus-visible:outline-brass-light"
+                    className="btn btn-primary focus-visible:outline-pine"
                     disabled={pending !== null}
                     onClick={recalculate}
                     type="button"
@@ -525,7 +518,7 @@ export function RateShockPage() {
                     Recalculate
                   </button>
                   <button
-                    className="btn border border-tint/40 bg-transparent text-tint hover:not-disabled:border-tint hover:not-disabled:bg-tint/8 focus-visible:outline-brass-light"
+                    className="btn btn-secondary focus-visible:outline-pine"
                     disabled={shockBps === DEFAULT_SHOCK_BPS}
                     onClick={() => setShockBps(DEFAULT_SHOCK_BPS)}
                     type="button"
@@ -533,7 +526,7 @@ export function RateShockPage() {
                     Reset to {bpsLabel(DEFAULT_SHOCK_BPS)}
                   </button>
                 </div>
-                <p className="mt-4 min-h-6.5 text-base text-vote-observer">
+                <p className="mt-4 min-h-6.5 text-base text-muted">
                   <span
                     aria-live="polite"
                     role="status"
@@ -544,7 +537,7 @@ export function RateShockPage() {
                 </p>
               </div>
 
-              {/* The hero's visual slot: the 2D dial today, kept separate so a 3D stage can take its place. */}
+              {/* The dial repeats the slider value visually. */}
               <RateShockDial
                 pointsText={pointsLabel(shockBps)}
                 shockBps={shockBps}
@@ -559,12 +552,11 @@ export function RateShockPage() {
               />
             ) : null}
           </div>
-          <div className="shock-hairline" />
         </section>
 
         <div
           aria-busy={loading}
-          className={`${wrap} pt-8 pb-16`}
+          className="pt-8 pb-4"
           data-testid="rate-shock-results"
         >
           {failure ? (

@@ -314,7 +314,7 @@ describe('the rate shock page', () => {
     expect(order).toEqual(['+100', '+200', '+300', 'Recalculate', 'Reset to +200 bps']);
   });
 
-  it('shows a brass focus ring on the controls of the dark hero, where the pine one would not show', async () => {
+  it('shows a pine focus ring on the light portal controls', async () => {
     renderStress(new FakeStressService());
     const controls = [
       await screen.findByRole('slider', { name: 'Rate rise' }),
@@ -324,7 +324,7 @@ describe('the rate shock page', () => {
     ];
 
     for (const control of controls) {
-      expect(control).toHaveClass('focus-visible:outline-brass-light');
+      expect(control).toHaveClass('focus-visible:outline-pine');
     }
   });
 
