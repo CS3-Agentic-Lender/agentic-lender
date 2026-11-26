@@ -10,6 +10,20 @@ import { ApiError } from './services/apiClient';
 import type { AuthService, AuthStateListener, AuthUser, TrustedRole } from './services/authService';
 import type { RateShockResult, StressService } from './services/stressService';
 
+// jsdom has no WebGL: the stage leaves its 3D view out unless a test turns it on and stands in for the scene.
+const draw = vi.hoisted(() => ({ supported: false }));
+vi.mock('./components/lending/council/canDraw3d', async (original) => ({
+  ...(await original<typeof import('./components/lending/council/canDraw3d')>()),
+  canDraw3d: () => draw.supported,
+}));
+const scene = vi.hoisted(() => ({ select: null as ((id: string) => void) | null }));
+vi.mock('./components/stress/rateShockScene', () => ({
+  createRateShockScene: (_host: HTMLElement, options: { onSelect?(id: string): void }) => {
+    scene.select = options.onSelect ?? null;
+    return { update() {}, dispose() {} };
+  },
+}));
+
 // The page chunks load before any test renders a route, so a busy machine's slow first import is not timed.
 await preloadPages();
 
@@ -100,7 +114,12 @@ function tableRows() {
   return within(resultsTable()).getAllByRole('row').slice(1);
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  draw.supported = false;
+  scene.select = null;
+  vi.unstubAllGlobals();
+});
 
 describe('the rate shock page', () => {
   it('shows a skeleton while +200 bps runs on opening', async () => {
@@ -132,23 +151,60 @@ describe('the rate shock page', () => {
     expect(tile('Monthly surplus change')).toEqual({ value: '−€1,150', detail: 'a month, all applications together' });
   });
 
-  it('draws both charts with a row per application, worst first', async () => {
+  it('puts every control in the dark stage card and draws no charts', async () => {
     const stress = new FakeStressService();
     renderStress(stress);
     await stress.answer(200);
 
-    const dti = screen.getByRole('region', { name: 'Debt to income, before → after' });
-    expect(within(dti).getAllByRole('button').map((row) => row.getAttribute('aria-label')?.split(':')[0])).toEqual([
-      'LN-1004',
-      'LN-1003',
-      'LN-1002',
-      'LN-1001',
-    ]);
-    expect(within(dti).getByTestId('chart-row-LN-1002')).toHaveAttribute('data-over-limit', 'true');
-    const surplus = screen.getByRole('region', { name: 'Monthly surplus change' });
-    expect(within(surplus).getAllByRole('button')).toHaveLength(4);
+    const card = screen.getByRole('region', { name: 'Rate shock stage' });
+    expect(card).toContainElement(screen.getByRole('slider', { name: 'Rate rise' }));
+    expect(card).toContainElement(screen.getByRole('group', { name: 'Presets' }));
+    expect(card).toContainElement(screen.getByRole('button', { name: 'Recalculate' }));
+    expect(card).toContainElement(screen.getByRole('button', { name: 'Reset to +200 bps' }));
+    expect(screen.queryByRole('region', { name: 'Debt to income, before → after' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Monthly surplus change' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('shock-dial')).not.toBeInTheDocument();
   });
 
+  it('keeps the controls working without WebGL and points to the table', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.answer(200);
+
+    expect(screen.getByText('3D view unavailable — figures are in the table below.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '+300 bps' }));
+    await stress.answer(300);
+    expect(screen.getByRole('status')).toHaveTextContent('Showing +300 bps.');
+  });
+
+  it('scrolls to and marks the row of a clicked tower', async () => {
+    draw.supported = true;
+    let nearScreen: ((entries: { isIntersecting: boolean }[]) => void) | null = null;
+    let idle: (() => void) | null = null;
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: (entries: { isIntersecting: boolean }[]) => void) { nearScreen = callback; }
+      observe() {}
+      disconnect() {}
+    });
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => { idle = callback; return 1; });
+    vi.stubGlobal('cancelIdleCallback', () => {});
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.answer(200);
+
+    expect(screen.getByTestId('shock-stage')).toHaveAttribute('aria-hidden', 'true');
+    act(() => nearScreen?.([{ isIntersecting: true }]));
+    await act(async () => { idle?.(); });
+    await waitFor(() => expect(scene.select).not.toBeNull());
+    act(() => scene.select?.('LN-1002'));
+
+    const row = tableRows()[2];
+    expect(row).toHaveAttribute('data-picked', 'true');
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(within(row).getByRole('link', { name: 'LN-1002' })).toHaveFocus();
+  });
   it('lists every application worst first, each linking to its loan file, and shades the rows over the limit', async () => {
     const stress = new FakeStressService();
     renderStress(stress);
@@ -314,7 +370,7 @@ describe('the rate shock page', () => {
     expect(order).toEqual(['+100', '+200', '+300', 'Recalculate', 'Reset to +200 bps']);
   });
 
-  it('shows a pine focus ring on the light portal controls', async () => {
+  it('shows a light brass focus ring on the dark stage controls', async () => {
     renderStress(new FakeStressService());
     const controls = [
       await screen.findByRole('slider', { name: 'Rate rise' }),
@@ -324,7 +380,7 @@ describe('the rate shock page', () => {
     ];
 
     for (const control of controls) {
-      expect(control).toHaveClass('focus-visible:outline-pine');
+      expect(control).toHaveClass('focus-visible:outline-brass-light');
     }
   });
 
@@ -339,17 +395,16 @@ describe('the rate shock page', () => {
     expect(slider).toHaveAttribute('aria-valuetext', '+200 bps, +2 points');
   });
 
-  it('turns the dial with the slider', async () => {
+  it('shows the rate rise in large type beside the slider, and follows it', async () => {
     renderStress(new FakeStressService());
     const slider = await screen.findByRole('slider', { name: 'Rate rise' });
-    const dial = screen.getByTestId('shock-dial');
+    const readout = screen.getByTestId('shock-readout');
 
-    expect(dial).toHaveAttribute('aria-hidden', 'true');
-    expect(dial).toHaveTextContent('+200bps · +2 points');
+    expect(readout).toHaveAttribute('aria-hidden', 'true');
+    expect(readout).toHaveTextContent('+200bps+2 points');
     fireEvent.change(slider, { target: { value: '275' } });
-    expect(dial).toHaveTextContent('+275bps · +2.75 points');
+    expect(readout).toHaveTextContent('+275bps+2.75 points');
   });
-
   it('keeps the last result on screen and says so when a new shock fails', async () => {
     const stress = new FakeStressService();
     renderStress(stress);

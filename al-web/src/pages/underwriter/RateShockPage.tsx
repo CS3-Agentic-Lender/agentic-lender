@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
-import { RateShockDial } from '../../components/stress/RateShockDial';
 import { summariseShock, worstFirst, type ShockSummary } from '../../components/stress/rateShockFigures';
-import { bandColour, DtiDumbbellChart, SurplusChangeChart } from '../../components/stress/ShockCharts';
 import { RateShockStage } from '../../components/stress/RateShockStage';
 import { ShockResultsTable, shockRowId } from '../../components/stress/ShockResultsTable';
 import { useStressService } from '../../context/StressContext';
@@ -96,12 +94,12 @@ function Tile({
   label: string;
   value: string;
   detail: string;
-  tone?: 'plain' | 'warn';
+  tone?: 'plain' | 'warn' | 'brass';
   loading: boolean;
 }) {
-  const valueColour = tone === 'warn' ? 'text-error' : 'text-ink';
+  const valueColour = tone === 'warn' ? 'text-error' : tone === 'brass' ? 'text-brass-ink' : 'text-ink';
   return (
-    <div className="relative m-0 overflow-hidden rounded-2xl border border-line bg-oat px-5 py-4.5">
+    <div className="relative m-0 overflow-hidden rounded-2xl border border-line bg-surface px-5 py-4.5 shadow-card">
       {loading ? <Skeleton /> : null}
       <dt className="font-mono text-base tracking-[0.08em] text-muted uppercase">{label}</dt>
       <dd className="mt-2">
@@ -138,6 +136,7 @@ function Tiles({ summary, shockBps, loading }: { summary: ShockSummary | null; s
         detail={`per application at ${pointsLabel(shockBps)}`}
         label="Average DTI change"
         loading={loading}
+        tone="brass"
         value={summary ? signedPoints(summary.averageDtiChangePts) : blank}
       />
       <Tile
@@ -147,78 +146,6 @@ function Tiles({ summary, shockBps, loading }: { summary: ShockSummary | null; s
         value={summary ? signedEuro(Math.round(summary.surplusChangeEur)) : blank}
       />
     </dl>
-  );
-}
-
-function Panel({ id, title, sub, loading, legend, children }: {
-  id: string;
-  title: string;
-  sub: string;
-  loading: boolean;
-  legend?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      aria-labelledby={id}
-      className={`card relative min-w-0 overflow-hidden text-ink ${loading ? 'min-h-72' : ''}`}
-    >
-      {loading ? (
-        <Skeleton lines={7} />
-      ) : null}
-      <h2
-        className="text-xl font-semibold text-ink"
-        id={id}
-      >
-        {title}
-      </h2>
-      <p className="mt-1.5 text-base text-muted">{sub}</p>
-      {legend}
-      {children}
-    </section>
-  );
-}
-
-function LegendDot({ colour, children }: { colour: string; children: ReactNode }) {
-  return (
-    <li className="inline-flex items-center gap-2">
-      <span
-        className="size-3 flex-none rounded-full bg-(--dot)"
-        style={{ '--dot': colour } as CSSProperties}
-      />
-      {children}
-    </li>
-  );
-}
-
-function LegendLine({ colour, children }: { colour: string; children: ReactNode }) {
-  return (
-    <li className="inline-flex items-center gap-2">
-      <span
-        className="h-0 w-4.5 flex-none border-t-2 border-dashed border-(--dot)"
-        style={{ '--dot': colour } as CSSProperties}
-      />
-      {children}
-    </li>
-  );
-}
-
-function DtiLegend() {
-  return (
-    <ul
-      aria-hidden="true"
-      className="mt-3.5 flex list-none flex-wrap gap-x-4.5 gap-y-2 p-0 text-base text-ink"
-    >
-      <li className="inline-flex items-center gap-2">
-        <span className="size-3 flex-none rounded-full border-2 border-muted" />
-        Before
-      </li>
-      <LegendDot colour={bandColour('Comfortable')}>Comfortable</LegendDot>
-      <LegendDot colour={bandColour('Caution')}>Caution</LegendDot>
-      <LegendDot colour={bandColour('Adverse')}>Adverse</LegendDot>
-      <LegendLine colour="var(--color-neutral-text)">40% Comfortable limit</LegendLine>
-      <LegendLine colour="var(--color-error)">50% Caution limit</LegendLine>
-    </ul>
   );
 }
 
@@ -282,29 +209,9 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
     <>
       {showFigures ? (
         <>
-          <div className="grid gap-6 min-[980px]:grid-cols-[1.35fr_1fr]">
-            <Panel
-              id="dti-heading"
-              legend={<DtiLegend />}
-              loading={loading}
-              sub="Each application at its benchmark rate, then with the rise added."
-              title="Debt to income, before → after"
-            >
-              {ordered.length > 0 ? <DtiDumbbellChart applications={ordered} /> : null}
-            </Panel>
-            <Panel
-              id="surplus-heading"
-              loading={loading}
-              sub="Take-home pay left each month, after minus before. Colour is the band after the rise."
-              title="Monthly surplus change"
-            >
-              {ordered.length > 0 ? <SurplusChangeChart applications={ordered} /> : null}
-            </Panel>
-          </div>
-
           <section
             aria-labelledby="table-heading"
-            className={`relative mt-6 rounded-[20px] border border-line bg-surface p-5.5 shadow-card ${loading ? 'min-h-64' : ''}`}
+            className={`relative rounded-[20px] border border-line bg-surface p-5.5 shadow-card ${loading ? 'min-h-64' : ''}`}
           >
             {loading ? (
               <Skeleton
@@ -318,7 +225,7 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
               Every application
             </h2>
             <p className="mt-1.5 text-muted">
-              The same figures as the charts, worst band first. Rows shaded red cross the 40% debt-to-income limit.
+              The figures behind the towers, worst band first. Rows shaded red cross the 40% debt-to-income limit.
             </p>
             {result && ordered.length > 0 ? (
               <ShockResultsTable
@@ -441,6 +348,9 @@ export function RateShockPage() {
       : null;
   const showTiles = shown !== null || loading;
 
+  // The towers stand for the result on screen; before the first answer the stage is empty.
+  const stageApplications = useMemo(() => shown?.result.applications ?? [], [shown]);
+
   // A tower on the 3D stage was clicked: bring its row into view, mark it and move focus to its link.
   const pickRow = useCallback((applicationId: string) => {
     const row = document.getElementById(shockRowId(applicationId));
@@ -449,131 +359,132 @@ export function RateShockPage() {
     row.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
     row.querySelector('a')?.focus({ preventScroll: true });
     row.dataset.picked = 'true';
-    window.setTimeout(() => { delete row.dataset.picked; }, 2400);
+    window.setTimeout(() => { delete row.dataset.picked; }, 2600);
   }, []);
+
+  const controls = (
+    <>
+      <label
+        className="block font-mono text-base tracking-[0.1em] text-brass uppercase"
+        htmlFor="shock-bps"
+      >
+        Rate rise
+      </label>
+      <p
+        aria-hidden="true"
+        className="mt-1.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1"
+        data-testid="shock-readout"
+      >
+        <span
+          className="shock-readout font-mono text-[44px] leading-[1.05] font-semibold text-brass-light tabular-nums"
+          key={shockBps}
+        >
+          +{shockBps}
+        </span>
+        <span className="font-mono text-lg text-brass">bps</span>
+        <span className="text-base text-tint/80">{pointsLabel(shockBps)}</span>
+      </p>
+      <input
+        aria-valuetext={`${bpsLabel(shockBps)}, ${pointsLabel(shockBps)}`}
+        className="shock-range focus-visible:outline-brass-light"
+        id="shock-bps"
+        max={SHOCK_MAX_BPS}
+        min={SHOCK_MIN_BPS}
+        onChange={(event) => setShockBps(Number(event.target.value))}
+        step={SHOCK_STEP_BPS}
+        style={{ '--shock-pct': `${((shockBps - SHOCK_MIN_BPS) / (SHOCK_MAX_BPS - SHOCK_MIN_BPS)) * 100}%` } as CSSProperties}
+        type="range"
+        value={shockBps}
+      />
+      <div
+        aria-hidden="true"
+        className="flex justify-between font-mono text-base text-vote-observer"
+      >
+        <span>{bpsLabel(SHOCK_MIN_BPS)}</span>
+        <span>{bpsLabel(SHOCK_MAX_BPS)}</span>
+      </div>
+      <div
+        aria-label="Presets"
+        className="mt-4.5 flex flex-wrap gap-2"
+        role="group"
+      >
+        {PRESET_BPS.map((bps) => (
+          <button
+            aria-label={bpsLabel(bps)}
+            aria-pressed={shockBps === bps}
+            className="min-h-11 cursor-pointer rounded-full border border-tint/25 bg-transparent px-4 font-mono text-base text-tint transition-[border-color,background-color,color,box-shadow] duration-200 hover:border-brass focus-visible:outline-brass-light aria-pressed:border-brass-light aria-pressed:bg-brass/15 aria-pressed:text-brass-light aria-pressed:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-brass-light)_14%,transparent)]"
+            key={bps}
+            onClick={() => setShockBps(bps)}
+            type="button"
+          >
+            +{bps}
+          </button>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <button
+          className="btn border border-brass bg-brass text-pine-pressed hover:enabled:bg-brass-light focus-visible:outline-brass-light"
+          disabled={pending !== null}
+          onClick={recalculate}
+          type="button"
+        >
+          Recalculate
+        </button>
+        <button
+          className="btn border border-tint/40 bg-transparent text-tint hover:enabled:border-tint hover:enabled:bg-tint/10 focus-visible:outline-brass-light"
+          disabled={shockBps === DEFAULT_SHOCK_BPS}
+          onClick={() => setShockBps(DEFAULT_SHOCK_BPS)}
+          type="button"
+        >
+          Reset to {bpsLabel(DEFAULT_SHOCK_BPS)}
+        </button>
+      </div>
+      <p className="mt-4 min-h-6.5 text-base text-vote-observer">
+        <span
+          aria-live="polite"
+          role="status"
+        >
+          {announced}
+        </span>
+        {nextRun ? <span> {nextRun}</span> : null}
+      </p>
+    </>
+  );
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-oat text-ink">
       <PortalHeader />
 
-      <main className={`${wrap} py-12`}>
-        <section
-          aria-labelledby="rate-shock-title"
-          className="card"
-        >
-          <div>
-            <p className="font-mono text-base font-medium tracking-[0.14em] text-muted uppercase">
-              Underwriter portal / Stress test
-            </p>
-            <h1
-              className="mt-4 text-4xl font-semibold tracking-tight"
-              id="rate-shock-title"
-            >
-              Rate shock
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
-              Raise active applications&apos; benchmark rates by 100 to 300 basis points to see how the portfolio holds up.
-            </p>
+      <main className={`${wrap} pt-10 pb-12`}>
+        <section aria-labelledby="rate-shock-title">
+          <p className="font-mono text-base font-medium tracking-[0.14em] text-brass-ink uppercase">
+            Underwriter portal / Stress test
+          </p>
+          <h1
+            className="mt-3 text-[clamp(2.25rem,6vw,3.5rem)] leading-[1.05] font-semibold tracking-tight text-pine"
+            id="rate-shock-title"
+          >
+            Rate shock
+          </h1>
+          <p className="mt-3.5 max-w-2xl text-base leading-7 text-muted">
+            Raise active applications&apos; benchmark rates by 100 to 300 basis points to see how the portfolio holds up.
+          </p>
 
-            <div className="mt-8 grid items-center gap-8 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] min-[900px]:gap-12">
-              <div className="min-w-0 rounded-2xl border border-line bg-oat p-5 sm:p-6">
-                <label
-                  className="block font-mono text-base tracking-[0.1em] text-muted uppercase"
-                  htmlFor="shock-bps"
-                >
-                  Rate rise
-                </label>
-                <input
-                  aria-valuetext={`${bpsLabel(shockBps)}, ${pointsLabel(shockBps)}`}
-                  className="shock-range focus-visible:outline-pine"
-                  id="shock-bps"
-                  max={SHOCK_MAX_BPS}
-                  min={SHOCK_MIN_BPS}
-                  onChange={(event) => setShockBps(Number(event.target.value))}
-                  step={SHOCK_STEP_BPS}
-                  style={{ '--shock-pct': `${((shockBps - SHOCK_MIN_BPS) / (SHOCK_MAX_BPS - SHOCK_MIN_BPS)) * 100}%` } as CSSProperties}
-                  type="range"
-                  value={shockBps}
-                />
-                <div
-                  aria-hidden="true"
-                  className="flex justify-between font-mono text-base text-muted"
-                >
-                  <span>{bpsLabel(SHOCK_MIN_BPS)}</span>
-                  <span>{bpsLabel(SHOCK_MAX_BPS)}</span>
-                </div>
-                <div
-                  aria-label="Presets"
-                  className="mt-4.5 flex flex-wrap gap-2"
-                  role="group"
-                >
-                  {PRESET_BPS.map((bps) => (
-                    <button
-                      aria-label={bpsLabel(bps)}
-                      aria-pressed={shockBps === bps}
-                      className="min-h-11 cursor-pointer rounded-full border border-line bg-surface px-4 font-mono text-base text-ink transition-colors duration-200 hover:border-pine focus-visible:outline-pine aria-pressed:border-pine aria-pressed:bg-pine aria-pressed:text-surface"
-                      key={bps}
-                      onClick={() => setShockBps(bps)}
-                      type="button"
-                    >
-                      +{bps}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    className="btn btn-primary focus-visible:outline-pine"
-                    disabled={pending !== null}
-                    onClick={recalculate}
-                    type="button"
-                  >
-                    Recalculate
-                  </button>
-                  <button
-                    className="btn btn-secondary focus-visible:outline-pine"
-                    disabled={shockBps === DEFAULT_SHOCK_BPS}
-                    onClick={() => setShockBps(DEFAULT_SHOCK_BPS)}
-                    type="button"
-                  >
-                    Reset to {bpsLabel(DEFAULT_SHOCK_BPS)}
-                  </button>
-                </div>
-                <p className="mt-4 min-h-6.5 text-base text-muted">
-                  <span
-                    aria-live="polite"
-                    role="status"
-                  >
-                    {announced}
-                  </span>
-                  {nextRun ? <span> {nextRun}</span> : null}
-                </p>
-              </div>
+          <RateShockStage
+            applications={stageApplications}
+            controls={controls}
+            failing={failure !== null}
+            onSelect={pickRow}
+          />
 
-              {/* The dial repeats the slider value visually. */}
-              <RateShockDial
-                pointsText={pointsLabel(shockBps)}
-                shockBps={shockBps}
-              />
-            </div>
-
-            {showTiles ? (
-              <Tiles
-                loading={loading}
-                shockBps={shown?.result.shockBps ?? shockBps}
-                summary={summary}
-              />
-            ) : null}
-          </div>
-        </section>
-
-        {showTiles ? (
-          <div className="pt-8">
-            <RateShockStage
-              applications={shown ? worstFirst(shown.result.applications) : []}
-              onSelect={pickRow}
+          {showTiles ? (
+            <Tiles
+              loading={loading}
+              shockBps={shown?.result.shockBps ?? shockBps}
+              summary={summary}
             />
-          </div>
-        ) : null}
+          ) : null}
+        </section>
 
         <div
           aria-busy={loading}

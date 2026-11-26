@@ -3,7 +3,12 @@ import { Link } from 'react-router';
 import type { AffordabilityBand, ShockedApplication } from '../../services/stressService';
 import { formatEuro, formatPercent } from '../../utils/formatters';
 import { crossesDtiLimit, DTI_COMFORTABLE_MAX_PCT } from './rateShockFigures';
-import { ratePct } from './ShockCharts';
+
+const rate = new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function ratePct(value: number) {
+  return `${rate.format(value)}%`;
+}
 
 const bandChip: Record<AffordabilityBand, string> = {
   Comfortable: 'bg-success-soft text-success',
@@ -102,7 +107,7 @@ export function ShockResultsTable({ applications, pointsText, linkTo }: ShockRes
           const crossed = crossesDtiLimit(application);
           return (
             <tr
-              className={`scroll-mt-24 border-t border-line transition-shadow duration-300 data-[picked=true]:shadow-[inset_4px_0_0_var(--color-pine)] ${crossed ? 'bg-danger-soft/55' : ''}`}
+              className={`scroll-mt-24 border-t border-line transition-[background-color,box-shadow] duration-500 data-[picked=true]:bg-brass/22 data-[picked=true]:shadow-[inset_4px_0_0_var(--color-brass)] ${crossed ? 'bg-danger-soft/55' : ''}`}
               data-over-limit={crossed ? 'true' : undefined}
               id={shockRowId(application.applicationId)}
               key={application.applicationId}

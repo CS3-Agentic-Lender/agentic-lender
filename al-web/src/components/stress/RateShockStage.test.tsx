@@ -4,11 +4,18 @@ import { shockFixture } from './rateShockFixture';
 import { RateShockStage, towersFrom } from './RateShockStage';
 
 // jsdom has no WebGL, layout or idle callbacks: the test stands in for the browser's answers and drives them.
-const scene = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), dispose: vi.fn(), select: null as ((id: string) => void) | null }));
+const scene = vi.hoisted(() => ({
+  create: vi.fn(),
+  update: vi.fn(),
+  dispose: vi.fn(),
+  select: null as ((id: string) => void) | null,
+  lose: null as (() => void) | null,
+}));
 vi.mock('./rateShockScene', () => ({
-  createRateShockScene: (host: HTMLElement, options: { onSelect?(id: string): void }) => {
+  createRateShockScene: (host: HTMLElement, options: { onSelect?(id: string): void; onContextLost?(): void }) => {
     scene.create(host, options);
     scene.select = options.onSelect ?? null;
+    scene.lose = options.onContextLost ?? null;
     return { update: scene.update, dispose: scene.dispose };
   },
 }));
@@ -26,6 +33,7 @@ beforeEach(() => {
   scene.update.mockClear();
   scene.dispose.mockClear();
   scene.select = null;
+  scene.lose = null;
   draw.supported = true;
   nearScreen = null;
   idle = null;
@@ -49,40 +57,73 @@ async function startScene() {
   await vi.waitFor(() => expect(scene.create).toHaveBeenCalledOnce());
 }
 
+const controls = <button type="button">Recalculate</button>;
+
 describe('rate shock stage', () => {
   const applications = shockFixture().applications;
 
-  it('leaves the card out without WebGL, so the charts and table carry the facts', () => {
+  it('puts the controls inside the stage card, docked beside the 3D view', () => {
+    render(<RateShockStage applications={applications} controls={controls} failing={false} onSelect={() => {}} />);
+
+    const card = screen.getByRole('region', { name: 'Rate shock stage' });
+    expect(card).toContainElement(screen.getByRole('button', { name: 'Recalculate' }));
+    expect(card).toContainElement(screen.getByTestId('shock-stage'));
+    expect(screen.getByTestId('shock-stage')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('keeps the controls without WebGL and leaves only the 3D view out', () => {
     draw.supported = false;
-    render(<RateShockStage applications={applications} onSelect={() => {}} />);
+    render(<RateShockStage applications={applications} controls={controls} failing={false} onSelect={() => {}} />);
 
-    expect(screen.queryByRole('heading', { name: 'Portfolio under the shock' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recalculate' })).toBeInTheDocument();
+    expect(screen.getByText('3D view unavailable — figures are in the table below.')).toBeInTheDocument();
+    expect(screen.queryByTestId('shock-stage')).not.toBeInTheDocument();
   });
 
-  it('shows the empty state and no towers before any result', async () => {
-    render(<RateShockStage applications={[]} onSelect={() => {}} />);
-
-    expect(screen.getByText('The towers appear once the shock is calculated.')).toBeInTheDocument();
+  it('falls back to the controls alone when the WebGL context is lost', async () => {
+    render(<RateShockStage applications={applications} controls={controls} failing={false} onSelect={() => {}} />);
     await startScene();
-    expect(scene.update).toHaveBeenLastCalledWith([]);
+
+    act(() => scene.lose?.());
+    expect(scene.dispose).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId('shock-stage')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Recalculate' })).toBeInTheDocument();
+    expect(screen.getByText('3D view unavailable — figures are in the table below.')).toBeInTheDocument();
   });
 
-  it('builds one tower per application from the stored figures after the shock', async () => {
-    render(<RateShockStage applications={applications} onSelect={() => {}} />);
+  it('starts as an empty stage, with no towers, before any result', async () => {
+    render(<RateShockStage applications={[]} controls={controls} failing={false} onSelect={() => {}} />);
     await startScene();
 
-    expect(scene.update).toHaveBeenLastCalledWith(towersFrom(applications));
-    expect(towersFrom(applications)[0]).toEqual({
-      applicationId: applications[0].applicationId,
-      beforeDtiPct: applications[0].before.dtiPct,
-      afterDtiPct: applications[0].after.dtiPct,
-      band: applications[0].after.band,
+    expect(scene.update).toHaveBeenLastCalledWith({ towers: [], failing: false });
+  });
+
+  it('builds one tower per application from the figures before and after the shock', async () => {
+    render(<RateShockStage applications={applications} controls={controls} failing={false} onSelect={() => {}} />);
+    await startScene();
+
+    expect(scene.update).toHaveBeenLastCalledWith({ towers: towersFrom(applications), failing: false });
+    expect(towersFrom(applications)[1]).toEqual({
+      applicationId: 'LN-1002',
+      beforeDtiPct: 38,
+      beforeBand: 'Comfortable',
+      afterDtiPct: 44,
+      band: 'Caution',
     });
+  });
+
+  it('tells the scene when a run fails, so the towers drop and dim', async () => {
+    const { rerender } = render(<RateShockStage applications={applications} controls={controls} failing={false} onSelect={() => {}} />);
+    await startScene();
+
+    rerender(<RateShockStage applications={applications} controls={controls} failing onSelect={() => {}} />);
+    expect(scene.update).toHaveBeenLastCalledWith({ towers: towersFrom(applications), failing: true });
+    expect(screen.getByTestId('shock-stage')).toHaveAttribute('data-failing', 'true');
   });
 
   it('passes a clicked tower on as its application id, and frees the scene when it leaves', async () => {
     const onSelect = vi.fn();
-    const { unmount } = render(<RateShockStage applications={applications} onSelect={onSelect} />);
+    const { unmount } = render(<RateShockStage applications={applications} controls={controls} failing={false} onSelect={onSelect} />);
     await startScene();
 
     act(() => scene.select?.(applications[1].applicationId));
