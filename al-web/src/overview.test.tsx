@@ -229,6 +229,53 @@ describe('underwriter overview', () => {
     expect(tile('Average indicative LTV')).toContain('No submitted application has a stored LTV yet');
   });
 
+  it('reads the clock again for every snapshot, so a later move never reads as the future', async () => {
+    const pipeline = new FakePipeline();
+    renderUnderwriter(pipeline);
+    await pipeline.push(underwriterQueue);
+
+    // The tab stays open; twenty minutes later a run finishes and the snapshot carries a move from ten minutes ago.
+    vi.setSystemTime(new Date(NOW.getTime() + 20 * 60_000));
+    await pipeline.push([
+      ...underwriterQueue,
+      pipelineApp('LN-2007', 'AI Deliberated', {
+        statusHistory: [move('AI Deliberated', new Date(NOW.getTime() + 10 * 60_000), 'Applied', 'committee', 'al-ai')],
+      }),
+    ]);
+
+    const first = within(screen.getByRole('list', { name: 'Recent status moves' })).getAllByRole('listitem')[0];
+    expect(first).toHaveTextContent('LN-2007');
+    expect(first).toHaveTextContent('10 minutes ago');
+    expect(first).not.toHaveTextContent(/\bin \d/);
+  });
+
+  it('counts "approved this week" from the week of the latest snapshot', async () => {
+    // Sunday 29 November; LN-2004's approval on Wednesday is this week.
+    vi.setSystemTime(local(29));
+    const pipeline = new FakePipeline();
+    renderUnderwriter(pipeline);
+    await pipeline.push(underwriterQueue);
+    expect(tile('Approved this week')).toMatch(/^Approved this week1/);
+
+    // The tab is still open on Monday 30 November when the next snapshot arrives: a new week.
+    vi.setSystemTime(local(30));
+    await pipeline.push([...underwriterQueue]);
+    expect(tile('Approved this week')).toMatch(/^Approved this week0/);
+  });
+
+  it('shows a move stamped slightly ahead of the viewer\'s clock as just now', async () => {
+    const pipeline = new FakePipeline();
+    renderUnderwriter(pipeline);
+    await pipeline.push([
+      pipelineApp('LN-2008', 'AI Deliberated', {
+        statusHistory: [move('AI Deliberated', new Date(NOW.getTime() + 2 * 60_000), 'Applied', 'committee', 'al-ai')],
+      }),
+    ]);
+
+    const feed = screen.getByRole('list', { name: 'Recent status moves' });
+    expect(within(feed).getAllByRole('listitem')[0]).toHaveTextContent('just now');
+  });
+
   it('says in place when the applications cannot be read', async () => {
     const pipeline = new FakePipeline();
     renderUnderwriter(pipeline);
@@ -446,6 +493,41 @@ describe('broker overview', () => {
     expect(tile('Unread messages')).toMatch(/^Unread messages0/);
   });
 
+  it('keeps the attention list loading until the runs and every thread have answered', async () => {
+    // Alice has a condition on LN-3002 and an unread message on LN-3001, and nothing is declined.
+    const aliceOnly: BrokerClientsSnapshot = {
+      clients: buildBrokerClients(
+        [{ uid: 'alice', fullName: 'Alice Byrne', email: null, county: null }],
+        brokerApplications.filter((application) => application.borrowerId === 'alice'),
+      ),
+      profilesState: 'available',
+    };
+    const clients = new FakeClients();
+    const overview = new FakeOverview();
+    const messages = new FakeMessages();
+    renderBroker(clients, overview, messages);
+    await clients.push(aliceOnly);
+
+    expect(screen.queryByText('Nothing needs your attention right now.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Applications that need attention' })).not.toBeInTheDocument();
+
+    await overview.push(runs);
+    expect(screen.queryByText('Nothing needs your attention right now.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Applications that need attention' })).not.toBeInTheDocument();
+
+    await messages.push('LN-3001', {
+      messages: [borrowerMessage('m1', '2026-11-24T10:00:00Z')],
+      lastReadAt: null,
+    });
+    expect(screen.queryByRole('list', { name: 'Applications that need attention' })).not.toBeInTheDocument();
+
+    await messages.push('LN-3002', { messages: [], lastReadAt: null });
+    const list = screen.getByRole('list', { name: 'Applications that need attention' });
+    expect(list).toHaveTextContent('Provide recent payslips');
+    expect(list).toHaveTextContent('1 new message');
+    expect(screen.queryByText('Nothing needs your attention right now.')).not.toBeInTheDocument();
+  });
+
   it('says in place when the applications cannot be read', async () => {
     const clients = new FakeClients();
     renderBroker(clients, new FakeOverview(), new FakeMessages());
@@ -457,9 +539,11 @@ describe('broker overview', () => {
   it('keeps the page when the committee runs are refused, and says conditions are not checked', async () => {
     const clients = new FakeClients();
     const overview = new FakeOverview();
-    renderBroker(clients, overview, new FakeMessages());
+    const messages = new FakeMessages();
+    renderBroker(clients, overview, messages);
     await clients.push(brokerSnapshot);
     await overview.fail();
+    await pushThreads(messages);
 
     expect(screen.getByText(/Committee conditions could not be loaded/)).toBeInTheDocument();
     const list = screen.getByRole('list', { name: 'Applications that need attention' });

@@ -88,6 +88,8 @@ export function BrokerOverview() {
   const loading = state.status === 'loading';
   const failed = state.status === 'denied' || state.status === 'error';
   const threadsLoading = applicationIds.some((id) => !threads.has(id) && !failedThreads.has(id));
+  // Rows come from the clients, the committee runs and the threads, so the list waits for all three.
+  const attentionLoading = loading || threadsLoading || runsState.status === 'loading';
   const unreadTotal = [...unreadByApplication.values()].reduce((sum, count) => sum + count, 0);
   const figures = brokerFigures(applications);
   const attention = useMemo(
@@ -161,7 +163,7 @@ export function BrokerOverview() {
             Committee conditions could not be loaded, so applications with conditions to meet are not listed.
           </p>
         ) : null}
-        {loading ? (
+        {attentionLoading ? (
           <div aria-hidden="true" className="card divide-y divide-line">
             {['w-56', 'w-48', 'w-64'].map((width) => (
               <div className="flex items-center gap-4 py-4 first:pt-0 last:pb-0" key={width}>

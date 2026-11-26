@@ -75,8 +75,12 @@ export function UnderwriterOverview({ now }: { now?: Date }) {
   const state = usePipeline();
   const uid = useAuth().user?.uid ?? null;
   const applications = state.status === 'ready' ? state.applications : null;
-  const today = useMemo(() => now ?? new Date(), [now]);
-  const figures = useMemo(() => (applications ? underwriterFigures(applications, today) : null), [applications, today]);
+  // "This week" is worked out afresh for every snapshot, so a tab left open past Monday does not keep last
+  // week's count. `now` is for tests only; the activity feed reads the clock itself when it is not given.
+  const figures = useMemo(
+    () => (applications ? underwriterFigures(applications, now ?? new Date()) : null),
+    [applications, now],
+  );
   const waiting = useMemo(() => (applications ? awaitingDecision(applications) : []), [applications]);
   const activity = useMemo(() => (applications ? recentActivity(applications) : []), [applications]);
   const loading = state.status === 'loading';
@@ -166,7 +170,7 @@ export function UnderwriterOverview({ now }: { now?: Date }) {
               entries={loading ? 'loading' : activity}
               hrefFor={loanFilePath}
               label="Recent status moves"
-              now={today}
+              now={now}
               viewerUid={uid}
             />
           </OverviewSection>

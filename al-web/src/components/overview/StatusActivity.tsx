@@ -40,6 +40,10 @@ export function StatusActivity({ label, entries, hrefFor, viewerUid, empty, now 
     return <p className="card text-muted">{empty}</p>;
   }
 
+  // Read at every render, so the times stay current. A move stamped after this clock (a server time a little
+  // ahead of the viewer's) reads as "just now", never as the future.
+  const reference = now ?? new Date();
+
   return (
     <ol aria-label={label} className="card divide-y divide-line">
       {entries.map(({ key, applicationId, name, move }) => {
@@ -69,7 +73,7 @@ export function StatusActivity({ label, entries, hrefFor, viewerUid, empty, now 
             <span className="w-full text-muted sm:ml-auto sm:w-auto">
               {actor ? `By ${actor}, ` : ''}
               <time dateTime={move.at.toISOString()} title={formatDateTime(move.at)}>
-                {formatRelative(move.at, now)}
+                {formatRelative(move.at > reference ? reference : move.at, reference)}
               </time>
             </span>
           </li>
