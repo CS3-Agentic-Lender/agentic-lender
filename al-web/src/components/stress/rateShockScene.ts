@@ -45,9 +45,10 @@ interface SceneOptions {
 
 const TUNE = {
   fov: 30,
-  distance: 13.6,
+  distance: 14.4,
   height: 2.3,
-  target: [0, 2.05, 0] as const,
+  // Aimed above the middle of the towers so the tallest label clears the legend at the top of the stage.
+  target: [0, 2.75, 0] as const,
   sway: 0.4, // idle swing either side of side-on (radians)
   swaySpeed: 0.13,
   maxAzimuth: 0.85, // how far a drag may turn it either way
