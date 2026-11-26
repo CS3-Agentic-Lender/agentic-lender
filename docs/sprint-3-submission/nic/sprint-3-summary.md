@@ -18,7 +18,7 @@ AL-129, AL-224, AL-225, AL-226, AL-227, AL-228, AL-229, AL-230, AL-231, AL-180, 
 
 ## Evidence
 
-The screenshots below show Ben's application going through the live site, from the loan file and the committee vote to the approval and the minted loan note. The test cases for AL-180, AL-223 and AL-337 in the Sprint 3 submission have every acceptance criterion with its result.
+The screenshots show Ben's application going through the live site, from the loan file and the committee vote to the approval and the minted loan note. The test cases for AL-180, AL-223 and AL-337 in the Sprint 3 submission have every acceptance criterion with its result.
 
 ## Not finished
 
