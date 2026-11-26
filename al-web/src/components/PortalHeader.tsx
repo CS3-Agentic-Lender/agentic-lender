@@ -32,7 +32,8 @@ const portalNav: Record<PortalRole, { label: string; items: NavItem[] }> = {
     items: [
       { to: '/underwriter', label: 'Overview', end: true },
       { to: '/underwriter/pipeline', label: 'Pipeline' },
-      { to: '/underwriter/stress', label: 'Stress test' },
+      { to: '/underwriter/stress', label: 'Stress test', end: true },
+      { to: '/underwriter/stress/house-prices', label: 'House prices' },
     ],
   },
   admin: {

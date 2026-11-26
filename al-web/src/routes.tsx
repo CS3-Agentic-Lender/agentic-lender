@@ -35,6 +35,8 @@ const clients = lazyPage(() => import('./pages/broker/ClientsPage').then((module
 const messages = lazyPage(() => import('./pages/broker/MessagesPage').then((module) => module.MessagesPage));
 const pipeline = lazyPage(() => import('./pages/underwriter/PipelinePage').then((module) => module.PipelinePage));
 const rateShock = lazyPage(() => import('./pages/underwriter/RateShockPage').then((module) => module.RateShockPage));
+const housePriceFall = lazyPage(() => import('./pages/underwriter/HousePriceFallPage').then((module) => module.HousePriceFallPage));
+const { Page: HousePriceFallPage } = housePriceFall;
 const overview = lazyPage(() => import('./pages/PortalPage').then((module) => module.PortalPage));
 const { Page: LoanFilePage } = loanFile;
 const { Page: ClientDetailPage } = clientDetail;
@@ -44,7 +46,7 @@ const { Page: PipelinePage } = pipeline;
 const { Page: RateShockPage } = rateShock;
 const { Page: PortalPage } = overview;
 
-const pages = [overview, loanFile, clientDetail, clients, messages, pipeline, rateShock];
+const pages = [overview, loanFile, clientDetail, clients, messages, pipeline, rateShock, housePriceFall];
 
 // Loads every page chunk now, so the routes render their pages in the first pass. Tests await it before rendering:
 // on a busy machine a chunk's first import can take longer than a query's wait.
@@ -131,6 +133,7 @@ export const appRoutes: RouteObject[] = [
           </PipelineProvider>
         ),
       },
+      { path: '/underwriter/stress/house-prices', element: <Page label="Loading the house price fall"><HousePriceFallPage /></Page> },
       { path: '/underwriter/stress', element: <Page label="Loading the stress test"><RateShockPage /></Page> },
       {
         path: '/underwriter/applications/:applicationId',

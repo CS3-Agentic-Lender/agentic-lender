@@ -54,6 +54,7 @@ export interface RateShockResult {
 
 export interface StressService {
   rateShock(shockBps: number): Promise<RateShockResult>;
+  houseDownturn(fallPct: number): Promise<DownturnResult>;
 }
 
 export function isValidShock(shockBps: number) {
@@ -171,6 +172,14 @@ export function toRateShockResult(value: unknown): RateShockResult {
 
 export function createStressService(client: ApiClient = createApiClient({ baseUrl: AI_BASE_URL })): StressService {
   return {
+    async houseDownturn(fallPct) {
+      if (!isValidFall(fallPct)) throw new RangeError('A price fall must be 0 to 40 percent in steps of 5.');
+      const result = toDownturnResult(await client.request<unknown>('/ai/portfolio/downturn', {
+        method: 'POST', body: { fall_pct: fallPct },
+      }));
+      if (result.fall_pct !== fallPct) throw new ApiError('response', 'al-ai answered for a different price fall. Try again.');
+      return result;
+    },
     async rateShock(shockBps) {
       if (!isValidShock(shockBps)) {
         throw new RangeError(`A rate shock must be ${SHOCK_MIN_BPS} to ${SHOCK_MAX_BPS} bps in steps of ${SHOCK_STEP_BPS}.`);
@@ -187,3 +196,96 @@ export function createStressService(client: ApiClient = createApiClient({ baseUr
 }
 
 export const apiStressService = createStressService();
+
+
+export const FALL_MIN = 0;
+export const FALL_MAX = 40;
+export const FALL_STEP = 5;
+export function isValidFall(value: number) {
+  return Number.isInteger(value) && value >= FALL_MIN && value <= FALL_MAX && value % FALL_STEP === 0;
+}
+
+export interface LtvFigures {
+  ltv_pct: number;
+  above_80: boolean;
+  above_90: boolean;
+}
+export interface DownturnApplication {
+  application_id: string;
+  loan_type: 'mortgage' | 'heloc';
+  value_basis: 'asking_price' | 'model_estimate';
+  loan_eur: number;
+  starting_value_eur: number;
+  before: LtvFigures;
+  after: LtvFigures & { property_value_eur: number };
+}
+interface Exposure { count: number; loan_eur: number }
+interface LtvTotals { above_80: Exposure; above_90: Exposure }
+export interface DownturnResult {
+  fall_pct: number;
+  note: string;
+  applications: DownturnApplication[];
+  totals: { count: number; before: LtvTotals; after: LtvTotals };
+  skipped: { application_id: string; reason: string }[];
+}
+
+function nonnegative(value: unknown) {
+  const parsed = number(value);
+  if (parsed < 0) throw new Unreadable();
+  return parsed;
+}
+function count(value: unknown) {
+  const parsed = nonnegative(value);
+  if (!Number.isInteger(parsed)) throw new Unreadable();
+  return parsed;
+}
+function boolean(value: unknown) {
+  if (typeof value !== 'boolean') throw new Unreadable();
+  return value;
+}
+function ltvFigures(value: unknown): LtvFigures {
+  const raw = record(value);
+  return { ltv_pct: nonnegative(raw.ltv_pct), above_80: boolean(raw.above_80), above_90: boolean(raw.above_90) };
+}
+function ltvTotals(value: unknown): LtvTotals {
+  const raw = record(value);
+  const exposure = (value: unknown) => {
+    const entry = record(value);
+    return { count: count(entry.count), loan_eur: nonnegative(entry.loan_eur) };
+  };
+  return { above_80: exposure(raw.above_80), above_90: exposure(raw.above_90) };
+}
+
+// Keep the API's percentage units and flags unchanged. No valuation or portfolio maths belongs here.
+export function toDownturnResult(value: unknown): DownturnResult {
+  try {
+    const raw = record(value);
+    const fall = number(raw.fall_pct);
+    if (!isValidFall(fall)) throw new Unreadable();
+    const totals = record(raw.totals);
+    const applications = list(raw.applications).map((value): DownturnApplication => {
+      const entry = record(value);
+      if (entry.loan_type !== 'mortgage' && entry.loan_type !== 'heloc') throw new Unreadable();
+      if (entry.value_basis !== 'asking_price' && entry.value_basis !== 'model_estimate') throw new Unreadable();
+      const after = record(entry.after);
+      return {
+        application_id: text(entry.application_id), loan_type: entry.loan_type, value_basis: entry.value_basis,
+        loan_eur: nonnegative(entry.loan_eur), starting_value_eur: nonnegative(entry.starting_value_eur),
+        before: ltvFigures(entry.before),
+        after: { ...ltvFigures(after), property_value_eur: nonnegative(after.property_value_eur) },
+      };
+    });
+    if (new Set(applications.map((entry) => entry.application_id)).size !== applications.length) throw new Unreadable();
+    return {
+      fall_pct: fall, note: text(raw.note), applications,
+      totals: { count: count(totals.count), before: ltvTotals(totals.before), after: ltvTotals(totals.after) },
+      skipped: list(raw.skipped).map((value) => {
+        const entry = record(value);
+        return { application_id: text(entry.application_id), reason: text(entry.reason) };
+      }),
+    };
+  } catch (error) {
+    if (error instanceof Unreadable) throw new ApiError('response', 'al-ai returned a price fall result the portal cannot read. Try again.');
+    throw error;
+  }
+}
