@@ -172,6 +172,40 @@ describe('the rate shock page', () => {
     expect(tile('Monthly surplus change')).toEqual({ value: '−€1,150', detail: 'a month, all applications together' });
   });
 
+  it('shows how many applications are in each band before and after the shock, from al-ai totals', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    const result = shockFixture(200);
+    // Counts that differ from the per-application rows, so the chart can only be reading totals.
+    result.totals.before = bandCounts(5, 3, 2);
+    result.totals.after = bandCounts(2, 4, 4);
+    await stress.answer(200, result);
+
+    const card = screen.getByRole('region', { name: 'Affordability bands, before and after' });
+    const table = within(card).getByRole('table', {
+      name: 'Applications in each affordability band before and after the +2 points rate shock',
+    });
+    const rows = within(table).getAllByRole('row').slice(1).map((row) => row.textContent);
+    expect(rows).toEqual(['Comfortable5 (50%)2 (20%)', 'Caution3 (30%)4 (40%)', 'Adverse2 (20%)4 (40%)']);
+    expect(within(card).getAllByTestId('band-bar')).toHaveLength(6);
+    // The card sits between the tiles and the table of every application.
+    expect(card.compareDocumentPosition(resultsTable()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('hides the band chart until there is a result, and after a failure', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.called(200);
+    expect(screen.queryByRole('region', { name: 'Affordability bands, before and after' })).not.toBeInTheDocument();
+
+    await stress.answer(200);
+    expect(screen.getByRole('region', { name: 'Affordability bands, before and after' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Rate rise' }), { target: { value: '125' } });
+    await stress.fail(125, new ApiError('http', 'the benchmark mortgage rate is not available', 503));
+    expect(screen.queryByRole('region', { name: 'Affordability bands, before and after' })).not.toBeInTheDocument();
+  });
+
   it('puts every control in the dark stage card and draws no charts', async () => {
     const stress = new FakeStressService();
     renderStress(stress);

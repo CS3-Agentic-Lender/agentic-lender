@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
+import { BandShiftChart } from '../../components/stress/BandShiftChart';
 import { summariseShock, worstFirst, type ShockSummary } from '../../components/stress/rateShockFigures';
 import { RateShockStage } from '../../components/stress/RateShockStage';
 import { ShockResultsTable, shockRowId } from '../../components/stress/ShockResultsTable';
@@ -186,7 +187,7 @@ function FailureNotice({ failure, shown, onRetry }: {
   );
 }
 
-function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) {
+function Results({ shown, loading, failing }: { shown: Shown | null; loading: boolean; failing: boolean }) {
   const result = shown?.result ?? null;
 
   if (result && result.totals.count === 0 && result.skipped.length === 0 && !loading) {
@@ -208,6 +209,14 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
     <>
       {showFigures ? (
         <>
+          {/* Only a finished answer draws the bands: never while loading, after a failure, or with nothing measured. */}
+          {result && !loading && !failing && result.totals.count > 0 ? (
+            <BandShiftChart
+              after={result.totals.after}
+              before={result.totals.before}
+              pointsText={pointsLabel(result.shockBps)}
+            />
+          ) : null}
           <section
             aria-labelledby="table-heading"
             className={`relative rounded-[20px] border border-line bg-surface p-5.5 shadow-card ${loading ? 'min-h-64' : ''}`}
@@ -517,6 +526,7 @@ export function RateShockPage() {
           ) : null}
           {shown || loading ? (
             <Results
+              failing={failure !== null}
               loading={loading}
               shown={shown}
             />
