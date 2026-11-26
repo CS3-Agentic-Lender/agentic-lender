@@ -50,6 +50,9 @@ const cell = 'px-3.5 py-3 align-top';
 
 // Every measured application, worst first. Below 760px each row becomes a card with its own labels,
 // so a phone never scrolls sideways.
+// The row's element id, so the 3D stage can scroll to the application a tower stands for.
+export const shockRowId = (applicationId: string) => `shock-row-${applicationId}`;
+
 export function ShockResultsTable({ applications, pointsText, linkTo }: ShockResultsTableProps) {
   return (
     <table className="shock-table mt-4 w-full border-collapse text-base">
@@ -99,8 +102,9 @@ export function ShockResultsTable({ applications, pointsText, linkTo }: ShockRes
           const crossed = crossesDtiLimit(application);
           return (
             <tr
-              className={`border-t border-line ${crossed ? 'bg-danger-soft/55' : ''}`}
+              className={`scroll-mt-24 border-t border-line transition-shadow duration-300 data-[picked=true]:shadow-[inset_4px_0_0_var(--color-pine)] ${crossed ? 'bg-danger-soft/55' : ''}`}
               data-over-limit={crossed ? 'true' : undefined}
+              id={shockRowId(application.applicationId)}
               key={application.applicationId}
             >
               <th

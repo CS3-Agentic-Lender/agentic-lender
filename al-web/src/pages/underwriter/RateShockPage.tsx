@@ -4,7 +4,8 @@ import { PortalHeader } from '../../components/PortalHeader';
 import { RateShockDial } from '../../components/stress/RateShockDial';
 import { summariseShock, worstFirst, type ShockSummary } from '../../components/stress/rateShockFigures';
 import { bandColour, DtiDumbbellChart, SurplusChangeChart } from '../../components/stress/ShockCharts';
-import { ShockResultsTable } from '../../components/stress/ShockResultsTable';
+import { RateShockStage } from '../../components/stress/RateShockStage';
+import { ShockResultsTable, shockRowId } from '../../components/stress/ShockResultsTable';
 import { useStressService } from '../../context/StressContext';
 import { ApiError } from '../../services/apiClient';
 import {
@@ -440,6 +441,17 @@ export function RateShockPage() {
       : null;
   const showTiles = shown !== null || loading;
 
+  // A tower on the 3D stage was clicked: bring its row into view, mark it and move focus to its link.
+  const pickRow = useCallback((applicationId: string) => {
+    const row = document.getElementById(shockRowId(applicationId));
+    if (!row) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    row.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    row.querySelector('a')?.focus({ preventScroll: true });
+    row.dataset.picked = 'true';
+    window.setTimeout(() => { delete row.dataset.picked; }, 2400);
+  }, []);
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-oat text-ink">
       <PortalHeader />
@@ -553,6 +565,15 @@ export function RateShockPage() {
             ) : null}
           </div>
         </section>
+
+        {showTiles ? (
+          <div className="pt-8">
+            <RateShockStage
+              applications={shown ? worstFirst(shown.result.applications) : []}
+              onSelect={pickRow}
+            />
+          </div>
+        ) : null}
 
         <div
           aria-busy={loading}
