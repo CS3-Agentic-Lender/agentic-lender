@@ -1,4 +1,4 @@
-import { cleanup, screen, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AdminAction } from './services/adminActivityService';
 import type { Review, SupportRequest } from './services/inboxService';
@@ -147,6 +147,7 @@ describe('admin dashboard', () => {
     const live = new FakeLive<AdminAction>(null);
     renderAdmin('/admin', { activity: new FakeActivityService(live) });
     await screen.findByRole('heading', { name: 'Dashboard' });
+    await waitFor(() => expect(live.active).toBe(1));
     live.fail('permission-denied');
     expect(await screen.findByRole('alert')).toHaveTextContent('This account is not allowed to read the recent activity.');
   });

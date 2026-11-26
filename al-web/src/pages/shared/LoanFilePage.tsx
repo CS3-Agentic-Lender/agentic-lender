@@ -15,7 +15,7 @@ import { SignOffPanel, decisionLabels } from '../../components/lending/SignOffPa
 import type { DecisionResult } from '../../services/decisionService';
 import { KeyFigures } from '../../components/lending/KeyFigures';
 import { StatusTimeline } from '../../components/lending/StatusTimeline';
-import { ValuationBreakdown } from '../../components/lending/ValuationBreakdown';
+import { ValuationBreakdown, hasStoredValuation } from '../../components/lending/ValuationBreakdown';
 import { useLoanFile, type LoanFileState } from '../../context/LoanFileContext';
 import { useSettlementService } from '../../context/SettlementContext';
 import { mintFailureMessage } from '../../services/settlementService';
@@ -194,6 +194,9 @@ interface LoanFileProps {
 function LoanFile({ application, review, viewer }: LoanFileProps) {
   const { property } = application;
   const heloc = application.loanType === 'heloc';
+  const valuationStored = hasStoredValuation(review);
+  // While the review loads, keep the split so Collateral does not jump from full width when the valuation arrives.
+  const split = valuationStored || review.state === 'pending';
 
   return (
     <>
@@ -249,8 +252,13 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
         />
       </div>
 
-      <div className="mt-5 grid animate-rise gap-5 lg:grid-cols-12 [&>div>section]:h-full" style={stagger(3)}>
-        <div className="min-w-0 lg:col-span-5">
+      {/* With no valuation stored, the Valuation card collapses to one line and Collateral takes the full row.
+          A pending review keeps the split, with the slim loading line inside the Valuation card. */}
+      <div
+        className={`mt-5 grid animate-rise gap-5 lg:grid-cols-12 ${valuationStored ? '[&>div>section]:h-full' : ''}`}
+        style={stagger(3)}
+      >
+        <div className={`min-w-0 ${split ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
           {heloc ? (
             <HelocCollateral
               application={application}
@@ -262,7 +270,7 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
             <MortgageCollateral application={application} review={review} />
           )}
         </div>
-        <div className="min-w-0 lg:col-span-7">
+        <div className={`min-w-0 ${split ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
           <ValuationBreakdown application={application} review={review} />
         </div>
       </div>
@@ -274,7 +282,11 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
           the outcome and conditions shown elsewhere on the file. Read-only admins (AL-337, 24 Nov) read it too, without
           its controls. Named viewers only, so a new viewer does not see it by default. */}
       {viewer === 'underwriter' || viewer === 'admin' ? (
-        <CommitteeConsole applicationId={application.id} readOnly={viewer === 'admin'} />
+        <CommitteeConsole
+          affordability={{ review }}
+          applicationId={application.id}
+          readOnly={viewer === 'admin'}
+        />
       ) : null}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">

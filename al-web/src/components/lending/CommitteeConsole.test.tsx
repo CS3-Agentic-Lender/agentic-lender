@@ -6,6 +6,8 @@ import { CommitteeServiceContext } from '../../context/CommitteeContext';
 import {
   COMMITTEE_STEPS, toCommitteeRun, type CommitteeCall, type CommitteeStep, type CommitteeCallsState, type CommitteeService, type CommitteeState,
 } from '../../services/committeeService';
+import { toLoanFileReview } from '../../services/loanFileService';
+import type { AffordabilityInputs } from './AffordabilityFigures';
 import { CommitteeConsole } from './CommitteeConsole';
 
 function callOf(fields: Partial<CommitteeCall> & { id: string }): CommitteeCall {
@@ -76,13 +78,24 @@ function fakeService(initial: CommitteeState = { status: 'ready', run: sampleRun
   return { service, stopRun, stopCalls, pushRun: (state: CommitteeState) => updateRun(state), pushCalls: (state: CommitteeCallsState) => updateCalls(state) };
 }
 
-function consoleWith(service: CommitteeService, applicationId = 'LN-1001') {
+function consoleWith(service: CommitteeService, applicationId = 'LN-1001', affordability?: AffordabilityInputs) {
   return (
     <CommitteeServiceContext.Provider value={service}>
-      <CommitteeConsole applicationId={applicationId} />
+      <CommitteeConsole affordability={affordability} applicationId={applicationId} />
     </CommitteeServiceContext.Provider>
   );
 }
+
+// The benchmark DTI comes from the same dtiBreakdown as the stressed one, never from the application's dtiPct.
+const storedFigures: AffordabilityInputs = {
+  review: toLoanFileReview({
+    dtiBreakdown: {
+      incomeMonthlyEur: 6250, newRepaymentMonthlyEur: 1265.13, dtiPct: 33.4, stressedRepaymentMonthlyEur: 1555.4,
+      stressedDtiPct: 42.4, surplusMonthlyEur: 900, stressedSurplusMonthlyEur: 610.5,
+      dtiBand: 'Caution', surplusBand: 'Comfortable',
+    },
+  }),
+};
 
 afterEach(cleanup);
 
@@ -359,7 +372,7 @@ describe('committee console', () => {
     const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
     expect(affordability.getByText('Vote: Approve')).toBeInTheDocument();
     expect(affordability.getByText('Rating').nextElementSibling).toHaveTextContent('adequate');
-    expect(affordability.getByText(/its stored report repeats the rating/)).toBeInTheDocument();
+    expect(affordability.queryByText(/writes no free text/)).not.toBeInTheDocument();
     expect(affordability.getByText('Stored report text')).toBeInTheDocument();
     expect(affordability.getByText((_, node) => node?.tagName === 'P' && node.textContent === report)).not.toBeVisible();
     await userEvent.setup().click(affordability.getByText('Stored report text'));
@@ -368,6 +381,107 @@ describe('committee console', () => {
       expect(affordability.getByRole('heading', { level: 4, name: heading })).toBeInTheDocument();
     }
     expect(affordability.getAllByRole('list')).toHaveLength(2);
+  });
+
+  it('shows the stored figures the affordability agent judged, with bars against the band limits', async () => {
+    const run = sampleRun();
+    const report = 'Rating: adequate. Recommendation: Approve.\nConcerns: Variable income.\nConditions: Verify payslips.';
+    run.agents.affordability = { ...run.agents.affordability!, report };
+    render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', storedFigures));
+    const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
+
+    const repayment = affordability.getByText('Monthly repayment').closest('div')!;
+    expect(repayment).toHaveTextContent('€1,265 benchmark');
+    expect(repayment).toHaveTextContent('€1,555 stressed');
+    const dti = affordability.getByText('Debt to income').closest('div.py-3')!;
+    expect(dti).toHaveTextContent('33.4%');
+    expect(dti).toHaveTextContent('Within the 40% Comfortable limit');
+    const stressed = affordability.getByText('Stressed debt to income').closest('div.py-3')!;
+    expect(stressed).toHaveTextContent('42.4%');
+    expect(stressed).toHaveTextContent('Caution');
+    expect(stressed).toHaveTextContent('Above the 40% Comfortable limit, within the 50% Caution limit');
+    const bar = stressed.querySelector('[data-ratio-bar]')!;
+    expect(bar).toHaveAttribute('aria-hidden', 'true');
+    expect(bar.firstElementChild).toHaveClass('bg-vote-conditional');
+    const surplus = affordability.getByText('Monthly surplus').closest('div')!;
+    expect(surplus).toHaveTextContent('€900 benchmark');
+    expect(surplus).toHaveTextContent('€611 stressed');
+    expect(surplus).toHaveTextContent('Comfortable');
+    // The run's policy gate in sampleRun records one breach.
+    expect(affordability.getByRole('list', { name: 'Policy breaches' })).toHaveTextContent('Combined loan-to-value cap CLTV_CAP');
+    expect(affordability.getByText(/Source: the DTI breakdown stored on the underwriting review/)).toBeInTheDocument();
+
+    expect(affordability.queryByText(/writes no free text/)).not.toBeInTheDocument();
+    await userEvent.setup().click(affordability.getByText('Stored report text'));
+    expect(affordability.getByText((_, node) => node?.tagName === 'P' && node.textContent === report)).toBeVisible();
+  });
+
+  it('says Not stored for each figure the review does not hold, and for breaches without a stored gate', () => {
+    const run = { ...sampleRun(), policyGate: null };
+    render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', {
+      review: toLoanFileReview({}),
+    }));
+    const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
+    for (const label of ['Monthly repayment', 'Monthly surplus']) {
+      expect(within(affordability.getByText(label).closest('div')!).getAllByText('Not stored')).toHaveLength(2);
+    }
+    for (const label of ['Debt to income', 'Stressed debt to income']) {
+      const row = affordability.getByText(label).closest('div.py-3')!;
+      expect(row).toHaveTextContent('Not stored');
+      expect(row.querySelector('[data-ratio-bar]')).toBeNull();
+    }
+    expect(affordability.getByText('Policy breaches').nextElementSibling).toHaveTextContent(/^Not stored$/);
+  });
+
+  it('says None for a stored gate with no breaches and explains an unreadable review', () => {
+    const run = sampleRun();
+    run.policyGate = { ...run.policyGate!, breaches: [] };
+    const view = render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', storedFigures));
+    expect(screen.getByText('Policy breaches').nextElementSibling).toHaveTextContent(/^None$/);
+    view.unmount();
+    render(consoleWith(fakeService().service, 'LN-1001', { review: { state: 'unavailable' } }));
+    expect(screen.getByText(/underwriting review could not be read/)).toBeInTheDocument();
+    expect(screen.queryByText('Monthly repayment')).not.toBeInTheDocument();
+  });
+
+  it('draws the stressed surplus against the 500 euro Comfortable minimum, from the stored figure only', () => {
+    const view = render(consoleWith(fakeService().service, 'LN-1001', storedFigures));
+    const surplus = screen.getByText('Monthly surplus').closest('[data-row="surplus"]')!;
+    const bar = surplus.querySelector('[data-surplus-bar]')!;
+    expect(bar).toHaveAttribute('aria-hidden', 'true');
+    expect(bar.firstElementChild).toHaveClass('bg-pine');
+    // 610.5 on a scale of 1,000 (twice the minimum, as 610.5 x 1.1 is smaller).
+    expect(parseFloat((bar.firstElementChild as HTMLElement).style.width)).toBeCloseTo(61.05);
+    expect((bar.lastElementChild as HTMLElement).style.left).toBe('50%');
+    expect(surplus).toHaveTextContent('Stressed surplus at or above the €500 Comfortable minimum');
+    view.unmount();
+
+    const shortfall: AffordabilityInputs = {
+      review: toLoanFileReview({ dtiBreakdown: { stressedSurplusMonthlyEur: -120, surplusBand: 'Adverse' } }),
+    };
+    const second = render(consoleWith(fakeService().service, 'LN-1001', shortfall));
+    const short = screen.getByText('Monthly surplus').closest('[data-row="surplus"]')!;
+    expect(short.querySelector('[data-surplus-bar]')!.firstElementChild).toHaveClass('bg-error');
+    expect((short.querySelector('[data-surplus-bar]')!.firstElementChild as HTMLElement).style.width).toBe('0%');
+    expect(short).toHaveTextContent('Stressed surplus is a shortfall, below the Caution minimum');
+    second.unmount();
+
+    render(consoleWith(fakeService().service, 'LN-1001', { review: toLoanFileReview({}) }));
+    expect(screen.getByText('Monthly surplus').closest('[data-row="surplus"]')!.querySelector('[data-surplus-bar]')).toBeNull();
+  });
+
+  it('shows no stored figures under a re-run that failed before its calculations step', () => {
+    const run = toCommitteeRun('run-LN-1001-rerun', {
+      applicationId: 'LN-1001', brokerId: 'broker-1', status: 'failed', trigger: 'rerun', rerunOf: 'run-LN-1001',
+      failedStep: 'valuation_model', failureReason: 'Model file missing.',
+    });
+    render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', storedFigures));
+    const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
+    // The review still holds the previous run's figures; none of them may show under this run.
+    expect(affordability.queryByText('Monthly repayment')).not.toBeInTheDocument();
+    expect(affordability.queryByText('33.4%')).not.toBeInTheDocument();
+    expect(affordability.queryByText('Policy breaches')).not.toBeInTheDocument();
+    expect(affordability.getByText('Report not stored yet')).toBeInTheDocument();
   });
 
   it('points the strategist report to the credit memo tab when it is the stored memo', () => {
@@ -389,8 +503,61 @@ describe('committee console', () => {
       startedAt: new Date('2026-11-04T13:26:00.000Z'), finishedAt: new Date('2026-11-04T13:27:23.400Z'),
     };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
-    expect(screen.getByText('Took 1 min 23 s')).toBeInTheDocument();
-    expect(screen.getByText('run-LN-1001-old').parentElement).toHaveTextContent('Re-run of run-LN-1001-old');
+    expect(screen.getByRole('status')).toHaveTextContent('Run status: Complete · Took 1 min 23 s · Re-run');
+    expect(screen.getByText('Re-run of').nextElementSibling).toHaveTextContent('run-LN-1001-old');
+  });
+
+  it('keeps the run ID, times and original run behind a Run details disclosure', async () => {
+    const run = {
+      ...sampleRun(), trigger: 'rerun' as const, rerunOf: 'run-LN-1001-old',
+      startedAt: new Date('2026-11-04T13:26:00.000Z'), finishedAt: new Date('2026-11-04T13:27:23.400Z'),
+    };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    const summary = screen.getByText('Run details');
+    const details = summary.closest('details')!;
+    expect(details).not.toHaveAttribute('open');
+    for (const label of ['Run ID', 'Started', 'Finished', 'Re-run of']) {
+      expect(within(details).getByText(label)).not.toBeVisible();
+    }
+    expect(within(details).getByText('run-LN-1001')).not.toBeVisible();
+
+    // A native <details>: the summary is in the tab order and opens with Enter or a click.
+    const user = userEvent.setup();
+    await user.click(summary);
+    expect(details).toHaveAttribute('open');
+    expect(within(details).getByText('run-LN-1001')).toBeVisible();
+    expect(within(details).getByText('Started').nextElementSibling).toHaveTextContent('2026');
+    expect(within(details).getByText('Finished').nextElementSibling).toHaveTextContent('2026');
+  });
+
+  it('copies the run ID and the original run ID and says Copied politely', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const run = { ...sampleRun(), trigger: 'rerun' as const, rerunOf: 'run-LN-1001-old' };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    await user.click(screen.getByText('Run details'));
+
+    await user.click(screen.getByRole('button', { name: 'Copy run ID' }));
+    expect(writeText).toHaveBeenLastCalledWith('run-LN-1001');
+    const copied = await screen.findByText('Copied');
+    expect(copied).toHaveAttribute('aria-live', 'polite');
+
+    screen.getByRole('button', { name: 'Copy original run ID' }).focus();
+    await user.keyboard('{Enter}');
+    expect(writeText).toHaveBeenLastCalledWith('run-LN-1001-old');
+    expect(await screen.findAllByText('Copied')).toHaveLength(2);
+  });
+
+  it('says it could not copy when the clipboard is refused', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+    });
+    render(consoleWith(fakeService().service));
+    await user.click(screen.getByText('Run details'));
+    await user.click(screen.getByRole('button', { name: 'Copy run ID' }));
+    expect(await screen.findByText('Could not copy')).toBeInTheDocument();
   });
 
   it('shows a short run in seconds and no re-run marker for a submitted run', () => {
@@ -399,7 +566,8 @@ describe('committee console', () => {
       startedAt: new Date('2026-11-04T13:26:00.000Z'), finishedAt: new Date('2026-11-04T13:26:42.250Z'),
     };
     render(consoleWith(fakeService({ status: 'ready', run }).service));
-    expect(screen.getByText('Took 42.3 s')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Run status: Complete · Took 42.3 s');
+    expect(screen.getByRole('status')).not.toHaveTextContent('Re-run');
     expect(screen.queryByText(/Re-run of/)).not.toBeInTheDocument();
   });
 
@@ -408,6 +576,40 @@ describe('committee console', () => {
     render(consoleWith(fakeService({ status: 'ready', run }).service));
     expect(screen.getByText('Reason: Interrupted by a restart or deploy')).toBeInTheDocument();
     expect(screen.getByText('interrupted').parentElement).toHaveTextContent('Stored reason: interrupted');
+  });
+
+  it('says in one line when an agent raised no concerns or conditions', () => {
+    const run = sampleRun();
+    run.agents.valuation = { ...run.agents.valuation!, concerns: [], conditions: [] };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Valuation');
+    const valuation = within(screen.getByRole('region', { name: 'Valuation vote' }));
+    expect(valuation.getByText('No concerns or conditions raised')).toBeInTheDocument();
+    expect(valuation.queryByRole('heading', { name: 'Concerns' })).not.toBeInTheDocument();
+    expect(valuation.queryByRole('heading', { name: 'Conditions' })).not.toBeInTheDocument();
+    expect(valuation.queryByText('None recorded')).not.toBeInTheDocument();
+  });
+
+  it('shows both lists when one has items, with None beside an empty one', () => {
+    const run = sampleRun();
+    run.agents.valuation = { ...run.agents.valuation!, concerns: [], conditions: ['Obtain a survey'] };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Valuation');
+    const valuation = within(screen.getByRole('region', { name: 'Valuation vote' }));
+    expect(valuation.getByRole('heading', { name: 'Concerns' })).toBeInTheDocument();
+    expect(valuation.getByText('None')).toBeInTheDocument();
+    expect(valuation.getByText('Obtain a survey')).toBeInTheDocument();
+    expect(valuation.queryByText('No concerns or conditions raised')).not.toBeInTheDocument();
+  });
+
+  it('keeps Not stored apart from an empty list', () => {
+    const run = sampleRun();
+    run.agents.valuation = { ...run.agents.valuation!, concerns: null, conditions: [] };
+    render(consoleWith(fakeService({ status: 'ready', run }).service));
+    openTab('Valuation');
+    const valuation = within(screen.getByRole('region', { name: 'Valuation vote' }));
+    expect(valuation.getByText('Not stored')).toBeInTheDocument();
+    expect(valuation.getByText('None')).toBeInTheDocument();
   });
 
   it('shows a failed call outcome and its stored error', async () => {
@@ -458,17 +660,24 @@ describe('committee console while the run goes', () => {
     expect(panel.getByRole('progressbar', { name: 'Market & Macro in progress' })).not.toHaveAttribute('aria-valuenow');
   });
 
-  it('fills a tab with its report as soon as its agent finishes, without a reload', () => {
+  it('fills a tab with its figures and report as soon as its agent finishes, without a reload', async () => {
+    const storedReport = 'Rating: adequate. Recommendation: Approve.\nConcerns: Variable income.\nConditions: Verify payslips.';
     const before = { validate: ok(1), valuation_model: ok(2), market: ok(3), calculations: ok(4), affordability: running(5), valuation_agent: running(5) };
     const fake = fakeService({ status: 'ready', run: liveRun(before) });
-    render(consoleWith(fake.service));
+    render(consoleWith(fake.service, 'LN-1001', storedFigures));
     expect(screen.getByRole('tab', { name: 'Affordability, thinking' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Working on: Affordability and Valuation')).toBeInTheDocument();
-    act(() => fake.pushRun({ status: 'ready', run: liveRun({ ...before, affordability: ok(9) }, { agents: { affordability: affordabilityReport } }) }));
+    expect(screen.queryByText('Monthly repayment')).not.toBeInTheDocument();
+    act(() => fake.pushRun({ status: 'ready', run: liveRun({ ...before, affordability: ok(9) }, { agents: { affordability: { ...affordabilityReport, report: storedReport } } }) }));
     expect(screen.getByRole('tab', { name: 'Affordability, done' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Valuation, thinking' })).toBeInTheDocument();
     const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
-    expect(affordability.getByText('Repayments fit the household budget.')).toBeInTheDocument();
+    expect(affordability.getByText('Monthly repayment')).toBeVisible();
+    expect(affordability.getByText('33.4%')).toBeVisible();
+    const report = affordability.getByText((_, node) => node?.tagName === 'P' && node.textContent === storedReport);
+    expect(report).not.toBeVisible();
+    await userEvent.setup().click(affordability.getByText('Stored report text'));
+    expect(report).toBeVisible();
     expect(affordability.getByText('Vote: Approve')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Committee progress' })).toHaveAttribute('aria-valuenow', '5');
   });

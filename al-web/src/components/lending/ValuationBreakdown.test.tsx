@@ -228,18 +228,26 @@ describe('valuation breakdown', () => {
   it('shows a loading line while the review is pending', () => {
     renderBreakdown({ state: 'pending' });
     expect(screen.getByRole('status')).toHaveTextContent('Loading the valuation breakdown.');
-    expect(screen.queryByText('Valuation breakdown not available')).not.toBeInTheDocument();
+    expect(screen.queryByText(/not stored/)).not.toBeInTheDocument();
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 
   it.each([
-    [{ state: 'absent' }, 'once the underwriting review is written'],
-    [{ state: 'unavailable' }, 'could not be read'],
-    [toLoanFileReview({}), 'not stored with this application yet'],
-  ] satisfies [LoanFileReview, string][])('explains an unavailable breakdown (%j)', (review, reason) => {
+    [{ state: 'absent' }, 'Valuation breakdown not stored for this application yet: it appears once the underwriting review is written.'],
+    [{ state: 'unavailable' }, 'Valuation breakdown could not be read from the underwriting review.'],
+    [toLoanFileReview({}), 'Valuation breakdown not stored for this application.'],
+  ] satisfies [LoanFileReview, string][])('collapses to a one-line notice when nothing is stored (%j)', (review, reason) => {
     renderBreakdown(review);
-    expect(screen.getByText('Valuation breakdown not available')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent(reason);
+    const section = screen.getByRole('region', { name: 'Valuation' });
+    expect(section).toHaveAttribute('data-collapsed');
+    expect(within(section).getByRole('status')).toHaveTextContent(reason);
+    expect(screen.queryByText('How each detail moved the estimate')).not.toBeInTheDocument();
+    expect(screen.queryByText('Estimate')).not.toBeInTheDocument();
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  it('never says "not stored" when the review could not be read', () => {
+    renderBreakdown({ state: 'unavailable' });
+    expect(screen.queryByText(/not stored/)).not.toBeInTheDocument();
   });
 });

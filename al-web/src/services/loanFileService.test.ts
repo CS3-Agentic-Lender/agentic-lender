@@ -274,6 +274,13 @@ describe('loan file review parser', () => {
     ).toMatchObject({ dtiBreakdown: { takeHomeMonthlyEur: 4900, livingCostsMonthlyEur: 1800 } });
   });
 
+  // The breakdown's own DTI, rewritten at every run's calculations step with the stressed figures beside it.
+  it('reads the benchmark DTI from the breakdown and leaves an unusable one null', () => {
+    expect(toLoanFileReview({ dtiBreakdown: { dtiPct: 21.61 } })).toMatchObject({ dtiBreakdown: { dtiPct: 21.61 } });
+    expect(toLoanFileReview({ dtiBreakdown: { dtiPct: '21.61' } })).toMatchObject({ dtiBreakdown: { dtiPct: null } });
+    expect(toLoanFileReview({})).toMatchObject({ dtiBreakdown: { dtiPct: null } });
+  });
+
   it('has no stressed figures while none are stored', () => {
     expect(readStressTest({})).toEqual({
       stressMarginPct: null,

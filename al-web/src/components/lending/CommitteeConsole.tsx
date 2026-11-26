@@ -2,6 +2,7 @@ import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useCommittee, useCommitteeCalls } from '../../context/CommitteeContext';
 import { runDuration, type CommitteeCall, type CommitteeRun, type VotingAgent } from '../../services/committeeService';
 import { Skeleton } from '../Skeleton';
+import type { AffordabilityInputs } from './AffordabilityFigures';
 import { AgentMetadata, AgentVote, StoredList, voteDot } from './AgentVote';
 import { CommitteeStage } from './CommitteeStage';
 import { canDraw3d } from './council/canDraw3d';
@@ -284,7 +285,83 @@ function StepWaiting({ label, progress }: { label: string; progress: TabProgress
   );
 }
 
-function RunDetails({ run, readOnly }: { run: CommitteeRun; readOnly: boolean }) {
+// Copies one stored ID and says so politely. A browser without clipboard access says it could not.
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [message, setMessage] = useState('');
+
+  async function copy() {
+    try {
+      if (!navigator.clipboard) throw new Error('No clipboard');
+      await navigator.clipboard.writeText(value);
+      setMessage('Copied');
+    } catch {
+      setMessage('Could not copy');
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        aria-label={`Copy ${label}`}
+        className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-line px-3 text-sm font-medium text-pine transition-colors duration-200 hover:bg-tint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine"
+        onClick={() => void copy()}
+        type="button"
+      >
+        Copy
+      </button>
+      <span aria-live="polite" className="text-sm text-muted">
+        {message}
+      </span>
+    </span>
+  );
+}
+
+// Run ID, times and the run a re-run repeats, behind one disclosure (keyboard and mouse via <details>).
+function RunInfo({ run }: { run: CommitteeRun }) {
+  return (
+    <details className="group w-full">
+      <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg font-medium text-pine hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine">
+        <svg
+          aria-hidden="true"
+          className="h-4 w-4 transition-transform duration-200 group-open:rotate-90"
+          fill="none"
+          viewBox="0 0 16 16"
+        >
+          <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
+        </svg>
+        Run details
+      </summary>
+      <dl className="mt-2 grid gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-4 text-base sm:grid-cols-[auto_minmax(0,1fr)]">
+        <dt className="text-muted">Run ID</dt>
+        <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="break-all font-mono">{run.id}</span>
+          <CopyButton label="run ID" value={run.id} />
+        </dd>
+        <dt className="text-muted">Started</dt>
+        <dd>{timestamp(run.startedAt)}</dd>
+        <dt className="text-muted">Finished</dt>
+        <dd>{run.finishedAt ? timestamp(run.finishedAt) : 'Not finished'}</dd>
+        {run.trigger === 'rerun' && (
+          <>
+            <dt className="text-muted">Re-run of</dt>
+            <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {run.rerunOf ? (
+                <>
+                  <span className="break-all font-mono">{run.rerunOf}</span>
+                  <CopyButton label="original run ID" value={run.rerunOf} />
+                </>
+              ) : (
+                <span className="text-muted">The earlier run is not stored</span>
+              )}
+            </dd>
+          </>
+        )}
+      </dl>
+    </details>
+  );
+}
+
+function RunDetails({ run, readOnly, affordability }: { run: CommitteeRun; readOnly: boolean; affordability?: AffordabilityInputs }) {
   const [showCalls, setShowCalls] = useState(false);
   const [tab, setTab] = useState<CommitteeTab>('affordability');
   const callsId = useId();
@@ -319,28 +396,19 @@ function RunDetails({ run, readOnly }: { run: CommitteeRun; readOnly: boolean })
 
   return (
     <div className="mt-5 space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="break-all font-mono text-sm text-muted">Run ID: {run.id}</p>
-          <p className="mt-1 text-sm text-muted">Started: {timestamp(run.startedAt)}</p>
-          {run.finishedAt && (
-            <p className="mt-1 text-sm text-muted">Finished: {timestamp(run.finishedAt)}</p>
-          )}
-          {duration && <p className="mt-1 text-sm text-muted">Took {duration}</p>}
-          {run.trigger === 'rerun' && (
-            <p className="mt-2 inline-flex flex-wrap items-baseline gap-x-1.5 rounded-lg border border-line px-3 py-1 text-sm">
-              {run.rerunOf
-                ? <>Re-run of <span className="break-all font-mono">{run.rerunOf}</span></>
-                : 'Re-run (the earlier run is not stored)'}
-            </p>
-          )}
-        </div>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        {/* One status line; the IDs and times sit in the Run details disclosure below it. */}
         <p
           role="status"
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${run.status === 'failed' ? 'bg-danger-soft text-error' : 'bg-tint text-pine'}`}
+          className={`rounded-lg px-3 py-2 text-base font-medium ${run.status === 'failed' ? 'bg-danger-soft text-error' : 'bg-tint text-pine'}`}
         >
-          Run status: {run.status === null ? 'Not stored' : { running: 'Running', failed: 'Failed', complete: 'Complete' }[run.status]}
+          {[
+            `Run status: ${run.status === null ? 'Not stored' : { running: 'Running', failed: 'Failed', complete: 'Complete' }[run.status]}`,
+            duration ? `Took ${duration}` : null,
+            run.trigger === 'rerun' ? 'Re-run' : null,
+          ].filter(Boolean).join(' · ')}
         </p>
+        <RunInfo run={run} />
       </div>
       {run.status === 'running' && (
         <p className="text-muted">The committee is running. Outputs not stored yet are pending.</p>
@@ -439,6 +507,7 @@ function RunDetails({ run, readOnly }: { run: CommitteeRun; readOnly: boolean })
             <StepWaiting label={TABS.find((item) => item.key === tab)?.label ?? ''} progress={current} />
           ) : tab === 'affordability' || tab === 'valuation' || tab === 'strategist' ? (
             <AgentVote
+              affordability={affordability && { inputs: affordability, breaches: run.policyGate?.breaches ?? null }}
               agent={run.agents[tab]}
               creditMemo={run.creditMemo}
               name={tab}
@@ -533,7 +602,11 @@ function RunSkeleton() {
 }
 
 // `readOnly` drops the run controls, for a viewer who may read the committee but not act on it.
-export function CommitteeConsole({ applicationId, readOnly = false }: { applicationId: string; readOnly?: boolean }) {
+export function CommitteeConsole({ applicationId, readOnly = false, affordability }: {
+  applicationId: string;
+  readOnly?: boolean;
+  affordability?: AffordabilityInputs;
+}) {
   const state = useCommittee(applicationId);
   return (
     <section
@@ -544,7 +617,7 @@ export function CommitteeConsole({ applicationId, readOnly = false }: { applicat
       <h2 className="card-title">Committee</h2>
       <p className="mt-2 text-sm text-muted">Stored reasoning for this application. Run status is separate from the application status.</p>
       {state.status === 'ready' ? (
-        <RunDetails key={state.run.id} readOnly={readOnly} run={state.run} />
+        <RunDetails affordability={affordability} key={state.run.id} readOnly={readOnly} run={state.run} />
       ) : state.status === 'loading' ? (
         <div className="mt-5">
           <p className="sr-only" role="status">Loading the committee run…</p>

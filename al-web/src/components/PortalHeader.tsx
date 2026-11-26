@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router';
+import { Link, NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import type { PortalRole } from '../services/authService';
 import { isPortalRole } from '../utils/portalHomeFor';
@@ -63,9 +63,19 @@ export function PortalHeader() {
   return (
     <header className="border-b border-line bg-surface">
       <div className="mx-auto flex min-h-20 w-full max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-6 py-3">
-        <div className="text-pine">
-          <Mark />
-        </div>
+        {nav ? (
+          <Link
+            aria-label={`Agentic Lender, ${role} overview`}
+            className="inline-flex min-h-11 items-center rounded-lg text-pine transition-opacity duration-200 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-pine"
+            to={nav.items[0].to}
+          >
+            <Mark />
+          </Link>
+        ) : (
+          <div className="text-pine">
+            <Mark />
+          </div>
+        )}
         {nav ? (
           <nav aria-label={nav.label} className="flex flex-wrap gap-1">
             {nav.items.map((item) => (

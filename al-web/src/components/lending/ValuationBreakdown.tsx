@@ -17,12 +17,19 @@ const featureLabels = new Map([
   ['eircode_area', 'Eircode area'],
 ]);
 
+// One line each: with nothing stored the card collapses to this notice and Collateral takes the row.
+// A refused or failed read never says "not stored".
 const reviewNotices = {
   pending: 'Loading the valuation breakdown.',
-  absent: 'The valuation breakdown will appear once the underwriting review is written.',
-  unavailable: 'The valuation breakdown could not be read from the underwriting review.',
-  missing: 'A usable baseline and all feature contributions are not stored with this application yet.',
+  absent: 'Valuation breakdown not stored for this application yet: it appears once the underwriting review is written.',
+  unavailable: 'Valuation breakdown could not be read from the underwriting review.',
+  missing: 'Valuation breakdown not stored for this application.',
 };
+
+// True when the review holds a valuation to draw; otherwise the card is a slim notice.
+export function hasStoredValuation(review: LoanFileReview) {
+  return review.state === 'available' && review.valuation.state === 'available';
+}
 
 // Only the routing key (the first three characters, e.g. T12) is shown: the full Eircode
 // identifies one address.
@@ -48,6 +55,30 @@ export function ValuationBreakdown({ review }: ValuationBreakdownProps) {
   const notice = review.state === 'available' ? 'missing' : review.state;
   const maxEffect = breakdown?.contributions.reduce((max, { eur }) => Math.max(max, Math.abs(eur)), 0) ?? 0;
 
+  if (valuation === null) {
+    return (
+      <section
+        aria-labelledby="valuation-heading"
+        className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-line bg-surface px-5 py-3"
+        data-collapsed
+      >
+        <h2 className="font-semibold text-ink" id="valuation-heading">
+          Valuation
+        </h2>
+        <p
+          aria-live="polite"
+          className={review.state === 'pending' ? 'sr-only' : 'text-base text-muted'}
+          role="status"
+        >
+          {reviewNotices[notice]}
+        </p>
+        {review.state === 'pending' ? (
+          <Skeleton className="h-4 w-64 max-w-full" />
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <section aria-labelledby="valuation-heading" className="card">
       <h2 className="card-title" id="valuation-heading">
@@ -57,30 +88,9 @@ export function ValuationBreakdown({ review }: ValuationBreakdownProps) {
         How each detail moved the estimate
       </p>
 
-      <div className={valuation?.supportWarnings.length ? 'grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}>
+      <div className={valuation.supportWarnings.length ? 'grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}>
         <div className="min-w-0">
-          {review.state === 'pending' ? (
-            <div aria-busy="true">
-              <p aria-live="polite" className="sr-only" role="status">{reviewNotices.pending}</p>
-              {/* The starting point and one row per detail, as the breakdown will sit. */}
-              <div aria-hidden="true">
-                <Skeleton className="mt-5 h-14 rounded-lg" />
-                {['w-24', 'w-28', 'w-20', 'w-24', 'w-16', 'w-28'].map((width, row) => (
-                  <div className="flex items-center gap-4 border-t border-line/70 px-3 py-4 first:border-t-0" key={row}>
-                    <Skeleton className={`h-4 ${width}`} />
-                    <Skeleton className="ml-auto h-2 w-1/3 rounded-full" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : valuation === null ? (
-            <div aria-live="polite" className="mt-4 rounded-lg border border-line bg-tint p-3 text-sm text-ink" role="status">
-              <p className="font-medium">Valuation breakdown not available</p>
-              <p>{reviewNotices[notice]}</p>
-            </div>
-          ) : (
-            <>
+          <>
               {breakdown === null ? (
                 <p className="mt-4 text-sm text-muted">The breakdown of this estimate isn't available.</p>
               ) : (
@@ -152,10 +162,9 @@ export function ValuationBreakdown({ review }: ValuationBreakdownProps) {
                   The stored breakdown does not add up to the estimate: it is off by {formatEuro(Math.abs(breakdown.discrepancyEur))}.
                 </p>
               ) : null}
-            </>
-          )}
+          </>
         </div>
-        {valuation !== null && valuation.supportWarnings.length > 0 ? (
+        {valuation.supportWarnings.length > 0 ? (
           <aside aria-labelledby="valuation-warnings-heading" className="mt-6 self-start rounded-lg border border-line bg-neutral p-4 text-sm text-neutral-text">
             <h3 className="font-semibold" id="valuation-warnings-heading">Why this estimate may be less reliable</h3>
             <ul className="mt-2 list-disc space-y-2 break-words pl-5 leading-6">

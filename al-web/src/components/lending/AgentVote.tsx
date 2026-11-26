@@ -1,4 +1,5 @@
 import type { CommitteeAgent, Recommendation, VotingAgent } from '../../services/committeeService';
+import { AffordabilityFigures, type AffordabilityInputs } from './AffordabilityFigures';
 import { CreditMemo } from './CreditMemo';
 
 export const agentLabels = {
@@ -14,9 +15,12 @@ export const voteDot: Record<Recommendation, string> = {
 // al-ai's reasoning trail writes the affordability report in this fixed form, because that reply has no free text.
 const FIXED_AFFORDABILITY_REPORT = /^Rating: [^\n]*\. Recommendation: [^\n]*\.\nConcerns: [^\n]*\.\nConditions: [^\n]*\.$/;
 
-export function StoredList({ items }: { items: string[] | null | undefined }) {
+export function StoredList({ items, emptyText = 'None recorded' }: {
+  items: string[] | null | undefined;
+  emptyText?: string;
+}) {
   if (items == null) return <p className="text-muted">Not stored</p>;
-  if (items.length === 0) return <p className="text-muted">None recorded</p>;
+  if (items.length === 0) return <p className="text-muted">{emptyText}</p>;
   return (
     <ul className="list-disc space-y-1.5 pl-5 marker:text-muted">
       {items.map((item, index) => (
@@ -45,23 +49,46 @@ export function AgentMetadata({ agent }: { agent: CommitteeAgent | null }) {
   );
 }
 
-function Report({ name, agent, creditMemo, onOpenMemo }: {
+export interface AffordabilityEvidence {
+  inputs: AffordabilityInputs;
+  breaches: string[] | null;
+}
+
+function Report({ name, agent, creditMemo, onOpenMemo, affordability }: {
   name: VotingAgent;
   agent: CommitteeAgent | null;
   creditMemo: string | null;
   onOpenMemo?: () => void;
+  affordability?: AffordabilityEvidence;
 }) {
   const report = agent?.report ?? null;
+  // Only with this run's agent stored: a re-run that failed before its calculations step would otherwise show the
+  // previous run's stored figures under this run's policy gate.
+  if (name === 'affordability' && affordability && agent !== null) {
+    // The agent's reply is only rating, vote, concerns and conditions, so the report shows what it judged.
+    return (
+      <>
+        <AffordabilityFigures breaches={affordability.breaches} inputs={affordability.inputs} />
+        {report === null ? (
+          <p className="mt-2 text-muted">Report not stored yet</p>
+        ) : FIXED_AFFORDABILITY_REPORT.test(report) ? (
+          <details className="mt-2">
+            <summary className="min-h-11 cursor-pointer py-3 font-medium text-pine hover:underline">Stored report text</summary>
+            <p className="whitespace-pre-wrap break-words leading-7">{report}</p>
+          </details>
+        ) : (
+          <p className="mt-3 whitespace-pre-wrap break-words leading-7">{report}</p>
+        )}
+      </>
+    );
+  }
   if (report === null) return <p className="text-muted">Report not stored yet</p>;
   if (name === 'affordability' && FIXED_AFFORDABILITY_REPORT.test(report)) {
     return (
-      <>
-        <p className="text-muted">This agent writes no free text: its stored report repeats the rating, recommendation, concerns and conditions shown here.</p>
-        <details className="mt-2">
-          <summary className="min-h-11 cursor-pointer py-3 font-medium text-pine hover:underline">Stored report text</summary>
-          <p className="whitespace-pre-wrap break-words leading-7">{report}</p>
-        </details>
-      </>
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3 font-medium text-pine hover:underline">Stored report text</summary>
+        <p className="whitespace-pre-wrap break-words leading-7">{report}</p>
+      </details>
     );
   }
   if (name === 'strategist') {
@@ -78,12 +105,45 @@ function Report({ name, agent, creditMemo, onOpenMemo }: {
   return <p className="whitespace-pre-wrap break-words leading-7">{report}</p>;
 }
 
-export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo }: {
+// Two empty lists say so in one line; the two lists appear only when one of them has items
+// (or is not stored, which is not the same as empty).
+function ConcernsAndConditions({ agent, strategist }: { agent: CommitteeAgent | null; strategist: boolean }) {
+  const concerns = strategist ? [] : agent?.concerns;
+  const conditions = agent?.conditions;
+  if (concerns?.length === 0 && conditions?.length === 0) {
+    return (
+      <p className="mt-5 text-muted">
+        {strategist ? 'No conditions raised' : 'No concerns or conditions raised'}
+      </p>
+    );
+  }
+  return (
+    <div className="mt-5 grid gap-5 sm:grid-cols-2">
+      <div>
+        <h4 className="eyebrow">Concerns</h4>
+        <div className="mt-2">
+          {strategist
+            ? <p className="text-muted">Not applicable to the strategist</p>
+            : <StoredList emptyText="None" items={concerns} />}
+        </div>
+      </div>
+      <div>
+        <h4 className="eyebrow">Conditions</h4>
+        <div className="mt-2">
+          <StoredList emptyText="None" items={conditions} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo, affordability }: {
   name: VotingAgent;
   agent: CommitteeAgent | null;
   vote: Recommendation | null;
   creditMemo?: string | null;
   onOpenMemo?: () => void;
+  affordability?: AffordabilityEvidence;
 }) {
   const strategist = name === 'strategist';
   const rating = strategist ? 'Not applicable to the strategist' : agent?.rating ?? 'Not stored';
@@ -107,22 +167,17 @@ export function AgentVote({ name, agent, vote, creditMemo = null, onOpenMemo }: 
       <div className="mt-5">
         <h4 className="eyebrow">Report</h4>
         <div className="mt-2 max-w-prose">
-          <Report agent={agent} creditMemo={creditMemo} name={name} onOpenMemo={onOpenMemo} />
+          <Report
+            affordability={affordability}
+            agent={agent}
+            creditMemo={creditMemo}
+            name={name}
+            onOpenMemo={onOpenMemo}
+          />
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5 sm:grid-cols-2">
-        <div>
-          <h4 className="eyebrow">Concerns</h4>
-          <div className="mt-2">
-            {strategist ? <p className="text-muted">Not applicable to the strategist</p> : <StoredList items={agent?.concerns} />}
-          </div>
-        </div>
-        <div>
-          <h4 className="eyebrow">Conditions</h4>
-          <div className="mt-2"><StoredList items={agent?.conditions} /></div>
-        </div>
-      </div>
+      <ConcernsAndConditions agent={agent} strategist={strategist} />
 
       <div className="mt-5 border-t border-line pt-4">
         <AgentMetadata agent={agent} />

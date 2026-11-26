@@ -784,6 +784,41 @@ describe('loan file page', () => {
     expect(within(valuation).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Few comparable homes.', 'Unseen Eircode area.']);
   });
 
+  it('collapses an unstored valuation to one line and gives Collateral the full row', async () => {
+    const review = toLoanFileReview({ ...seededReview, valuationDetail: undefined });
+    renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', seededApplication, review) }));
+    await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
+
+    const valuation = screen.getByRole('region', { name: 'Valuation' });
+    expect(valuation).toHaveAttribute('data-collapsed');
+    expect(valuation).toHaveTextContent('Valuation breakdown not stored for this application.');
+    expect(valuation.parentElement).toHaveClass('lg:col-span-12');
+    expect(screen.getByRole('region', { name: 'Collateral' }).parentElement).toHaveClass('lg:col-span-12');
+  });
+
+  it('keeps Collateral and Valuation side by side when a valuation is stored', async () => {
+    renderUnderwriterFile(new FakeLoanFileService({ 'LN-1001': loanFile() }));
+    await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
+
+    expect(screen.getByRole('region', { name: 'Valuation' })).not.toHaveAttribute('data-collapsed');
+    expect(screen.getByRole('region', { name: 'Collateral' }).parentElement).toHaveClass('lg:col-span-5');
+  });
+
+  it('keeps the split while the review loads, so Collateral does not jump when the valuation arrives', async () => {
+    const loanFiles = new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', seededApplication, { state: 'pending' }) });
+    renderUnderwriterFile(loanFiles);
+    await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
+
+    const valuation = screen.getByRole('region', { name: 'Valuation' });
+    expect(valuation).toHaveTextContent('Loading the valuation breakdown.');
+    expect(valuation.parentElement).toHaveClass('lg:col-span-7');
+    expect(screen.getByRole('region', { name: 'Collateral' }).parentElement).toHaveClass('lg:col-span-5');
+
+    act(() => loanFiles.push(loanFile()));
+    expect(screen.getByRole('region', { name: 'Collateral' }).parentElement).toHaveClass('lg:col-span-5');
+    expect(screen.getByRole('region', { name: 'Valuation' }).parentElement).toHaveClass('lg:col-span-7');
+  });
+
   it('shows Unavailable for every missing figure, never 0 or a dash', async () => {
     renderUnderwriterFile(
       new FakeLoanFileService({ 'LN-1002': loanFile('LN-1002', { status: 'Applied' }, { state: 'absent' }) }),

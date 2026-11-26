@@ -175,6 +175,20 @@ describe('authenticated routing', () => {
     expect(link).toHaveAttribute('href', '/underwriter');
   });
 
+  it.each([
+    ['broker', '/broker', brokerUser],
+    ['underwriter', '/underwriter', underwriterUser],
+  ] as const)('links the header logo to the %s overview', async (role, overview, account) => {
+    const auth = new FakeAuthService({ resolution: { role, denialReason: null } });
+    renderAt(overview, auth);
+    auth.restore(account);
+    const logo = await screen.findByRole('link', { name: `Agentic Lender, ${role} overview` });
+    expect(logo).toHaveAttribute('href', overview);
+    expect(logo).toHaveTextContent('agenticlender');
+    logo.focus();
+    expect(logo).toHaveFocus();
+  });
+
   it('refuses borrower accounts with the required portal message', async () => {
     const auth = new FakeAuthService({ resolution: { role: 'borrower', denialReason: null } });
     renderAt('/broker', auth);
