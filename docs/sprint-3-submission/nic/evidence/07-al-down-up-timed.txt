@@ -1,0 +1,9 @@
+# ./deploy/al down, 23 Nov 2026 (end of the Sprint 3 test run)
+Apply complete! Resources: 0 added, 0 changed, 33 destroyed.
+AWS_PROFILE=agentic-lender ./deploy/al down  14.86s user 2.54s system 6% cpu 4:11.94 total
+
+# ./deploy/al up, 23 Nov 2026, straight after the down
+Apply complete! Resources: 33 added, 0 changed, 0 destroyed.
+image_tag = 06b7f2f416bbf3444ccfaf502fdee8dd9d60fa6f
+AWS_PROFILE=agentic-lender ./deploy/al up  13.60s user 1.68s system 7% cpu 3:21.87 total
+23:34:21 al-ai and al-core steady state, /ai/health 200, /core/health 200

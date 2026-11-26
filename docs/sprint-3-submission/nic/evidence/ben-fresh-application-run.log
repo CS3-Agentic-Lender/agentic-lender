@@ -1,0 +1,58 @@
+signed in as ben (borrower)
+create draft: HTTP 201  request-id=03f4fb1b-b89c-45fb-b4d6-ecf6e9c25608
+application id: fHrxrx9iHFHvb92mEC23
+fill in the form: HTTP 200  request-id=154f7a1c-70a3-4aee-b7e8-bab00114d6c1
+submit: HTTP 200  request-id=7a4e8f87-f54f-45a9-a02b-1d69e9f9b39b
+submitted at 22:45:52 UTC-ish; waiting for the committee (up to 600s)
+    15s  status=Applied
+    30s  status=Applied
+    46s  status=Applied
+    61s  status=Applied
+    76s  status=Applied
+    91s  status=Applied
+   107s  status=Applied
+   122s  status=Applied
+   138s  status=Applied
+   153s  status=Applied
+   168s  status=Applied
+   184s  status=Applied
+   199s  status=Applied
+   214s  status=Applied
+   230s  status=Applied
+   245s  status=Applied
+   260s  status=Applied
+   276s  status=Applied
+   291s  status=Applied
+   306s  status=Applied
+   322s  status=Applied
+   337s  status=Applied
+   352s  status=Applied
+   368s  status=Applied
+   383s  status=Applied
+   398s  status=Applied
+   414s  status=Applied
+   429s  status=Applied
+   444s  status=Applied
+   459s  status=Applied
+   475s  status=Applied
+   490s  status=Applied
+   505s  status=Applied
+   521s  status=Applied
+   536s  status=Applied
+   551s  status=Applied
+   567s  status=Applied
+   582s  status=Applied
+   597s  status=Applied
+   613s  status=Applied
+
+final status: Applied after 613s
+read as underwriter (uma): HTTP 200  request-id=8dcbc68a-6d54-4cd6-b5b4-802b05c98e39
+{
+ "status": "Applied",
+ "ltv_pct": null,
+ "ltv_band": null,
+ "risk_tier": null
+}
+all top-level fields: ['applicants', 'borrower_id', 'borrower_name', 'broker_id', 'created_at', 'decision', 'deposit_eur', 'employment_type', 'estimated_value_eur', 'existing_mortgage_balance_eur', 'first_time_buyer', 'gross_income_eur', 'id', 'loan_amount_eur', 'loan_note', 'loan_type', 'ltv_band', 'ltv_pct', 'monthly_debts_eur', 'monthly_living_costs_eur', 'monthly_take_home_eur', 'property', 'risk_tier', 'status', 'submitted_at', 'term_years', 'updated_at', 'years_in_current_job']
+read as broker (ciara): HTTP 200  request-id=9ab9b544-57bc-4e9f-ac68-1cb89822a86b
+ciara sees status: Applied

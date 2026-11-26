@@ -1,0 +1,4 @@
+signed in as uma (underwriter)
+rerun ben fHrxrx9iHFHvb92mEC23: HTTP 201 {"run_id": "c6a2e191-2c96-4a7e-bf52-12c568c3e39f", "application_id": "fHrxrx9iHFHvb92mEC23", "status": "running", "trigger": "rerun"}
+    20s ben: status=AI Deliberated aiRunStatus=complete run=c6a2e191-2c96-4a7e-bf52-12c568c3e39f
+final ben ('AI Deliberated', 'complete', 'c6a2e191-2c96-4a7e-bf52-12c568c3e39f')
