@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AL-337 admin portal wireframe</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px; width: 1600px; background: #f4f4f2; font: 15px/1.4 -apple-system, "Helvetica Neue", Arial, sans-serif; color: #222; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  .sub { margin: 0 0 24px; color: #666; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .screen { background: #fff; border: 2px solid #333; border-radius: 10px; overflow: hidden; }
+  .label { background: #333; color: #fff; padding: 6px 14px; font-weight: 600; font-size: 14px; }
+  .top { display: flex; align-items: center; gap: 18px; padding: 12px 18px; border-bottom: 2px solid #ccc; }
+  .logo { width: 110px; height: 22px; background: #bbb; border-radius: 4px; }
+  .nav span { margin-right: 14px; color: #555; }
+  .nav .on { color: #000; font-weight: 700; border-bottom: 3px solid #000; padding-bottom: 4px; }
+  .who { margin-left: auto; color: #666; font-size: 13px; }
+  .body { padding: 18px; }
+  .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .head h2 { margin: 0; font-size: 21px; }
+  .btn { border: 2px solid #333; border-radius: 6px; padding: 5px 12px; font-size: 13px; font-weight: 600; background: #fff; }
+  .btn.dark { background: #333; color: #fff; }
+  .btn.small { padding: 2px 8px; font-size: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+  .card { border: 2px solid #bbb; border-radius: 8px; padding: 12px; }
+  .card .t { color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .card .n { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #ccc; font-size: 14px; }
+  .row:last-child { border-bottom: 0; }
+  .muted { color: #888; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; border-bottom: 2px solid #333; padding: 6px 4px; }
+  td { border-bottom: 1px solid #ddd; padding: 7px 4px; }
+  .pill { border: 1.5px solid #555; border-radius: 10px; padding: 0 7px; font-size: 12px; }
+  .filters { display: flex; gap: 10px; margin-bottom: 12px; }
+  .input { border: 2px solid #bbb; border-radius: 6px; padding: 5px 10px; color: #888; font-size: 13px; flex: 1; }
+  .select { border: 2px solid #bbb; border-radius: 6px; padding: 5px 10px; color: #555; font-size: 13px; }
+  .tabs { display: flex; gap: 18px; border-bottom: 2px solid #ccc; margin-bottom: 12px; }
+  .tabs span { padding-bottom: 6px; color: #555; }
+  .tabs .on { color: #000; font-weight: 700; border-bottom: 3px solid #000; }
+  .req { border: 2px solid #bbb; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .note { border: 2px dashed #bbb; border-radius: 6px; padding: 8px; color: #888; margin-top: 8px; font-size: 13px; }
+  .bars div { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+  .bars i { display: block; height: 12px; background: #999; border-radius: 3px; }
+  .callout { margin-top: 12px; font-size: 13px; color: #555; border-left: 4px solid #999; padding-left: 10px; }
+</style>
+</head>
+<body>
+<h1>AL-337: admin portal wireframe</h1>
+<p class="sub">Drawn from the admin pages in <code>al-web/src/pages/admin/</code>. An admin signs in on the normal portal login page and lands on the Dashboard. The names and numbers are placeholders.</p>
+<div class="grid">
+
+  <!-- Dashboard -->
+  <div class="screen">
+    <div class="label">1. Dashboard (/admin)</div>
+    <div class="top"><div class="logo"></div><div class="nav"><span class="on">Dashboard</span><span>Staff</span><span>Inbox</span><span>Business</span></div><div class="who">Ada Admin · Sign out</div></div>
+    <div class="body">
+      <div class="head"><h2>Dashboard</h2><span class="btn dark">New staff member</span></div>
+      <div class="cards">
+        <div class="card"><div class="t">Staff</div><div class="row"><span>Brokers</span><b>2</b></div><div class="row"><span>Underwriters</span><b>1</b></div><div class="row"><span>Admins</span><b>1</b></div></div>
+        <div class="card"><div class="t">Open support requests</div><div class="n">3</div><div class="muted">Opens the inbox</div></div>
+        <div class="card"><div class="t">Average review</div><div class="n">4.5 ★</div><div class="muted">Opens the reviews tab</div></div>
+      </div>
+      <div class="card">
+        <div class="t">Recent activity</div>
+        <div class="row"><span><b>Ada Admin</b> created broker Ciara (Firm name)</span><span class="muted">2 min ago</span></div>
+        <div class="row"><span><b>Ada Admin</b> disabled Bob</span><span class="muted">1 h ago</span></div>
+        <div class="row"><span><b>Ada Admin</b> resolved support request SR-…</span><span class="muted">Yesterday</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staff -->
+  <div class="screen">
+    <div class="label">2. Staff (/admin/staff)</div>
+    <div class="top"><div class="logo"></div><div class="nav"><span>Dashboard</span><span class="on">Staff</span><span>Inbox</span><span>Business</span></div><div class="who">Ada Admin · Sign out</div></div>
+    <div class="body">
+      <div class="head"><h2>Staff</h2><span class="btn dark">New staff member</span></div>
+      <div class="filters"><span class="input">Search staff</span><span class="select">Any role ▾</span><span class="select">Any status ▾</span></div>
+      <table>
+        <tr><th>Name</th><th>Role</th><th>Firm</th><th>Phone</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+        <tr><td>Bob Broker<br><span class="muted">bob@…</span></td><td><span class="pill">Broker</span></td><td>Firm name</td><td>+353 …</td><td>Enabled</td><td>24 Nov</td><td><span class="btn small">Disable</span> <span class="btn small">Change role</span> <span class="btn small">Delete</span></td></tr>
+        <tr><td>Uma Underwriter<br><span class="muted">uma@…</span></td><td><span class="pill">Underwriter</span></td><td class="muted">–</td><td>+353 …</td><td>Disabled</td><td>20 Nov</td><td><span class="btn small">Enable</span> <span class="btn small">Change role</span> <span class="btn small">Delete</span></td></tr>
+        <tr><td>Ada Admin <span class="pill">You</span><br><span class="muted">admin@…</span></td><td><span class="pill">Admin</span></td><td class="muted">–</td><td>+353 …</td><td>Enabled</td><td>16 Nov</td><td class="muted">Managed by script</td></tr>
+      </table>
+      <div class="callout">New staff member: full name, email, phone (+353), role (broker or underwriter) and firm for a broker. The person gets a set-your-password email. A refused delete or role change shows al-core's reason and offers "Disable instead".</div>
+    </div>
+  </div>
+
+  <!-- Inbox -->
+  <div class="screen">
+    <div class="label">3. Inbox (/admin/inbox)</div>
+    <div class="top"><div class="logo"></div><div class="nav"><span>Dashboard</span><span>Staff</span><span class="on">Inbox</span><span>Business</span></div><div class="who">Ada Admin · Sign out</div></div>
+    <div class="body">
+      <div class="head"><h2>Inbox</h2></div>
+      <div class="tabs"><span class="on">Support requests</span><span>Reviews</span></div>
+      <div class="filters"><span class="select">Open (3)</span><span class="select">Resolved (5)</span></div>
+      <div class="req">
+        <div class="row"><b>SR-… · Subject of the request</b><span class="pill">Open</span></div>
+        <div class="muted">From: borrower name · Linked application · date</div>
+        <p>The borrower's message from the app.</p>
+        <div class="note">Notes (oldest first) · Add note …</div>
+        <div style="margin-top:8px"><span class="btn">Resolve</span></div>
+      </div>
+      <div class="callout">Reviews tab: average, count and how many reviews gave each star, then each review newest first with stars, comment, name and date. A resolved request shows its resolution and a Reopen button.</div>
+    </div>
+  </div>
+
+  <!-- Business -->
+  <div class="screen">
+    <div class="label">4. Business (/admin/business), read-only</div>
+    <div class="top"><div class="logo"></div><div class="nav"><span>Dashboard</span><span>Staff</span><span>Inbox</span><span class="on">Business</span></div><div class="who">Ada Admin · Sign out</div></div>
+    <div class="body">
+      <div class="head"><h2>Business</h2></div>
+      <div class="tabs"><span class="on">Overview</span><span>Applications</span><span>Users</span><span>AI runs</span><span>Audit</span></div>
+      <div class="cards">
+        <div class="card"><div class="t">Applications</div><div class="n">12</div></div>
+        <div class="card"><div class="t">Approval rate</div><div class="n">75%</div></div>
+        <div class="card"><div class="t">Open support requests</div><div class="n">3</div></div>
+      </div>
+      <div class="cards" style="grid-template-columns:1fr 1fr">
+        <div class="card"><div class="t">Applications by status</div><div class="bars"><div>Applied <i style="width:90px"></i></div><div>AI Deliberated <i style="width:60px"></i></div><div>Funded <i style="width:30px"></i></div></div></div>
+        <div class="card"><div class="t">Committee runs by status</div><div class="bars"><div>Complete <i style="width:110px"></i></div><div>Failed <i style="width:20px"></i></div></div></div>
+      </div>
+      <div class="callout">Every figure links to its list. Opening an application shows the read-only loan file, with the committee console and no controls.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

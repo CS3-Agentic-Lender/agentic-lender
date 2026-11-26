@@ -1,0 +1,16 @@
+# AL-337 tests, run 26 Nov 2026 about 20:55 UTC on the branch at origin/main ebcfa88 (al-core and al-web unchanged from main)
+
+al-core$ uv run --frozen pytest -q tests/test_admin.py tests/test_support_close.py tests/test_support_requests.py tests/test_reviews.py
+181 passed in 12.00s
+
+al-core$ firebase emulators:exec --only firestore --project demo-al "npx jest test/rules.test.js"
+Test Suites: 1 passed, 1 total
+Tests:       208 passed, 208 total
+
+al-web$ npx vitest run src/admin-inbox.test.tsx src/admin-business.test.tsx src/admin-dashboard.test.tsx src/admin-staff.test.tsx src/admin-loan-file.test.tsx src/services/adminActivityService.test.ts src/components/admin src/pages/admin
+Test Files  9 passed (9)
+Tests  141 passed (141)
+
+al-web$ npx vitest run src/auth-routing.test.tsx
+Test Files  1 passed (1)
+Tests  44 passed (44)

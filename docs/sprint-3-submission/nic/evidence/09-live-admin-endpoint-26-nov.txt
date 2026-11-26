@@ -1,0 +1,15 @@
+# Live check of the deployed admin staff API, 26 Nov 2026 21:00 UTC (read-only, no token sent)
+
+$ curl -s -w "%{http_code}" https://api.agentic-lender.com/core/admin/staff
+{"error":{"code":"UNAUTHENTICATED","message":"The token is missing, expired or invalid","field":null,"request_id":"0fefec23-48bf-43c6-a0c4-a67520752a08"}}
+401
+
+$ curl -s -o /dev/null -w "%{http_code}" https://api.agentic-lender.com/core/admin/nonexistent-xyz
+404
+
+The staff route answers 401 (it exists and wants a token) while a made-up path under /core/admin answers 404,
+so the al-core build running on AWS has the AL-338 staff API in it.
+
+# Portal deploy after the #284 merge (merge commit d5cb33f)
+$ gh run list --workflow portal.yml
+2026-11-25T19:16:09Z success d5cb33f
