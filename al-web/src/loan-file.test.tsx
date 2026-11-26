@@ -804,6 +804,21 @@ describe('loan file page', () => {
     expect(screen.getByRole('region', { name: 'Collateral' }).parentElement).toHaveClass('lg:col-span-5');
   });
 
+  it('keeps the split while the review loads, so Collateral does not jump when the valuation arrives', async () => {
+    const loanFiles = new FakeLoanFileService({ 'LN-1001': loanFile('LN-1001', seededApplication, { state: 'pending' }) });
+    renderUnderwriterFile(loanFiles);
+    await screen.findByRole('heading', { level: 1, name: 'Alice Byrne' });
+
+    const valuation = screen.getByRole('region', { name: 'Valuation' });
+    expect(valuation).toHaveTextContent('Loading the valuation breakdown.');
+    expect(valuation.parentElement).toHaveClass('lg:col-span-7');
+    expect(screen.getByRole('region', { name: 'Collateral' }).parentElement).toHaveClass('lg:col-span-5');
+
+    act(() => loanFiles.push(loanFile()));
+    expect(screen.getByRole('region', { name: 'Collateral' }).parentElement).toHaveClass('lg:col-span-5');
+    expect(screen.getByRole('region', { name: 'Valuation' }).parentElement).toHaveClass('lg:col-span-7');
+  });
+
   it('shows Unavailable for every missing figure, never 0 or a dash', async () => {
     renderUnderwriterFile(
       new FakeLoanFileService({ 'LN-1002': loanFile('LN-1002', { status: 'Applied' }, { state: 'absent' }) }),

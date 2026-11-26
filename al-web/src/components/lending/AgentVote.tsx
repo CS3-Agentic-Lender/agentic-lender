@@ -62,7 +62,9 @@ function Report({ name, agent, creditMemo, onOpenMemo, affordability }: {
   affordability?: AffordabilityEvidence;
 }) {
   const report = agent?.report ?? null;
-  if (name === 'affordability' && affordability) {
+  // Only with this run's agent stored: a re-run that failed before its calculations step would otherwise show the
+  // previous run's stored figures under this run's policy gate.
+  if (name === 'affordability' && affordability && agent !== null) {
     // The agent's reply is only rating, vote, concerns and conditions, so the report shows what it judged.
     return (
       <>

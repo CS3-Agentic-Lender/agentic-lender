@@ -89,6 +89,9 @@ export interface DtiBreakdown {
   existingDebtsMonthlyEur: number | null;
   livingCostsMonthlyEur: number | null;
   newRepaymentMonthlyEur: number | null;
+  // Debt to income at the offered rate, rewritten with the rest of this map at every run's calculations step
+  // (application.dtiPct is only rewritten when a run completes).
+  dtiPct: number | null;
 }
 
 // The stressed half of the same dtiBreakdown map. The two bands are set on the stressed figures.
@@ -382,6 +385,7 @@ export function toLoanFileReview(data: DocumentData): LoanFileReview {
       existingDebtsMonthlyEur: readAmount(breakdown.existingDebtsMonthlyEur),
       livingCostsMonthlyEur: readAmount(breakdown.livingCostsMonthlyEur),
       newRepaymentMonthlyEur: readAmount(breakdown.newRepaymentMonthlyEur),
+      dtiPct: readAmount(breakdown.dtiPct),
     },
     stressTest: readStressTest(data),
     valuation: readValuationDetail(data),

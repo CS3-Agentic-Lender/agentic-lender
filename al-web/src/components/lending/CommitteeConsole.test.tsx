@@ -86,11 +86,11 @@ function consoleWith(service: CommitteeService, applicationId = 'LN-1001', affor
   );
 }
 
+// The benchmark DTI comes from the same dtiBreakdown as the stressed one, never from the application's dtiPct.
 const storedFigures: AffordabilityInputs = {
-  dtiPct: 33.4,
   review: toLoanFileReview({
     dtiBreakdown: {
-      incomeMonthlyEur: 6250, newRepaymentMonthlyEur: 1265.13, stressedRepaymentMonthlyEur: 1555.4,
+      incomeMonthlyEur: 6250, newRepaymentMonthlyEur: 1265.13, dtiPct: 33.4, stressedRepaymentMonthlyEur: 1555.4,
       stressedDtiPct: 42.4, surplusMonthlyEur: 900, stressedSurplusMonthlyEur: 610.5,
       dtiBand: 'Caution', surplusBand: 'Comfortable',
     },
@@ -419,7 +419,7 @@ describe('committee console', () => {
   it('says Not stored for each figure the review does not hold, and for breaches without a stored gate', () => {
     const run = { ...sampleRun(), policyGate: null };
     render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', {
-      dtiPct: null, review: toLoanFileReview({}),
+      review: toLoanFileReview({}),
     }));
     const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
     for (const label of ['Monthly repayment', 'Monthly surplus']) {
@@ -439,9 +439,49 @@ describe('committee console', () => {
     const view = render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', storedFigures));
     expect(screen.getByText('Policy breaches').nextElementSibling).toHaveTextContent(/^None$/);
     view.unmount();
-    render(consoleWith(fakeService().service, 'LN-1001', { dtiPct: 33.4, review: { state: 'unavailable' } }));
+    render(consoleWith(fakeService().service, 'LN-1001', { review: { state: 'unavailable' } }));
     expect(screen.getByText(/underwriting review could not be read/)).toBeInTheDocument();
     expect(screen.queryByText('Monthly repayment')).not.toBeInTheDocument();
+  });
+
+  it('draws the stressed surplus against the 500 euro Comfortable minimum, from the stored figure only', () => {
+    const view = render(consoleWith(fakeService().service, 'LN-1001', storedFigures));
+    const surplus = screen.getByText('Monthly surplus').closest('[data-row="surplus"]')!;
+    const bar = surplus.querySelector('[data-surplus-bar]')!;
+    expect(bar).toHaveAttribute('aria-hidden', 'true');
+    expect(bar.firstElementChild).toHaveClass('bg-pine');
+    // 610.5 on a scale of 1,000 (twice the minimum, as 610.5 x 1.1 is smaller).
+    expect(parseFloat((bar.firstElementChild as HTMLElement).style.width)).toBeCloseTo(61.05);
+    expect((bar.lastElementChild as HTMLElement).style.left).toBe('50%');
+    expect(surplus).toHaveTextContent('Stressed surplus at or above the €500 Comfortable minimum');
+    view.unmount();
+
+    const shortfall: AffordabilityInputs = {
+      review: toLoanFileReview({ dtiBreakdown: { stressedSurplusMonthlyEur: -120, surplusBand: 'Adverse' } }),
+    };
+    const second = render(consoleWith(fakeService().service, 'LN-1001', shortfall));
+    const short = screen.getByText('Monthly surplus').closest('[data-row="surplus"]')!;
+    expect(short.querySelector('[data-surplus-bar]')!.firstElementChild).toHaveClass('bg-error');
+    expect((short.querySelector('[data-surplus-bar]')!.firstElementChild as HTMLElement).style.width).toBe('0%');
+    expect(short).toHaveTextContent('Stressed surplus is a shortfall, below the Caution minimum');
+    second.unmount();
+
+    render(consoleWith(fakeService().service, 'LN-1001', { review: toLoanFileReview({}) }));
+    expect(screen.getByText('Monthly surplus').closest('[data-row="surplus"]')!.querySelector('[data-surplus-bar]')).toBeNull();
+  });
+
+  it('shows no stored figures under a re-run that failed before its calculations step', () => {
+    const run = toCommitteeRun('run-LN-1001-rerun', {
+      applicationId: 'LN-1001', brokerId: 'broker-1', status: 'failed', trigger: 'rerun', rerunOf: 'run-LN-1001',
+      failedStep: 'valuation_model', failureReason: 'Model file missing.',
+    });
+    render(consoleWith(fakeService({ status: 'ready', run }).service, 'LN-1001', storedFigures));
+    const affordability = within(screen.getByRole('region', { name: 'Affordability vote' }));
+    // The review still holds the previous run's figures; none of them may show under this run.
+    expect(affordability.queryByText('Monthly repayment')).not.toBeInTheDocument();
+    expect(affordability.queryByText('33.4%')).not.toBeInTheDocument();
+    expect(affordability.queryByText('Policy breaches')).not.toBeInTheDocument();
+    expect(affordability.getByText('Report not stored yet')).toBeInTheDocument();
   });
 
   it('points the strategist report to the credit memo tab when it is the stored memo', () => {

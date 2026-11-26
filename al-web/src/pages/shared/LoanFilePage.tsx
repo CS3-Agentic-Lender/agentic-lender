@@ -195,6 +195,8 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
   const { property } = application;
   const heloc = application.loanType === 'heloc';
   const valuationStored = hasStoredValuation(review);
+  // While the review loads, keep the split so Collateral does not jump from full width when the valuation arrives.
+  const split = valuationStored || review.state === 'pending';
 
   return (
     <>
@@ -250,12 +252,13 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
         />
       </div>
 
-      {/* With no valuation stored, the Valuation card collapses to one line and Collateral takes the full row. */}
+      {/* With no valuation stored, the Valuation card collapses to one line and Collateral takes the full row.
+          A pending review keeps the split, with the slim loading line inside the Valuation card. */}
       <div
         className={`mt-5 grid animate-rise gap-5 lg:grid-cols-12 ${valuationStored ? '[&>div>section]:h-full' : ''}`}
         style={stagger(3)}
       >
-        <div className={`min-w-0 ${valuationStored ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
+        <div className={`min-w-0 ${split ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
           {heloc ? (
             <HelocCollateral
               application={application}
@@ -267,7 +270,7 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
             <MortgageCollateral application={application} review={review} />
           )}
         </div>
-        <div className={`min-w-0 ${valuationStored ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
+        <div className={`min-w-0 ${split ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
           <ValuationBreakdown application={application} review={review} />
         </div>
       </div>
@@ -280,7 +283,7 @@ function LoanFile({ application, review, viewer }: LoanFileProps) {
           its controls. Named viewers only, so a new viewer does not see it by default. */}
       {viewer === 'underwriter' || viewer === 'admin' ? (
         <CommitteeConsole
-          affordability={{ review, dtiPct: application.dtiPct }}
+          affordability={{ review }}
           applicationId={application.id}
           readOnly={viewer === 'admin'}
         />
