@@ -27,8 +27,8 @@ This folder follows the Sprint 2 zip (`docs/sprint-2-submission/`). Nic puts the
 | # | Criterion | State on 23 Nov |
 |---|---|---|
 | 1 | Sprint backlog: an export of the Sprint 3 board | [x] `sprint-backlog/Jira.csv` exported. [ ] Re-export after the last merge (Sat 28 or Sun 29 Nov) |
-| 2 | A use case for each feature (epic) in the sprint | [x] AL-7 (Nic, Sprint 3 update drafted: `nic/AL-7-ai-credit-committee.md`). [x] AL-15 (Nic, new, drafted: `nic/AL-15-project-infrastructure.md`). [ ] AL-4, AL-10, AL-11 (Nikoloz). [ ] AL-12, AL-13, AL-194 (Ibrahima). [ ] AL-333 has no Epic yet. Nic's two drafts still need his check and a PDF export |
-| 3 | A wireframe and a test case for every Sprint 3 story, plus a design where it helps | [ ] 6 stories from Ibrahima, 5 from Nikoloz (table below). Nic owns no Sprint 3 Story; his Tasks have test cases drafted in `nic/AL-223/` and `nic/AL-180/`, with the design `nic/AL-15-aws-architecture.png` |
+| 2 | A use case for each feature (epic) in the sprint | [x] AL-7 (Nic, Sprint 3 update drafted: `nic/AL-7-ai-credit-committee.md`). [x] AL-15 (Nic, new, drafted: `nic/AL-15-project-infrastructure.md`). [ ] AL-4, AL-10, AL-11 (Nikoloz). [ ] AL-12, AL-13, AL-194 (Ibrahima). [ ] AL-336 Administration (Nic, new). [ ] AL-333, AL-347, AL-348, AL-349 have no Epic yet. Nic's two drafts still need his check and a PDF export |
+| 3 | A wireframe and a test case for every Sprint 3 story, plus a design where it helps | [ ] 6 stories from Ibrahima, 5 from Nikoloz (table below). Nic owns one Sprint 3 Story, AL-337 (`nic/AL-337/`); his Tasks have test cases drafted in `nic/AL-223/` and `nic/AL-180/`, with the design `nic/AL-15-aws-architecture.png` |
 | 4 | The sprint retrospective/review as a short Word document | [ ] Not started. AL-174 is Nikoloz's; everyone's input due Sat 28 Nov |
 | 5 | The code from `main` at the end of the sprint | [ ] Not yet, by design: export after the last merge (`code/TODO.md`) |
 | 6 | Nic uploads it to Canvas by 23:59 on Sun 29 Nov | [ ] Nic |
@@ -61,8 +61,12 @@ This folder follows the Sprint 2 zip (`docs/sprint-2-submission/`). Nic puts the
 | AL-311 As a borrower, I'm told to verify my email after sign-up and can resend the link | Ibrahima | AL-4 Accounts & Roles | none | Done | `ibrahima/AL-311/` |
 | AL-313 As a borrower, I move around the app with a tab bar (Home, Property, Messages, Profile) | Ibrahima | AL-4 Accounts & Roles | none | Done | `ibrahima/AL-313/` |
 | AL-333 As an underwriter, I read a loan file whose committee and loan note are shown as clear 3D views of the stored data | Nikoloz | none set | none | In Review | `nikoloz/AL-333/` |
+| AL-337 As an admin, I manage staff accounts and handle the app's reviews and support requests | Nic | AL-336 Administration | none | Done (added 24 Nov) | `nic/AL-337/` |
+| AL-347 As an underwriter or broker, I land on an Overview that shows my work queue and key figures | Nikoloz | none set | 8 | Done (added after 23 Nov) | `nikoloz/AL-347/` |
+| AL-348 As an underwriter, I run the rate shock on a redesigned page with a 3D view of the portfolio | Nikoloz | none set | 5 | Done (added after 23 Nov) | `nikoloz/AL-348/` |
+| AL-349 As an underwriter, I read a tighter loan file with no empty boxes and the affordability figures shown | Nikoloz | none set | 3 | Done (added after 23 Nov) | `nikoloz/AL-349/` |
 
-AL-311, AL-313 and AL-333 have no story points in Jira; AL-333 also has no parent Epic.
+AL-311, AL-313, AL-333 and AL-337 have no story points in Jira. AL-333, AL-347, AL-348 and AL-349 have no parent Epic.
 
 ## Nic's Sprint 3 tickets (Tasks, not Stories)
 
@@ -88,6 +92,7 @@ Same ownership rule as Sprint 2: whoever wrote its Sprint 2 use case, then its S
 | AL-11 | Messaging | Nikoloz | reuse or update `docs/sprint-2-submission/nikoloz/AL-11-messaging.pdf` |
 | AL-12 | Payments | Ibrahima | NEW: write a use case |
 | AL-13 | Support & Reviews | Ibrahima | NEW: write a use case |
+| AL-336 | Administration | Nic | NEW: write a use case (AL-337) |
 | AL-15 | Project Infrastructure (the AWS deployment) | Nic | drafted: `nic/AL-15-project-infrastructure.md`; Nic checks, exports PDF |
 | AL-194 | Home equity line of credit (HELOC) | Ibrahima | reuse or update `docs/sprint-2-submission/ibrahima/AL-194-heloc.pdf` |
 
@@ -99,9 +104,9 @@ Same ownership rule as Sprint 2: whoever wrote its Sprint 2 use case, then its S
 - Retro input.
 
 **Nikoloz** (`nikoloz/TODO.md`)
-- Wireframe, test case and implementation for AL-30, AL-40, AL-41, AL-196, AL-333 (AL-30 and AL-196 can reuse their Sprint 2 files if unchanged).
+- Wireframe, test case and implementation for AL-30, AL-40, AL-41, AL-196, AL-333, AL-347, AL-348, AL-349 (AL-30 and AL-196 can reuse their Sprint 2 files if unchanged).
 - Use cases: AL-10 Stress-Testing Simulator (new), AL-4 Accounts & Roles (update), AL-11 Messaging (reuse or update).
-- Set a parent Epic on AL-333.
+- Set a parent Epic on AL-333, AL-347, AL-348 and AL-349.
 - AL-174 Sprint 3 retrospective (his ticket) plus his own retro input.
 
 **Dumi** (`dumi/TODO.md`)

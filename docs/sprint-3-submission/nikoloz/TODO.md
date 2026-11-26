@@ -11,6 +11,9 @@ Hand in to Nic by **Saturday 28 November**. Nic uploads to Canvas by Sunday 29 N
 | AL-41 | As an underwriter, I simulate a house price downturn and see the change in portfolio LTVs | AL-10 Stress-Testing Simulator | To Do | `AL-41/` |
 | AL-196 | As an underwriter, I review a HELOC application with its combined LTV and collateral value | AL-194 HELOC | In Progress | `AL-196/` (Sprint 2 files exist: reuse or update) |
 | AL-333 | As an underwriter, I read a loan file whose committee and loan note are shown as clear 3D views of the stored data | none set in Jira | In Review | `AL-333/` |
+| AL-347 | As an underwriter or broker, I land on an Overview that shows my work queue and key figures | none set in Jira | Done | `AL-347/` |
+| AL-348 | As an underwriter, I run the rate shock on a redesigned page with a 3D view of the portfolio | none set in Jira | Done | `AL-348/` |
+| AL-349 | As an underwriter, I read a tighter loan file with no empty boxes and the affordability figures shown | none set in Jira | Done | `AL-349/` |
 
 AL-40 and AL-41 have backend subtasks by Dumi (AL-68, AL-69, both Done). Ask him for the backend steps of their test cases if you need them.
 
