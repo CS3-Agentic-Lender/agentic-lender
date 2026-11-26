@@ -7,8 +7,8 @@ A committee of AI agents reviews every submitted application and the underwriter
 | Epic | AL-7 AI Credit Committee |
 | Feature (from the brief) | AI: Agentic AI Architecture (the four agents); Model Diversity & Local Inference. Web: AL-AI Audit & Deliberation Console. Mobile: AL-AI Interface (LTV, DTI, approval likelihood). |
 | Owner | I own the agents, the committee run and the borrower's figures (al-ai). Nikoloz owns the reasoning screen (portal, AL-30). Ibrahima owns the borrower's figures screen (iOS, AL-31). Dumi built the AI call log (AL-140). |
-| Sprints | Sprint 1 (8 to 25 Oct 2026) built the affordability agent (AL-25). Sprint 2 (27 Oct to 15 Nov 2026) built the other three agents, the providers, the policy gate, the full committee run and its auto-start. Sprint 3 (16 to 28 Nov 2026) put it on AWS with Bedrock (AL-129, AL-180), recovered interrupted runs (AL-327), added the re-run endpoint and live progress while a run goes (AL-344). |
-| Wireframes | Week 3 prototypes in `docs/week 3 report/`: the portal's underwriter loan file review (pages 25 to 40) and the borrower app's application status (pages 42 to 47). The agent stories have no screen, so each story folder in `nic/` has a flow diagram instead. |
+| Sprints | Sprint 1 (8 to 25 Oct 2026) built the affordability agent (AL-25). Sprint 2 (27 Oct to 15 Nov 2026) built the other three agents, the providers, the policy gate, the full committee run and its auto-start. Sprint 3 (16 to 28 Nov 2026) put it on AWS with Bedrock (AL-129, AL-180), fixed runs getting stuck when they're interrupted (AL-327), added the re-run endpoint (PR #277) and live progress while a run goes (AL-344, PR #284). |
+| Wireframes | The Week 3 prototypes in `docs/week 3 report/` (the broker and underwriter portal prototype and the borrower app prototype). The agent stories have no screen of their own, so their Sprint 2 folders (`docs/sprint-2-submission/nic/`) use a flow diagram as the wireframe. |
 
 ## Goal
 
@@ -16,7 +16,7 @@ As an underwriter, I want a committee of AI agents to review every application a
 
 ## Actors
 
-The borrower submits the application on the iOS app and that starts the run. Later the borrower sees their indicative LTV, DTI and approval likelihood (AL-31). Every application has a broker through its `brokerId` and every run and AI call is recorded against it. An application with no broker isn't run. The underwriter reads the reasoning, the credit memo and the recommendation in the portal (AL-30) and makes the decision. Since 23 Nov the committee console is for underwriters only (read-only for admins). Brokers see the outcome and the conditions, not the agents' reasoning and only underwriters can read `ai_calls` (AL-334).
+The borrower submits the application on the iOS app and that starts the run. Later the borrower sees their indicative LTV, DTI and approval likelihood (AL-31). Every application has a broker through its `brokerId` and every run and AI call is recorded against it. An application with no broker isn't run. The underwriter reads the reasoning, the credit memo and the recommendation in the portal (AL-30) and makes the decision. Since 23 Nov the committee console is for underwriters only (admins can see it read-only). Brokers see the outcome and the conditions, not the agents' reasoning and only underwriters can read `ai_calls` (AL-334).
 
 Inside al-ai a Firestore listener (switched on with `AUTO_START_COMMITTEE=true`) watches for Applied applications. It claims each one and runs the committee in the background, two at a time. Firestore holds the application, its status and the `ai_runs` and `ai_calls` documents. The two official rates come from the ECB data portal.
 
@@ -44,12 +44,12 @@ The borrower's submit moves the application to Applied. The listener sees this a
 1. Claim. In one transaction the listener sets `aiRunStatus = running` and `aiRunId` on the application and creates `ai_runs/{runId}`. It also writes the borrower's indicative figures: DTI at the benchmark rate, purchase LTV against the asking price and the approval likelihood. The submit has already returned by now, so the run carries on in the background.
 2. Validate. A missing broker, or a county, property type or BER the model doesn't know, stops the run here before any model is called.
 3. Valuation model. The saved model values the home. It gives back its estimate, the breakdown and any low-support warnings.
-4. Market and macro. Code loads the two ECB rates. The market agent gets those rates and a few Serper search results (no borrower data). It replies with an outlook (rising, stable or falling), a short summary and its sources. The listener shares one report store across its runs, so the report gets reused for the rest of the day unless the rates change (AL-307).
+4. Market and macro. Code loads the two ECB rates. The market agent gets those rates and a few Serper search results (no borrower data). It replies with an outlook (rising, stable or falling), a short summary and its sources. The listener shares one report store across its runs, so the same report is reused for the rest of the day unless the official rates change (AL-307).
 5. Code calculations. Code works out every figure the agents will quote and every limit the gate will check: repayments, the stressed repayment at the benchmark rate plus 2 points, DTI, surplus, the price gap, the "price needs review" flag, both LTVs and the policy breaches.
 6. Affordability and valuation agents, side by side. The first explains the affordability figures. The second explains whether the price is in line and how sure the estimate is. Each one gives a recommendation and each reply is checked against a schema and the figures it was given.
 7. Strategist. It gets the two reports, the market view and a loan summary with no name or contact details. Code also adds a note on whether the two agents disagree. It replies with Approve, Conditionally Approve or Decline, its conditions and a credit memo under six fixed headings: Application summary, Affordability, Property assessment, Market context, Disagreements and Recommendation and conditions.
 8. Policy gate. Code applies the limits to the strategist's recommendation (see Business rules). It keeps both the original and the effective recommendation.
-9. Save. The run record holds every step's output, plus the provider, model, prompt version and attempts of each AI call. (The local runner saves this record as a JSON file instead.) While the run goes, each step's progress (queued, running, then ok or failed) and each agent's report are written to `ai_runs` as soon as they're ready, so the portal can show the committee working live (AL-344). At the end one transaction writes:
+9. Save. The run record holds every step's output, plus the provider, model, prompt version and attempts of each AI call. (The local runner saves this record as a JSON file instead.) While the run goes, each step's progress (queued, then started, then ok or failed) and each agent's report are written to `ai_runs` as soon as they're ready, so the portal can show the committee working live (AL-344). At the end one transaction writes:
     - to `ai_runs`: status complete, each agent's report and vote, the credit memo, the recommendations, the consensus and the policy gate result (AL-62, AL-305);
     - to `review/underwriting`: the policy gate result, the risk tier and the LTV band (AL-305, AL-301);
     - to the application: `aiRunStatus = complete`, the move to AI Deliberated with a `statusHistory` entry (actor committee), the borrower's figures worked out again with the run's rate and valuation and for a mortgage its LTV percentage against the model's estimate (AL-63, AL-304);
@@ -127,17 +127,17 @@ Sprint 2 subtasks: AL-122 to AL-128, AL-138, AL-139, AL-141, AL-201, AL-246, AL-
 - Interrupted runs don't stay `running` for ever any more: the listener replaces a stale run (AL-327, PR #254).
 - Underwriters can re-run a failed or stale run with `POST /ai/committee/runs` (PR #277). This replaces the Sprint 2 line "nothing in the app calls it".
 - The valuation step saves `valuationDetail` and the affordability step saves `dtiBreakdown` on `review/underwriting` as soon as each one finishes, so a later failure doesn't lose them (PR #278). Since PR #283 (merged 24 Nov) each of those saves checks the run still holds the application in the same transaction, so a re-run can't have its review overwritten by the old run.
-- Each run writes one JSON line per step to stdout, so CloudWatch shows the run (PR #270).
-- Gemini 429/503 back-off (PR #276) and the longer background ECB wait (PR #269), both found on the first live runs.
-- Live progress: each step's status and each agent's report are written to `ai_runs` while the run goes and the console's agent tabs show queued, thinking, then done (AL-344, with AL-345 for al-ai and AL-346 for the portal, merged in PR #284 on 25 Nov). AL-344 has no parent epic set in Jira.
-- The committee console is now for underwriters only, by team decision on 23 Nov (recorded on AL-333). Only underwriters can read `ai_calls` (AL-334, Dumi).
-- Sprint 3 subtasks and tickets: AL-129, AL-327, AL-344, AL-62 (carried over, Done 12 Nov).
+- Each run logs one JSON line per step, so the run shows up in CloudWatch on AWS (PR #270).
+- When Gemini is overloaded (a 429 or 503 reply) the step waits 10, 30 then 60 s before trying again (PR #276) and the committee waits up to 30 s for the ECB (PR #269). Both came from failures on the first live runs.
+- Live progress: each step's status and each agent's report are written to `ai_runs` while the run goes and the console's agent tabs show queued, thinking, then done (AL-344, with AL-345 for al-ai and AL-346 for the portal, merged in PR #284 on 25 Nov).
+- The committee console is now for underwriters only, by team decision on 23 Nov (recorded on AL-333). Admins see it read-only and brokers don't see it. The Firestore rules also let only underwriters and admins read `ai_calls` (AL-334, Dumi).
+- Sprint 3 tickets: AL-129 and AL-327. AL-62 also shows on the Sprint 3 board but it was finished on 12 Nov, in Sprint 2.
 
 ## Changes since Sprint 1
 
 - The valuation agent runs on Groq `openai/gpt-oss-120b`, not Mistral. Mistral has no free API tier, so the team agreed to drop it on 28 Oct. The backup we switch to by hand is now Gemini, not Groq.
 - The market step now runs before the code calculations, because they use the ECB rates it loads. The affordability and valuation agents then run side by side and the strategist waits for both.
-- Rates come from the ECB: the Irish new mortgage rate (the benchmark) and the ECB main refinancing rate. They're cached in Firestore for a day and a rate older than 3 months is refused. No rate is ever guessed.
+- Rates come from the ECB: the Irish new mortgage rate (the benchmark) and the ECB main refinancing rate. They're cached in Firestore for a day. If the ECB can't be reached the cached rate is used only if it's at most 3 months old, otherwise the run fails. No rate is ever guessed.
 - Retries work as the Exceptions section says. Sprint 1 planned one schema retry and then a failure.
 - A failed run is still saved, with its failed step and reason.
 - Sprint 1 said an underwriter would start a re-run with `POST /ai/committee/runs`. In Sprint 2 that endpoint didn't exist yet. It does now (PR #277, see above).
@@ -145,6 +145,6 @@ Sprint 2 subtasks: AL-122 to AL-128, AL-138, AL-139, AL-141, AL-201, AL-246, AL-
 
 ## Still to do
 
-The reasoning screen (AL-30, Nikoloz) is still In Progress. On 26 Nov Nikoloz said the only thing left is the Re-run button on a failed run, which is still disabled. He's wiring it to `POST /ai/committee/runs` now and the story closes when that merges.
+The reasoning screen (AL-30, Nikoloz) is still In Progress. On 26 Nov Nikoloz said the only thing left is the Re-run button on a failed run, which is still disabled. He's building it on a branch now, calling `POST /ai/committee/runs` and the story closes when that merges.
 
-The model decisions and the smoke test that passed on 27 Oct are in `docs/infrastructure.md`. The test cases are in `test-case.pdf` in each story folder in `nic/`.
+The model decisions and the smoke test that passed on 27 Oct are in `docs/infrastructure.md`. The test cases for these stories are in their Sprint 2 folders in `docs/sprint-2-submission/nic/`.

@@ -1,0 +1,15 @@
+# Live checks against api.agentic-lender.com, run 2026-11-26 20:29:58 UTC
+$ curl -s -o /dev/null -w '%{http_code} %{content_type}' https://api.agentic-lender.com/ai/health
+200 application/json
+$ curl -s -o /dev/null -w '%{http_code} %{content_type}' https://api.agentic-lender.com/ai/docs
+200 text/html; charset=utf-8
+$ curl -s -o /dev/null -w '%{http_code} %{content_type}' https://api.agentic-lender.com/core/health
+200 application/json
+$ curl -s https://api.agentic-lender.com/ai/health
+{"status":"ok"}
+$ curl -s https://api.agentic-lender.com/ai/docs | grep -o '<title>[^<]*</title>'
+<title>al-ai - Swagger UI</title>
+
+# Images workflow (gh run view 45734016366): build of main at ebcfa88 on 2026-11-26 01:11 UTC
+build (al-ai): success
+build (al-core): success
