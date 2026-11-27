@@ -34,3 +34,20 @@ You also own **AL-174 Sprint 3 retrospective** in Jira (To Do). See `../retrospe
 - [ ] The Jira status of your stories matches the real state (a Story is Done only when its acceptance criteria are met).
 - [ ] Your part of the retrospective and review is written (see `retrospective/`).
 - [ ] The work you did is in a working state on `main` (the sprint deliverable is a viable working product as agreed in the sprint backlog).
+
+
+## Preparation update - 26 Nov 2026
+
+All eight story folders now have Markdown/PDF test cases and implementations, plus a new low-fidelity wireframe. AL-333 and AL-348 also have design Markdown/PDF. These wireframes illustrate layouts; they are not browser test evidence. Use-case Markdown/PDF files are included for AL-4, AL-10 and AL-11.
+
+Still needed from Nikoloz:
+- Confirm numbered criterion mappings against Jira for stories whose exact wording is absent from the permitted evidence.
+- Re-test committee memo headings, dated Macro sources, failed run and revised broker access on a real run.
+- Complete a browser HELOC sign-off; the seed was already approved.
+- Track open PRs #288, #289 and #290. Do not describe them as merged. Re-test hosted stress calculations after merge/deploy.
+- Confirm the missing parent Epics and current Jira status. This preparation did not read or update Jira.
+- Ask Ibrahima to confirm mobile device evidence for the accounts and messaging use-case updates.
+- Supply personal design reasoning if more is needed than the choices recorded in the facts.
+- Provide retrospective/review input and Confluence account in your own words. The shared retrospective folder is outside this task's write scope.
+
+No new application test runs were performed while preparing these files. Historical counts and results are attributed to the facts and linked PR evidence.
