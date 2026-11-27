@@ -26,16 +26,16 @@ function BandChip({ band }: { band: AffordabilityBand }) {
 
 function FromTo({ from, to }: { from: ReactNode; to: ReactNode }) {
   return (
-    <span className="font-mono whitespace-nowrap max-[760px]:whitespace-normal">
-      {from}
+    <span className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1 font-mono">
+      <span className="whitespace-nowrap">{from}</span>
       <span
         aria-hidden="true"
-        className="mx-1.5 text-muted"
+        className="text-muted"
       >
         →
       </span>
       <span className="sr-only"> to </span>
-      {to}
+      <span className="whitespace-nowrap">{to}</span>
     </span>
   );
 }
@@ -60,12 +60,12 @@ export const shockRowId = (applicationId: string) => `shock-row-${applicationId}
 
 export function ShockResultsTable({ applications, pointsText, linkTo }: ShockResultsTableProps) {
   return (
-    <table className="shock-table mt-4 w-full border-collapse text-base">
+    <table className="shock-table mt-4 w-full table-fixed border-collapse text-base">
       <caption className="sr-only">Rate shock results per application at {pointsText}, worst band first</caption>
       <thead>
         <tr>
           <th
-            className={headerCell}
+            className={`${headerCell} w-1/5`}
             scope="col"
           >
             Application
@@ -95,7 +95,7 @@ export function ShockResultsTable({ applications, pointsText, linkTo }: ShockRes
             Surplus
           </th>
           <th
-            className={headerCell}
+            className={`${headerCell} w-[24%]`}
             scope="col"
           >
             Band
@@ -117,7 +117,7 @@ export function ShockResultsTable({ applications, pointsText, linkTo }: ShockRes
                 scope="row"
               >
                 <Link
-                  className="inline-flex min-h-11 items-center font-mono font-semibold text-pine underline underline-offset-4 hover:no-underline"
+                  className="inline-flex min-h-11 max-w-full items-center font-mono font-semibold break-all text-pine underline underline-offset-4 hover:no-underline"
                   to={linkTo(application.applicationId)}
                 >
                   {application.applicationId}
