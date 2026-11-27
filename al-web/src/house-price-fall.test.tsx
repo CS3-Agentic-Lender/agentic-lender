@@ -16,11 +16,11 @@ vi.mock('./components/lending/council/canDraw3d', async (original) => ({
   ...(await original<typeof import('./components/lending/council/canDraw3d')>()),
   canDraw3d: () => draw.supported,
 }));
-const scene = vi.hoisted(() => ({ select: null as ((id: string) => void) | null }));
+const scene = vi.hoisted(() => ({ select: null as ((id: string) => void) | null, update: vi.fn() }));
 vi.mock('./components/stress/housePriceScene', () => ({
   createHousePriceScene: (_host: HTMLElement, options: { onSelect?(id: string): void }) => {
     scene.select = options.onSelect ?? null;
-    return { update() {}, dispose() {} };
+    return { update: scene.update, dispose() {} };
   },
 }));
 
@@ -102,7 +102,7 @@ function renderStress(stress: StressService, role: TrustedRole = 'underwriter', 
 }
 
 afterEach(() => {
-  cleanup(); draw.supported = false; scene.select = null; vi.unstubAllGlobals();
+  cleanup(); draw.supported = false; scene.select = null; scene.update.mockReset(); vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
 const table = () => screen.getByRole('table', { name: 'House price fall results per application' });
 const crossing = () => screen.getByRole('region', { name: 'Loans crossing 90%' });
@@ -140,6 +140,55 @@ describe('house price fall page', () => {
     expect(screen.getByRole('link', { name: 'House prices' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Stress test' })).not.toHaveAttribute('aria-current');
   });
+  it('draws before/after exposure from backend totals without WebGL', async () => {
+    const service = new FakeStressService(); renderStress(service);
+    expect(screen.queryByRole('region', { name: 'LTV exposure, before and after' })).not.toBeInTheDocument();
+    const result = downturnFixture();
+    // Deliberately unlike the rows: the chart must use the supplied portfolio totals.
+    result.totals.before.above_80.count = 2;
+    result.totals.after.above_80.count = 4;
+    await service.answer(10, result);
+    const chart = screen.getByRole('region', { name: 'LTV exposure, before and after' });
+    expect(within(chart).getByRole('table')).toHaveTextContent('Above 80%24');
+    expect(within(chart).getByRole('table')).toHaveTextContent('Above 90%12');
+    expect(within(chart).getAllByTestId('exposure-bar')).toHaveLength(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Recalculate' }));
+    expect(screen.queryByRole('region', { name: 'LTV exposure, before and after' })).not.toBeInTheDocument();
+    await service.fail(10, new Error('Unavailable'));
+    expect(screen.queryByRole('region', { name: 'LTV exposure, before and after' })).not.toBeInTheDocument();
+  });
+
+  it('records request and redraw separately and sends a result to the ready scene within a second', async () => {
+    draw.supported = true;
+    let near: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
+    let idle: (() => void) | undefined;
+    vi.stubGlobal('IntersectionObserver', class { constructor(cb: typeof near) { near = cb; } observe() {} disconnect() {} });
+    vi.stubGlobal('requestIdleCallback', (cb: () => void) => { idle = cb; return 1; });
+    vi.stubGlobal('cancelIdleCallback', () => {});
+    let now = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const service = new FakeStressService(); renderStress(service);
+    await service.called(10);
+    act(() => near?.([{ isIntersecting: true }]));
+    await act(async () => { idle?.(); });
+    await waitFor(() => expect(scene.update).toHaveBeenCalled());
+    let updatedAt = 0;
+    scene.update.mockImplementation(() => { now += 8; updatedAt = now; });
+    now = 1280;
+    await service.answer(10);
+    expect(scene.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      towers: expect.arrayContaining([expect.objectContaining({ applicationId: 'LN-1003', afterLtvPct: 100 })]),
+    }));
+    expect(updatedAt - 1280).toBeLessThan(1000);
+    expect(screen.getByText(/Request: 280 ms/)).toHaveTextContent('Chart DOM update: 0 ms');
+    expect(screen.getByText(/Request: 280 ms/)).toHaveTextContent('3D scene update: 8 ms');
+    fireEvent.click(screen.getByRole('button', { name: 'Recalculate' }));
+    expect(screen.queryByText(/Request: 280 ms/)).not.toBeInTheDocument();
+    now = 1400;
+    await service.answer(10);
+    expect(screen.getByText(/Request: 112 ms/)).toHaveTextContent('3D scene update: 8 ms');
+  });
+
   it('supports keyboard presets, zero, maximum fall and reset without losing focus', async () => {
     const user = userEvent.setup(); const service = new FakeStressService(); renderStress(service); await service.answer(10);
     const zero = screen.getByRole('button', { name: '0%' }); zero.focus(); await user.keyboard('{Enter}'); await service.answer(0);

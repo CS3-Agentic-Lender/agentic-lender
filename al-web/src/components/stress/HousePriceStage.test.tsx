@@ -48,6 +48,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -112,6 +113,25 @@ describe('house price fall stage', () => {
       afterLtvPct: 90,
       band: 'Caution',
     });
+  });
+
+  it('measures a lazy scene from the latest response and reports it only once', async () => {
+    const onUpdated = vi.fn();
+    let now = 100;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const { rerender } = render(<HousePriceStage applications={applications} controls={controls} failing={false} onSelect={() => {}} receivedAt={100} onUpdated={onUpdated} />);
+    const latest = downturnFixture(40).applications;
+    now = 200;
+    rerender(<HousePriceStage applications={latest} controls={controls} failing={false} onSelect={() => {}} receivedAt={200} onUpdated={onUpdated} />);
+    expect(onUpdated).not.toHaveBeenCalled();
+    now = 240;
+    await startScene();
+    expect(scene.update).toHaveBeenLastCalledWith({ towers: towersFrom(latest), failing: false });
+    expect(onUpdated).toHaveBeenCalledExactlyOnceWith(200, 40);
+    now = 300;
+    rerender(<HousePriceStage applications={latest} controls={controls} failing onSelect={() => {}} receivedAt={200} onUpdated={onUpdated} />);
+    rerender(<HousePriceStage applications={latest} controls={controls} failing={false} onSelect={() => {}} receivedAt={200} onUpdated={onUpdated} />);
+    expect(onUpdated).toHaveBeenCalledOnce();
   });
 
   it('tells the scene when a run fails, so the towers drop and dim', async () => {

@@ -10,6 +10,9 @@ interface HousePriceStageProps {
   applications: DownturnApplication[];
   // The latest run failed, so the towers drop and dim.
   failing: boolean;
+  // The successful response timestamp, kept separate from request duration.
+  receivedAt?: number;
+  onUpdated?(receivedAt: number, elapsedMs: number): void;
   // Called with an application id when its tower is clicked.
   onSelect(applicationId: string): void;
 }
@@ -38,7 +41,7 @@ const legend = [
 // left (above it below 900px). Three.js loads only when the stage is close to the screen and the browser is idle.
 // Without WebGL, or when the context is lost, only the 3D view is left out: the controls stay, and the table below
 // carries every figure.
-export function HousePriceStage({ controls, applications, failing, onSelect }: HousePriceStageProps) {
+export function HousePriceStage({ controls, applications, failing, onSelect, receivedAt, onUpdated }: HousePriceStageProps) {
   const [supported] = useState(canDraw3d);
   const [failed, setFailed] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -48,11 +51,23 @@ export function HousePriceStage({ controls, applications, failing, onSelect }: H
   const selectRef = useRef(onSelect);
   selectRef.current = onSelect;
   const show3d = supported && !failed;
+  const timingRef = useRef({ receivedAt, onUpdated });
+  timingRef.current = { receivedAt, onUpdated };
+  const reportedRef = useRef<number | undefined>(undefined);
+
+  function updateScene(handle: HousePriceHandle) {
+    handle.update(stateRef.current);
+    const timing = timingRef.current;
+    if (!stateRef.current.failing && timing.receivedAt !== undefined && reportedRef.current !== timing.receivedAt) {
+      reportedRef.current = timing.receivedAt;
+      timing.onUpdated?.(timing.receivedAt, Math.round(performance.now() - timing.receivedAt));
+    }
+  }
 
   useEffect(() => {
     stateRef.current = { towers: towersFrom(applications), failing };
-    handleRef.current?.update(stateRef.current);
-  }, [applications, failing]);
+    if (handleRef.current) updateScene(handleRef.current);
+  }, [applications, failing, receivedAt]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -69,7 +84,7 @@ export function HousePriceStage({ controls, applications, failing, onSelect }: H
             onContextLost: () => setFailed(true),
             onSelect: (id) => selectRef.current(id),
           });
-          handle.update(stateRef.current);
+          updateScene(handle);
           handleRef.current = handle;
         })
         .catch(() => { if (!cancelled) setFailed(true); });

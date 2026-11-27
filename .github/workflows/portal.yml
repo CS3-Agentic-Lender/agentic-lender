@@ -50,6 +50,7 @@ jobs:
         working-directory: al-web
     env:
       VITE_API_BASE_URL: https://api.agentic-lender.com
+      VITE_AI_BASE_URL: https://api.agentic-lender.com
       VITE_FIREBASE_PROJECT_ID: agentic-lender-a0f1c
       VITE_FIREBASE_AUTH_DOMAIN: agentic-lender-a0f1c.firebaseapp.com
       VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
+import { LtvExposureChart } from '../../components/stress/LtvExposureChart';
 import { HousePriceStage } from '../../components/stress/HousePriceStage';
 import { DownturnResultsTable, downturnRowId } from '../../components/stress/DownturnResultsTable';
 import { useStressService } from '../../context/StressContext';
@@ -14,7 +15,8 @@ export const RUN_DELAY_MS = 300;
 export const PRESET_FALLS = [0, 10, 20, 30, 40] as const;
 export const fallLabel = (fall: number) => fall === 0 ? '0%' : `\u2212${fall}%`;
 const wrap = 'mx-auto w-full max-w-6xl px-4 sm:px-6';
-interface Shown { result: DownturnResult; serverMs: number }
+interface Shown { result: DownturnResult; requestMs: number; receivedAt: number }
+interface DrawTiming { receivedAt: number; elapsedMs: number }
 interface Pending { fallPct: number; withSkeleton: boolean }
 interface Failure { fallPct: number; message: string }
 function failureMessage(error: unknown) {
@@ -119,7 +121,9 @@ function Tiles({ result, loading }: { result: DownturnResult | null; loading: bo
     <Tile label="Loan amount above 90% after" value={result ? formatEuro(result.totals.after.above_90.loan_eur) : '\u2014'} detail="After the price fall" loading={loading} tone="warn" />
   </dl>;
 }
-function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) {
+function Results({ shown, loading, chartTiming, sceneTiming }: {
+  shown: Shown | null; loading: boolean; chartTiming: DrawTiming | null; sceneTiming: DrawTiming | null;
+}) {
   const result = shown?.result;
   if (!result && !loading) return null;
   if (result && !loading && result.applications.length === 0 && result.skipped.length === 0) {
@@ -139,7 +143,17 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
       <h2 id="every-heading" className="text-xl font-semibold">Every application</h2>
       <p className="mt-2 text-muted">The figures behind the towers, highest LTV first. Exactly 80% or 90% is not above that threshold.</p>
       {applications.length ? <DownturnResultsTable applications={applications} /> : !loading ? <p className="mt-4">No applications could be measured.</p> : null}
-      {shown && !loading ? <p className="mt-4 text-base text-muted">al-ai answered in {shown.serverMs} ms, from asking to answer (sign-in token, network and calculation).</p> : null}
+      {shown && !loading ? (
+        <details className="mt-4 text-base text-muted">
+          <summary className="cursor-pointer">Calculation and display timing</summary>
+          <p className="mt-2">
+            Request: {shown.requestMs} ms (sign-in token, network and calculation).
+            {chartTiming?.receivedAt === shown.receivedAt ? ` Chart DOM update: ${chartTiming.elapsedMs} ms after the response.` : ''}
+            {sceneTiming?.receivedAt === shown.receivedAt ? ` 3D scene update: ${sceneTiming.elapsedMs} ms after the response.` : ''}
+            {' '}Display timings measure committing the chart and handing data to the scene, not animation completion.
+          </p>
+        </details>
+      ) : null}
     </section>
     {result && result.skipped.length > 0 ? <section aria-labelledby="skipped-heading" className="mt-6 rounded-[20px] border border-line bg-surface p-5">
       <h2 id="skipped-heading" className="text-lg font-semibold">Not measured</h2>
@@ -153,6 +167,17 @@ export function HousePriceFallPage() {
   const service = useStressService();
   const [fallPct, setFallPct] = useState(DEFAULT_FALL);
   const [shown, setShown] = useState<Shown | null>(null);
+  const [chartTiming, setChartTiming] = useState<DrawTiming | null>(null);
+  const [sceneTiming, setSceneTiming] = useState<DrawTiming | null>(null);
+  // This layout effect runs after the new chart DOM is committed. It excludes the request and debounce.
+  useLayoutEffect(() => {
+    if (shown && shown.result.totals.count > 0) {
+      setChartTiming({ receivedAt: shown.receivedAt, elapsedMs: Math.round(performance.now() - shown.receivedAt) });
+    }
+  }, [shown]);
+  const recordSceneUpdate = useCallback((receivedAt: number, elapsedMs: number) => {
+    setSceneTiming({ receivedAt, elapsedMs });
+  }, []);
   const [pending, setPending] = useState<Pending | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   // Each request gets a number; only the newest one may change the page, so a slow answer for an
@@ -174,7 +199,8 @@ export function HousePriceFallPage() {
       try {
         const result = await service.houseDownturn(fall);
         if (id === latest.current) {
-          setShown({ result, serverMs: Math.round(performance.now() - started) });
+          const receivedAt = performance.now();
+          setShown({ result, requestMs: Math.round(receivedAt - started), receivedAt });
         }
       } catch (error) {
         if (id === latest.current) {
@@ -364,6 +390,8 @@ export function HousePriceFallPage() {
             controls={controls}
             failing={failure !== null}
             onSelect={pickRow}
+            receivedAt={shown?.receivedAt}
+            onUpdated={recordSceneUpdate}
           />
 
           {shown ? <p className="mt-5 text-base leading-7 text-muted">{shown.result.note}</p> : null}
@@ -373,6 +401,7 @@ export function HousePriceFallPage() {
               result={shown?.result ?? null}
             />
           ) : null}
+          {shown && !waiting && !failure && shown.result.totals.count > 0 ? <LtvExposureChart result={shown.result} /> : null}
         </section>
 
         <div
@@ -391,6 +420,8 @@ export function HousePriceFallPage() {
             <Results
               loading={loading}
               shown={shown}
+              chartTiming={chartTiming}
+              sceneTiming={sceneTiming}
             />
           ) : null}
         </div>
