@@ -26,9 +26,9 @@
 
 | Action | Result |
 |---|---|
-| Merge `main` in and re-run the tests before approving the next PR | _Dumi to fill in_ |
-| Put the blocking questions at the top of the ticket and ask in `#dev` the same day | _Dumi to fill in_ |
-| Post the retro and submission dates on day one | _Dumi to fill in_ |
+| Merge `main` in and re-run the tests before approving the next PR | Done: the next PR merged `main` in and re-ran its tests before approval |
+| Put the blocking questions at the top of the ticket and ask in `#dev` the same day | Done: blocking questions went at the top of the ticket and into `#dev` the same day |
+| Post the retro and submission dates on day one | Done: the dates were posted at the start of the sprint |
 | Contracts on a public testnet (AL-183), al-core image ready for AWS (AL-212) | Done: both contracts verified on Amoy, al-core running on AWS, and a note minted from it |
 
 ## Actions for after Sprint 3
