@@ -1,4 +1,4 @@
-import { ApiError, createApiClient, type ApiClient } from './apiClient';
+import { ApiError, apiBaseUrl, createApiClient, serviceUrl, type ApiClient } from './apiClient';
 
 // The rate shock al-ai accepts: 100 to 300 basis points in steps of 25 (al-ai/app/rate_shock.py).
 export const SHOCK_MIN_BPS = 100;
@@ -11,7 +11,14 @@ export type AffordabilityBand = (typeof AFFORDABILITY_BANDS)[number];
 
 // al-ai is its own service: on the laptop it listens on 5001, and on AWS the same gateway as
 // al-core serves it under /ai, so the deployed build sets this to that gateway.
-export const AI_BASE_URL = import.meta.env.VITE_AI_BASE_URL || 'http://localhost:5001';
+// A deployed build without VITE_AI_BASE_URL uses the al-core gateway (which serves /ai on AWS); it never falls
+// back to localhost, which a visitor's browser cannot reach.
+export function aiBaseUrl(configured: string | undefined, gateway: string | undefined, development: boolean): string {
+  if (configured?.trim()) return serviceUrl('VITE_AI_BASE_URL', configured, development, 'http://localhost:5001');
+  return development ? 'http://localhost:5001' : apiBaseUrl(gateway, false);
+}
+
+export const AI_BASE_URL = aiBaseUrl(import.meta.env.VITE_AI_BASE_URL, import.meta.env.VITE_API_BASE_URL, import.meta.env.DEV);
 
 export interface ShockFigures {
   repaymentEur: number;

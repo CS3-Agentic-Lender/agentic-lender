@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, type ApiClient } from './apiClient';
-import { createStressService, isValidShock, toRateShockResult } from './stressService';
+import { aiBaseUrl, createStressService, isValidShock, toRateShockResult } from './stressService';
 
 // al-ai's answer for one application at +200 bps, as app/rate_shock.py builds it.
 function answer(overrides: Record<string, unknown> = {}) {
@@ -105,5 +105,24 @@ describe('the rate shock request', () => {
 
   it.each([100, 125, 200, 275, 300])('accepts %s bps', (shockBps) => {
     expect(isValidShock(shockBps)).toBe(true);
+  });
+});
+
+describe('where the rate shock is sent', () => {
+  it('uses the deployed gateway when no al-ai address is set, never localhost', () => {
+    expect(aiBaseUrl(undefined, 'https://api.agentic-lender.com', false)).toBe('https://api.agentic-lender.com');
+    expect(aiBaseUrl('  ', 'https://api.agentic-lender.com', false)).toBe('https://api.agentic-lender.com');
+  });
+
+  it('uses the al-ai address when one is set', () => {
+    expect(aiBaseUrl('https://ai.example.test', 'https://api.agentic-lender.com', false)).toBe('https://ai.example.test');
+  });
+
+  it('talks to al-ai on the laptop during development', () => {
+    expect(aiBaseUrl(undefined, undefined, true)).toBe('http://localhost:5001');
+  });
+
+  it('refuses to build without any address rather than calling localhost', () => {
+    expect(() => aiBaseUrl(undefined, undefined, false)).toThrow('Missing required API configuration: VITE_API_BASE_URL');
   });
 });
