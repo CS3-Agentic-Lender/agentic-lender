@@ -65,6 +65,7 @@ interface Call {
 // Each call waits until the test answers it, so the test decides the order answers arrive in.
 class FakeStressService implements StressService {
   readonly calls: Call[] = [];
+  houseDownturn = vi.fn();
 
   rateShock(shockBps: number) {
     return new Promise<RateShockResult>((resolve, reject) => {
