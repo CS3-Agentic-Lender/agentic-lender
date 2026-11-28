@@ -5,7 +5,7 @@ const share = new Intl.NumberFormat('en-IE', { maximumFractionDigits: 1 });
 // The same colours the band chips in the results table use: solid for after the shock, the soft tint for before.
 const barColour: Record<AffordabilityBand, { before: string; after: string; text: string }> = {
   Comfortable: { before: 'border-success bg-success-soft', after: 'border-success bg-success', text: 'text-success' },
-  Caution: { before: 'border-neutral-text bg-neutral', after: 'border-neutral-text bg-neutral-text', text: 'text-neutral-text' },
+  Caution: { before: 'border-vote-conditional bg-vote-conditional/20', after: 'border-vote-conditional bg-vote-conditional', text: 'text-brass-ink' },
   Adverse: { before: 'border-error bg-danger-soft', after: 'border-error bg-error', text: 'text-error' },
 };
 
@@ -30,12 +30,13 @@ function Bar({ label, count, sharePct, widthPct, colour }: {
       <span className="text-base text-muted">{label}</span>
       <span className="flex min-w-0 items-center gap-2.5">
         <span className="h-4 min-w-0 flex-1">
-          <span
-            className={`block h-full rounded-full border motion-safe:transition-[width] motion-safe:duration-500 ${colour}`}
-            data-testid="band-bar"
-            // A band with no applications still draws a sliver, so its row never looks broken.
-            style={{ width: count > 0 ? `${widthPct}%` : '0.5rem' }}
-          />
+          {count > 0 ? (
+            <span
+              className={`block h-full rounded-full border motion-safe:transition-[width] motion-safe:duration-500 ${colour}`}
+              data-testid="band-bar"
+              style={{ width: `${widthPct}%` }}
+            />
+          ) : null}
         </span>
         <span className="shrink-0 font-mono text-base text-ink tabular-nums">{countText(count, sharePct)}</span>
       </span>

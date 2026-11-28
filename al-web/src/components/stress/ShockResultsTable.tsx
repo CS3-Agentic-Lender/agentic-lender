@@ -12,7 +12,7 @@ function ratePct(value: number) {
 
 const bandChip: Record<AffordabilityBand, string> = {
   Comfortable: 'bg-success-soft text-success',
-  Caution: 'bg-neutral text-neutral-text',
+  Caution: 'bg-vote-conditional text-ink',
   Adverse: 'bg-danger-soft text-error',
 };
 

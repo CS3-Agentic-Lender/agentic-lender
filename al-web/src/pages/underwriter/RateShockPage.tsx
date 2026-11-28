@@ -187,7 +187,7 @@ function FailureNotice({ failure, shown, onRetry }: {
   );
 }
 
-function Results({ shown, loading, failing }: { shown: Shown | null; loading: boolean; failing: boolean }) {
+function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) {
   const result = shown?.result ?? null;
 
   if (result && result.totals.count === 0 && result.skipped.length === 0 && !loading) {
@@ -209,8 +209,8 @@ function Results({ shown, loading, failing }: { shown: Shown | null; loading: bo
     <>
       {showFigures ? (
         <>
-          {/* Only a finished answer draws the bands: never while loading, after a failure, or with nothing measured. */}
-          {result && !loading && !failing && result.totals.count > 0 ? (
+          {/* Keep the last successful totals after a failure, just like the tiles and application table. */}
+          {result && !loading && result.totals.count > 0 ? (
             <BandShiftChart
               after={result.totals.after}
               before={result.totals.before}
@@ -526,7 +526,6 @@ export function RateShockPage() {
           ) : null}
           {shown || loading ? (
             <Results
-              failing={failure !== null}
               loading={loading}
               shown={shown}
             />
