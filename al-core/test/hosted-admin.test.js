@@ -1,6 +1,7 @@
 // scripts/create-hosted-admin.js: the prompts' checks, and that it makes or refreshes one admin by the email typed, touching nothing else.
 
 const { EventEmitter } = require('events');
+const path = require('path');
 const { askDetails, askPassword, promptHidden, runAdmin } = require('../scripts/create-hosted-admin');
 const { validate, SetupError } = require('../scripts/create-hosted-accounts');
 
@@ -90,7 +91,7 @@ describe('the settings it needs', () => {
 
   test('no HOSTED_DEMO_PASSWORD, and none returned', () => {
     const settings = validate(env, { needPassword: false, ...files });
-    expect(settings).toEqual({ projectId: 'agentic-lender', domain: 'example.com', keyPath: '/keys/key.json' });
+    expect(settings).toEqual({ projectId: 'agentic-lender', domain: 'example.com', keyPath: path.resolve('/keys/key.json') });
   });
 
   test('still refuses an emulator host and a key for another project', () => {
