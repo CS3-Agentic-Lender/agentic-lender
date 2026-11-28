@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { PortalHeader } from '../../components/PortalHeader';
+import { BandShiftChart } from '../../components/stress/BandShiftChart';
 import { summariseShock, worstFirst, type ShockSummary } from '../../components/stress/rateShockFigures';
 import { RateShockStage } from '../../components/stress/RateShockStage';
 import { ShockResultsTable, shockRowId } from '../../components/stress/ShockResultsTable';
@@ -208,6 +209,14 @@ function Results({ shown, loading }: { shown: Shown | null; loading: boolean }) 
     <>
       {showFigures ? (
         <>
+          {/* Keep the last successful totals after a failure, just like the tiles and application table. */}
+          {result && !loading && result.totals.count > 0 ? (
+            <BandShiftChart
+              after={result.totals.after}
+              before={result.totals.before}
+              pointsText={pointsLabel(result.shockBps)}
+            />
+          ) : null}
           <section
             aria-labelledby="table-heading"
             className={`relative rounded-[20px] border border-line bg-surface p-5.5 shadow-card ${loading ? 'min-h-64' : ''}`}

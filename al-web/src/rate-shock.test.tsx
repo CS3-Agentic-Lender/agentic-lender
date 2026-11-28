@@ -172,7 +172,87 @@ describe('the rate shock page', () => {
     expect(tile('Monthly surplus change')).toEqual({ value: '−€1,150', detail: 'a month, all applications together' });
   });
 
-  it('puts every control in the dark stage card and draws no charts', async () => {
+  it('shows how many applications are in each band before and after the shock, from al-ai totals', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    const result = shockFixture(200);
+    // Counts that differ from the per-application rows, so the chart can only be reading totals.
+    result.totals.before = bandCounts(5, 3, 2);
+    result.totals.after = bandCounts(2, 4, 4);
+    await stress.answer(200, result);
+
+    const card = screen.getByRole('region', { name: 'Affordability bands, before and after' });
+    const table = within(card).getByRole('table', {
+      name: 'Applications in each affordability band before and after the +2 points rate shock',
+    });
+    const rows = within(table).getAllByRole('row').slice(1).map((row) => row.textContent);
+    expect(rows).toEqual(['Comfortable5 (50%)2 (20%)', 'Caution3 (30%)4 (40%)', 'Adverse2 (20%)4 (40%)']);
+    expect(within(card).getAllByTestId('band-bar')).toHaveLength(6);
+    // The card sits between the tiles and the table of every application.
+    expect(card.compareDocumentPosition(resultsTable()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('hides the band chart until there is a result, then keeps the last good counts after a failure', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.called(200);
+    expect(screen.queryByRole('region', { name: 'Affordability bands, before and after' })).not.toBeInTheDocument();
+
+    await stress.answer(200);
+    expect(screen.getByRole('region', { name: 'Affordability bands, before and after' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Rate rise' }), { target: { value: '125' } });
+    await stress.fail(125, new ApiError('http', 'the benchmark mortgage rate is not available', 503));
+    const card = screen.getByRole('region', { name: 'Affordability bands, before and after' });
+    expect(within(card).getByRole('table')).toHaveAccessibleName(/the \+2 points rate shock/);
+    expect(within(card).getAllByRole('row').slice(1).map((row) => row.textContent)).toEqual([
+      'Comfortable2 (50%)1 (25%)', 'Caution1 (25%)1 (25%)', 'Adverse1 (25%)2 (50%)',
+    ]);
+    expect(within(card).getAllByTestId('band-bar').map((bar) => bar.style.width)).toEqual([
+      '100%', '50%', '50%', '50%', '50%', '100%',
+    ]);
+  });
+
+  it('updates the band counts and bar widths after a second successful answer', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    await stress.answer(200);
+    const card = screen.getByRole('region', { name: 'Affordability bands, before and after' });
+    expect(within(card).getAllByTestId('band-bar').map((bar) => bar.style.width)).toEqual([
+      '100%', '50%', '50%', '50%', '50%', '100%',
+    ]);
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Rate rise' }), { target: { value: '300' } });
+    const next = shockFixture(300);
+    next.totals.before = bandCounts(4, 2, 2);
+    next.totals.after = bandCounts(1, 3, 4);
+    await stress.answer(300, next);
+
+    const updated = screen.getByRole('region', { name: 'Affordability bands, before and after' });
+    expect(within(updated).getByRole('table')).toHaveAccessibleName(/the \+3 points rate shock/);
+    expect(within(updated).getAllByRole('row').slice(1).map((row) => row.textContent)).toEqual([
+      'Comfortable4 (50%)1 (12.5%)', 'Caution2 (25%)3 (37.5%)', 'Adverse2 (25%)4 (50%)',
+    ]);
+    expect(within(updated).getAllByTestId('band-bar').map((bar) => bar.style.width)).toEqual([
+      '100%', '25%', '50%', '75%', '50%', '100%',
+    ]);
+  });
+
+  it('leaves zero-count tracks empty and keeps their zero labels', async () => {
+    const stress = new FakeStressService();
+    renderStress(stress);
+    const result = shockFixture(200);
+    result.totals.before = bandCounts(4, 0, 0);
+    result.totals.after = bandCounts(0, 4, 0);
+    await stress.answer(200, result);
+
+    const chart = screen.getByTestId('band-chart');
+    expect(within(chart).getAllByTestId('band-bar')).toHaveLength(2);
+    expect(within(chart).getAllByText('0 (0%)')).toHaveLength(4);
+    expect(within(chart).getAllByTestId('band-bar').map((bar) => bar.style.width)).toEqual(['100%', '100%']);
+  });
+
+  it('puts every control in the dark stage card and omits the old DTI and surplus charts', async () => {
     const stress = new FakeStressService();
     renderStress(stress);
     await stress.answer(200);
