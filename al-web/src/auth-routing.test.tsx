@@ -1,8 +1,10 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
+import { ClientsServiceContext } from './context/BrokerClientsContext';
+import { firestoreClientsService, type ClientsService } from './services/clientsService';
 import { AppRoutes, preloadPages } from './routes';
 import { AdminServices, adminFakes } from './test/adminHarness';
 import type {
@@ -115,13 +117,20 @@ class FakeAuthService implements AuthService {
   }
 }
 
-function renderAt(pathname: string, auth: FakeAuthService, resetSession = vi.fn()) {
+function renderAt(
+  pathname: string,
+  auth: FakeAuthService,
+  resetSession = vi.fn(),
+  clients: ClientsService = firestoreClientsService,
+) {
   return render(
     <AuthProvider service={auth} resetSession={resetSession}>
       <AdminServices fakes={adminFakes()}>
-        <MemoryRouter initialEntries={[pathname]}>
-          <AppRoutes />
-        </MemoryRouter>
+        <ClientsServiceContext.Provider value={clients}>
+          <MemoryRouter initialEntries={[pathname]}>
+            <AppRoutes />
+          </MemoryRouter>
+        </ClientsServiceContext.Provider>
       </AdminServices>
     </AuthProvider>,
   );
@@ -533,11 +542,19 @@ describe('session boundaries', () => {
   ])('shows a safe sign-out alert beside the button on %s and retains the session', async (path, heading) => {
     const auth = new FakeAuthService({ signOutError: new Error('private persistence detail') });
     const resetSession = vi.fn();
-    renderAt(path, auth, resetSession);
+    // The live overview can already have a data-load alert when sign-out fails.
+    const clients: ClientsService = {
+      subscribeToBrokerClients(_uid, _listener, onError) {
+        onError('permission-denied');
+        return () => {};
+      },
+    };
+    renderAt(path, auth, resetSession, clients);
     auth.restore(brokerUser);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
-    const alert = screen.getByRole('alert');
+    const signOutControls = screen.getByRole('button', { name: 'Sign out' }).parentElement!;
+    const alert = within(signOutControls).getByRole('alert');
     expect(alert).toHaveTextContent('Sign-out failed. Try again.');
     expect(screen.queryByText('private persistence detail')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign out' }).parentElement).toContainElement(alert);
